@@ -107,3 +107,12 @@ config PCI_IOAPIC
 config PCI_LABEL
 	def_bool y if (DMI || ACPI)
 	select NLS
+
+config NTB
+	tristate "NTB device support"
+	depends on PCI
+	depends on X86
+	help
+	 Non-Transparent Bridge device driver support.
+
+	 If unsure, say N.

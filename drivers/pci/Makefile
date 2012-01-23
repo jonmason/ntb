@@ -32,6 +32,8 @@ obj-$(CONFIG_HT_IRQ) += htirq.o
 obj-$(CONFIG_PCI_ATS) += ats.o
 obj-$(CONFIG_PCI_IOV) += iov.o
 
+obj-$(CONFIG_NTB) += ntb/
+
 #
 # Some architectures use the generic PCI setup functions
 #
