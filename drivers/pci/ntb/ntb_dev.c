@@ -63,7 +63,7 @@
 #include <linux/pci.h>
 #include <linux/interrupt.h>
 #include <linux/slab.h>
-#include "hw.h"
+#include "ntb_hw.h"
 #include "ntb_dev.h"
 
 MODULE_VERSION("0.1");
