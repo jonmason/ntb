@@ -4,7 +4,7 @@
  *
  *   GPL LICENSE SUMMARY
  *
- *   Copyright(c) 2010,2011 Intel Corporation. All rights reserved.
+ *   Copyright(c) 2012 Intel Corporation. All rights reserved.
  *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of version 2 of the GNU General Public License as
@@ -89,20 +89,14 @@
 #define NTB_EVENT_LINK_UP	0x1
 #define NTB_EVENT_LINK_DOWN	0x2
 
-struct ntb_bars {
-	u32 state;
-	void __iomem *vir_addr;
-	dma_addr_t bus_addr;
-};
-
 typedef int(*db_cb_func)(void *handle, unsigned int db);
 typedef int(*event_cb_func)(void *handle, unsigned int event);
 
 struct ntb_device {
-	int dev_id;
 	struct pci_dev *pdev;
 	u16 msixmsgctrl;
 	int dev_type;
+	int num_msix;
 	struct msix_entry *msix_entries;
 	void __iomem *reg_base;
 	void __iomem *pbar23;
@@ -116,27 +110,24 @@ struct ntb_device {
 		int msix_cnt;
 	} limits;
 	struct {
-		u32 pdb_ofs;
-		u32 pdb_mask_ofs;
-		u32 sdb_ofs;
-		u32 sbar2_xlat_ofs;
-		u32 sbar4_xlat_ofs;
-		u32 spad_write_ofs;
-		u32 spad_read_ofs;
-		u32 lnk_cntl_ofs;
-		u32 lnk_stat_ofs;
-		u32 msix_msgctrl_ofs;
+		u32 pdb;
+		u32 pdb_mask;
+		u32 sdb;
+		u32 sbar2_xlat;
+		u32 sbar4_xlat;
+		u32 spad_write;
+		u32 spad_read;
+		u32 lnk_cntl;
+		u32 lnk_stat;
+		u32 msix_msgctrl;
 	} reg_ofs;
 	unsigned int link_status;
 	void *ntb_transport;
 	struct timer_list hb_timer;
-	struct timer_list hb_send_timer;
 	unsigned long last_ts;
-	spinlock_t hb_lock;
 	struct tasklet_struct db_tasklet;
 	unsigned long db_status;
-	void *transport;
-	db_cb_func db_callbacks[16];
+	db_cb_func db_callbacks[16]; //FIXME 16 is a magic number
 	event_cb_func event_cb;
 	struct list_head list;
 };

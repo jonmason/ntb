@@ -4,7 +4,7 @@
  *
  *   GPL LICENSE SUMMARY
  *
- *   Copyright(c) 2010,2011 Intel Corporation. All rights reserved.
+ *   Copyright(c) 2012 Intel Corporation. All rights reserved.
  *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of version 2 of the GNU General Public License as
@@ -68,8 +68,6 @@
 #define SNB_MSIXMSGCTRL_OFFSET			0x82
 
 #define BWD_MSIXMSGCTRL_OFFSET			0xb2
-#define BWD_MSIXMSGCTRL_ENTRIES_MASK		0x7ff
-#define BWD_MSIXMSGCTRL_ENABLED_MASK            0x8000
 
 #define SNB_LINK_STATUS_OFFSET	0x01A2
 #define BWD_LINK_STATUS_OFFSET	0x52
