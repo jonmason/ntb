@@ -21,13 +21,9 @@
  *   The full GNU General Public License is included in this distribution
  *   in the file called LICENSE.GPL.
  *
- *   Contact Information:
- *   Intel Corporation
- *
  *   BSD LICENSE
  *
- *   Copyright(c) 2010,2011 Intel Corporation. All rights reserved.
- *   All rights reserved.
+ *   Copyright(c) 2012 Intel Corporation. All rights reserved.
  *
  *   Redistribution and use in source and binary forms, with or without
  *   modification, are permitted provided that the following conditions
@@ -55,12 +51,16 @@
  *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
+ * Intel PCIe NTB Linux driver
+ *
+ * Contact Information:
+ * Jon Mason <jon.mason@intel.com>
  */
 
 #ifndef NTB_DEV_H
 #define NTB_DEV_H
 
-#define DRV_NAME "ntb"
+#define msix_table_size(control)	((control & PCI_MSIX_FLAGS_QSIZE)+1)
 
 #define NTB_DEV_B2B		0
 #define NTB_DEV_CLASSIC		1
@@ -72,29 +72,23 @@
 #define NTB_BAR_MASK		(1 << NTB_BAR_MMIO) | (1 << NTB_BAR_23) |\
 				(1 << NTB_BAR_45)
 
-#define NTB_MSIXMSGCTRL_ENTRIES_MASK		0x7ff
-#define NTB_MSIXMSGCTRL_ENABLED_MASK            0x8000
-
-#define NTB_DB_HID_HEARTBEAT	0x0001
-#define NTB_DB_LAST		NTB_DB_HID_HEARTBEAT
-
-#define NTB_LINK_UNKNOWN	0x0
-#define NTB_LINK_DOWN		0x1
-#define NTB_LINK_SELF_UP	0x2
-#define NTB_LINK_PEER_UP	0x6
+#define NTB_LINK_DOWN		0
+#define NTB_LINK_UP		1
 
 #define NTB_HB_TIMEOUT		msecs_to_jiffies(1000)
-#define NTB_HB_SEND_TIMEOUT	msecs_to_jiffies(500)
 
-#define NTB_EVENT_LINK_UP	0x1
-#define NTB_EVENT_LINK_DOWN	0x2
-
-typedef int(*db_cb_func)(void *handle, unsigned int db);
+typedef int(*db_cb_func)(void);
 typedef int(*event_cb_func)(void *handle, unsigned int event);
 
+struct ntb_db_cb {
+	struct work_struct db_work;
+	db_cb_func callback;
+	struct ntb_device *ndev;
+};
+
 struct ntb_device {
+	struct list_head list;
 	struct pci_dev *pdev;
-	u16 msixmsgctrl;
 	int dev_type;
 	int num_msix;
 	struct msix_entry *msix_entries;
@@ -106,7 +100,7 @@ struct ntb_device {
 	struct {
 		int max_compat_spads;
 		int max_spads;
-		int max_sdbs;
+		int max_db_bits;
 		int msix_cnt;
 	} limits;
 	struct {
@@ -121,29 +115,161 @@ struct ntb_device {
 		u32 lnk_stat;
 		u32 msix_msgctrl;
 	} reg_ofs;
+	struct ntb_db_cb *db_cb;
 	unsigned int link_status;
-	void *ntb_transport;
-	struct timer_list hb_timer;
+	struct delayed_work hb_timer;
 	unsigned long last_ts;
-	struct tasklet_struct db_tasklet;
-	unsigned long db_status;
-	db_cb_func db_callbacks[16]; //FIXME 16 is a magic number
 	event_cb_func event_cb;
-	struct list_head list;
+	void *ntb_transport;
 };
 
-struct ntb_device * ntb_register_transport(void *transport);
-int ntb_unregister_transport(struct ntb_device *ndev, void *transport);
-void ntb_set_satr(struct ntb_device *ndev, unsigned int bar, u64 addr);
-int ntb_register_db_callback(struct ntb_device *, unsigned int, db_cb_func);
-void ntb_unregister_db_callback(struct ntb_device *ndev, unsigned int idx);
-int ntb_register_event_callback(struct ntb_device *ndev, event_cb_func func);
-void ntb_unregister_event_callback(struct ntb_device *ndev);
-int ntb_get_max_spads(struct ntb_device *ndev);
-int ntb_write_spad(struct ntb_device *ndev, unsigned int idx, u32 val);
-int ntb_read_spad(struct ntb_device *ndev, unsigned int idx, u32 *val);
-void * ntb_get_pbar_vbase(struct ntb_device *ndev, unsigned int bar);
-resource_size_t ntb_get_pbar_size(struct ntb_device *ndev, unsigned int bar);
-int ntb_ring_sdb(struct ntb_device *ndev, unsigned int idx);
 
+/**
+ * ntb_register_transport() - Register NTB transport with NTB HW driver
+ * @transport: transport identifier
+ *
+ * This function allows a transport to reserve the hardware driver for
+ * NTB usage.
+ *
+ * RETURNS: pointer to ntb_device, NULL on error.
+ */
+struct ntb_device *ntb_register_transport(void *transport);
+
+/**
+ * ntb_unregister_transport() - Unregister the transport with the NTB HW driver
+ * @ndev - ntb_device of the transport to be freed
+ *
+ * This function unregisters the transport from the HW driver and performs any
+ * necessary cleanups.
+ */
+void ntb_unregister_transport(struct ntb_device *ndev);
+
+/**
+ * ntb_set_satr() - set secondary address translation register
+ * @ndev: pointer to ntb_device instance
+ * @bar: BAR index
+ * @addr: translation address register value
+ *
+ * This function allows writing to the secondary address translation register
+ * in order for the remote end to access the local DMA mapped memory.
+ */
+void ntb_set_satr(struct ntb_device *ndev, unsigned int bar, u64 addr);
+
+/**
+ * ntb_register_db_callback() - register a callback for doorbell interrupt
+ * @ndev: pointer to ntb_device instance
+ * @idx: doorbell index to register callback, 0 based
+ * @func: callback function to register
+ *
+ * This function registers a callback function for the doorbell interrupt
+ * on the primary side. The function will unmask the doorbell as well to
+ * allow interrupt.
+ *
+ * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
+ */
+int ntb_register_db_callback(struct ntb_device *ndev, unsigned int idx, db_cb_func func);
+
+/**
+ * ntb_unregister_db_callback() - unregister a callback for doorbell interrupt
+ * @ndev: pointer to ntb_device instance
+ * @idx: doorbell index to register callback, 0 based
+ *
+ * This function unregisters a callback function for the doorbell interrupt
+ * on the primary side. The function will also mask the said doorbell.
+ */
+void ntb_unregister_db_callback(struct ntb_device *ndev, unsigned int idx);
+
+/**
+ * ntb_register_event_callback() - register event callback
+ * @ndev: pointer to ntb_device instance
+ * @func: callback function to register
+ *
+ * This function registers a callback for any HW driver events such as link up/down,
+ * power management notices and etc.
+ *
+ * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
+ */
+int ntb_register_event_callback(struct ntb_device *ndev, event_cb_func func);
+
+/**
+ * ntb_unregister_event_callback() - unregisters the event callback
+ * @ndev: pointer to ntb_device instance
+ *
+ * This function unregisters the existing callback from transport
+ */
+void ntb_unregister_event_callback(struct ntb_device *ndev);
+
+/**
+ * ntb_get_max_spads() - get the total scratch regs usable
+ * @ndev: pointer to ntb_device instance
+ *
+ * This function returns the max 32bit scratchpad registers usable by the
+ * upper layer.
+ *
+ * RETURNS: total number of scratch pad registers available
+ */
+int ntb_get_max_spads(struct ntb_device *ndev);
+
+/**
+ * ntb_write_spad() - write to the secondary scratchpad register
+ * @ndev: pointer to ntb_device instance
+ * @idx: index to the scratchpad register, 0 based
+ * @val: the data value to put into the register
+ *
+ * This function allows writing of a 32bit value to the indexed scratchpad
+ * register. The register resides on the secondary (external) side.
+ *
+ * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
+ */
+int ntb_write_spad(struct ntb_device *ndev, unsigned int idx, u32 val);
+
+/**
+ * ntb_read_spad() - read from the primary scratchpad register
+ * @ndev: pointer to ntb_device instance
+ * @idx: index to scratchpad register, 0 based
+ * @val: pointer to 32bit integer for storing the register value
+ *
+ * This function allows reading of the 32bit scratchpad register on
+ * the primary (internal) side.
+ *
+ * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
+ */
+int ntb_read_spad(struct ntb_device *ndev, unsigned int idx, u32 *val);
+
+/**
+ * ntb_get_pbar_vbase() - get virtual addr for the NTB BAR
+ * @ndev: pointer to ntb_device instance
+ * @bar: BAR index
+ *
+ * This function provides the ioremapped virtual address for the PCI BAR
+ * for the NTB device for BAR 2/3 or BAR 4/5. The BAR index is provided
+ * as a #define.
+ *
+ * RETURNS: pointer to BAR virtual address, NULL on error.
+ */
+void *ntb_get_pbar_vbase(struct ntb_device *ndev, unsigned int bar);
+
+/**
+ * ntb_get_pbar_size() - return size of NTB BAR
+ * @ndev: pointer to ntb_device instance
+ * @bar: BAR index
+ *
+ * This function provides the size of the NTB PCI BAR 2/3 or 3/4. The BAR
+ * index is provided as a #define
+ *
+ * RETURNS: the size of the NTB PCI BAR 2/3 or 3/4
+ */
+resource_size_t ntb_get_pbar_size(struct ntb_device *ndev, unsigned int bar);
+
+/**
+ * ntb_ring_sdb() - Set the doorbell on the secondary/external side
+ * @ndev: pointer to ntb_device instance
+ * @db: doorbell index, 0 based
+ *
+ * This function allows triggering of a doorbell on the secondary/external
+ * side that will initiate an interrupt on the remote host
+ *
+ * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
+ */
+int ntb_ring_sdb(struct ntb_device *ndev, unsigned int idx);
 #endif

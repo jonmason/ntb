@@ -21,13 +21,9 @@
  *   The full GNU General Public License is included in this distribution
  *   in the file called LICENSE.GPL.
  *
- *   Contact Information:
- *   Intel Corporation
- *
  *   BSD LICENSE
  *
- *   Copyright(c) 2010,2011 Intel Corporation. All rights reserved.
- *   All rights reserved.
+ *   Copyright(c) 2012 Intel Corporation. All rights reserved.
  *
  *   Redistribution and use in source and binary forms, with or without
  *   modification, are permitted provided that the following conditions
@@ -55,6 +51,10 @@
  *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
+ * Intel PCIe NTB Linux driver
+ *
+ * Contact Information:
+ * Jon Mason <jon.mason@intel.com>
  */
 
 #ifndef _NTB_HW_H_
@@ -65,9 +65,9 @@
 
 #define SNB_DB_HW_LINK		0x8000
 
-#define SNB_MSIXMSGCTRL_OFFSET			0x82
+#define SNB_MSIXMSGCTRL_OFFSET	0x82
 
-#define BWD_MSIXMSGCTRL_OFFSET			0xb2
+#define BWD_MSIXMSGCTRL_OFFSET	0xb2
 
 #define SNB_LINK_STATUS_OFFSET	0x01A2
 #define BWD_LINK_STATUS_OFFSET	0x52
@@ -77,11 +77,13 @@
 
 #define SNB_MAX_SPADS		16
 #define SNB_MAX_COMPAT_SPADS	8
-#define SNB_MAX_SDBS		16
+#define SNB_MAX_DB_BITS		16
 
 #define BWD_MAX_SPADS		16
 #define BWD_MAX_COMPAT_SPADS	16
-#define BWD_MAX_SDBS		32
+#define BWD_MAX_DB_BITS		32
+#define BWD_DB_HEARTBEAT	(1 << (BWD_MAX_DB_BITS - 1))
+
 
 #define SNB_PBAR2LMT_OFFSET	0x0000
 #define SNB_PBAR4LMT_OFFSET	0x0008
@@ -132,5 +134,8 @@
 #define SNB_DB_LINKSTATE	0x8000
 #define SNB_DB_WC_FLUSH_ACK	0x4000
 #define SNB_DB_DBMSK		0x3fff
+
+#define NTB_CNTL_BAR23_SNOOP	(1 << 2)
+#define NTB_CNTL_BAR45_SNOOP	(1 << 6)
 
 #endif

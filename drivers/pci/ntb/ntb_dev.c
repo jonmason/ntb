@@ -21,13 +21,9 @@
  *   The full GNU General Public License is included in this distribution
  *   in the file called LICENSE.GPL.
  *
- *   Contact Information:
- *   Intel Corporation
- *
  *   BSD LICENSE
  *
- *   Copyright(c) 2010,2011 Intel Corporation. All rights reserved.
- *   All rights reserved.
+ *   Copyright(c) 2012 Intel Corporation. All rights reserved.
  *
  *   Redistribution and use in source and binary forms, with or without
  *   modification, are permitted provided that the following conditions
@@ -55,8 +51,10 @@
  *   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  *   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
- *
  * Intel PCIe NTB Linux driver
+ *
+ * Contact Information:
+ * Jon Mason <jon.mason@intel.com>
  */
 #include <linux/init.h>
 #include <linux/module.h>
@@ -66,7 +64,11 @@
 #include "ntb_hw.h"
 #include "ntb_dev.h"
 
-MODULE_VERSION("0.1");
+#define NTB_NAME	"Intel(R) PCIe Non-Transparent Bridge Driver"
+#define NTB_VER		"0.2"
+
+MODULE_DESCRIPTION(NTB_NAME);
+MODULE_VERSION(NTB_VER);
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("Intel Corporation");
 
@@ -80,14 +82,6 @@ static struct pci_device_id ntb_pci_tbl[] = {
 };
 MODULE_DEVICE_TABLE(pci, ntb_pci_tbl);
 
-/**
- * ntb_register_event_callback() - register event callback
- * @ndev: pointer to ntb_device instance
- * @func: callback function to register
- *
- * This function registers a callback for any HID events such as link up/down,
- * power management notices and etc.
- */
 int ntb_register_event_callback(struct ntb_device *ndev, event_cb_func func)
 {
 	if (!ndev->event_cb)
@@ -99,40 +93,25 @@ int ntb_register_event_callback(struct ntb_device *ndev, event_cb_func func)
 }
 EXPORT_SYMBOL(ntb_register_event_callback);
 
-/**
- * ntb_unregister_event_callback() - unregisters the event callback
- * @ndev: pointer to ntb_device instance
- *
- * This function unregisters the existing callback from transport
- */
 void ntb_unregister_event_callback(struct ntb_device *ndev)
 {
 	ndev->event_cb = NULL;
 }
 EXPORT_SYMBOL(ntb_unregister_event_callback);
 
-/**
- * ntb_register_db_callback() - register a callback for doorbell interrupt
- * @ndev: pointer to ntb_device instance
- * @idx: doorbell index to register callback, 0 based
- * @func: callback function to register
- *
- * This function registers a callback function for the doorbell interrupt
- * on the primary side. The function will unmask the doorbell as well to
- * allow interrupt.
- */
 int ntb_register_db_callback(struct ntb_device *ndev,
 			     unsigned int idx,
 			     db_cb_func func)
 {
-	//FIXME - verify idx in valid range
-	if (!ndev->db_callbacks[idx]) {
+	//FIXME - don't let them specify index???
+	if (idx < ndev->limits.max_db_bits && !ndev->db_cb[idx].callback) {
 		unsigned long mask;
 
-		ndev->db_callbacks[idx] = func;
+		ndev->db_cb[idx].callback = func;
+
 		/* unmask interrupt */
 		mask = readw(ndev->reg_base + ndev->reg_ofs.pdb_mask);
-		clear_bit(idx, &mask); //FIXME - verify atomic.  Also, this might be racy
+		clear_bit(idx, &mask);
 		writew(mask, ndev->reg_base + ndev->reg_ofs.pdb_mask);
 		return 0;
 	} else {
@@ -143,38 +122,22 @@ int ntb_register_db_callback(struct ntb_device *ndev,
 }
 EXPORT_SYMBOL(ntb_register_db_callback);
 
-/**
- * ntb_unregister_db_callback() - unregister a callback for doorbell interrupt
- * @ndev: pointer to ntb_device instance
- * @idx: doorbell index to register callback, 0 based
- *
- * This function unregisters a callback function for the doorbell interrupt
- * on the primary side. The function will also mask the said doorbell.
- */
 void ntb_unregister_db_callback(struct ntb_device *ndev, unsigned int idx)
 {
-	//FIXME - verify idx in valid range
-	if (ndev->db_callbacks[idx]) {
+	if (idx < ndev->limits.max_db_bits && ndev->db_cb[idx].callback) {
 		unsigned long mask;
 
-		ndev->db_callbacks[idx] = NULL;
 		mask = readw(ndev->reg_base + ndev->reg_ofs.pdb_mask);
 		set_bit(idx, &mask);
 		writew(mask, ndev->reg_base + ndev->reg_ofs.pdb_mask);
+
+		flush_work_sync(&ndev->db_cb[idx].db_work);
+		ndev->db_cb[idx].callback = NULL;
 	}
 }
 EXPORT_SYMBOL(ntb_unregister_db_callback);
 
-/**
- * ntb_register_transport() - Allows registration of transports to HID
- * @transport:		cookie to identify the transport
- *
- * This function allows a transport to reserve the hardware driver for
- * NTB usage. For the time being we just pick the hardware driver off
- * of the global list as we aren't expecting additional NTBs in the system,
- * but that could be a possibility in the future.
- */
-struct ntb_device * ntb_register_transport(void *transport)
+struct ntb_device *ntb_register_transport(void *transport)
 {
 	struct ntb_device *ndev;
 
@@ -191,53 +154,27 @@ struct ntb_device * ntb_register_transport(void *transport)
 }
 EXPORT_SYMBOL(ntb_register_transport);
 
-/**
- * ntb_unregister_transport() - Allows unregistering of the transport
- * @ndev - instance to ntb_device
- * @transport - the transport handle to unregister
- *
- * This function unregisters the transport from the HID and perform any
- * necessary cleanups.
- */
-int ntb_unregister_transport(struct ntb_device *ndev, void *transport)
+void ntb_unregister_transport(struct ntb_device *ndev)
 {
-	if (ndev->ntb_transport == transport) {
-		int i;
+	int i;
 
-		ndev->ntb_transport = NULL;
-		for (i = 0; i < ndev->limits.max_sdbs; i++)
-			ntb_unregister_db_callback(ndev, i);
+	if (!ndev->ntb_transport)
+		return;
 
-		ndev->event_cb = NULL;
-	} else
-		return -EINVAL;
+	ndev->ntb_transport = NULL;
+	for (i = 0; i < ndev->limits.max_db_bits; i++)
+		ntb_unregister_db_callback(ndev, i);
 
-	return 0;
+	ntb_unregister_event_callback(ndev);
 }
 EXPORT_SYMBOL(ntb_unregister_transport);
 
-/**
- * ntb_get_max_spads() - get the total scratch regs usable
- * @ndev: pointer to ntb_device instance
- *
- * This function returns the max 32bit scratchpad registers usable by the
- * upper layer.
- */
 int ntb_get_max_spads(struct ntb_device *ndev)
 {
 	return ndev->limits.max_compat_spads;
 }
 EXPORT_SYMBOL(ntb_get_max_spads);
 
-/**
- * ntb_write_spad() - write to the secondary scratchpad register
- * @ndev: pointer to ntb_device instance
- * @idx: index to the scratchpad register, 0 based
- * @val: the data value to put into the register
- *
- * This function allows writing of a 32bit value to the indexed scratchpad
- * register. The register resides on the secondary (external) side.
- */
 int ntb_write_spad(struct ntb_device *ndev, unsigned int idx, u32 val)
 {
 	if (idx >= ndev->limits.max_compat_spads)
@@ -248,15 +185,6 @@ int ntb_write_spad(struct ntb_device *ndev, unsigned int idx, u32 val)
 }
 EXPORT_SYMBOL(ntb_write_spad);
 
-/**
- * ntb_read_spad() - read from the primary scratchpad register
- * @ndev: pointer to ntb_device instance
- * @idx: index to scratchpad register, 0 based
- * @val: pointer to 32bit integer for storing the register value
- *
- * This function allows reading of the 32bit scratchpad register on
- * the primary (internal) side.
- */
 int ntb_read_spad(struct ntb_device *ndev, unsigned int idx, u32 *val)
 {
 	if (idx >= ndev->limits.max_compat_spads)
@@ -268,16 +196,7 @@ int ntb_read_spad(struct ntb_device *ndev, unsigned int idx, u32 *val)
 }
 EXPORT_SYMBOL(ntb_read_spad);
 
-/**
- * ntb_get_pbar_vbase() - get virtual addr for the NTB BAR
- * @ndev: pointer to ntb_device instance
- * @bar: BAR index
- *
- * This function provides the ioremapped virtual address for the PCI BAR
- * for the NTB device for BAR 2/3 or BAR 4/5. The BAR index is provided
- * as a #define.
- */
-void * ntb_get_pbar_vbase(struct ntb_device *ndev, unsigned int bar)
+void *ntb_get_pbar_vbase(struct ntb_device *ndev, unsigned int bar)
 {
 	switch (bar) {
 	case NTB_BAR_23:
@@ -290,14 +209,6 @@ void * ntb_get_pbar_vbase(struct ntb_device *ndev, unsigned int bar)
 }
 EXPORT_SYMBOL(ntb_get_pbar_vbase);
 
-/**
- * ntb_get_pbar_size() - return size of NTB BAR
- * @ndev: pointer to ntb_device instance
- * @bar: BAR index
- *
- * This function provides the size of the NTB PCI BAR 2/3 or 3/4. The BAR
- * index is provided as a #define
- */
 //FIXME - add pbar indirection
 resource_size_t ntb_get_pbar_size(struct ntb_device *ndev, unsigned int bar)
 {
@@ -312,15 +223,6 @@ resource_size_t ntb_get_pbar_size(struct ntb_device *ndev, unsigned int bar)
 }
 EXPORT_SYMBOL(ntb_get_pbar_size);
 
-/**
- * ntb_set_satr() - set secondary address translation register
- * @ndev: pointer to ntb_device instance
- * @bar: BAR index
- * @addr: translation address register value
- *
- * This function allows writing to the secondary address translation register
- * in order for the remote end to access the local DMA mapped memory.
- */
 //FIXME - add pbar indirection
 void ntb_set_satr(struct ntb_device *ndev, unsigned int bar, u64 addr)
 {
@@ -332,122 +234,75 @@ void ntb_set_satr(struct ntb_device *ndev, unsigned int bar, u64 addr)
 }
 EXPORT_SYMBOL(ntb_set_satr);
 
-/**
- * ntb_ring_sdb() - Set the doorbell on the secondary/external side
- * @ndev: pointer to ntb_device instance
- * @db: doorbell index, 0 based
- *
- * This function allows triggering of a doorbell on the secondary/external
- * side that will initiate an interrupt on the remote host
- */
-int ntb_ring_sdb(struct ntb_device *ndev, unsigned int idx)
+int ntb_ring_sdb(struct ntb_device *ndev, unsigned int db)
 {
-	if (idx >= ndev->limits.max_sdbs)
+	if (db >= ndev->limits.max_db_bits)
 		return -EINVAL;
 
-	writew(1 << idx, ndev->reg_base + ndev->reg_ofs.sdb);
+	writew(db, ndev->reg_base + ndev->reg_ofs.sdb);
 
 	return 0;
 }
 EXPORT_SYMBOL(ntb_ring_sdb);
 
-//FIXME - make single timer thread for heartbeat
-#if 0
-static void ntb_send_heartbeat(unsigned long data)
+static void ntb_link_event(struct ntb_device *ndev, int link_state)
 {
-	struct ntb_device *ndev = (struct ntb_device *)data;
-	unsigned long ts = jiffies;
+	if (ndev->link_status == link_state)
+		return;
 
-	ntb_ring_sdb(ndev, NTB_DB_HID_HEARTBEAT);
-	mod_timer(&ndev->hb_send_timer, ts + NTB_HB_SEND_TIMEOUT);
-}
-#endif
-
-//FIXME - make single timer thread for heartbeat
-static void ntb_handle_heartbeat(unsigned long data)
-{
-	struct ntb_device *ndev = (struct ntb_device *)data;
-	unsigned long ts = jiffies;
-	unsigned int link;
-
-	link = ndev->link_status;
-
-	if (ndev->last_ts && (ts > ndev->last_ts + NTB_HB_TIMEOUT)) {
-		if (ndev->link_status != NTB_LINK_DOWN)
-			ndev->link_status = NTB_LINK_SELF_UP;
-	} else if (ndev->link_status != NTB_LINK_PEER_UP)
-		ndev->link_status = NTB_LINK_PEER_UP;
-
-	mod_timer(&ndev->hb_timer, ts + NTB_HB_TIMEOUT);
-	ndev->last_ts = ts;
+	if (link_state == NTB_LINK_DOWN) {
+		dev_info(&ndev->pdev->dev, "Link Down\n");
+		ndev->link_status = NTB_LINK_DOWN;
+	} else {
+		dev_info(&ndev->pdev->dev, "Link Up\n");
+		ndev->link_status = NTB_LINK_UP;
+	}
 
 	/* notify the upper layer if we have an event change */
-	if (ndev->event_cb) {
-		if (link != ndev->link_status) {
-			if (ndev->link_status == NTB_LINK_PEER_UP) {
-				ndev->event_cb(ndev->ntb_transport,
-					       NTB_EVENT_LINK_UP);
-			} else if (ndev->link_status == NTB_LINK_SELF_UP) {
-				ndev->event_cb(ndev->ntb_transport,
-					       NTB_EVENT_LINK_DOWN);
-			}
-		}
+	if (ndev->event_cb)
+		ndev->event_cb(ndev->ntb_transport, link_state);
+}
+
+/* BWD doesn't have link status interrupt, so we need to poll on that platform */
+static void ntb_handle_heartbeat(struct work_struct *work)
+{
+	struct ntb_device *ndev = container_of(work, struct ntb_device, hb_timer.work);
+	unsigned long ts = jiffies;
+	int rc;
+
+	/* Send Heartbeat signal to remote system */
+	rc = ntb_ring_sdb(ndev, BWD_DB_HEARTBEAT);
+	if (rc) {
+		dev_err(&ndev->pdev->dev, "Invalid Index\n");
+		return;
 	}
+
+	/* Check to see if HB has timed out */
+	if (ts > ndev->last_ts + 2 * NTB_HB_TIMEOUT) {
+		dev_err(&ndev->pdev->dev, "HB Timeout\n");
+		ntb_link_event(ndev, NTB_LINK_DOWN);
+	} else
+		ntb_link_event(ndev, NTB_LINK_UP);
+
+	schedule_delayed_work(&ndev->hb_timer, NTB_HB_TIMEOUT);
 }
 
-static void ntb_handle_dbs(unsigned long data)
+static int ntb_link_status(struct ntb_device *ndev)
 {
-	struct ntb_device *ndev = (struct ntb_device *)data;
-	unsigned int db;
+	u16 status;
+	int rc;
 
-	for (db = NTB_DB_LAST; db < ndev->limits.max_sdbs; db++) {
-		if (test_bit(db, &ndev->db_status)) {
-			if (ndev->db_callbacks[db]) {
-				clear_bit(db, &ndev->db_status);
-				ndev->db_callbacks[db](ndev->ntb_transport, db);
-			} else {
-				dev_err(&ndev->pdev->dev,
-					"Interrupt w/ no registered handler!");
-			}
-		}
-	}
-}
+	rc = pci_read_config_word(ndev->pdev, ndev->reg_ofs.lnk_stat, &status);
+	if (rc)
+		return rc;
 
-//FIXME -  get rid of these
-static bool is_j_b2b(struct pci_dev *pdev)
-{
-	switch (pdev->device) {
-	case PCI_DEVICE_ID_INTEL_NTB_B2B_JSF:
-	case PCI_DEVICE_ID_INTEL_NTB_B2B_SNB:
-		return true;
-	default:
-		return false;
-	};
-}
+	if (!(status & NTB_LINK_STATUS_ACTIVE) && ndev->link_status == NTB_LINK_UP)
+		ntb_link_event(ndev, NTB_LINK_DOWN);
 
-static bool is_bwd(struct pci_dev *pdev)
-{
-	switch (pdev->device) {
-	case PCI_DEVICE_ID_INTEL_NTB_B2B_BWD:
-		return true;
-	default:
-		return false;
-	};
-}
+	if (status & NTB_LINK_STATUS_ACTIVE && ndev->link_status == NTB_LINK_DOWN)
+		ntb_link_event(ndev, NTB_LINK_UP);
 
-//FIXME - no one checking return value...should this be static?
-static int ntb_get_link_status(struct ntb_device *ndev)
-{
-	u16 link_status;
-
-	pci_read_config_word(ndev->pdev,
-			     ndev->reg_ofs.lnk_stat,
-			     &link_status);
-
-	ndev->link_status = (link_status & NTB_LINK_STATUS_ACTIVE) ?
-			    NTB_LINK_SELF_UP : NTB_LINK_DOWN;
-
-	return ndev->link_status;
+	return 0;
 }
 
 static void ntb_snb_b2b_setup(struct ntb_device *ndev)
@@ -470,7 +325,8 @@ static void ntb_snb_b2b_setup(struct ntb_device *ndev)
 
 	ndev->limits.max_compat_spads = SNB_MAX_COMPAT_SPADS;
 	ndev->limits.max_spads = SNB_MAX_SPADS;
-	ndev->limits.max_sdbs = SNB_MAX_SDBS;
+	/* Reserve the uppermost bit for link interrupt */
+	ndev->limits.max_db_bits = SNB_MAX_DB_BITS - 1;
 	ndev->limits.msix_cnt = SNB_MSIX_CNT;
 
 	ndev->dev_type = NTB_DEV_B2B;
@@ -496,47 +352,45 @@ static void ntb_bwd_setup(struct ntb_device *ndev)
 
 	ndev->limits.max_compat_spads = BWD_MAX_COMPAT_SPADS;
 	ndev->limits.max_spads = BWD_MAX_SPADS;
-	ndev->limits.max_sdbs = BWD_MAX_SDBS;
+	/* Reserve the uppermost bit for link interrupt */
+	ndev->limits.max_db_bits = BWD_MAX_DB_BITS;
 	ndev->limits.msix_cnt = BWD_MSIX_CNT;
 
 	ndev->dev_type = NTB_DEV_B2B;
+
+	/* Since bwd doesn't have a link interrupt, setup a heartbeat timer */
+	INIT_DELAYED_WORK(&ndev->hb_timer, ntb_handle_heartbeat);
 }
 
 static int ntb_device_setup(struct ntb_device *ndev)
 {
 	u32 ntb_cntl;
+	int rc;
 
-	//FIXME - use case stmnt to handle hw specific setup
-	if (is_j_b2b(ndev->pdev))
+	switch (ndev->pdev->device) {
+	case PCI_DEVICE_ID_INTEL_NTB_B2B_JSF:
+	case PCI_DEVICE_ID_INTEL_NTB_B2B_SNB:
 		ntb_snb_b2b_setup(ndev);
-	else if (is_bwd(ndev->pdev))
+		break;
+	case PCI_DEVICE_ID_INTEL_NTB_B2B_BWD:
 		ntb_bwd_setup(ndev);
-	else return -ENODEV;
+		break;
+	default:
+		return -ENODEV;
+	}
 
 	/* clearing the secondary doorbells */
-	ntb_ring_sdb(ndev, 0);
+	ntb_ring_sdb(ndev, ~0);
 
-	ntb_get_link_status(ndev);
+	ndev->link_status = NTB_LINK_DOWN;
+	rc = ntb_link_status(ndev);
+	if (rc)
+		return rc;
 
 	/* lets bring the NTB link up */
 	ntb_cntl = readl(ndev->reg_base + ndev->reg_ofs.lnk_cntl);
-	ntb_cntl &= ~NTB_LINK_DISABLE;
+	ntb_cntl = NTB_CNTL_BAR23_SNOOP | NTB_CNTL_BAR45_SNOOP;
 	writel(ntb_cntl, ndev->reg_base + ndev->reg_ofs.lnk_cntl);
-	ndev->link_status = NTB_LINK_SELF_UP;
-
-#if 0
-	/* send heartbeat to remote */
-	init_timer(&ndev->hb_send_timer);
-	ndev->hb_send_timer.function = ntb_send_heartbeat;
-	ndev->hb_send_timer.data = (unsigned long)ndev;
-	ntb_send_heartbeat((unsigned long)ndev);
-	mod_timer(&ndev->hb_send_timer, jiffies + NTB_HB_SEND_TIMEOUT);
-#endif
-	/* setup heartbeat timer */
-	init_timer(&ndev->hb_timer);
-	ndev->hb_timer.function = ntb_handle_heartbeat;
-	ndev->hb_timer.data = (unsigned long)ndev;
-	mod_timer(&ndev->hb_timer, jiffies + NTB_HB_TIMEOUT);
 
 	return 0;
 }
@@ -545,60 +399,101 @@ static void ntb_device_free(struct ntb_device *ndev)
 {
 	u32 ntb_cntl;
 
-//	del_timer_sync(&ndev->hb_send_timer);
-	del_timer_sync(&ndev->hb_timer);
+	cancel_delayed_work_sync(&ndev->hb_timer);
 
 	/* Bring NTB link down */
 	ntb_cntl = readl(ndev->reg_base + ndev->reg_ofs.lnk_cntl);
 	ntb_cntl |= NTB_LINK_DISABLE;
 	writel(ntb_cntl, ndev->reg_base + ndev->reg_ofs.lnk_cntl);
-	ndev->link_status = NTB_LINK_DOWN;
 }
 
-static irqreturn_t ntb_interrupt(int irq, void *data)
+//FIXME - find way to sync irq handleing between jt/bwd and msix/msi/intx
+static irqreturn_t ntb_interrupt(int irq, void *dev)
 {
-	struct ntb_device *ndev = data;
-	u16 db;//FIXME - 64bit on BWD
+	struct ntb_device *ndev = dev;
+	u16 pdb;
+	int rc;
 
-	/* read doorbell register */
-	db = readw(ndev->reg_base + ndev->reg_ofs.pdb);
-//FIXME - do different irq routines for msi and intx
-	if (db) {
-		ndev->db_status |= db;
-//service interrupt in tasklet
-		tasklet_schedule(&ndev->db_tasklet);
-	} else
+	pdb = readw(ndev->reg_base + ndev->reg_ofs.pdb);
+	if (!pdb)
 		return IRQ_NONE;
 
-	/* clear interrupt */
-	writew(db, ndev->reg_base + ndev->reg_ofs.pdb);
+	if (pdb & ~SNB_DB_HW_LINK)
+		dev_info(&ndev->pdev->dev, "irq %d - pdb = %x\n", irq, pdb);
 
-	if (is_j_b2b(ndev->pdev)) {
-//FIXME - these interrupts need to be bubbled up as well
-		if (ndev->db_status & SNB_DB_HW_LINK)
-			clear_bit(SNB_DB_HW_LINK, &ndev->db_status);
+	if (pdb & BWD_DB_HEARTBEAT)
+		ndev->last_ts = jiffies;
+
+	if (pdb & SNB_DB_HW_LINK) {
+		rc = ntb_link_status(ndev);
+		if (rc)
+			dev_err(&ndev->pdev->dev, "Error determining link status\n");
 	}
+
+	writew(pdb, ndev->reg_base + ndev->reg_ofs.pdb);
 
 	return IRQ_HANDLED;
 }
 
+static irqreturn_t ntb_msix_irq(int irq, void *dev)
+{
+	struct ntb_device *ndev = dev;
+	int rc, i;
+#if BWD
+	u64 pdb;
+
+	pdb = readq(ndev->reg_base + ndev->reg_ofs.pdb);
+#else
+	u16 pdb;
+
+	pdb = readw(ndev->reg_base + ndev->reg_ofs.pdb);
+#endif
+	//FIXME - can use the irq number to determine which bits to clear, otherwise we may be clearing interrupts we don't want to
+
+	if (pdb & ~SNB_DB_HW_LINK)
+		dev_info(&ndev->pdev->dev, "irq %d - pdb = %x\n", irq, pdb);
+
+	for (i = 0; i < ndev->limits.max_db_bits; i++) {
+		if (test_bit(i, (const volatile long unsigned int *)&pdb))
+			schedule_work(&ndev->db_cb[i].db_work);
+	}
+	//FIXME - can this be optomized using ffs or is that unnecessary?
+	//FIXME - should we not clean the irq until the scheduled work has completed?
+
+
+#if BWD
+	if (pdb & BWD_DB_HEARTBEAT)
+		ndev->last_ts = jiffies;
+
+	writeq(pdb, ndev->reg_base + ndev->reg_ofs.pdb);
+#else
+	if (pdb & SNB_DB_HW_LINK) {
+		rc = ntb_link_status(ndev);
+		if (rc)
+			dev_err(&ndev->pdev->dev, "Error determining link status\n");
+	}
+
+	writew(pdb, ndev->reg_base + ndev->reg_ofs.pdb);
+#endif
+
+	return IRQ_HANDLED;
+}
 
 static int ntb_setup_msix(struct ntb_device *ndev)
 {
 	struct pci_dev *pdev = ndev->pdev;
 	struct msix_entry *msix;
+	u16 val;
 	int msix_entries;
 	int rc, i;
 
-	rc = pci_read_config_word(pdev, ndev->reg_ofs.msix_msgctrl,
-				  &ndev->msixmsgctrl);
+	rc = pci_read_config_word(pdev, ndev->reg_ofs.msix_msgctrl, &val);
 	if (rc)
 		goto err;
 
-	msix_entries = ndev->msixmsgctrl & NTB_MSIXMSGCTRL_ENTRIES_MASK;
-	msix_entries++; //FIXME add comment on why ++ is needed
+	msix_entries = msix_table_size(val);
 
-	if (msix_entries == 0 || msix_entries > ndev->limits.msix_cnt) {
+	if (msix_entries > ndev->limits.msix_cnt) {
 		rc = -EINVAL;
 		goto err;
 	}
@@ -624,10 +519,13 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 
 	for (i = 0; i < msix_entries; i++) {
 		msix = &ndev->msix_entries[i];
-		rc = request_irq(msix->vector, ntb_interrupt, 0, "ntb-msix", ndev);//FIXME add entry #.  also make msix irq handler
+		rc = request_irq(msix->vector, ntb_msix_irq, 0, "ntb-msix", ndev);
 		if (rc)
 			goto err2;
 	}
+
+	/* Disable intx */
+	pci_intx(pdev, 0);
 
 	ndev->num_msix = msix_entries;
 
@@ -656,7 +554,7 @@ static int ntb_setup_msi(struct ntb_device *ndev)
 	if (rc)
 		return rc;
 
-	rc = request_irq(pdev->irq, ntb_interrupt, 0, "ntb-msi", ndev);//FIXME - make msi irq handler
+	rc = request_irq(pdev->irq, ntb_interrupt, 0, "ntb-msi", ndev);
 	if (rc) {
 		pci_disable_msi(pdev);
 		dev_err(&pdev->dev, "Error allocating MSI interrupt\n");
@@ -671,13 +569,55 @@ static int ntb_setup_intx(struct ntb_device *ndev)
 	struct pci_dev *pdev = ndev->pdev;
 	int rc;
 
-	rc = request_irq(pdev->irq, ntb_interrupt, 0, "ntb-intx", ndev);//FIXME - make intx irq handler
-	if (rc) {
-		dev_err(&pdev->dev, "Error allocating intx interrupt\n");
+	pci_msi_off(pdev);
+
+	/* Verify intx is enabled */
+	pci_intx(pdev, 1);
+
+	rc = request_irq(pdev->irq, ntb_interrupt, IRQF_SHARED, "ntb-intx", ndev);
+	if (rc)
 		return rc;
+
+	return 0;
+}
+
+static void ntb_callback_work(struct work_struct *work)
+{
+	struct ntb_db_cb *db_cb = container_of(work, struct ntb_db_cb, db_work);
+	struct ntb_device *ndev = db_cb->ndev;
+
+	if (!db_cb->callback) {
+		dev_err(&ndev->pdev->dev, "Attempting to callback on a non-registered function\n");
+		return;
+	}
+
+	db_cb->callback(); //FIXME - what to pass up?
+}
+
+static int ntb_create_callbacks(struct ntb_device *ndev)
+{
+	int i;
+
+	ndev->db_cb = kcalloc(ndev->limits.max_db_bits, sizeof(struct ntb_db_cb), GFP_KERNEL);
+	if (!ndev->db_cb)
+		return -ENOMEM;
+
+	for (i = 0; i < ndev->limits.max_db_bits; i++) {
+		INIT_WORK(&ndev->db_cb[i].db_work, ntb_callback_work);
+		ndev->db_cb[i].ndev = ndev;
 	}
 
 	return 0;
+}
+
+static void ntb_free_callbacks(struct ntb_device *ndev)
+{
+	int i;
+
+	for (i = 0; i < ndev->limits.max_db_bits; i++)
+		ntb_unregister_db_callback(ndev, i);
+
+	kfree(ndev->db_cb);
 }
 
 static int ntb_setup_interrupts(struct ntb_device *ndev)
@@ -699,10 +639,8 @@ static int ntb_setup_interrupts(struct ntb_device *ndev)
 	}
 
 done:
-	tasklet_init(&ndev->db_tasklet, ntb_handle_dbs, (unsigned long)ndev);//FIXME - is this necessary?  if so, shouldn't we have a threaded interrupt handler?
-
-	/* only turn on interrupts we need */
-	writew(~NTB_DB_HID_HEARTBEAT, ndev->reg_base + ndev->reg_ofs.pdb_mask);
+	/* Enable Link Interrupt, the rest will be unmasked as callbacks are registered */
+	writew(~(1 << ndev->limits.max_db_bits), ndev->reg_base + ndev->reg_ofs.pdb_mask);
 
 	return 0;
 }
@@ -714,8 +652,6 @@ static void ntb_free_interrupts(struct ntb_device *ndev)
 	/* mask interrrupts */
 	writew(~0, ndev->reg_base + ndev->reg_ofs.pdb_mask);
 
-	tasklet_kill(&ndev->db_tasklet);
-
 	if (ndev->num_msix) {
 		struct msix_entry *msix;
 		u32 i;
@@ -726,7 +662,17 @@ static void ntb_free_interrupts(struct ntb_device *ndev)
 		}
 		pci_disable_msix(pdev);
 	} else
-		free_irq(pdev->irq, ntb_interrupt);
+		free_irq(pdev->irq, ndev);
+}
+
+static void pci_set_memory(struct pci_dev *dev)
+{
+	u16 old_cmd, cmd;
+
+	pci_read_config_word(dev, PCI_COMMAND, &old_cmd);
+	cmd = old_cmd | PCI_COMMAND_MEMORY;
+	if (cmd != old_cmd)
+		pci_write_config_word(dev, PCI_COMMAND, cmd);
 }
 
 static int __devinit ntb_pci_probe(struct pci_dev *pdev,
@@ -745,25 +691,25 @@ static int __devinit ntb_pci_probe(struct pci_dev *pdev,
 	if (err)
 		goto err;
 
-	err = pci_request_selected_regions(pdev, NTB_BAR_MASK, DRV_NAME);
+	err = pci_request_selected_regions(pdev, NTB_BAR_MASK, KBUILD_MODNAME);
 	if (err)
 		goto err1;
 
 	ndev->reg_base = pci_ioremap_bar(pdev, NTB_BAR_MMIO);
 	if (!ndev->reg_base) {
-		err = -ENOMEM;
+		err = -EIO;
 		goto err2;
 	}
 
 	ndev->pbar23 = pci_ioremap_bar(pdev, NTB_BAR_23);
 	if (!ndev->pbar23) {
-		err = -ENOMEM;
+		err = -EIO;
 		goto err3;
 	}
 
 	ndev->pbar45 = pci_ioremap_bar(pdev, NTB_BAR_45);
 	if (!ndev->pbar45) {
-		err = -ENOMEM;
+		err = -EIO;
 		goto err4;
 	}
 
@@ -772,7 +718,8 @@ static int __devinit ntb_pci_probe(struct pci_dev *pdev,
 		err = pci_set_dma_mask(pdev, DMA_BIT_MASK(32));
 		if (err)
 			goto err5;
-		//FIXME - can we still address highmem without this?  need to notify the client and let them know the lomem limitation
+		//FIXME - let upper layers know of this limitation?
+		dev_warn(&pdev->dev, "Cannot DMA highmem\n");
 	}
 
 	err = pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(64));
@@ -781,7 +728,7 @@ static int __devinit ntb_pci_probe(struct pci_dev *pdev,
 		if (err)
 			goto err5;
 
-		//FIXME - what happens if the pci_set_dma_mask is 32 and this one is 64?
+		dev_warn(&pdev->dev, "Cannot DMA consistent highmem\n");
 	}
 
 	err = ntb_device_setup(ndev);
@@ -789,17 +736,24 @@ static int __devinit ntb_pci_probe(struct pci_dev *pdev,
 		goto err5;
 
 	pci_set_master(pdev);
+	pci_set_memory(pdev);
 	pci_set_drvdata(pdev, ndev);
 
 	err = ntb_setup_interrupts(ndev);
 	if (err)
 		goto err6;
 
+	err = ntb_create_callbacks(ndev);
+	if (err)
+		goto err7;
+
 	INIT_LIST_HEAD(&ndev->list);
 	list_add(&ndev->list, &ntb_dev_list);
 
 	return 0;
 
+err7:
+	ntb_free_interrupts(ndev);
 err6:
 	ntb_device_free(ndev);
 err5:
@@ -825,6 +779,8 @@ static void __devexit ntb_pci_remove(struct pci_dev *pdev)
 
 	list_del(&ndev->list);
 
+	ntb_free_callbacks(ndev);
+
 	ntb_free_interrupts(ndev);
 
 	ntb_device_free(ndev);
@@ -841,7 +797,7 @@ static void __devexit ntb_pci_remove(struct pci_dev *pdev)
 }
 
 static struct pci_driver ntb_pci_driver = {
-	.name		= DRV_NAME,
+	.name		= KBUILD_MODNAME,
 	.id_table	= ntb_pci_tbl,
 	.probe		= ntb_pci_probe,
 	.remove		= __devexit_p(ntb_pci_remove),
@@ -849,7 +805,7 @@ static struct pci_driver ntb_pci_driver = {
 
 static int __init ntb_init_module(void)
 {
-	pr_info("%s: Intel(R) PCIe Non-Transparent Bridge Driver\n", DRV_NAME);
+	pr_info("%s: %s, version %s\n", KBUILD_MODNAME, NTB_NAME, NTB_VER);
 
 	return pci_register_driver(&ntb_pci_driver);
 }
@@ -858,6 +814,7 @@ module_init(ntb_init_module);
 static void __exit ntb_exit_module(void)
 {
 	pci_unregister_driver(&ntb_pci_driver);
+
+	pr_info("%s: Driver removed\n", KBUILD_MODNAME);
 }
 module_exit(ntb_exit_module);
-
