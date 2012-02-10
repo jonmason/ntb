@@ -82,6 +82,11 @@ static struct pci_device_id ntb_pci_tbl[] = {
 };
 MODULE_DEVICE_TABLE(pci, ntb_pci_tbl);
 
+unsigned int ntb_query_db_bits(struct ntb_device *ndev)
+{
+	return ndev->limits.max_db_bits;
+}
+
 int ntb_register_event_callback(struct ntb_device *ndev, event_cb_func func)
 {
 	if (!ndev->event_cb)
@@ -115,8 +120,7 @@ int ntb_register_db_callback(struct ntb_device *ndev,
 		writew(mask, ndev->reg_base + ndev->reg_ofs.pdb_mask);
 		return 0;
 	} else {
-		dev_warn(&ndev->pdev->dev,
-			 "Doorbell callback already registered.\n");
+		dev_warn(&ndev->pdev->dev, "Doorbell callback already registered.\n");
 		return -EBUSY;
 	}
 }
@@ -236,10 +240,10 @@ EXPORT_SYMBOL(ntb_set_satr);
 
 int ntb_ring_sdb(struct ntb_device *ndev, unsigned int db)
 {
-	if (db >= ndev->limits.max_db_bits)
+	if (db && db > ndev->limits.max_db_bits)
 		return -EINVAL;
 
-	writew(db, ndev->reg_base + ndev->reg_ofs.sdb);
+	writew(1 << (db - 1), ndev->reg_base + ndev->reg_ofs.sdb);
 
 	return 0;
 }
@@ -360,6 +364,7 @@ static void ntb_bwd_setup(struct ntb_device *ndev)
 
 	/* Since bwd doesn't have a link interrupt, setup a heartbeat timer */
 	INIT_DELAYED_WORK(&ndev->hb_timer, ntb_handle_heartbeat);
+	schedule_delayed_work(&ndev->hb_timer, NTB_HB_TIMEOUT); //FIXME - this might fire before the probe has finished
 }
 
 static int ntb_device_setup(struct ntb_device *ndev)
@@ -380,7 +385,7 @@ static int ntb_device_setup(struct ntb_device *ndev)
 	}
 
 	/* clearing the secondary doorbells */
-	ntb_ring_sdb(ndev, ~0);
+	writew(~0, ndev->reg_base + ndev->reg_ofs.sdb);
 
 	ndev->link_status = NTB_LINK_DOWN;
 	rc = ntb_link_status(ndev);
@@ -450,16 +455,15 @@ static irqreturn_t ntb_msix_irq(int irq, void *dev)
 #endif
 	//FIXME - can use the irq number to determine which bits to clear, otherwise we may be clearing interrupts we don't want to
 
-	if (pdb & ~SNB_DB_HW_LINK)
-		dev_info(&ndev->pdev->dev, "irq %d - pdb = %x\n", irq, pdb);
+	//if (pdb & ~SNB_DB_HW_LINK)
+		dev_info(&ndev->pdev->dev, "irq %d - pdb = %x sdb %x\n", irq, pdb, readw(ndev->reg_base + ndev->reg_ofs.sdb));
 
 	for (i = 0; i < ndev->limits.max_db_bits; i++) {
 		if (test_bit(i, (const volatile long unsigned int *)&pdb))
-			schedule_work(&ndev->db_cb[i].db_work);
+			schedule_work(&ndev->db_cb[i].db_work);//FIXME - callback transport directly and have it do the workqueue handoff
 	}
 	//FIXME - can this be optomized using ffs or is that unnecessary?
 	//FIXME - should we not clean the irq until the scheduled work has completed?
-
 
 #if BWD
 	if (pdb & BWD_DB_HEARTBEAT)
@@ -591,7 +595,7 @@ static void ntb_callback_work(struct work_struct *work)
 		return;
 	}
 
-	db_cb->callback(); //FIXME - what to pass up?
+	db_cb->callback(db_cb->db_num);
 }
 
 static int ntb_create_callbacks(struct ntb_device *ndev)
@@ -605,6 +609,7 @@ static int ntb_create_callbacks(struct ntb_device *ndev)
 	for (i = 0; i < ndev->limits.max_db_bits; i++) {
 		INIT_WORK(&ndev->db_cb[i].db_work, ntb_callback_work);
 		ndev->db_cb[i].ndev = ndev;
+		ndev->db_cb[i].db_num = i;
 	}
 
 	return 0;

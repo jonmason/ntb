@@ -77,13 +77,14 @@
 
 #define NTB_HB_TIMEOUT		msecs_to_jiffies(1000)
 
-typedef int(*db_cb_func)(void);
-typedef int(*event_cb_func)(void *handle, unsigned int event);
+typedef void(*db_cb_func)(int db_num);
+typedef void(*event_cb_func)(void *handle, unsigned int event);//FIXME - is handle necessary??
 
 struct ntb_db_cb {
 	struct work_struct db_work;
 	db_cb_func callback;
 	struct ntb_device *ndev;
+	unsigned int db_num;
 };
 
 struct ntb_device {
@@ -123,6 +124,8 @@ struct ntb_device {
 	void *ntb_transport;
 };
 
+
+unsigned int ntb_query_db_bits(struct ntb_device *ndev);
 
 /**
  * ntb_register_transport() - Register NTB transport with NTB HW driver
