@@ -78,17 +78,14 @@
 #define NTB_HB_TIMEOUT		msecs_to_jiffies(1000)
 
 typedef void(*db_cb_func)(int db_num);
-typedef void(*event_cb_func)(void *handle, unsigned int event);//FIXME - is handle necessary??
+typedef void(*event_cb_func)(void *handle, unsigned int event);
 
 struct ntb_db_cb {
-	struct work_struct db_work;
 	db_cb_func callback;
-	struct ntb_device *ndev;
 	unsigned int db_num;
 };
 
 struct ntb_device {
-	struct list_head list;
 	struct pci_dev *pdev;
 	int dev_type;
 	int num_msix;
@@ -116,15 +113,23 @@ struct ntb_device {
 		u32 lnk_stat;
 		u32 msix_msgctrl;
 	} reg_ofs;
+	void *ntb_transport;
+	event_cb_func event_cb;
 	struct ntb_db_cb *db_cb;
 	unsigned int link_status;
 	struct delayed_work hb_timer;
 	unsigned long last_ts;
-	event_cb_func event_cb;
-	void *ntb_transport;
 };
 
 
+/**
+ * ntb_query_db_bits() - return the number of doorbell bits
+ * @ndev: pointer to ntb_device instance
+ *
+ * The number of bits in the doorbell can vary depending on the platform
+ *
+ * RETURNS: the number of doorbell bits being used (16 or 64)
+ */
 unsigned int ntb_query_db_bits(struct ntb_device *ndev);
 
 /**

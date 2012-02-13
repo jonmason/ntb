@@ -78,7 +78,7 @@ struct ntb_transport_qp {
 	struct delayed_work event_work;
 	unsigned int event_flags:1;
 	unsigned int link:1;
-	unsigned int qp_num;//FIXME - need all 32bits?
+	unsigned int qp_num:6;/* Only 64 QP's are allowed.  0-63 */
 };
 
 struct ntb_transport {
@@ -94,8 +94,6 @@ struct ntb_transport {
 
 struct ntb_transport *transport;
 
-
-
 static void ntb_transport_dbcb(int db_num)
 {
 	struct device *dev = &transport->ndev->pdev->dev;
@@ -110,13 +108,14 @@ static void ntb_transport_dbcb(int db_num)
 
 /**
  * ntb_transport_create_queue - Create a new NTB transport layer queue
- * @dir: Direction of queue, e.g. Transmit or receive queue
- * @handler: callback function 
+ * @rx_handler: receive callback function 
+ * @tx_handler: transmit callback function 
  *
  * Create a new NTB transport layer queue and provide the queue with a callback
- * routine.  The callback routine will be used when the transport has received
- * data on the queue or when the transport has completed the transmission of the
- * data on the queue.
+ * routine for both transmit and receive.  The receive callback routine will be
+ * used to pass up data when the transport has received it on the queue.   The
+ * transmit callback routine will be called when the transport has completed the
+ * transmission of the data on the queue and the data is ready to be freed.
  *
  * RETURNS: pointer to newly created ntb_queue, NULL on error.
  */
@@ -170,7 +169,7 @@ static void ntb_purge_list(struct list_head *list)
 
 /**
  * ntb_transport_free_queue - Frees NTB transport queue
- * @queue: NTB queue to be freed
+ * @qp: NTB queue to be freed
  *
  * Frees NTB transport queue 
  */
@@ -194,11 +193,12 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 EXPORT_SYMBOL(ntb_transport_free_queue);
 
 /**
- * ntb_transport_enqueue - Enqueue a new NTB queue entry
- * @q: NTB transport layer queue the entry is to be enqueued on
+ * ntb_transport_rx_enqueue - Enqueue a new NTB queue entry
+ * @qp: NTB transport layer queue the entry is to be enqueued on
  * @entry: NTB queue entry to be enqueued
  *
- * Enqueue a new NTB queue entry onto the transport queue for transmission.
+ * Enqueue a new NTB queue entry onto the transport queue into which a NTB
+ * payload can be received into.
  *
  * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
  */
@@ -208,6 +208,16 @@ int ntb_transport_rx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
 }
 EXPORT_SYMBOL(ntb_transport_rx_enqueue);
 
+/**
+ * ntb_transport_tx_enqueue - Enqueue a new NTB queue entry
+ * @qp: NTB transport layer queue the entry is to be enqueued on
+ * @entry: NTB queue entry to be enqueued
+ *
+ * Enqueue a new NTB queue entry onto the transport queue from which a NTB
+ * payload will be transfered.
+ *
+ * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
+ */
 int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry)
 {
 	struct scatterlist *sg;
@@ -235,8 +245,8 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
 EXPORT_SYMBOL(ntb_transport_tx_enqueue);
 
 /**
- * ntb_transport_dequeue - Dequeue a NTB queue entry
- * @queue: NTB transport layer queue to be dequeued from
+ * ntb_transport_tx_dequeue - Dequeue a NTB queue entry
+ * @qp: NTB transport layer queue to be dequeued from
  * 
  * Dequeue a new NTB queue entry from the transport queue specified.
  *
@@ -256,6 +266,14 @@ struct ntb_queue_entry *ntb_transport_tx_dequeue(struct ntb_transport_qp *qp)
 }
 EXPORT_SYMBOL(ntb_transport_tx_dequeue);
 
+/**
+ * ntb_transport_rx_dequeue - Dequeue a NTB queue entry
+ * @qp: NTB transport layer queue to be dequeued from
+ * 
+ * Dequeue a new NTB queue entry from the transport queue specified.
+ *
+ * RETURNS: New NTB queue entry from the transport queue, or NULL on empty
+ */
 struct ntb_queue_entry *ntb_transport_rx_dequeue(struct ntb_transport_qp *qp)
 {
 	struct ntb_queue_entry *entry;
@@ -272,7 +290,7 @@ EXPORT_SYMBOL(ntb_transport_rx_dequeue);
 
 /**
  * ntb_transport_link_up - Notify NTB transport of client readiness to use queue
- * @queue: NTB transport layer queue to be enabled
+ * @qp: NTB transport layer queue to be enabled
  *
  * Notify NTB transport layer of client readiness to use queue
  */
@@ -287,7 +305,7 @@ EXPORT_SYMBOL(ntb_transport_link_up);
 
 /**
  * ntb_transport_link_down - Notify NTB transport to no longer enqueue data
- * @queue: NTB transport layer queue to be disabled
+ * @qp: NTB transport layer queue to be disabled
  *
  * Notify NTB transport layer of client's desire to no longer receive data on
  * transport queue specified.  It is the client's responsibility to ensure all
@@ -312,6 +330,7 @@ static void ntb_transport_event_work(struct work_struct *work)
 
 /**
  * ntb_transport_reg_event_callback - Register event callback handler
+ * @qp: NTB transport layer queue to which the callback is bound
  * @handler: Callback routine
  *
  * Register the callback routine to handle all non-data transport related
@@ -339,7 +358,7 @@ EXPORT_SYMBOL(ntb_transport_reg_event_callback);
 
 /**
  * ntb_transport_hw_link_query - Query hardware link state
- * @queue: NTB transport layer queue to be queried
+ * @qp: NTB transport layer queue to be queried
  *
  * Query hardware link state of the NTB transport queue 
  *
