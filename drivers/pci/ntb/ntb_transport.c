@@ -92,7 +92,11 @@ struct ntb_transport {
 	unsigned long qp_bitmap;
 };
 
-struct ntb_transport *transport;
+struct ntb_transport *transport = NULL;
+
+//FIXME - reorder the functions to remove the need for these pre-declirations
+int ntb_transport_init(void);
+void ntb_transport_free(void);
 
 static void ntb_transport_dbcb(int db_num)
 {
@@ -120,11 +124,17 @@ static void ntb_transport_dbcb(int db_num)
  * RETURNS: pointer to newly created ntb_queue, NULL on error.
  */
 struct ntb_transport_qp *
-ntb_transport_create_queue(void (*rx_handler)(struct ntb_transport_qp *qp), void (*tx_handler)(struct ntb_transport_qp *qp))
+ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 {
 	struct ntb_transport_qp *qp;
 	unsigned int free_queue;
 	int rc;
+
+	if (!transport) {
+		rc = ntb_transport_init();
+		if (rc)
+			return NULL; //FIXME  - use ERR_PTR for all NULL
+	}
 
 	if (!transport->qp_bitmap)
 		return NULL;
@@ -175,7 +185,6 @@ static void ntb_purge_list(struct list_head *list)
  */
 void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 {
-
 	if (!qp)
 		return;
 
@@ -189,6 +198,9 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 	ntb_purge_list(&qp->tx_comp_q);
 
 	set_bit(qp->qp_num, &transport->qp_bitmap);
+
+	if (transport->qp_bitmap == ~(transport->max_qps - 1))
+		ntb_transport_free();
 }
 EXPORT_SYMBOL(ntb_transport_free_queue);
 
@@ -214,7 +226,7 @@ EXPORT_SYMBOL(ntb_transport_rx_enqueue);
  * @entry: NTB queue entry to be enqueued
  *
  * Enqueue a new NTB queue entry onto the transport queue from which a NTB
- * payload will be transfered.
+ * payload will be transmitted.
  *
  * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
  */
@@ -234,7 +246,7 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
 //FIXME - copying over same memory each time
 
 	/* Ring doorbell notifying remote side of new packet */
-	rc = ntb_ring_sdb(transport->ndev, qp->qp_num);
+	rc = ntb_ring_sdb(transport->ndev, 1 << qp->qp_num);
 	if (rc)
 		return rc;
 
@@ -248,9 +260,11 @@ EXPORT_SYMBOL(ntb_transport_tx_enqueue);
  * ntb_transport_tx_dequeue - Dequeue a NTB queue entry
  * @qp: NTB transport layer queue to be dequeued from
  * 
- * Dequeue a new NTB queue entry from the transport queue specified.
+ * This function will dequeue a NTB queue entry from the transmit complete
+ * queue.  Entries will only be enqueued on this queue after having been
+ * transfered to the remote side.
  *
- * RETURNS: New NTB queue entry from the transport queue, or NULL on empty
+ * RETURNS: NTB queue entry from the transport queue, or NULL on empty
  */
 struct ntb_queue_entry *ntb_transport_tx_dequeue(struct ntb_transport_qp *qp)
 {
@@ -270,9 +284,11 @@ EXPORT_SYMBOL(ntb_transport_tx_dequeue);
  * ntb_transport_rx_dequeue - Dequeue a NTB queue entry
  * @qp: NTB transport layer queue to be dequeued from
  * 
- * Dequeue a new NTB queue entry from the transport queue specified.
+ * This function will dequeue a new NTB queue entry from the receive complete
+ * queue of the transport queue specified.  Entries will only be enqueued on
+ * this queue after having been fully received.
  *
- * RETURNS: New NTB queue entry from the transport queue, or NULL on empty
+ * RETURNS: NTB queue entry from the transport queue, or NULL on empty
  */
 struct ntb_queue_entry *ntb_transport_rx_dequeue(struct ntb_transport_qp *qp)
 {
@@ -366,7 +382,7 @@ EXPORT_SYMBOL(ntb_transport_reg_event_callback);
  */
 bool ntb_transport_hw_link_query(struct ntb_transport_qp *qp)
 {
-	return transport->ndev->link_status == NTB_LINK_UP;
+	return transport->ndev->link_status;
 }
 EXPORT_SYMBOL(ntb_transport_hw_link_query);
 
@@ -386,7 +402,7 @@ static void ntb_transport_event_callback(void *handle, unsigned int event) //FIX
 
 int ntb_transport_init()
 {
-	int rc, i;
+	int rc;
 
 	transport = kmalloc(sizeof(struct ntb_transport), GFP_KERNEL);
 	if (!transport)
@@ -398,7 +414,8 @@ int ntb_transport_init()
 		goto err;
 	}
 
-	transport->max_qps = ntb_query_db_bits(transport->ndev);
+	/* 1 Doorbell bit is used by Link/HB, but the rest can be used for the transport qp's */
+	transport->max_qps = ntb_query_db_bits(transport->ndev) - 1;
 	if (!transport->max_qps) {
 		rc = -EIO;
 		goto err;
@@ -410,9 +427,7 @@ int ntb_transport_init()
 		goto err;
 	}
 
-	for (i = 0; i < transport->max_qps; i++)
-		set_bit(i, &transport->qp_bitmap);
-
+	transport->qp_bitmap = ~(transport->max_qps - 1);
 
 	//alloc memory to be transfered into
 	/* Must be 4k aligned */
@@ -425,7 +440,7 @@ int ntb_transport_init()
 	}
 
 	//set mem addr to SBAR2XLAT to specify where incoming messages should go
-	ntb_set_satr(transport->ndev, NTB_BAR_23, transport->payload_dma_addr);
+	ntb_set_mw_addr(transport->ndev, 0, transport->payload_dma_addr);
 
 	rc = ntb_register_event_callback(transport->ndev, ntb_transport_event_callback);
 	if (rc)

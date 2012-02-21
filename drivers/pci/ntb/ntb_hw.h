@@ -138,4 +138,8 @@
 #define NTB_CNTL_BAR23_SNOOP	(1 << 2)
 #define NTB_CNTL_BAR45_SNOOP	(1 << 6)
 
+#define NTB_PPD_OFFSET		0xD4
+#define NTB_PPD_CONN_TYPE	0x3
+#define NTB_PPD_DEV_TYPE	0x10
+
 #endif

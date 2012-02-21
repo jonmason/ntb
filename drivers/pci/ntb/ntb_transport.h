@@ -64,14 +64,11 @@ struct ntb_queue_entry {
 	struct list_head entry;
 	/* pointers to data to be transfered */
 	struct scatterlist sg;
-	/* number of entries on said list */
-	unsigned int num_sg;//FIXME - might be unnecessary
-	/* NTB is finiahed with this data and it can be reaped */
+	/* NTB is finished with this data and it can be reaped */
 	bool done;
 };
 
-int ntb_transport_init(void);
-void ntb_transport_free(void);
+typedef void(*handler)(struct ntb_transport_qp *qp);
 
 /**
  * ntb_transport_create_queue - Create a new NTB transport layer queue
@@ -86,7 +83,7 @@ void ntb_transport_free(void);
  *
  * RETURNS: pointer to newly created ntb_queue, NULL on error.
  */
-struct ntb_transport_qp *ntb_transport_create_queue(void (*rx_handler)(struct ntb_transport_qp *qp), void (*tx_handler)(struct ntb_transport_qp *qp));
+struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler, handler tx_handler);
 
 /**
  * ntb_transport_free_queue - Frees NTB transport queue
@@ -114,7 +111,7 @@ int ntb_transport_rx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
  * @entry: NTB queue entry to be enqueued
  *
  * Enqueue a new NTB queue entry onto the transport queue from which a NTB
- * payload will be transfered.
+ * payload will be transmitted.
  *
  * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
  */
@@ -124,9 +121,11 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
  * ntb_transport_tx_dequeue - Dequeue a NTB queue entry
  * @qp: NTB transport layer queue to be dequeued from
  * 
- * Dequeue a new NTB queue entry from the transport queue specified.
+ * This function will dequeue a NTB queue entry from the transmit complete
+ * queue.  Entries will only be enqueued on this queue after having been
+ * transfered to the remote side.
  *
- * RETURNS: New NTB queue entry from the transport queue, or NULL on empty
+ * RETURNS: NTB queue entry from the transport queue, or NULL on empty
  */
 struct ntb_queue_entry *ntb_transport_tx_dequeue(struct ntb_transport_qp *qp);
 
@@ -134,9 +133,11 @@ struct ntb_queue_entry *ntb_transport_tx_dequeue(struct ntb_transport_qp *qp);
  * ntb_transport_rx_dequeue - Dequeue a NTB queue entry
  * @qp: NTB transport layer queue to be dequeued from
  * 
- * Dequeue a new NTB queue entry from the transport queue specified.
+ * This function will dequeue a new NTB queue entry from the receive complete
+ * queue of the transport queue specified.  Entries will only be enqueued on
+ * this queue after having been fully received.
  *
- * RETURNS: New NTB queue entry from the transport queue, or NULL on empty
+ * RETURNS: NTB queue entry from the transport queue, or NULL on empty
  */
 struct ntb_queue_entry *ntb_transport_rx_dequeue(struct ntb_transport_qp *qp);
 

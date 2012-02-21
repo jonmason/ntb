@@ -129,7 +129,6 @@ static void ntb_dummy_event_handler(int status)
 			buf[i] = i;
 
 		sg_init_one(&entry->sg, buf, PAGE_SIZE);
-		entry->num_sg = 1;//FIXME - unnecessary
 
 		//FIXME - rc = ntb_transport_rx_enqueue(dev->qp, entry); prepost rxd's
 		rc = ntb_transport_tx_enqueue(dev->qp, entry);
@@ -149,28 +148,22 @@ static int __init ntb_dummy_init_module(void)
 	if (!dev)
 		return -ENOMEM;
 
-	rc = ntb_transport_init();
-	if (rc)
-		goto err;
-
 	dev->qp = ntb_transport_create_queue(ntb_dummy_rx_handler, ntb_dummy_tx_handler);
 	if (!dev->qp) {
 		rc = -EIO;
-		goto err1;
+		goto err;
 	}
 
 	rc = ntb_transport_reg_event_callback(dev->qp, ntb_dummy_event_handler);
 	if (rc)
-		goto err2;
+		goto err1;
 
 	ntb_transport_link_up(dev->qp);
 
 	return 0;
 
-err2:
-	ntb_transport_free_queue(dev->qp);
 err1:
-	ntb_transport_free();
+	ntb_transport_free_queue(dev->qp);
 err:
 	kfree(dev);
 	return rc;
@@ -181,7 +174,6 @@ static void __exit ntb_dummy_exit_module(void)
 {
 	ntb_transport_link_down(dev->qp);
 	ntb_transport_free_queue(dev->qp);
-	ntb_transport_free();
 	kfree(dev);
 
 	pr_info("%s: Driver removed\n", KBUILD_MODNAME);

@@ -62,9 +62,12 @@
 
 #define msix_table_size(control)	((control & PCI_MSIX_FLAGS_QSIZE)+1)
 
-#define NTB_DEV_B2B		0
-#define NTB_DEV_CLASSIC		1
-#define NTB_DEV_RP		2
+#define NTB_CONN_CLASSIC	0
+#define NTB_CONN_B2B		1
+#define NTB_CONN_RP		2
+
+#define NTB_DEV_USD		0
+#define NTB_DEV_DSD		1
 
 #define NTB_BAR_MMIO		0
 #define NTB_BAR_23		2
@@ -85,16 +88,19 @@ struct ntb_db_cb {
 	unsigned int db_num;
 };
 
+#define NTB_NUM_MW	2
+
+struct ntb_mw {
+	dma_addr_t phys_addr;
+	void __iomem *vbase;
+	resource_size_t bar_sz;
+};
+
 struct ntb_device {
 	struct pci_dev *pdev;
-	int dev_type;
-	int num_msix;
 	struct msix_entry *msix_entries;
 	void __iomem *reg_base;
-	void __iomem *pbar23;
-	void __iomem *pbar45;
-	resource_size_t pbar23_sz;
-	resource_size_t pbar45_sz;
+	struct ntb_mw mw[NTB_NUM_MW];
 	struct {
 		int max_compat_spads;
 		int max_spads;
@@ -116,7 +122,10 @@ struct ntb_device {
 	void *ntb_transport;
 	event_cb_func event_cb;
 	struct ntb_db_cb *db_cb;
-	unsigned int link_status;
+	int conn_type:2;
+	int dev_type:1;
+	int num_msix:6;
+	int link_status:1;
 	struct delayed_work hb_timer;
 	unsigned long last_ts;
 };
@@ -153,15 +162,15 @@ struct ntb_device *ntb_register_transport(void *transport);
 void ntb_unregister_transport(struct ntb_device *ndev);
 
 /**
- * ntb_set_satr() - set secondary address translation register
+ * ntb_set_mw_addr - set the memory window address
  * @ndev: pointer to ntb_device instance
- * @bar: BAR index
- * @addr: translation address register value
+ * @mw: memory window number
+ * @addr: base address for remote data to be transferred into
  *
- * This function allows writing to the secondary address translation register
- * in order for the remote end to access the local DMA mapped memory.
+ * This function sets the base physical address of the memory window.  This
+ * memory address is where data from the remote system will be transfered into.
  */
-void ntb_set_satr(struct ntb_device *ndev, unsigned int bar, u64 addr);
+void ntb_set_mw_addr(struct ntb_device *ndev, unsigned int mw, u64 addr);
 
 /**
  * ntb_register_db_callback() - register a callback for doorbell interrupt
@@ -245,34 +254,31 @@ int ntb_write_spad(struct ntb_device *ndev, unsigned int idx, u32 val);
 int ntb_read_spad(struct ntb_device *ndev, unsigned int idx, u32 *val);
 
 /**
- * ntb_get_pbar_vbase() - get virtual addr for the NTB BAR
+ * ntb_get_mw_vbase() - get virtual addr for the NTB memory window
  * @ndev: pointer to ntb_device instance
- * @bar: BAR index
+ * @mw: memory window number
  *
- * This function provides the ioremapped virtual address for the PCI BAR
- * for the NTB device for BAR 2/3 or BAR 4/5. The BAR index is provided
- * as a #define.
+ * This function provides the base virtual address of the memory window specified.
  *
- * RETURNS: pointer to BAR virtual address, NULL on error.
+ * RETURNS: pointer to virtual address, or NULL on error.
  */
-void *ntb_get_pbar_vbase(struct ntb_device *ndev, unsigned int bar);
+void *ntb_get_mw_vbase(struct ntb_device *ndev, unsigned int mw);
 
 /**
- * ntb_get_pbar_size() - return size of NTB BAR
+ * ntb_get_mw_size() - return size of NTB memory window
  * @ndev: pointer to ntb_device instance
- * @bar: BAR index
+ * @mw: memory window number
  *
- * This function provides the size of the NTB PCI BAR 2/3 or 3/4. The BAR
- * index is provided as a #define
+ * This function provides the physical size of the memory window specified
  *
- * RETURNS: the size of the NTB PCI BAR 2/3 or 3/4
+ * RETURNS: the size of the memory window or zero on error
  */
-resource_size_t ntb_get_pbar_size(struct ntb_device *ndev, unsigned int bar);
+resource_size_t ntb_get_mw_size(struct ntb_device *ndev, unsigned int mw);
 
 /**
  * ntb_ring_sdb() - Set the doorbell on the secondary/external side
  * @ndev: pointer to ntb_device instance
- * @db: doorbell index, 0 based
+ * @db: doorbell(s) to ring
  *
  * This function allows triggering of a doorbell on the secondary/external
  * side that will initiate an interrupt on the remote host
