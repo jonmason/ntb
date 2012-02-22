@@ -84,20 +84,6 @@ MODULE_DEVICE_TABLE(pci, ntb_pci_tbl);
 
 struct ntb_device *ntbdev;//FIXME - hack
 
-static void pci_set_memory(struct pci_dev *dev)
-{
-	u16 old_cmd, cmd;
-	int rc;
-
-	rc = pci_read_config_word(dev, PCI_COMMAND, &old_cmd);
-	if (rc)
-		return;
-
-	cmd = old_cmd | PCI_COMMAND_MEMORY;
-	if (cmd != old_cmd)
-		pci_write_config_word(dev, PCI_COMMAND, cmd);
-}
-
 static int pci_read_config_qword(struct pci_dev *dev, int where, u64 *val)
 {
 	int rc;
@@ -862,16 +848,9 @@ static int ntb_setup_intx(struct ntb_device *ndev)
 static int ntb_setup_interrupts(struct ntb_device *ndev)
 {
 	int rc;
-	//u16 sdb;
 
-	writew(~0, ndev->reg_base + ndev->reg_ofs.pdb);
-
-#if 0
-	/* clearing the secondary doorbells */
-	//FIXME - need SB01BASE to clear these, not PB01BASE
-	sdb = readw(ndev->reg_base + ndev->reg_ofs.sdb);
-	writew(sdb, ndev->reg_base + ndev->reg_ofs.sdb);
-#endif
+	/* Enable Link/HB Interrupt, the rest will be unmasked as callbacks are registered */
+	writew(~(1 << (ndev->limits.max_db_bits - 1)), ndev->reg_base + ndev->reg_ofs.pdb_mask);
 
 	rc = ntb_setup_msix(ndev);
 	if (!rc)
@@ -888,10 +867,6 @@ static int ntb_setup_interrupts(struct ntb_device *ndev)
 	}
 
 done:
-	/* Enable Link/HB Interrupt, the rest will be unmasked as callbacks are registered */
-	writew(0, ndev->reg_base + ndev->reg_ofs.pdb_mask);
-	//writew(~(1 << (ndev->limits.max_db_bits - 1)), ndev->reg_base + ndev->reg_ofs.pdb_mask);
-
 	return 0;
 }
 
@@ -953,14 +928,6 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	ndev->pdev = pdev;
 	pci_set_drvdata(pdev, ndev);
 
-	err = ntb_device_setup(ndev);
-	if (err)
-		goto err3;
-
-	err = ntb_create_callbacks(ndev);
-	if (err)
-		goto err5;
-
 	err = pci_enable_device(pdev);
 	if (err)
 		goto err;
@@ -985,10 +952,6 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		}
 	}
 
-	//pci_set_memory(ndev->pdev);
-	//ntb_lib_write_16(device->mm_regs, BUS_MASTER_MEMORY_OFFSET, BUS_MASTER_MEMORY_ENABLE);
-	writew(0x6, ndev->reg_base + 0x504);
-
 	err = pci_set_dma_mask(pdev, DMA_BIT_MASK(64));
 	if (err) {
 		err = pci_set_dma_mask(pdev, DMA_BIT_MASK(32));
@@ -1007,9 +970,20 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		dev_warn(&pdev->dev, "Cannot DMA consistent highmem\n");
 	}
 
+	/* Enable Bus Master and Memory Space on the secondary side */
+	writew(NTB_PCICMD_BUSMSTR | NTB_PCICMD_MEMSPC, ndev->reg_base + NTB_PCICMD_OFFSET);
+
+	err = ntb_device_setup(ndev);
+	if (err)
+		goto err3;
+
 	err = ntb_setup_interrupts(ndev);
 	if (err)
 		goto err4;
+
+	err = ntb_create_callbacks(ndev);
+	if (err)
+		goto err5;
 
 	ndev->link_status = NTB_LINK_DOWN;
 
