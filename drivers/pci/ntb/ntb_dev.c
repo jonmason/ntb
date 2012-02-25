@@ -156,6 +156,16 @@ static void ntb_debug_dump(struct ntb_device *ndev)
 	}
 
 	dev_info(&ndev->pdev->dev, "Upstream Memory Misses %d\n", readw(ndev->reg_base + 0x70));
+
+	rc = pci_read_config_qword(ndev->pdev, 0x18, &status64);
+	if (rc)
+		return;
+
+	dev_info(&ndev->pdev->dev, "PBAR2BASE %llx MMIO addr %p\n", status64, ndev->mw[0].vbase);
+	dev_info(&ndev->pdev->dev, "PBAR2XLAT %lx PBAR4XLAT %lx\n", readq(ndev->reg_base + 0x10), readq(ndev->reg_base + 0x18));
+	dev_info(&ndev->pdev->dev, "SBAR2XLAT %lx SBAR4XLAT %lx\n", readq(ndev->reg_base + 0x30), readq(ndev->reg_base + 0x38));
+	dev_info(&ndev->pdev->dev, "SBAR0BASE %lx SBAR2BASE %lx SBAR4BASE %lx\n", readq(ndev->reg_base + 0x40), readq(ndev->reg_base + 0x48), readq(ndev->reg_base + 0x50));
+	dev_info(&ndev->pdev->dev, "B2BBAR0XLAT %lx\n", readq(ndev->reg_base + 0x144));
 }
 
 /**
@@ -420,6 +430,7 @@ void ntb_set_mw_addr(struct ntb_device *ndev, unsigned int mw, u64 addr)
 		return;
 
 	ndev->mw[mw].phys_addr = addr;
+	dev_info(&ndev->pdev->dev, "MW %d addr %llx\n", mw, addr);
 
 	//FIXME - have it dma mapped before or do it here?
 
@@ -427,6 +438,7 @@ void ntb_set_mw_addr(struct ntb_device *ndev, unsigned int mw, u64 addr)
 	switch (MW_TO_BAR(mw)) {
 	case NTB_BAR_23:
 		writeq(addr, ndev->reg_base + ndev->reg_ofs.sbar2_xlat);
+		dev_info(&ndev->pdev->dev, "readback MW %d addr %lx\n", mw, readq(ndev->reg_base + ndev->reg_ofs.sbar2_xlat));
 		break;
 	case NTB_BAR_45:
 		writeq(addr, ndev->reg_base + ndev->reg_ofs.sbar4_xlat);
@@ -449,6 +461,8 @@ int ntb_ring_sdb(struct ntb_device *ndev, unsigned int db)
 {
 	if (db >= 1 << ndev->limits.max_db_bits)
 		return -EINVAL;
+
+	dev_info(&ndev->pdev->dev, "%s: ringing doorbell(s) %x\n", __func__, db);
 
 	writew(db, ndev->reg_base + ndev->reg_ofs.sdb);
 
@@ -547,14 +561,15 @@ static void ntb_snb_b2b_setup(struct ntb_device *ndev)
 	ndev->reg_ofs.sbar4_xlat = SNB_SBAR4XLAT_OFFSET;
 	ndev->reg_ofs.lnk_cntl = SNB_NTBCNTL_OFFSET;
 	ndev->reg_ofs.lnk_stat = SNB_LINK_STATUS_OFFSET;
-	ndev->reg_ofs.spad_read = SNB_SPAD_OFFSET;
 
 	if (ndev->conn_type == NTB_CONN_B2B) {
 		ndev->reg_ofs.sdb = SNB_B2B_DOORBELL_OFFSET;
 		ndev->reg_ofs.spad_write = SNB_B2B_SPAD_OFFSET;
+		ndev->reg_ofs.spad_read = SNB_B2B_SPAD_OFFSET;
 	} else {
 		ndev->reg_ofs.sdb = SNB_SDOORBELL_OFFSET; 
 		ndev->reg_ofs.spad_write = SNB_SPAD_OFFSET;
+		ndev->reg_ofs.spad_read = SNB_SPAD_OFFSET;
 	}
 
 	ndev->reg_ofs.msix_msgctrl = SNB_MSIXMSGCTRL_OFFSET;
@@ -673,7 +688,7 @@ static void ntb_device_free(struct ntb_device *ndev)
 #endif
 }
 
-//FIXME - find way to sync irq handleing between jt/bwd and msix/msi/intx
+//FIXME - find way to sync irq handling between jt/bwd and msix/msi/intx
 static irqreturn_t ntb_interrupt(int irq, void *dev)
 {
 	struct ntb_device *ndev = dev;
@@ -722,7 +737,7 @@ static irqreturn_t ntb_msix_irq(int irq, void *dev)
 		if (test_bit(i, (const volatile long unsigned int *)&pdb) && ndev->db_cb[i].callback)
 				ndev->db_cb[i].callback(ndev->db_cb[i].db_num);
 	}
-	//FIXME - can this be optomized using ffs or is that unnecessary?
+	//FIXME - can this be optimized using ffs or is that unnecessary?
 	//FIXME - can use the irq number to determine which bits to clear, otherwise we may be clearing interrupts we don't want to
 
 #ifdef BWD
@@ -946,6 +961,7 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	for (i = 0; i < NTB_NUM_MW; i++) {
 		ndev->mw[i].vbase = pci_ioremap_bar(pdev, MW_TO_BAR(i));
+		dev_info(&pdev->dev, "Addr %p len %d\n", ndev->mw[i].vbase, (u32) pci_resource_len(pdev, i));
 		if (!ndev->mw[i].vbase) {
 			err = -EIO;
 			goto err3;
@@ -971,7 +987,7 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	}
 
 	/* Enable Bus Master and Memory Space on the secondary side */
-	writew(NTB_PCICMD_BUSMSTR | NTB_PCICMD_MEMSPC, ndev->reg_base + NTB_PCICMD_OFFSET);
+	writew(PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, ndev->reg_base + NTB_PCICMD_OFFSET);
 
 	err = ntb_device_setup(ndev);
 	if (err)

@@ -101,12 +101,23 @@ void ntb_transport_free(void);
 static void ntb_transport_dbcb(int db_num)
 {
 	struct device *dev = &transport->ndev->pdev->dev;
+	int i;
+	char *buf;
+
+#if 0
+	if (!qp->link)
+		return;
+#endif
 
 	//FIXME - this should kick off wq thread or we should document that it runs in irq context
 
 	//FIXME - do some magic to move rx'ed frame off of rxq and onto rx_comp_q
-
 	dev_info(dev, "%s: doorbell %d received\n", __func__, db_num);
+
+	buf = (char *)transport->payload_virt_addr;
+	for (i = 0; i < 100; i++)
+		pr_info("addr %p: %x", buf + i, buf[i]);
+
 	transport->qps[db_num].rx_handler(&transport->qps[db_num]);
 }
 
@@ -136,11 +147,13 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 			return NULL; //FIXME  - use ERR_PTR for all NULL
 	}
 
-	if (!transport->qp_bitmap)
-		return NULL;
-
 	//FIXME - need to handhake with remote side to determine matching number or some mapping between the 2
 	free_queue = ffs(transport->qp_bitmap);
+	if (!free_queue)
+		return NULL;
+
+	free_queue--;
+
 	clear_bit(free_queue, &transport->qp_bitmap);//FIXME - this might be racy, either add lock or make atomic
 
 	qp = &transport->qps[free_queue];
@@ -232,25 +245,41 @@ EXPORT_SYMBOL(ntb_transport_rx_enqueue);
  */
 int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry)
 {
-	struct scatterlist *sg;
+	struct scatterlist *sg = &entry->sg;
 	int rc;
 	struct device *dev = &transport->ndev->pdev->dev;
+	int i;
+	char *buf;
 
-	dev_info(dev, "%s\n", __func__);
+	dev_info(dev, "%s: SG addr %p SG Len %d\n", __func__, sg_virt(sg), sg->length);
 	if (!qp || qp->link != NTB_LINK_UP)
 		return -EINVAL;
 
+	buf = (char *)sg_virt(sg);
+	for (i = 0; i < 100; i++)
+		pr_info("addr %p: %x", buf + i, buf[i]);
+
 //FIXME - see also sg_copy_to_buffer
+//FIXME - copying over same memory each time
+#if 0
 	for (sg = &entry->sg; sg; sg = sg_next(sg))
 		memcpy((void *)transport->payload_dma_addr, (void *)sg_dma_address(sg), sg_dma_len(sg));
-//FIXME - copying over same memory each time
+#else
+	memcpy(ntb_get_mw_vbase(transport->ndev, 0), sg_virt(sg), sg->length);
+	//memcpy(transport->payload_virt_addr, sg_virt(sg), sg->length);
+#endif
+	mb();
 
 	/* Ring doorbell notifying remote side of new packet */
 	rc = ntb_ring_sdb(transport->ndev, 1 << qp->qp_num);
 	if (rc)
 		return rc;
 
-	dev_info(dev, "%s: ringing doorbell %d\n", __func__, qp->qp_num);
+#if 0
+	dev_info(dev, "%s: read data back\n", __func__);
+	for (i = 0; i < 100; i++)
+		pr_info("addr %p: %x", ntb_get_mw_vbase(transport->ndev, 0) + i, ((char *)ntb_get_mw_vbase(transport->ndev, 0))[i]);
+#endif
 
 	return 0;
 }
@@ -363,10 +392,8 @@ int ntb_transport_reg_event_callback(struct ntb_transport_qp *qp, void (*handler
 
 	qp->event_handler = handler;
 
-	//FIXME - hack to make link up even fire immediately after registering
+	//FIXME - workqueue might be overkill, and might not need to be delayed...
 	INIT_DELAYED_WORK(&qp->event_work, ntb_transport_event_work);
-	qp->event_flags = NTB_LINK_UP;//FIXME -racy
-	schedule_delayed_work(&qp->event_work, msecs_to_jiffies(1000));//FIXME - magic number
 
 	return 0;
 }
@@ -427,11 +454,11 @@ int ntb_transport_init()
 		goto err;
 	}
 
-	transport->qp_bitmap = ~(transport->max_qps - 1);
+	transport->qp_bitmap = (1 << transport->max_qps) - 1;
 
 	//alloc memory to be transfered into
 	/* Must be 4k aligned */
-	transport->payload_size = ALIGN(PAGE_SIZE, 4096);
+	transport->payload_size = ALIGN(ntb_get_mw_size(transport->ndev, 0), 4096);
 	//FIXME - might not need to be coherent if we don't ever touch it by the cpu on this side
 	transport->payload_virt_addr = dma_alloc_coherent(&transport->ndev->pdev->dev, transport->payload_size, &transport->payload_dma_addr, GFP_KERNEL);
 	if (!transport->payload_virt_addr) {

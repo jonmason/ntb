@@ -143,7 +143,5 @@
 #define NTB_PPD_DEV_TYPE	0x10
 
 #define NTB_PCICMD_OFFSET	0x504
-#define	NTB_PCICMD_MEMSPC	(1 << 1)
-#define NTB_PCICMD_BUSMSTR	(1 << 2)
 
 #endif
