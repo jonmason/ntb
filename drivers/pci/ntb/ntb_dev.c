@@ -430,15 +430,10 @@ void ntb_set_mw_addr(struct ntb_device *ndev, unsigned int mw, u64 addr)
 		return;
 
 	ndev->mw[mw].phys_addr = addr;
-	dev_info(&ndev->pdev->dev, "MW %d addr %llx\n", mw, addr);
 
-	//FIXME - have it dma mapped before or do it here?
-
-	//FIXME - come up with a better way to determine the base offset
 	switch (MW_TO_BAR(mw)) {
 	case NTB_BAR_23:
 		writeq(addr, ndev->reg_base + ndev->reg_ofs.sbar2_xlat);
-		dev_info(&ndev->pdev->dev, "readback MW %d addr %lx\n", mw, readq(ndev->reg_base + ndev->reg_ofs.sbar2_xlat));
 		break;
 	case NTB_BAR_45:
 		writeq(addr, ndev->reg_base + ndev->reg_ofs.sbar4_xlat);

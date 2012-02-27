@@ -70,8 +70,12 @@
 struct ntb_transport_qp {
 	struct list_head txq;
 	struct list_head tx_comp_q;
+	void *tx_mw_offset;
+
 	struct list_head rxq;
 	struct list_head rx_comp_q;
+	void *rx_mw_offset;
+
 	void (*rx_handler)(struct ntb_transport_qp *qp);
 	void (*tx_handler)(struct ntb_transport_qp *qp);
 	void (*event_handler)(int status);
@@ -79,18 +83,39 @@ struct ntb_transport_qp {
 	unsigned int event_flags:1;
 	unsigned int link:1;
 	unsigned int qp_num:6;/* Only 64 QP's are allowed.  0-63 */
+
+	/* Stats */
+	u64 rx_bytes;
+	u64 rx_pkts;
+	u64 rx_err_no_buf;
+	u64 rx_err_oflow;
+	u64 tx_bytes;
+	u64 tx_pkts;
 };
 
 struct ntb_transport {
 	struct ntb_device *ndev;
-	size_t payload_size;
-	void *payload_virt_addr;
-	dma_addr_t payload_dma_addr;
+
+	struct {
+		size_t size;
+		void *virt_addr;
+		dma_addr_t dma_addr;
+	} mw[NTB_NUM_MW];//FIXME - #define for # of mw
 
 	unsigned int max_qps;
 	struct ntb_transport_qp *qps;
 	unsigned long qp_bitmap;
 };
+
+struct ntb_payload_header {
+	unsigned int len;
+	u32 ver;
+};
+
+
+#define DB_TO_MW(db)	((db / 4) % 2)
+#define QP_TO_MW	DB_TO_MW
+
 
 struct ntb_transport *transport = NULL;
 
@@ -100,25 +125,60 @@ void ntb_transport_free(void);
 
 static void ntb_transport_dbcb(int db_num)
 {
+	struct ntb_transport_qp *qp = &transport->qps[db_num];
 	struct device *dev = &transport->ndev->pdev->dev;
-	int i;
-	char *buf;
-
+	struct ntb_queue_entry *entry;
+	struct ntb_payload_header *hdr;
 #if 0
-	if (!qp->link)
-		return;
-#endif
+	int i;
+	u32 *buf;
 
-	//FIXME - this should kick off wq thread or we should document that it runs in irq context
+	pr_info("HDR: ver %x len %d\n", ((struct ntb_payload_header *)transport->mw[0].virt_addr)->ver, ((struct ntb_payload_header *)transport->mw[0].virt_addr)->len);
 
-	//FIXME - do some magic to move rx'ed frame off of rxq and onto rx_comp_q
-	dev_info(dev, "%s: doorbell %d received\n", __func__, db_num);
-
-	buf = (char *)transport->payload_virt_addr;
+	buf = (u32 *)transport->mw[0].virt_addr;
+	//buf = (u32 *)(transport->mw[0].virt_addr + sizeof(struct ntb_payload_header));
 	for (i = 0; i < 100; i++)
 		pr_info("addr %p: %x", buf + i, buf[i]);
+#endif
 
-	transport->qps[db_num].rx_handler(&transport->qps[db_num]);
+	if (!qp || !qp->link)
+		return;
+
+	dev_info(dev, "%s: doorbell %d received\n", __func__, db_num);
+
+	if (list_empty(&qp->rxq)) {
+		dev_info(dev, "No RX buf\n");
+		qp->rx_err_no_buf++;
+		return;
+	}
+
+	entry = list_first_entry(&qp->rxq, struct ntb_queue_entry, entry);
+	list_del(&entry->entry);
+
+	hdr = qp->rx_mw_offset;
+
+	dev_info(dev, "%d payload received, buf size %d\n", hdr->len, entry->sg.length);
+	if (hdr->len > entry->sg.length) {
+		dev_info(dev, "RX overflow\n");
+		list_add_tail(&entry->entry, &qp->rxq);
+		qp->rx_err_oflow++;
+		return;
+	}
+
+	qp->rx_mw_offset = ((void *)hdr) + sizeof(struct ntb_payload_header);
+
+	//FIXME - doesn't handle multple packets in the buffer
+	qp->rx_bytes += sg_copy_from_buffer(&entry->sg, 1, qp->rx_mw_offset, hdr->len);
+	entry->sg.length = hdr->len;
+
+	qp->rx_pkts++;
+
+	qp->rx_mw_offset += hdr->len; //FIXME - verify doesn't run over size of buffer
+
+	list_add_tail(&entry->entry, &qp->rx_comp_q);
+
+	//FIXME - this should kick off wq thread or we should document that it runs in irq context
+	qp->rx_handler(qp);
 }
 
 /**
@@ -152,6 +212,7 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 	if (!free_queue)
 		return NULL;
 
+	/* decrement free_queue to make it zero based */
 	free_queue--;
 
 	clear_bit(free_queue, &transport->qp_bitmap);//FIXME - this might be racy, either add lock or make atomic
@@ -167,6 +228,8 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 	INIT_LIST_HEAD(&qp->txq);
 	INIT_LIST_HEAD(&qp->tx_comp_q);
 
+	qp->tx_mw_offset = ntb_get_mw_vbase(transport->ndev, QP_TO_MW(free_queue));
+	qp->rx_mw_offset = transport->mw[QP_TO_MW(free_queue)].virt_addr;
 	//FIXME - transport->qps[free_queue].queue.hw_caps; is it even necessary for transport client to know?
 
 	rc = ntb_register_db_callback(transport->ndev, free_queue, ntb_transport_dbcb);
@@ -229,7 +292,12 @@ EXPORT_SYMBOL(ntb_transport_free_queue);
  */
 int ntb_transport_rx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry)
 {
-	return -EINVAL;
+	if (!qp)
+		return -EINVAL;
+
+	list_add_tail(&entry->entry, &qp->rxq);
+
+	return 0;
 }
 EXPORT_SYMBOL(ntb_transport_rx_enqueue);
 
@@ -245,41 +313,61 @@ EXPORT_SYMBOL(ntb_transport_rx_enqueue);
  */
 int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry)
 {
-	struct scatterlist *sg = &entry->sg;
-	int rc;
-	struct device *dev = &transport->ndev->pdev->dev;
-	int i;
-	char *buf;
+	struct scatterlist *sg;
+	int rc, mw;
+	struct ntb_payload_header *hdr;
+	void *payload;
+	size_t buflen;
+	unsigned int bytes;
 
-	dev_info(dev, "%s: SG addr %p SG Len %d\n", __func__, sg_virt(sg), sg->length);
+	//FIXME - enqueue to qp->txq and start a thread to copy data over
+
+#if 1
+	int i;
+	u32 *buf = (u32 *)sg_virt(&entry->sg);
+	for (i = 0; i < 64; i += sizeof(u32))
+		pr_info("addr %p: %x", buf + i, buf[i]);
+#endif
+
 	if (!qp || qp->link != NTB_LINK_UP)
 		return -EINVAL;
 
-	buf = (char *)sg_virt(sg);
-	for (i = 0; i < 100; i++)
-		pr_info("addr %p: %x", buf + i, buf[i]);
+	mw = QP_TO_MW(qp->qp_num);
 
-//FIXME - see also sg_copy_to_buffer
-//FIXME - copying over same memory each time
-#if 0
-	for (sg = &entry->sg; sg; sg = sg_next(sg))
-		memcpy((void *)transport->payload_dma_addr, (void *)sg_dma_address(sg), sg_dma_len(sg));
-#else
-	memcpy(ntb_get_mw_vbase(transport->ndev, 0), sg_virt(sg), sg->length);
-	//memcpy(transport->payload_virt_addr, sg_virt(sg), sg->length);
-#endif
-	mb();
+	//FIXME - need to verify that sg list is smaller that mw size
+	//FIXME - use both mw's
+	hdr = qp->tx_mw_offset;
+	payload = ((void *)hdr) + sizeof(struct ntb_payload_header);
+
+	for (sg = &entry->sg; sg; sg = sg_next(sg)) {
+		buflen = sg->length; //FIXME - might need to use sg_dma_len(sg)
+
+		bytes = sg_copy_to_buffer(sg, 1, payload, buflen);
+
+		hdr->len = sg->length;
+		hdr->ver = 0xdeadbeef;//FIXME - need better way to verify that the desc is done
+
+		pr_info("HDR: ver %x len %d\n", hdr->ver, hdr->len);
+
+		//FIXME - verify no wrap
+		hdr = payload + bytes;
+		payload = hdr + sizeof(struct ntb_payload_header);
+
+		qp->tx_pkts++;
+		qp->tx_bytes += bytes;
+	}
+	qp->tx_mw_offset = hdr;
 
 	/* Ring doorbell notifying remote side of new packet */
 	rc = ntb_ring_sdb(transport->ndev, 1 << qp->qp_num);
 	if (rc)
 		return rc;
 
-#if 0
-	dev_info(dev, "%s: read data back\n", __func__);
-	for (i = 0; i < 100; i++)
-		pr_info("addr %p: %x", ntb_get_mw_vbase(transport->ndev, 0) + i, ((char *)ntb_get_mw_vbase(transport->ndev, 0))[i]);
-#endif
+	/* Add fully transmitted data to completion queue */
+	list_add_tail(&entry->entry, &qp->tx_comp_q);
+
+	//FIXME - might want to kick off a thread/wq to handle the tx completion
+	qp->tx_handler(qp);
 
 	return 0;
 }
@@ -429,7 +517,7 @@ static void ntb_transport_event_callback(void *handle, unsigned int event) //FIX
 
 int ntb_transport_init()
 {
-	int rc;
+	int rc, i;
 
 	transport = kmalloc(sizeof(struct ntb_transport), GFP_KERNEL);
 	if (!transport)
@@ -445,49 +533,42 @@ int ntb_transport_init()
 	transport->max_qps = ntb_query_db_bits(transport->ndev) - 1;
 	if (!transport->max_qps) {
 		rc = -EIO;
-		goto err;
+		goto err1;
 	}
 
 	transport->qps = kcalloc(transport->max_qps, sizeof(struct ntb_transport_qp), GFP_KERNEL);
 	if (!transport->qps) {
 		rc = -ENOMEM;
-		goto err;
+		goto err1;
 	}
 
 	transport->qp_bitmap = (1 << transport->max_qps) - 1;
 
-	//alloc memory to be transfered into
-	/* Must be 4k aligned */
-	transport->payload_size = ALIGN(ntb_get_mw_size(transport->ndev, 0), 4096);
-	//FIXME - might not need to be coherent if we don't ever touch it by the cpu on this side
-	transport->payload_virt_addr = dma_alloc_coherent(&transport->ndev->pdev->dev, transport->payload_size, &transport->payload_dma_addr, GFP_KERNEL);
-	if (!transport->payload_virt_addr) {
-		rc = -ENOMEM;
-		goto err1;
-	}
+	for (i = 0; i < NTB_NUM_MW; i++) {
+		/* Alloc memory for receiving data, Must be 4k aligned */
+		transport->mw[i].size = ALIGN(ntb_get_mw_size(transport->ndev, i), 4096);
 
-	//set mem addr to SBAR2XLAT to specify where incoming messages should go
-	ntb_set_mw_addr(transport->ndev, 0, transport->payload_dma_addr);
+		//FIXME - might not need to be coherent if we don't ever touch it by the cpu on this side
+		transport->mw[i].virt_addr = dma_alloc_coherent(&transport->ndev->pdev->dev, transport->mw[i].size, &transport->mw[i].dma_addr, GFP_KERNEL);
+		if (!transport->mw[i].virt_addr) {
+			rc = -ENOMEM;
+			goto err2;
+		}
+
+		/* Notify HW the memory location of the receive buffer */
+		ntb_set_mw_addr(transport->ndev, i, transport->mw[i].dma_addr);
+	}
 
 	rc = ntb_register_event_callback(transport->ndev, ntb_transport_event_callback);
 	if (rc)
-		return rc;//FIXME - cleanup
-#if 0
-	//setup/init transport
-	int ntb_get_max_spads(struct ntb_device *ndev);
-	int ntb_write_spad(struct ntb_device *ndev, unsigned int idx, u32 val);
-	int ntb_read_spad(struct ntb_device *ndev, unsigned int idx, u32 *val);
-	void *ntb_get_pbar_vbase(struct ntb_device *ndev, unsigned int bar);
-	resource_size_t ntb_get_pbar_size(struct ntb_device *ndev, unsigned int bar);
-	int ntb_ring_sdb(struct ntb_device *ndev, unsigned int idx);
+		goto err2;
 
-
-	//*register callbacks
-	int ntb_register_db_callback(struct ntb_device *ndev, unsigned int idx, db_cb_func func);
-	int ntb_register_event_callback(struct ntb_device *ndev, event_cb_func func);
-#endif
 	return 0;
 
+err2:
+	for (i--; i >= 0; i--)
+		  dma_free_coherent(&transport->ndev->pdev->dev, transport->mw[i].size, transport->mw[i].virt_addr, transport->mw[i].dma_addr);
+	kfree(transport->qps);
 err1:
 	ntb_unregister_transport(transport->ndev);
 err:
@@ -499,16 +580,14 @@ EXPORT_SYMBOL(ntb_transport_init);
 
 void ntb_transport_free()
 {
-	dma_free_coherent(&transport->ndev->pdev->dev, transport->payload_size, transport->payload_virt_addr, transport->payload_dma_addr);
+	int i;
+
+	//FIXME - verify that the event and db callbacks are empty?
+
+	for (i = 0; i < NTB_NUM_MW; i++)
+		  dma_free_coherent(&transport->ndev->pdev->dev, transport->mw[i].size, transport->mw[i].virt_addr, transport->mw[i].dma_addr);
+	kfree(transport->qps);
 	ntb_unregister_transport(transport->ndev);
 	kfree(transport);
-#if 0
-	//teardown transport
-	//*free callbacks
-	void ntb_unregister_event_callback(struct ntb_device *ndev);
-	void ntb_unregister_db_callback(struct ntb_device *ndev, unsigned int idx);
-	//*unregister transprot with dev
-	void ntb_unregister_transport(struct ntb_device *ndev);
-#endif
 }
 EXPORT_SYMBOL(ntb_transport_free);

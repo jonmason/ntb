@@ -80,20 +80,32 @@ struct ntb_dummy_dev {
 
 struct ntb_dummy_dev *dev;
 
-static void ntb_dummy_rx_handler(struct ntb_transport_qp *qp)
-{
-	pr_info("%s\n", __func__);
-}
-
-static void ntb_dummy_tx_handler(struct ntb_transport_qp *qp)
+static struct ntb_queue_entry *alloc_entry(unsigned int len)
 {
 	struct ntb_queue_entry *entry;
+	char *buf;
 
-	entry = ntb_transport_tx_dequeue(qp);
+	entry = kzalloc(sizeof(struct ntb_queue_entry), GFP_KERNEL);
 	if (!entry)
-		return;
+		goto err;
 
-	__free_page(sg_page(&entry->sg));
+	buf = kmalloc(len, GFP_KERNEL);
+	if (!buf)
+		goto err1;
+
+	sg_init_one(&entry->sg, buf, len);
+
+	return entry;
+
+err1:
+	kfree(entry);
+err:
+	return NULL;
+}
+
+static void free_entry(struct ntb_queue_entry *entry)
+{
+	kfree(sg_virt(&entry->sg));
 	kfree(entry);
 }
 
@@ -102,37 +114,65 @@ static void ntb_dummy_event_handler(int status)
 	pr_info("%s: Event %x, Link %x\n", KBUILD_MODNAME, status, ntb_transport_hw_link_query(dev->qp));
 }
 
+static void ntb_dummy_rx_handler(struct ntb_transport_qp *qp)
+{
+	struct ntb_queue_entry *entry;
+	u32 *buf;
+	int i;
+
+	pr_info("%s\n", __func__);
+
+	entry = ntb_transport_rx_dequeue(dev->qp);
+	if (!entry)
+		return;
+
+	buf = (u32 *)sg_virt(&entry->sg);
+
+	pr_info("%d byte payload received\n", entry->sg.length);
+	for (i = 0; i < 64; i += sizeof(u32))
+		pr_info("addr %p: %x", buf + i, buf[i]);
+
+	free_entry(entry);
+}
+
+static void ntb_dummy_tx_handler(struct ntb_transport_qp *qp)
+{
+	struct ntb_queue_entry *entry;
+
+	pr_info("%s\n", __func__);
+
+	entry = ntb_transport_tx_dequeue(qp);
+	if (!entry)
+		return;
+
+	free_entry(entry);
+}
+
 static int ntb_debug_tx_open(struct inode *inode, struct file *file)
 {
 	struct ntb_queue_entry *entry;
-	char *buf;
-	int i, rc;
-
-	entry = kzalloc(sizeof(struct ntb_queue_entry), GFP_KERNEL);
-	if (!entry)
-		return -ENOMEM;
-
-	buf = kmalloc(PAGE_SIZE, GFP_KERNEL);
-	if (!buf)
-		return -ENOMEM;
-
-#if 0
-	for (i = 0; i < PAGE_SIZE; i++)
-		buf[i] = i;
-#else
-	get_random_bytes(buf, PAGE_SIZE);
-#endif
-
-	sg_init_one(&entry->sg, buf, PAGE_SIZE);
-
-	//FIXME - rc = ntb_transport_rx_enqueue(dev->qp, entry); prepost rxd's
-	rc = ntb_transport_tx_enqueue(dev->qp, entry);
-	if (rc)
-		return -EIO;//FIXME - need to cle
+	int rc;
 
 	pr_info("%s: ntb_transport_tx_enqueue\n", KBUILD_MODNAME);
 
+	entry = alloc_entry(PAGE_SIZE);
+	if (!entry) {
+		rc = -ENOMEM;
+		goto err;
+	}
+
+	get_random_bytes(sg_virt(&entry->sg), entry->sg.length);
+
+	rc = ntb_transport_tx_enqueue(dev->qp, entry);
+	if (rc)
+		goto err1;
+
 	return 0;
+
+err1:
+	free_entry(entry);
+err:
+	return rc;
 }
 
 static const struct file_operations ntb_tx_fops = {
@@ -146,25 +186,21 @@ static const struct file_operations ntb_tx_fops = {
 
 static int ntb_debug_show_rx(struct seq_file *s, void *unused)
 {
+#if 0
 	struct ntb_queue_entry *entry;
-	char *buf;
+	u32 *buf;
 	int i;
 
 	entry = ntb_transport_rx_dequeue(dev->qp);
 	if (!entry)
 		return 0;
 
-#if 0
-	pg = sg_page(&entry->sg);
-	buf = (char *)page_to_phys(pg);
-#else
-	buf = (char *)sg_phys(&entry->sg);
-#endif
+	buf = (u32 *)sg_virt(&entry->sg);
 
 	seq_printf(s, "Payload received\n");
 	for (i = 0; i < PAGE_SIZE; i++)
 		seq_printf(s, "addr %p: %x", buf + i, buf[i]);
-
+#endif
 	return 0;
 }
 
@@ -184,6 +220,7 @@ static const struct file_operations ntb_rx_fops = {
 
 static int __init ntb_dummy_init_module(void)
 {
+	struct ntb_queue_entry *entry;
 	int rc;
 
 	pr_info("%s: Probe\n", KBUILD_MODNAME);
@@ -202,24 +239,46 @@ static int __init ntb_dummy_init_module(void)
 	if (rc)
 		goto err1;
 
-
-
 	dev->debug_dir = debugfs_create_dir(KBUILD_MODNAME, NULL);
-	if (!dev->debug_dir)
-		return -ENOMEM; //FIXME - return errono and handle exit properly
+	if (!dev->debug_dir) {
+		rc = -ENOMEM; //FIXME - return errono and handle exit properly
+		goto err1;
+	}
 
 	dev->debug_rx = debugfs_create_file("receive", S_IRUSR, dev->debug_dir, NULL, &ntb_rx_fops);
-	if (!dev->debug_rx)
-		return -ENOMEM; //FIXME - return errono and handle exit properly
+	if (!dev->debug_rx) {
+		rc = -ENOMEM; //FIXME - return errono and handle exit properly
+		goto err2;
+	}
 
 	dev->debug_tx = debugfs_create_file("transmit", S_IRUSR, dev->debug_dir, NULL, &ntb_tx_fops);
-	if (!dev->debug_tx)
-		return -ENOMEM; //FIXME - return errono and handle exit properly
+	if (!dev->debug_tx) {
+		rc = -ENOMEM; //FIXME - return errono and handle exit properly
+		goto err3;
+	}
+
+	entry = alloc_entry(PAGE_SIZE);
+	if (!entry) {
+		rc = -ENOMEM;
+		goto err4;
+	}
+
+	rc = ntb_transport_rx_enqueue(dev->qp, entry);
+	if (rc)
+		goto err5;
 
 	ntb_transport_link_up(dev->qp);
 
 	return 0;
 
+err5:
+	free_entry(entry);
+err4:
+	debugfs_remove(dev->debug_tx);
+err3:
+	debugfs_remove(dev->debug_rx);
+err2:
+	debugfs_remove(dev->debug_dir);
 err1:
 	ntb_transport_free_queue(dev->qp);
 err:
@@ -230,6 +289,8 @@ module_init(ntb_dummy_init_module);
 
 static void __exit ntb_dummy_exit_module(void)
 {
+	ntb_transport_rx_dequeue(dev->qp);
+
 	debugfs_remove(dev->debug_tx);
 	debugfs_remove(dev->debug_rx);
 	debugfs_remove(dev->debug_dir);
