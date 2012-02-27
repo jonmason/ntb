@@ -100,7 +100,7 @@ struct ntb_transport {
 		size_t size;
 		void *virt_addr;
 		dma_addr_t dma_addr;
-	} mw[NTB_NUM_MW];//FIXME - #define for # of mw
+	} mw[NTB_NUM_MW];
 
 	unsigned int max_qps;
 	struct ntb_transport_qp *qps;
@@ -113,15 +113,87 @@ struct ntb_payload_header {
 };
 
 
-#define DB_TO_MW(db)	((db / 4) % 2)
-#define QP_TO_MW	DB_TO_MW
+#define DB_TO_MW(db)	(((db) / 4) % 2)
+#define QP_TO_MW(qp)	DB_TO_MW(qp)
 
 
 struct ntb_transport *transport = NULL;
 
-//FIXME - reorder the functions to remove the need for these pre-declirations
-int ntb_transport_init(void);
-void ntb_transport_free(void);
+int ntb_transport_init()
+{
+	int rc, i;
+
+	transport = kmalloc(sizeof(struct ntb_transport), GFP_KERNEL);
+	if (!transport)
+		return -ENOMEM;
+
+	transport->ndev = ntb_register_transport(transport);
+	if (!transport->ndev) {
+		rc = -EIO;
+		goto err;
+	}
+
+	/* 1 Doorbell bit is used by Link/HB, but the rest can be used for the transport qp's */
+	transport->max_qps = ntb_query_db_bits(transport->ndev) - 1;
+	if (!transport->max_qps) {
+		rc = -EIO;
+		goto err1;
+	}
+
+	transport->qps = kcalloc(transport->max_qps, sizeof(struct ntb_transport_qp), GFP_KERNEL);
+	if (!transport->qps) {
+		rc = -ENOMEM;
+		goto err1;
+	}
+
+	transport->qp_bitmap = (1 << transport->max_qps) - 1;
+
+	for (i = 0; i < NTB_NUM_MW; i++) {
+		/* Alloc memory for receiving data, Must be 4k aligned */
+		transport->mw[i].size = ALIGN(ntb_get_mw_size(transport->ndev, i), 4096);
+
+		//FIXME - might not need to be coherent if we don't ever touch it by the cpu on this side
+		transport->mw[i].virt_addr = dma_alloc_coherent(&transport->ndev->pdev->dev, transport->mw[i].size, &transport->mw[i].dma_addr, GFP_KERNEL);
+		if (!transport->mw[i].virt_addr) {
+			rc = -ENOMEM;
+			goto err2;
+		}
+
+		/* Notify HW the memory location of the receive buffer */
+		ntb_set_mw_addr(transport->ndev, i, transport->mw[i].dma_addr);
+	}
+
+	rc = ntb_register_event_callback(transport->ndev, ntb_transport_event_callback);
+	if (rc)
+		goto err2;
+
+	return 0;
+
+err2:
+	for (i--; i >= 0; i--)
+		  dma_free_coherent(&transport->ndev->pdev->dev, transport->mw[i].size, transport->mw[i].virt_addr, transport->mw[i].dma_addr);
+	kfree(transport->qps);
+err1:
+	ntb_unregister_transport(transport->ndev);
+err:
+	kfree(transport);
+	return rc;
+} 
+EXPORT_SYMBOL(ntb_transport_init);
+
+void ntb_transport_free()
+{
+	int i;
+
+	//FIXME - verify that the event and db callbacks are empty?
+
+	for (i = 0; i < NTB_NUM_MW; i++)
+		  dma_free_coherent(&transport->ndev->pdev->dev, transport->mw[i].size, transport->mw[i].virt_addr, transport->mw[i].dma_addr);
+	kfree(transport->qps);
+	ntb_unregister_transport(transport->ndev);
+	kfree(transport);
+}
+EXPORT_SYMBOL(ntb_transport_free);
 
 static void ntb_transport_dbcb(int db_num)
 {
@@ -514,80 +586,3 @@ static void ntb_transport_event_callback(void *handle, unsigned int event) //FIX
 			schedule_delayed_work(&qp->event_work, 0);
 		}
 }
-
-int ntb_transport_init()
-{
-	int rc, i;
-
-	transport = kmalloc(sizeof(struct ntb_transport), GFP_KERNEL);
-	if (!transport)
-		return -ENOMEM;
-
-	transport->ndev = ntb_register_transport(transport);
-	if (!transport->ndev) {
-		rc = -EIO;
-		goto err;
-	}
-
-	/* 1 Doorbell bit is used by Link/HB, but the rest can be used for the transport qp's */
-	transport->max_qps = ntb_query_db_bits(transport->ndev) - 1;
-	if (!transport->max_qps) {
-		rc = -EIO;
-		goto err1;
-	}
-
-	transport->qps = kcalloc(transport->max_qps, sizeof(struct ntb_transport_qp), GFP_KERNEL);
-	if (!transport->qps) {
-		rc = -ENOMEM;
-		goto err1;
-	}
-
-	transport->qp_bitmap = (1 << transport->max_qps) - 1;
-
-	for (i = 0; i < NTB_NUM_MW; i++) {
-		/* Alloc memory for receiving data, Must be 4k aligned */
-		transport->mw[i].size = ALIGN(ntb_get_mw_size(transport->ndev, i), 4096);
-
-		//FIXME - might not need to be coherent if we don't ever touch it by the cpu on this side
-		transport->mw[i].virt_addr = dma_alloc_coherent(&transport->ndev->pdev->dev, transport->mw[i].size, &transport->mw[i].dma_addr, GFP_KERNEL);
-		if (!transport->mw[i].virt_addr) {
-			rc = -ENOMEM;
-			goto err2;
-		}
-
-		/* Notify HW the memory location of the receive buffer */
-		ntb_set_mw_addr(transport->ndev, i, transport->mw[i].dma_addr);
-	}
-
-	rc = ntb_register_event_callback(transport->ndev, ntb_transport_event_callback);
-	if (rc)
-		goto err2;
-
-	return 0;
-
-err2:
-	for (i--; i >= 0; i--)
-		  dma_free_coherent(&transport->ndev->pdev->dev, transport->mw[i].size, transport->mw[i].virt_addr, transport->mw[i].dma_addr);
-	kfree(transport->qps);
-err1:
-	ntb_unregister_transport(transport->ndev);
-err:
-	kfree(transport);
-	return rc;
-} 
-EXPORT_SYMBOL(ntb_transport_init);
-
-
-void ntb_transport_free()
-{
-	int i;
-
-	//FIXME - verify that the event and db callbacks are empty?
-
-	for (i = 0; i < NTB_NUM_MW; i++)
-		  dma_free_coherent(&transport->ndev->pdev->dev, transport->mw[i].size, transport->mw[i].virt_addr, transport->mw[i].dma_addr);
-	kfree(transport->qps);
-	ntb_unregister_transport(transport->ndev);
-	kfree(transport);
-}
-EXPORT_SYMBOL(ntb_transport_free);
