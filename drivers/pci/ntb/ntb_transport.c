@@ -110,16 +110,32 @@ struct ntb_transport {
 struct ntb_payload_header {
 	unsigned int len;
 	u32 ver;
+	u32 done:1;
+	u32 wrap:1;
 };
 
 
-#define DB_TO_MW(db)	(((db) / 4) % 2)
-#define QP_TO_MW(qp)	DB_TO_MW(qp)
+#define QLEN(rxq, txq, size)	((rxq < txq) ? size - (txq - rxq) : rxq - txq)
+#define DB_TO_MW(db)		(((db) / 4) % 2)
+#define QP_TO_MW(qp)		DB_TO_MW(qp)
 
 
 struct ntb_transport *transport = NULL;
 
-int ntb_transport_init()
+static void ntb_transport_event_callback(void *handle, unsigned int event) //FIXME - handle is unnecessary, what would it be used for ever?????
+{
+	int i;
+
+	for (i = 0; i < transport->max_qps; i++)
+		if (!test_bit(i, &transport->qp_bitmap) && transport->qps[i].event_handler) {
+			struct ntb_transport_qp *qp = &transport->qps[i];
+
+			qp->event_flags |= event; //FIXME - racy and only 1 bit
+			schedule_delayed_work(&qp->event_work, 0);
+		}
+}
+
+int ntb_transport_init(void)
 {
 	int rc, i;
 
@@ -181,7 +197,7 @@ err:
 } 
 EXPORT_SYMBOL(ntb_transport_init);
 
-void ntb_transport_free()
+void ntb_transport_free(void)
 {
 	int i;
 
@@ -201,6 +217,7 @@ static void ntb_transport_dbcb(int db_num)
 	struct device *dev = &transport->ndev->pdev->dev;
 	struct ntb_queue_entry *entry;
 	struct ntb_payload_header *hdr;
+	u64 offset;
 #if 0
 	int i;
 	u32 *buf;
@@ -218,6 +235,20 @@ static void ntb_transport_dbcb(int db_num)
 
 	dev_info(dev, "%s: doorbell %d received\n", __func__, db_num);
 
+	hdr = qp->rx_mw_offset;
+
+	if (!hdr->done)
+		return;
+
+	if (hdr->wrap) {
+		qp->rx_mw_offset = ntb_get_mw_vbase(transport->ndev, DB_TO_MW(db_num));
+
+		/* update scratchpad register keeping track of current location, which would have an offset of 0 here */
+		ntb_write_spad(transport->ndev, 0, 0); //FIXME - handle rc
+		ntb_write_spad(transport->ndev, 1, 0); //FIXME - handle rc
+		return;
+	}
+
 	if (list_empty(&qp->rxq)) {
 		dev_info(dev, "No RX buf\n");
 		qp->rx_err_no_buf++;
@@ -226,8 +257,6 @@ static void ntb_transport_dbcb(int db_num)
 
 	entry = list_first_entry(&qp->rxq, struct ntb_queue_entry, entry);
 	list_del(&entry->entry);
-
-	hdr = qp->rx_mw_offset;
 
 	dev_info(dev, "%d payload received, buf size %d\n", hdr->len, entry->sg.length);
 	if (hdr->len > entry->sg.length) {
@@ -248,6 +277,11 @@ static void ntb_transport_dbcb(int db_num)
 	qp->rx_mw_offset += hdr->len; //FIXME - verify doesn't run over size of buffer
 
 	list_add_tail(&entry->entry, &qp->rx_comp_q);
+
+	/* update scratchpad register keeping track of current location, which is the offset of the base */
+	offset = qp->rx_mw_offset - ntb_get_mw_vbase(transport->ndev, DB_TO_MW(db_num));
+	ntb_write_spad(transport->ndev, 0, offset >> 32); //FIXME - handle rc
+	ntb_write_spad(transport->ndev, 1, offset & 0xffffffff); //FIXME - handle rc
 
 	//FIXME - this should kick off wq thread or we should document that it runs in irq context
 	qp->rx_handler(qp);
@@ -391,9 +425,9 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
 	void *payload;
 	size_t buflen;
 	unsigned int bytes;
-
-	//FIXME - enqueue to qp->txq and start a thread to copy data over
-
+	u64 rx_base, mw_base;
+	u32 val, mw_size;
+	u64 offset;
 #if 1
 	int i;
 	u32 *buf = (u32 *)sg_virt(&entry->sg);
@@ -401,15 +435,58 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
 		pr_info("addr %p: %x", buf + i, buf[i]);
 #endif
 
+	ntb_read_spad(transport->ndev, 0, &val);
+	rx_base = ((u64) val) << 32;
+	ntb_read_spad(transport->ndev, 1, &val);
+	rx_base |= val;
+
+	//FIXME - enqueue to qp->txq and start a thread to copy data over
+
 	if (!qp || qp->link != NTB_LINK_UP)
 		return -EINVAL;
 
 	mw = QP_TO_MW(qp->qp_num);
+	mw_size = transport->mw[mw].size;
+	mw_base = (u64) transport->mw[mw].virt_addr;
 
-	//FIXME - need to verify that sg list is smaller that mw size
+	/* Check to see if it could ever fit in the mem window */
+	if (entry->sg.length > mw_size) {
+		//FIXME - add counter for this
+		return -EINVAL;
+	}
+
 	//FIXME - use both mw's
 	hdr = qp->tx_mw_offset;
 	payload = ((void *)hdr) + sizeof(struct ntb_payload_header);
+
+	//FIXME - put part of the payload between here and the end of the mw, put the rest on the next side
+	/* See if it will fit in what is left of the window */
+	if (entry->sg.length > (((u64) mw_base + mw_size) - (u64) payload)) {
+		//FIXME - won't but will once the mw has drained sufficiently...we could spin here
+		hdr->len = 0;
+		hdr->ver = 0xdeadbeef;
+		hdr->done = 1;
+		hdr->wrap = 1;
+
+		/* Ring doorbell notifying remote side of new packet */
+		rc = ntb_ring_sdb(transport->ndev, 1 << qp->qp_num);
+		if (rc)
+			return rc;
+
+		qp->tx_mw_offset = transport->mw[mw].virt_addr;
+		hdr = qp->tx_mw_offset;
+		payload = ((void *)hdr) + sizeof(struct ntb_payload_header);
+		//FIXME - wait or keep on truckin?  Because, the rx spad updates might take a little while to flush...need to find a way to sync this
+	}
+
+	/* Spin while waiting for enough room to open up to put this buf into */
+	do {
+		ntb_read_spad(transport->ndev, 0, &val);
+		offset = ((u64) val) << 32;
+		ntb_read_spad(transport->ndev, 1, &val);
+		offset |= val;
+		//FIXME - should we sleep here or have some timeout?
+	} while (QLEN(offset + (u64) mw_base, (u64) qp->tx_mw_offset, mw_size) < entry->sg.length);
 
 	for (sg = &entry->sg; sg; sg = sg_next(sg)) {
 		buflen = sg->length; //FIXME - might need to use sg_dma_len(sg)
@@ -417,7 +494,8 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
 		bytes = sg_copy_to_buffer(sg, 1, payload, buflen);
 
 		hdr->len = sg->length;
-		hdr->ver = 0xdeadbeef;//FIXME - need better way to verify that the desc is done
+		hdr->ver = 0xdeadbeef;
+		hdr->done = 1;
 
 		pr_info("HDR: ver %x len %d\n", hdr->ver, hdr->len);
 
@@ -572,17 +650,3 @@ bool ntb_transport_hw_link_query(struct ntb_transport_qp *qp)
 	return transport->ndev->link_status;
 }
 EXPORT_SYMBOL(ntb_transport_hw_link_query);
-
-
-static void ntb_transport_event_callback(void *handle, unsigned int event) //FIXME - handle is unnecessary, what would it be used for ever?????
-{
-	int i;
-
-	for (i = 0; i < transport->max_qps; i++)
-		if (!test_bit(i, &transport->qp_bitmap) && transport->qps[i].event_handler) {
-			struct ntb_transport_qp *qp = &transport->qps[i];
-
-			qp->event_flags |= event; //FIXME - racy and only 1 bit
-			schedule_delayed_work(&qp->event_work, 0);
-		}
-}

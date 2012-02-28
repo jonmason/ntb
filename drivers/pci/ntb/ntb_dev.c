@@ -465,19 +465,6 @@ int ntb_ring_sdb(struct ntb_device *ndev, unsigned int db)
 }
 EXPORT_SYMBOL(ntb_ring_sdb);
 
-
-static void ntb_reg_setup_postlink(struct ntb_device *ndev)
-{
-	u64 bar;
-
-	//determine secondary bar0/1 of the remote system
-	bar = readq(ndev->reg_base + 0x40);//NOTE - address of 0x38 is incorrect in the documentation
-	bar &= ~(0x3fff); //get rid of the non-address bits, FIXME - remove the invert
-	dev_info(&ndev->pdev->dev, "Local BAR0 %p, Remote BAR0 %llx, B2BBAR0XLAT %lx\n", ndev->reg_base, bar, readq(ndev->reg_base + 0x144));
-	//set b2bbar0xlat
-	writeq(bar, ndev->reg_base + 0x144);
-}
-
 static void ntb_link_event(struct ntb_device *ndev, int link_state)
 {
 	if (ndev->link_status == link_state)
@@ -488,10 +475,6 @@ static void ntb_link_event(struct ntb_device *ndev, int link_state)
 		ndev->link_status = NTB_LINK_UP;
 
 		ntb_debug_dump(ndev);
-
-		//FIXME - setup registers?
-		//ntb_reg_setup_postlink(ndev);
-
 	} else {
 		dev_info(&ndev->pdev->dev, "Link Down\n");
 		ndev->link_status = NTB_LINK_DOWN;
