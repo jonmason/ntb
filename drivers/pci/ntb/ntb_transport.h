@@ -63,7 +63,9 @@ struct ntb_queue_entry {
 	/* ntb_queue list reference */
 	struct list_head entry;
 	/* pointers to data to be transfered */
-	struct scatterlist sg;
+	void *callback_data;
+	void *buf;
+	unsigned int len;
 	/* NTB is finished with this data and it can be reaped */
 	bool done;
 };

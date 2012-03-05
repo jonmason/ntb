@@ -56,6 +56,14 @@
  * Contact Information:
  * Jon Mason <jon.mason@intel.com>
  */
+#include <linux/etherdevice.h>
+#include <linux/module.h>
+#include "ntb_transport.h"
+
+MODULE_DESCRIPTION(KBUILD_MODNAME);
+MODULE_VERSION("0.1");
+MODULE_LICENSE("Dual BSD/GPL");
+MODULE_AUTHOR("Intel Corporation");
 
 struct ntb_netdev {
 	struct ntb_transport_qp *qp;
@@ -68,17 +76,19 @@ struct net_device *netdev;
 static struct ntb_queue_entry *alloc_entry(unsigned int len)
 {
 	struct ntb_queue_entry *entry;
-	char *buf;
+	struct sk_buff *skb;
 
-	entry = kzalloc(sizeof(struct ntb_queue_entry), GFP_KERNEL);
+	entry = kzalloc(sizeof(struct ntb_queue_entry), GFP_ATOMIC);
 	if (!entry)
 		goto err;
 
-	buf = kmalloc(len, GFP_KERNEL);
-	if (!buf)
+	skb = alloc_skb(len, GFP_ATOMIC);
+	if (!skb)
 		goto err1;
 
-	sg_init_one(&entry->sg, buf, len);
+	entry->callback_data = skb;
+	entry->buf = skb->data;
+	entry->len = len;
 
 	return entry;
 
@@ -90,40 +100,68 @@ err:
 
 static void free_entry(struct ntb_queue_entry *entry)
 {
-	kfree(sg_virt(&entry->sg));
+	kfree_skb(entry->callback_data);
 	kfree(entry);
 }
 
 static void ntb_netdev_event_handler(int status)
 {
+	struct ntb_netdev *dev = netdev_priv(netdev);
+
 	pr_info("%s: Event %x, Link %x\n", KBUILD_MODNAME, status, ntb_transport_hw_link_query(dev->qp));
 
 	//FIXME - currently, only link status event is supported
 	if (ntb_transport_hw_link_query(dev->qp))
-		netif_carrier_on(dev);
+		netif_carrier_on(netdev);
 	else
-		netif_carrier_off(dev);
+		netif_carrier_off(netdev);
 }
 
 static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 {
+	struct ntb_netdev *dev = netdev_priv(netdev);//FIXME - do it based on qp not global
 	struct ntb_queue_entry *entry;
-	u32 *buf;
-	int i;
+	struct sk_buff *skb;
 
 	pr_info("%s\n", __func__);
 
 	entry = ntb_transport_rx_dequeue(dev->qp);
-	if (!entry)
+	if (!entry) {
+		netdev->stats.rx_dropped++;
+		netdev->stats.rx_errors++;
+		return;
+	}
+
+	pr_info("%d byte payload received\n", entry->len);
+
+	skb = entry->callback_data;
+	skb_put(skb, entry->len);
+	skb->protocol = eth_type_trans(skb, netdev);
+	skb->dev = netdev;
+#if 0
+	skb->ip_summed = CHECKSUM_UNNECESSARY;
+#else
+	skb->ip_summed = CHECKSUM_NONE;
+#endif
+
+	print_hex_dump_bytes(__func__, 0, skb->data, skb->len);
+
+	if (netif_rx(skb) == NET_RX_DROP)
+		netdev->stats.rx_dropped++;
+	else {
+		netdev->stats.rx_packets++;
+		netdev->stats.rx_bytes += entry->len;
+	}
+
+//FIXME - add stats
+	skb = alloc_skb(netdev->mtu, GFP_ATOMIC);
+	if (!skb)
+		//FIXME - increment stats
 		return;
 
-	buf = (u32 *)sg_virt(&entry->sg);
-
-	pr_info("%d byte payload received\n", entry->sg.length);
-	for (i = 0; i < 64; i += sizeof(u32))
-		pr_info("addr %p: %x", buf + i, buf[i]);
-
-	free_entry(entry);
+	entry->callback_data = skb;
+	entry->buf = skb->data;
+	entry->len = skb->len;
 }
 
 static void ntb_netdev_tx_handler(struct ntb_transport_qp *qp)
@@ -139,38 +177,48 @@ static void ntb_netdev_tx_handler(struct ntb_transport_qp *qp)
 	free_entry(entry);
 }
 
-static netdev_tx_t ntb_netdev_start_xmit(struct sk_buff *skb, struct net_device *dev)
+static netdev_tx_t ntb_netdev_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 {
+	struct ntb_netdev *dev = netdev_priv(ndev);
 	struct ntb_queue_entry *entry;
 	int rc;
 
 	pr_info("%s: ntb_transport_tx_enqueue\n", KBUILD_MODNAME);
 
-	entry = alloc_entry(PAGE_SIZE);
-	if (!entry) {
-		rc = -ENOMEM;
+	entry = kzalloc(sizeof(struct ntb_queue_entry), GFP_ATOMIC);
+	if (!entry)
 		goto err;
-	}
 
-	sg_init_one(&entry->sg, buf, len);
+	entry->callback_data = skb;
+	entry->len = skb->len;
+	entry->buf = skb->data;
+
+	print_hex_dump_bytes(__func__, 0, skb->data, skb->len);
 
 	rc = ntb_transport_tx_enqueue(dev->qp, entry);
 	if (rc)
 		goto err1;
 
-	return 0;
+	ndev->stats.tx_packets++;
+	ndev->stats.tx_bytes += skb->len;
+
+	ndev->trans_start = jiffies;
+
+	return NETDEV_TX_OK;
 
 err1:
 	free_entry(entry);
 err:
-	return rc;
+	ndev->stats.tx_dropped++;
+	ndev->stats.tx_errors++;
+	return NETDEV_TX_BUSY;
 }
 
-static int ntb_netdev_open(struct net_device *netdev)
+static int ntb_netdev_open(struct net_device *ndev)
 {
 	struct ntb_queue_entry *entry;
-	struct ntb_netdev *dev = netdev_priv(netdev);
-	int rc;
+	struct ntb_netdev *dev = netdev_priv(ndev);
+	int rc, i;
 
 	dev->qp = ntb_transport_create_queue(ntb_netdev_rx_handler, ntb_netdev_tx_handler);
 	if (!dev->qp) {
@@ -182,29 +230,30 @@ static int ntb_netdev_open(struct net_device *netdev)
 	if (rc)
 		goto err1;
 
-	//FIXME - add more bufs...
 	/* Add some empty rx bufs */
-	entry = alloc_entry(dev->mtu);
-	if (!entry) {
-		rc = -ENOMEM;
-		goto err1;
-	}
+	for (i = 0; i < 100; i++) {
+		entry = alloc_entry(ndev->mtu);
+		if (!entry) {
+			rc = -ENOMEM;
+			goto err2;
+		}
 
-	rc = ntb_transport_rx_enqueue(dev->qp, entry);
-	if (rc)
-		goto err2;
+		rc = ntb_transport_rx_enqueue(dev->qp, entry);
+		if (rc)
+			goto err2;
+	}
 
 	ntb_transport_link_up(dev->qp);
 
 	if (ntb_transport_hw_link_query(dev->qp))
-		netif_carrier_on(dev);
+		netif_carrier_on(ndev);
 	else
-		netif_carrier_off(dev);
+		netif_carrier_off(ndev);
 
 	return 0;
 
 err2:
-	free_entry(entry);
+	//FIXME - no current way to empty the rxq
 err1:
 	ntb_transport_free_queue(dev->qp);
 err:
@@ -215,7 +264,7 @@ static int ntb_netdev_close(struct net_device *netdev)
 {
 	struct ntb_netdev *dev = netdev_priv(netdev);
 
-	//FIXME - purge rxq
+	//FIXME - no current way to empty the rxq
 	ntb_transport_link_down(dev->qp);
 	ntb_transport_free_queue(dev->qp);
 
@@ -256,23 +305,23 @@ static int __init ntb_netdev_init_module(void)
 
 	pr_info("%s: Probe\n", KBUILD_MODNAME);
 
-	netdev = alloc_etherdev((sizeof(struct net_netdev)));//FIXME - might be worth trying multiple queues...
+	netdev = alloc_etherdev(sizeof(struct ntb_netdev));//FIXME - might be worth trying multiple queues...
 	if (!netdev)
 		return -ENOMEM;
 
 	dev = netdev_priv(netdev);
-	dev->features = NETIF_F_HIGHDMA; //FIXME - check this against the flags returned by the ntb dev???
+	netdev->features = NETIF_F_HIGHDMA; //FIXME - check this against the flags returned by the ntb dev???
 	//FIXME - there is bound to be more flags supported.  NETIF_F_SG  comes to mind, prolly NETIF_F_FRAGLIST, NETIF_F_NO_CSUM, 
 
-	dev->hw_features = dev->features;
-	dev->watchdog_timeo = msecs_to_jiffies(NTB_TX_TIMEOUT_MS);
+	netdev->hw_features = netdev->features;
+	netdev->watchdog_timeo = msecs_to_jiffies(NTB_TX_TIMEOUT_MS);
 
-	dev->mtu = PAGE_SIZE;
+	netdev->mtu = PAGE_SIZE;
 
-	random_ether_addr(dev->perm_addr);
-	memcpy(dev->dev_addr, dev->perm_addr, dev->addr_len);
+	random_ether_addr(netdev->perm_addr);
+	memcpy(netdev->dev_addr, netdev->perm_addr, netdev->addr_len);
 
-	ndev->netdev_ops = &ntb_netdev_ops;
+	netdev->netdev_ops = &ntb_netdev_ops;
 	//SET_ETHTOOL_OPS(ndev, &ethtool_ops);
 	//SET_NETDEV_DEV(ndev, &pdev->dev);
 
