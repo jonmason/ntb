@@ -193,7 +193,7 @@ static netdev_tx_t ntb_netdev_start_xmit(struct sk_buff *skb, struct net_device 
 	entry->len = skb->len;
 	entry->buf = skb->data;
 
-	print_hex_dump_bytes(__func__, 0, skb->data, skb->len);
+	//print_hex_dump_bytes(__func__, 0, skb->data, skb->len);
 
 	rc = ntb_transport_tx_enqueue(dev->qp, entry);
 	if (rc)
@@ -305,6 +305,8 @@ static int __init ntb_netdev_init_module(void)
 
 	pr_info("%s: Probe\n", KBUILD_MODNAME);
 
+	ntb_transport_init();
+
 	netdev = alloc_etherdev(sizeof(struct ntb_netdev));//FIXME - might be worth trying multiple queues...
 	if (!netdev)
 		return -ENOMEM;
@@ -341,6 +343,8 @@ static void __exit ntb_netdev_exit_module(void)
 {
 	unregister_netdev(netdev);
 	free_netdev(netdev);
+
+	ntb_transport_free();
 
 	pr_info("%s: Driver removed\n", KBUILD_MODNAME);
 }

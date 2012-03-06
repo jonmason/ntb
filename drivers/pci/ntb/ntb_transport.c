@@ -140,6 +140,9 @@ int ntb_transport_init(void)
 {
 	int rc, i;
 
+	if (transport)
+		return -EINVAL;//FIXME - add refcount
+
 	transport = kmalloc(sizeof(struct ntb_transport), GFP_KERNEL);
 	if (!transport)
 		return -ENOMEM;
@@ -208,7 +211,7 @@ void ntb_transport_free(void)
 		  dma_free_coherent(&transport->ndev->pdev->dev, transport->mw[i].size, transport->mw[i].virt_addr, transport->mw[i].dma_addr);
 	kfree(transport->qps);
 	ntb_unregister_transport(transport->ndev);
-	kfree(transport);
+	kfree(transport);//FIXME - add refcount
 }
 EXPORT_SYMBOL(ntb_transport_free);
 
@@ -218,10 +221,11 @@ static void ntb_transport_dbcb(int db_num)
 	struct device *dev = &transport->ndev->pdev->dev;
 	struct ntb_queue_entry *entry;
 	struct ntb_payload_header *hdr;
-	u64 offset;
 
 	if (!qp || !qp->link)
 		return;
+
+	//FIXME - need to have error paths update the rx_mw_offset, otherwise the tx and rx will get out of sync
 
 	dev_info(dev, "%s: doorbell %d received\n", __func__, db_num);
 
@@ -260,28 +264,24 @@ static void ntb_transport_dbcb(int db_num)
 		return;
 	}
 
-	qp->rx_mw_offset = ((void *)hdr) + sizeof(struct ntb_payload_header);
+	qp->rx_mw_offset += sizeof(struct ntb_payload_header);
 
 	//FIXME - doesn't handle multple packets in the buffer
-	print_hex_dump_bytes(__func__, 0, qp->rx_mw_offset, hdr->len);
-	//qp->rx_bytes += sg_copy_from_buffer(&entry->sg, 1, qp->rx_mw_offset, hdr->len);
 	memcpy(entry->buf, qp->rx_mw_offset, hdr->len);
+	print_hex_dump_bytes(" ", 0, qp->rx_mw_offset, hdr->len);
 	entry->len = hdr->len;
 
-	qp->rx_bytes += hdr->len;
-	qp->rx_pkts++;
+	qp->rx_mw_offset += hdr->len;
 
 #if 0
-	qp->rx_mw_offset += hdr->len; //FIXME - verify doesn't run over size of buffer
-
 	/* update scratchpad register keeping track of current location, which is the offset of the base */
 	offset = qp->rx_mw_offset - ntb_get_mw_vbase(transport->ndev, DB_TO_MW(db_num));
 	ntb_write_spad(transport->ndev, 0, offset >> 32); //FIXME - handle rc
 	ntb_write_spad(transport->ndev, 1, offset & 0xffffffff); //FIXME - handle rc
-#else
-	//FIXME - hack to use whole mw, we'll can get it carved up later
-	qp->rx_mw_offset = ntb_get_mw_vbase(transport->ndev, DB_TO_MW(db_num));
 #endif
+
+	qp->rx_bytes += hdr->len;
+	qp->rx_pkts++;
 
 	list_add_tail(&entry->entry, &qp->rx_comp_q);
 
@@ -308,12 +308,6 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 	struct ntb_transport_qp *qp;
 	unsigned int free_queue;
 	int rc;
-
-	if (!transport) {
-		rc = ntb_transport_init();
-		if (rc)
-			return NULL; //FIXME  - use ERR_PTR for all NULL
-	}
 
 	//FIXME - need to handhake with remote side to determine matching number or some mapping between the 2
 	free_queue = ffs(transport->qp_bitmap);
@@ -424,14 +418,8 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
 	int rc, mw;
 	struct ntb_payload_header *hdr;
 	void *payload;
-	u64 rx_base, mw_base;
-	u32 val, mw_size;
-	u64 offset;
-
-	ntb_read_spad(transport->ndev, 0, &val);
-	rx_base = ((u64) val) << 32;
-	ntb_read_spad(transport->ndev, 1, &val);
-	rx_base |= val;
+	u64 mw_base;
+	u32 mw_size;
 
 	//FIXME - enqueue to qp->txq and start a thread to copy data over
 
@@ -448,88 +436,29 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
 		return -EINVAL;
 	}
 
-	//FIXME - use both mw's
 	hdr = qp->tx_mw_offset;
 	payload = ((void *)hdr) + sizeof(struct ntb_payload_header);
 
-	//FIXME - put part of the payload between here and the end of the mw, put the rest on the next side
-	/* See if it will fit in what is left of the window */
-	if (entry->len > (((u64) mw_base + mw_size) - (u64) payload)) {
-		//FIXME - won't but will once the mw has drained sufficiently...we could spin here
-		hdr->len = 0;
-		hdr->ver = 0xdeadbeef;
-		hdr->done = 1;
-		hdr->wrap = 1;
-
-		/* Ring doorbell notifying remote side of new packet */
-		rc = ntb_ring_sdb(transport->ndev, 1 << qp->qp_num);
-		if (rc)
-			return rc;
-
-		qp->tx_mw_offset = transport->mw[mw].virt_addr;
-		hdr = qp->tx_mw_offset;
-		payload = ((void *)hdr) + sizeof(struct ntb_payload_header);
-		//FIXME - wait or keep on truckin?  Because, the rx spad updates might take a little while to flush...need to find a way to sync this
-	}
-
-	//FIXME - Aviod this for now
-#if 0
-	/* Spin while waiting for enough room to open up to put this buf into */
-	do {
-		ntb_read_spad(transport->ndev, 0, &val);
-		offset = ((u64) val) << 32;
-		ntb_read_spad(transport->ndev, 1, &val);
-		offset |= val;
-		//FIXME - should we sleep here or have some timeout?
-	} while (QLEN(offset + (u64) mw_base, (u64) qp->tx_mw_offset, mw_size) < entry->len);
-#endif
-
-#if 0
-	for (sg = &entry->sg; sg; sg = sg_next(sg)) {
-		buflen = sg->length; //FIXME - might need to use sg_dma_len(sg)
-
-		bytes = sg_copy_to_buffer(sg, 1, payload, buflen);
-
-		hdr->len = sg->length;
-		hdr->ver = 0xdeadbeef;
-		hdr->done = 1;
-
-		pr_info("HDR: ver %x len %d\n", hdr->ver, hdr->len);
-
-		//FIXME - verify no wrap
-		hdr = payload + bytes;
-		payload = hdr + sizeof(struct ntb_payload_header);
-
-		qp->tx_pkts++;
-		qp->tx_bytes += bytes;
-	}
-#else
-	print_hex_dump_bytes(__func__, 0, entry->buf, entry->len);
+	print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
 
 	memcpy(payload, entry->buf, entry->len);
 
 	hdr->len = entry->len;
-	hdr->ver = 0xdeadbeef;
+	hdr->ver = qp->tx_pkts;
+	//hdr->ver = 0xdeadbeef;
 	hdr->done = 1;
 
-	pr_info("HDR: ver %x len %d\n", hdr->ver, hdr->len);
-
-	//FIXME - don't use whole mw now
-#if 0
-	//FIXME - verify no wrap
-	hdr = payload + entry->len;
-	payload = hdr + sizeof(struct ntb_payload_header);
-#endif
-
-	qp->tx_pkts++;
-	qp->tx_bytes += entry->len;
-#endif
-	qp->tx_mw_offset = hdr;
+	pr_info("Header len %d, ver %x, wrap %x, done %x\n", hdr->len, hdr->ver, hdr->wrap, hdr->done);
 
 	/* Ring doorbell notifying remote side of new packet */
 	rc = ntb_ring_sdb(transport->ndev, 1 << qp->qp_num);
 	if (rc)
-		return rc;
+		return rc;//FIXME - this will reuse the same location, but data has already been transmitted.  is this what we want?
+
+	qp->tx_mw_offset += sizeof(struct ntb_payload_header) + entry->len;
+
+	qp->tx_pkts++;
+	qp->tx_bytes += entry->len;
 
 	/* Add fully transmitted data to completion queue */
 	list_add_tail(&entry->entry, &qp->tx_comp_q);
@@ -538,6 +467,7 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
 	qp->tx_handler(qp);
 
 	return 0;
+//FIXME - handle errors and increment stats
 }
 EXPORT_SYMBOL(ntb_transport_tx_enqueue);
 

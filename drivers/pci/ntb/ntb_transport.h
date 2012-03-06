@@ -72,6 +72,9 @@ struct ntb_queue_entry {
 
 typedef void(*handler)(struct ntb_transport_qp *qp);
 
+int ntb_transport_init(void);
+void ntb_transport_free(void);
+
 /**
  * ntb_transport_create_queue - Create a new NTB transport layer queue
  * @rx_handler: receive callback function 
