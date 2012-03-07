@@ -125,43 +125,43 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 
 	pr_info("%s\n", __func__);
 
-	entry = ntb_transport_rx_dequeue(dev->qp);
-	if (!entry) {
-		netdev->stats.rx_dropped++;
-		netdev->stats.rx_errors++;
-		return;
-	}
+	do {
+		entry = ntb_transport_rx_dequeue(dev->qp);
+		if (!entry)
+			break;
 
-	pr_info("%d byte payload received\n", entry->len);
+		pr_info("%d byte payload received\n", entry->len);
 
-	skb = entry->callback_data;
-	skb_put(skb, entry->len);
-	skb->protocol = eth_type_trans(skb, netdev);
-	skb->dev = netdev;
+		skb = entry->callback_data;
+		skb_put(skb, entry->len);
+		skb->protocol = eth_type_trans(skb, netdev);
+		skb->dev = netdev;
 #if 0
-	skb->ip_summed = CHECKSUM_UNNECESSARY;
+		skb->ip_summed = CHECKSUM_UNNECESSARY;
 #else
-	skb->ip_summed = CHECKSUM_NONE;
+		skb->ip_summed = CHECKSUM_NONE;
 #endif
 
-	print_hex_dump_bytes(__func__, 0, skb->data, skb->len);
+		print_hex_dump_bytes(__func__, 0, skb->data, skb->len);
 
-	if (netif_rx(skb) == NET_RX_DROP)
-		netdev->stats.rx_dropped++;
-	else {
-		netdev->stats.rx_packets++;
-		netdev->stats.rx_bytes += entry->len;
-	}
+		if (netif_rx(skb) == NET_RX_DROP)
+			netdev->stats.rx_dropped++;
+		else {
+			netdev->stats.rx_packets++;
+			netdev->stats.rx_bytes += entry->len;
+		}
+
+		skb = alloc_skb(netdev->mtu, GFP_ATOMIC);
+		if (!skb)
+			//FIXME - increment stats
+			return;
+
+		entry->callback_data = skb;
+		entry->buf = skb->data;
+		entry->len = skb->len;
+	} while (true);
 
 //FIXME - add stats
-	skb = alloc_skb(netdev->mtu, GFP_ATOMIC);
-	if (!skb)
-		//FIXME - increment stats
-		return;
-
-	entry->callback_data = skb;
-	entry->buf = skb->data;
-	entry->len = skb->len;
 }
 
 static void ntb_netdev_tx_handler(struct ntb_transport_qp *qp)
@@ -170,11 +170,13 @@ static void ntb_netdev_tx_handler(struct ntb_transport_qp *qp)
 
 	pr_info("%s\n", __func__);
 
-	entry = ntb_transport_tx_dequeue(qp);
-	if (!entry)
-		return;
+	do {
+		entry = ntb_transport_tx_dequeue(qp);
+		if (!entry)
+			return;
 
-	free_entry(entry);
+		free_entry(entry);
+	} while (true);
 }
 
 static netdev_tx_t ntb_netdev_start_xmit(struct sk_buff *skb, struct net_device *ndev)
