@@ -78,6 +78,8 @@ struct ntb_transport_qp {
 
 	struct list_head rxq;
 	struct list_head rx_comp_q;
+	void *rx_mw_begin;
+	void *rx_mw_end;
 	void *rx_mw_offset;
 
 	void (*rx_handler)(struct ntb_transport_qp *qp);
@@ -115,13 +117,11 @@ struct ntb_payload_header {
 	unsigned int len;
 	u32 ver;
 	u32 done:1;
-	u32 wrap:1;
 };
 
 
 #define DB_PER_IRQ		4
 
-#define empty_buf_len(head, tail, size)	((head < tail) ? tail - head : size - (head - tail))
 #define DB_TO_QP(db)		((db) / DB_PER_IRQ)
 #define DB_TO_MW(db)		(DB_TO_QP(db) % 2)
 #define QP_TO_MW(qp)		DB_TO_MW(qp)
@@ -141,6 +141,7 @@ static void ntb_transport_event_callback(void *handle, unsigned int event) //FIX
 			/* Reset tx rings on link-up */
 			qp->tx_buf_head = qp->tx_buf_begin;
 			qp->tx_buf_tail = qp->tx_buf_begin;
+			qp->rx_mw_offset = qp->rx_mw_begin;
 
 			qp->event_flags |= event; //FIXME - racy and only 1 bit
 			schedule_delayed_work(&qp->event_work, 0);
@@ -242,7 +243,7 @@ static void ntb_transport_rx(struct ntb_transport_qp *qp)
 		}
 
 		hdr = qp->rx_mw_offset;
-		dev_info(dev, "Header len %d, ver %x, wrap %x, done %x\n", hdr->len, hdr->ver, hdr->wrap, hdr->done);
+		dev_info(dev, "Header len %d, ver %x, done %x\n", hdr->len, hdr->ver, hdr->done);
 
 		if (!hdr->done) {
 			dev_err(dev, "Desc not done\n");
@@ -262,12 +263,30 @@ static void ntb_transport_rx(struct ntb_transport_qp *qp)
 
 		qp->rx_mw_offset += sizeof(struct ntb_payload_header);
 
-		//FIXME - doesn't handle multple packets in the buffer
-		memcpy(entry->buf, qp->rx_mw_offset, hdr->len);
-		print_hex_dump_bytes(" ", 0, qp->rx_mw_offset, hdr->len);
-		entry->len = hdr->len;
+		if (qp->rx_mw_offset + hdr->len > qp->rx_mw_end) {
+			u32 delta = qp->rx_mw_end - qp->rx_mw_offset;
 
-		qp->rx_mw_offset += hdr->len;
+			//copy to end of buf
+			memcpy(entry->buf, qp->rx_mw_offset, delta);
+
+			//copy the rest
+			qp->rx_mw_offset = qp->rx_mw_begin;
+			memcpy(entry->buf + delta, qp->rx_mw_offset, hdr->len - delta);
+
+			//update offset to point to the end of the buff
+			qp->rx_mw_offset += hdr->len - delta;
+			pr_info("%s: Wrap", __func__);
+		} else {
+			memcpy(entry->buf, qp->rx_mw_offset, hdr->len);
+
+			if (qp->rx_mw_offset + sizeof(struct ntb_payload_header) > qp->rx_mw_end)
+				qp->rx_mw_offset = qp->rx_mw_begin;
+			else
+				qp->rx_mw_offset += hdr->len;
+		}
+
+		entry->len = hdr->len;
+		//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
 
 		qp->rx_bytes += hdr->len;
 		qp->rx_pkts++;
@@ -318,10 +337,10 @@ static void ntb_transport_dbcb(int db_num)
 	if (!qp || !qp->link)
 		return;
 
-	if ((db_num % 4) == 0)
+	if ((db_num % DB_PER_IRQ) == 0)
 		ntb_transport_rx(qp);
 
-	if ((db_num % 4) == 1)
+	if ((db_num % DB_PER_IRQ) == 1)
 		ntb_transport_txc(qp);
 }
 
@@ -366,7 +385,10 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 	INIT_LIST_HEAD(&qp->txq);
 	INIT_LIST_HEAD(&qp->tx_comp_q);
 
-	qp->rx_mw_offset = ntb_get_mw_vbase(transport->ndev, QP_TO_MW(free_queue));
+	qp->rx_mw_begin = ntb_get_mw_vbase(transport->ndev, QP_TO_MW(free_queue));
+	qp->rx_mw_end = qp->rx_mw_begin + transport->mw[QP_TO_MW(free_queue)].size;
+	qp->rx_mw_offset = qp->rx_mw_begin;
+
 	qp->tx_buf_begin = transport->mw[QP_TO_MW(free_queue)].virt_addr;
 	qp->tx_buf_end = qp->tx_buf_begin + transport->mw[QP_TO_MW(free_queue)].size;
 	qp->tx_buf_head = qp->tx_buf_begin;
@@ -375,6 +397,12 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 	//FIXME - transport->qps[free_queue].queue.hw_caps; is it even necessary for transport client to know?
 
 	rc = ntb_register_db_callback(transport->ndev, free_queue, ntb_transport_dbcb);
+	if (rc) {
+		set_bit(free_queue, &transport->qp_bitmap);
+		return NULL;
+	}
+
+	rc = ntb_register_db_callback(transport->ndev, free_queue + 1, ntb_transport_dbcb);//FIXME - hack for db for txc
 	if (rc) {
 		set_bit(free_queue, &transport->qp_bitmap);
 		return NULL;
@@ -462,39 +490,64 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
 	if (!qp || qp->link != NTB_LINK_UP)
 		return -EINVAL;
 
+	if (qp->tx_buf_head + sizeof(struct ntb_payload_header) > qp->tx_buf_end) {
+		pr_info("%s:%d - Wrap", __func__, __LINE__);
+		qp->tx_buf_head = qp->tx_buf_begin;
+	}
+
 	pr_info("tx head %p tail %p diff %ld size %d\n", qp->tx_buf_head, qp->tx_buf_tail, transport->mw[QP_TO_MW(qp->qp_num)].size - (qp->tx_buf_head - qp->tx_buf_tail), (u32) transport->mw[QP_TO_MW(qp->qp_num)].size);
 	//check to see if there is enough room on the local buf
+#if 0
+#define empty_buf_len(head, tail, size)	((head < tail) ? tail - head : size - (head - tail))
 	if (entry->len > empty_buf_len(qp->tx_buf_head, qp->tx_buf_tail, transport->mw[QP_TO_MW(qp->qp_num)].size))
+#else
+#define free_len(qp, size)	(qp->tx_buf_head < qp->tx_buf_tail ? \
+				 size - ((qp->tx_buf_head - qp->tx_buf_begin) + (qp->tx_buf_tail - qp->tx_buf_end)) : \
+				 size - (qp->tx_buf_head - qp->tx_buf_tail))
+	if (entry->len > free_len(qp, transport->mw[QP_TO_MW(qp->qp_num)].size))
+#endif
 		return -EBUSY;
 
-	//FIXME - handle ring wrapping
-
-	//copy in local buf
 	offset = qp->tx_buf_head;
 
 	hdr = offset;
 	offset += sizeof(struct ntb_payload_header);
 
-	memcpy(offset, entry->buf, entry->len);
+	//FIXME - handle ring wrapping
+	if (qp->tx_buf_head + sizeof(struct ntb_payload_header) + entry->len > qp->tx_buf_end) {
+		u32 delta = qp->tx_buf_end - offset;
+
+		//copy to end of buf
+		memcpy(offset, entry->buf, delta);
+
+		//copy the rest
+		offset = qp->tx_buf_begin;
+		memcpy(offset, entry->buf + delta, entry->len - delta);
+
+		//update offset to point to the end of the buff
+		offset += entry->len - delta;
+		pr_info("%s:%d - Wrap", __func__, __LINE__);
+	} else {
+		memcpy(offset, entry->buf, entry->len);
+		offset += entry->len;
+	}
+
 	hdr->done = 1;
 	hdr->len = entry->len;
 	hdr->ver = qp->tx_pkts;
 
-#if 1
 	//set next hdr to not done for remote rxq
-	hdr = offset + entry->len;
+	hdr = offset;
 	hdr->done = 0;
-#endif
 
-	pr_info("Header len %d, ver %x, wrap %x, done %x\n", hdr->len, hdr->ver, hdr->wrap, hdr->done);
-	print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
+	//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
 
 	/* Ring doorbell notifying remote side of new packet */
 	rc = ntb_ring_sdb(transport->ndev, 1 << qp->qp_num);
 	if (rc)
 		return rc;
 
-	qp->tx_buf_head = offset + entry->len;
+	qp->tx_buf_head = offset;
 
 	qp->tx_pkts++;
 	qp->tx_bytes += entry->len;

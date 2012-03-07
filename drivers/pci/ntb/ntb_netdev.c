@@ -122,6 +122,7 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 	struct ntb_netdev *dev = netdev_priv(netdev);//FIXME - do it based on qp not global
 	struct ntb_queue_entry *entry;
 	struct sk_buff *skb;
+	int rc;
 
 	pr_info("%s\n", __func__);
 
@@ -142,7 +143,7 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 		skb->ip_summed = CHECKSUM_NONE;
 #endif
 
-		print_hex_dump_bytes(__func__, 0, skb->data, skb->len);
+		//print_hex_dump_bytes(__func__, 0, skb->data, skb->len);
 
 		if (netif_rx(skb) == NET_RX_DROP)
 			netdev->stats.rx_dropped++;
@@ -158,7 +159,11 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 
 		entry->callback_data = skb;
 		entry->buf = skb->data;
-		entry->len = skb->len;
+		entry->len = netdev->mtu;
+
+		rc = ntb_transport_rx_enqueue(dev->qp, entry);
+		if (rc)
+			break;
 	} while (true);
 
 //FIXME - add stats
@@ -185,7 +190,7 @@ static netdev_tx_t ntb_netdev_start_xmit(struct sk_buff *skb, struct net_device 
 	struct ntb_queue_entry *entry;
 	int rc;
 
-	pr_info("%s: ntb_transport_tx_enqueue\n", KBUILD_MODNAME);
+	//pr_info("%s: ntb_transport_tx_enqueue\n", KBUILD_MODNAME);
 
 	entry = kzalloc(sizeof(struct ntb_queue_entry), GFP_ATOMIC);
 	if (!entry)
