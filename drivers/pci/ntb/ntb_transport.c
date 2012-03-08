@@ -116,15 +116,16 @@ struct ntb_transport {
 struct ntb_payload_header {
 	unsigned int len;
 	u32 ver;
-	u32 done:1;
+	u32 tx_done:1;
+	u32 rx_done:1;
 };
 
 
-#define DB_PER_IRQ		4
+#define DB_PER_QP		2
 
-#define DB_TO_QP(db)		((db) / DB_PER_IRQ)
-#define DB_TO_MW(db)		(DB_TO_QP(db) % 2)
-#define QP_TO_MW(qp)		DB_TO_MW(qp)
+#define QP_TO_DB(qp)		((qp) * DB_PER_QP)
+#define DB_TO_QP(db)		((db) / DB_PER_QP)
+#define QP_TO_MW(qp)		((qp) % NTB_NUM_MW)
 
 
 struct ntb_transport *transport = NULL;
@@ -166,7 +167,7 @@ int ntb_transport_init(void)
 	}
 
 	/* 1 Doorbell bit is used by Link/HB, but the rest can be used for the transport qp's */
-	transport->max_qps = ntb_query_db_bits(transport->ndev) - 1;
+	transport->max_qps = (ntb_query_db_bits(transport->ndev) - 1) / DB_PER_QP;
 	if (!transport->max_qps) {
 		rc = -EIO;
 		goto err1;
@@ -227,35 +228,37 @@ void ntb_transport_free(void)
 }
 EXPORT_SYMBOL(ntb_transport_free);
 
-static void ntb_transport_rx(struct ntb_transport_qp *qp)
+static void ntb_transport_rxc(int db_num)
 {
-	struct device *dev = &transport->ndev->pdev->dev;
+	struct ntb_transport_qp *qp = &transport->qps[DB_TO_QP(db_num)];
 	struct ntb_queue_entry *entry;
 	struct ntb_payload_header *hdr;
 	int rc;
 
+	pr_info("%s: doorbell %d received\n", __func__, db_num);
+
 	do {
 		//FIXME - need to have error paths update the rx_mw_offset, otherwise the tx and rx will get out of sync
 		if (list_empty(&qp->rxq)) {
-			dev_info(dev, "No RX buf\n");
+			pr_err("No RX buf\n");
 			qp->rx_err_no_buf++;
 			return;
 		}
 
 		hdr = qp->rx_mw_offset;
-		dev_info(dev, "Header len %d, ver %x, done %x\n", hdr->len, hdr->ver, hdr->done);
+		pr_info("Header len %d, ver %x, tx done %x, rx done %x \n", hdr->len, hdr->ver, hdr->tx_done, hdr->rx_done);
 
-		if (!hdr->done) {
-			dev_err(dev, "Desc not done\n");
+		if (!hdr->tx_done) {
+			pr_err("Desc not done\n");
 			return;
 		}
 
 		entry = list_first_entry(&qp->rxq, struct ntb_queue_entry, entry);
 		list_del(&entry->entry);
 
-		dev_info(dev, "%d payload received, buf size %d\n", hdr->len, entry->len);
+		pr_info("%d payload received, buf size %d\n", hdr->len, entry->len);
 		if (hdr->len > entry->len) {
-			dev_info(dev, "RX overflow\n");
+			pr_err("RX overflow\n");
 			list_add_tail(&entry->entry, &qp->rxq);
 			qp->rx_err_oflow++;
 			return;
@@ -291,7 +294,7 @@ static void ntb_transport_rx(struct ntb_transport_qp *qp)
 		qp->rx_bytes += hdr->len;
 		qp->rx_pkts++;
 
-		hdr->done = 0;
+		hdr->rx_done = 1;
 
 		/* Ring doorbell notifying remote side to update TXC */
 		rc = ntb_ring_sdb(transport->ndev, 2 << qp->qp_num);//FIXME - hacky
@@ -301,47 +304,34 @@ static void ntb_transport_rx(struct ntb_transport_qp *qp)
 		list_add_tail(&entry->entry, &qp->rx_comp_q);
 
 		hdr = qp->rx_mw_offset;
-	} while (hdr->done);//FIXME - this could starve client....this needs to be threaded
+	} while (hdr->tx_done);//FIXME - this could starve client....this needs to be threaded
 
 	//FIXME - this should kick off wq thread or we should document that it runs in irq context
 	qp->rx_handler(qp);
 }
 
-static void ntb_transport_txc(struct ntb_transport_qp *qp)
-{
-	struct ntb_payload_header *hdr;
-
-	/* Update tail pointer */
-
-	hdr = qp->tx_buf_tail;
-
-	if (hdr->done) {
-		pr_err("HDR not done in TXC\n");
-		return;
-	}
-
-	if (hdr->len + qp->tx_buf_tail > qp->tx_buf_end)
-		qp->tx_buf_tail = qp->tx_buf_begin + (hdr->len - (qp->tx_buf_end - qp->tx_buf_tail));
-	else
-		qp->tx_buf_tail += hdr->len;
-
-	qp->tx_buf_tail += sizeof(struct ntb_payload_header);
-}
-
-static void ntb_transport_dbcb(int db_num)
+static void ntb_transport_txc(int db_num)
 {
 	struct ntb_transport_qp *qp = &transport->qps[DB_TO_QP(db_num)];
+	struct ntb_payload_header *hdr;
 
 	pr_info("%s: doorbell %d received\n", __func__, db_num);
 
-	if (!qp || !qp->link)
-		return;
+	/* Update tail pointer */
 
-	if ((db_num % DB_PER_IRQ) == 0)
-		ntb_transport_rx(qp);
+	do {
+		hdr = qp->tx_buf_tail;
 
-	if ((db_num % DB_PER_IRQ) == 1)
-		ntb_transport_txc(qp);
+		if (!(hdr->tx_done && hdr->rx_done))
+			break;
+
+		if (hdr->len + qp->tx_buf_tail > qp->tx_buf_end)
+			qp->tx_buf_tail = qp->tx_buf_begin + (hdr->len - (qp->tx_buf_end - qp->tx_buf_tail));
+		else
+			qp->tx_buf_tail += hdr->len;
+
+		qp->tx_buf_tail += sizeof(struct ntb_payload_header);
+	} while (true);
 }
 
 /**
@@ -362,12 +352,12 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 {
 	struct ntb_transport_qp *qp;
 	unsigned int free_queue;
-	int rc;
+	int rc, irq;
 
 	//FIXME - need to handhake with remote side to determine matching number or some mapping between the 2
 	free_queue = ffs(transport->qp_bitmap);
 	if (!free_queue)
-		return NULL;
+		goto err;
 
 	/* decrement free_queue to make it zero based */
 	free_queue--;
@@ -396,19 +386,24 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 
 	//FIXME - transport->qps[free_queue].queue.hw_caps; is it even necessary for transport client to know?
 
-	rc = ntb_register_db_callback(transport->ndev, free_queue, ntb_transport_dbcb);
-	if (rc) {
-		set_bit(free_queue, &transport->qp_bitmap);
-		return NULL;
-	}
+	irq = free_queue * DB_PER_QP;
 
-	rc = ntb_register_db_callback(transport->ndev, free_queue + 1, ntb_transport_dbcb);//FIXME - hack for db for txc
-	if (rc) {
-		set_bit(free_queue, &transport->qp_bitmap);
-		return NULL;
-	}
+	rc = ntb_register_db_callback(transport->ndev, irq, ntb_transport_rxc);
+	if (rc)
+		goto err1;
+
+	rc = ntb_register_db_callback(transport->ndev, irq + 1, ntb_transport_txc);
+	if (rc)
+		goto err2;
 
 	return qp;
+
+err2:
+	ntb_unregister_db_callback(transport->ndev, irq);
+err1:
+	set_bit(free_queue, &transport->qp_bitmap);
+err:
+	return NULL;
 }
 EXPORT_SYMBOL(ntb_transport_create_queue);
 
@@ -435,7 +430,8 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 		return;
 
 	qp->link = 0;
-	ntb_unregister_db_callback(transport->ndev, qp->qp_num);
+	ntb_unregister_db_callback(transport->ndev, QP_TO_DB(qp->qp_num));
+	ntb_unregister_db_callback(transport->ndev, QP_TO_DB(qp->qp_num) + 1);
 	//FIXME - wait for qps to quience or notify the transport to stop?
 
 	ntb_purge_list(&qp->rxq);
@@ -532,13 +528,15 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
 		offset += entry->len;
 	}
 
-	hdr->done = 1;
+	hdr->tx_done = 1;
+	hdr->rx_done = 0;
 	hdr->len = entry->len;
 	hdr->ver = qp->tx_pkts;
 
 	//set next hdr to not done for remote rxq
 	hdr = offset;
-	hdr->done = 0;
+	hdr->tx_done = 0;
+	hdr->rx_done = 0;
 
 	//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
 

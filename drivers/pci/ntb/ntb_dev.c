@@ -72,6 +72,7 @@ MODULE_VERSION(NTB_VER);
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("Intel Corporation");
 
+//FIXME - magic numbers
 #define MW_TO_BAR(bar)	(bar * 2 + 2)
 
 static struct pci_device_id ntb_pci_tbl[] = {
@@ -632,30 +633,6 @@ static int ntb_device_setup(struct ntb_device *ndev)
 		return -ENODEV;
 	}
 
-#if 0
-	/* Write to spad 0/1 for USD and 2/3 for DSD, to send the BAR address to the remote side */
-	if (ndev->dev_type == NTB_DEV_USD) {
-		rc = ntb_write_spad(ndev, 0, (u32)((u64) ndev->reg_base >> 32));
-		if (rc)
-			return rc;
-
-		rc = ntb_write_spad(ndev, 1, (u32)((u64) ndev->reg_base & 0xffffffff));
-		if (rc)
-			return rc;
-
-		dev_info(&ndev->pdev->dev, "reg base %p spad 0 %x spad 1 %x\n", ndev->reg_base, (u32)((u64) ndev->reg_base >> 32), (u32)((u64) ndev->reg_base & 0xffffffff));
-	} else {
-		rc = ntb_write_spad(ndev, 2, (u32)((u64) ndev->reg_base >> 32));
-		if (rc)
-			return rc;
-
-		rc = ntb_write_spad(ndev, 3, (u32)((u64) ndev->reg_base & 0xffffffff)); 
-		if (rc)
-			return rc;
-
-		dev_info(&ndev->pdev->dev, "reg base %p spad 2 %x spad 3 %x\n", ndev->reg_base, (u32)((u64) ndev->reg_base >> 32), (u32)((u64) ndev->reg_base & 0xffffffff));
-	}
-#endif
 	return 0;
 }
 
