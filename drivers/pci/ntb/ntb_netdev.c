@@ -124,14 +124,12 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 	struct sk_buff *skb;
 	int rc;
 
-	pr_info("%s\n", __func__);
-
 	do {
 		entry = ntb_transport_rx_dequeue(dev->qp);
 		if (!entry)
 			break;
 
-		pr_info("%d byte payload received\n", entry->len);
+		//pr_info("%s: %d byte payload received\n", __func__, entry->len);
 
 		skb = entry->callback_data;
 		skb_put(skb, entry->len);
@@ -172,8 +170,6 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 static void ntb_netdev_tx_handler(struct ntb_transport_qp *qp)
 {
 	struct ntb_queue_entry *entry;
-
-	pr_info("%s\n", __func__);
 
 	do {
 		entry = ntb_transport_tx_dequeue(qp);

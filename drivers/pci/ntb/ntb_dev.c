@@ -458,7 +458,7 @@ int ntb_ring_sdb(struct ntb_device *ndev, unsigned int db)
 	if (db >= 1 << ndev->limits.max_db_bits)
 		return -EINVAL;
 
-	dev_info(&ndev->pdev->dev, "%s: ringing doorbell(s) %x\n", __func__, db);
+	//dev_info(&ndev->pdev->dev, "%s: ringing doorbell(s) %x\n", __func__, db);
 
 	writew(db, ndev->reg_base + ndev->reg_ofs.sdb);
 
@@ -684,8 +684,8 @@ static irqreturn_t ntb_msix_irq(int irq, void *dev)
 
 	pdb = readw(ndev->reg_base + ndev->reg_ofs.pdb);
 
-	if (pdb & ~SNB_DB_HW_LINK)
-		dev_info(&ndev->pdev->dev, "irq %d - pdb = %x sdb %x\n", irq, pdb, readw(ndev->reg_base + ndev->reg_ofs.sdb));
+	//if (pdb & ~SNB_DB_HW_LINK)
+	//	dev_info(&ndev->pdev->dev, "irq %d - pdb = %x sdb %x\n", irq, pdb, readw(ndev->reg_base + ndev->reg_ofs.sdb));
 #endif
 
 	for (i = 0; i < ndev->limits.max_db_bits - 1; i++) {
