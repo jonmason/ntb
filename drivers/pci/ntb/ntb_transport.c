@@ -246,13 +246,16 @@ static void ntb_transport_rxc(struct work_struct *work)
 	struct ntb_queue_entry *entry;
 	struct ntb_payload_header *hdr;
 	int rc;
+	bool oflow;
+	void *offset;
 
 	do {
 		//FIXME - need to have error paths update the rx_mw_offset, otherwise the tx and rx will get out of sync
-		hdr = qp->rx_mw_offset;
+		offset = qp->rx_mw_offset;
+		hdr = offset;
 		//pr_info("Header len %d, ver %x, tx done %x, rx done %x \n", hdr->len, hdr->ver, hdr->tx_done, hdr->rx_done);
 
-		if (!hdr->tx_done)
+		if (!hdr->tx_done || hdr->rx_done)
 			break;
 
 		if (list_empty(&qp->rxq)) {
@@ -265,52 +268,69 @@ static void ntb_transport_rxc(struct work_struct *work)
 
 		//pr_info("%d payload received, buf size %d\n", hdr->len, entry->len);
 		if (hdr->len > entry->len) {
+			//FIXME - need to move to the next pkt but do not copy
 			pr_err("RX overflow\n");
 			list_add_tail(&entry->entry, &qp->rxq);
 			qp->rx_err_oflow++;
+			oflow = true;
+		} else
+			oflow = false;
+
+		if (offset + sizeof(struct ntb_payload_header) > qp->rx_mw_end)
+			offset = qp->rx_mw_begin;
+
+		offset += sizeof(struct ntb_payload_header);
+		BUG_ON(offset < qp->rx_mw_begin || offset > qp->rx_mw_end);
+
+		if (offset + hdr->len > qp->rx_mw_end) {
+			u32 delta = qp->rx_mw_end - offset;
+
+			//copy to end of buf
+			if (!oflow)
+				memcpy(entry->buf, offset, delta);
+
+			//copy the rest
+			offset = qp->rx_mw_begin;
+			if (!oflow)
+				memcpy(entry->buf + delta, offset, hdr->len - delta);
+
+			//update offset to point to the end of the buff
+			offset += hdr->len - delta;
+			//pr_info("%s: Wrap", __func__);
+			BUG_ON(offset < qp->rx_mw_begin || offset > qp->rx_mw_end);
+		} else {
+			if (!oflow)
+				memcpy(entry->buf, offset, hdr->len);
+
+			if (offset + sizeof(struct ntb_payload_header) > qp->rx_mw_end)
+				offset = qp->rx_mw_begin;
+			else
+				offset += hdr->len;
+			BUG_ON(offset < qp->rx_mw_begin || offset > qp->rx_mw_end);
+		}
+
+		//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
+
+		hdr->rx_done = 1;
+
+		qp->rx_mw_offset = offset;
+		BUG_ON(qp->rx_mw_offset < qp->rx_mw_begin);
+		BUG_ON(qp->rx_mw_offset > qp->rx_mw_end);
+
+		/* Ring doorbell notifying remote side to update TXC */
+		rc = ntb_ring_sdb(transport->ndev, 2 << qp->qp_num);//FIXME - hacky
+		if (rc) {
+			pr_err("%s: error ringing db %d\n", __func__, 2 << qp->qp_num);
 			break;
 		}
 
-		if (qp->rx_mw_offset + sizeof(struct ntb_payload_header) > qp->rx_mw_end)
-			qp->rx_mw_offset = qp->rx_mw_begin;
-
-		qp->rx_mw_offset += sizeof(struct ntb_payload_header);
-
-		if (qp->rx_mw_offset + hdr->len > qp->rx_mw_end) {
-			u32 delta = qp->rx_mw_end - qp->rx_mw_offset;
-
-			//copy to end of buf
-			memcpy(entry->buf, qp->rx_mw_offset, delta);
-
-			//copy the rest
-			qp->rx_mw_offset = qp->rx_mw_begin;
-			memcpy(entry->buf + delta, qp->rx_mw_offset, hdr->len - delta);
-
-			//update offset to point to the end of the buff
-			qp->rx_mw_offset += hdr->len - delta;
-			//pr_info("%s: Wrap", __func__);
-		} else {
-			memcpy(entry->buf, qp->rx_mw_offset, hdr->len);
-
-			if (qp->rx_mw_offset + sizeof(struct ntb_payload_header) > qp->rx_mw_end)
-				qp->rx_mw_offset = qp->rx_mw_begin;
-			else
-				qp->rx_mw_offset += hdr->len;
-		}
-
-		entry->len = hdr->len;
-		//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
+		if (oflow)
+			continue;
 
 		qp->rx_bytes += hdr->len;
 		qp->rx_pkts++;
 
-		hdr->rx_done = 1;
-
-		/* Ring doorbell notifying remote side to update TXC */
-		rc = ntb_ring_sdb(transport->ndev, 2 << qp->qp_num);//FIXME - hacky
-		if (rc)
-			break;
-
+		entry->len = hdr->len;
 		list_add_tail(&entry->entry, &qp->rx_comp_q);
 	} while (true);//FIXME - this could starve client....this needs to be threaded
 
@@ -370,23 +390,20 @@ static void ntb_transport_tx(struct work_struct *work)
 			break;
 
 		entry = list_first_entry(&qp->txq, struct ntb_queue_entry, entry);
-		list_del(&entry->entry);
 
 		if (qp->tx_buf_head + sizeof(struct ntb_payload_header) > qp->tx_buf_end)
 			qp->tx_buf_head = qp->tx_buf_begin;
 
 		//pr_info("tx head %p tail %p diff %ld size %d\n", qp->tx_buf_head, qp->tx_buf_tail, transport->mw[QP_TO_MW(qp->qp_num)].size - (qp->tx_buf_head - qp->tx_buf_tail), (u32) transport->mw[QP_TO_MW(qp->qp_num)].size);
 		//check to see if there is enough room on the local buf
-#if 0
-#define empty_buf_len(head, tail, size)	((head < tail) ? tail - head : size - (head - tail))
-		if (entry->len > empty_buf_len(qp->tx_buf_head, qp->tx_buf_tail, transport->mw[QP_TO_MW(qp->qp_num)].size))
-#else
 #define free_len(qp, size)	(qp->tx_buf_head < qp->tx_buf_tail ? \
 				 size - ((qp->tx_buf_head - qp->tx_buf_begin) + (qp->tx_buf_tail - qp->tx_buf_end)) : \
 				 size - (qp->tx_buf_head - qp->tx_buf_tail))
 		if (entry->len > free_len(qp, transport->mw[QP_TO_MW(qp->qp_num)].size))
-#endif
 			break;
+
+		/* Make sure it can fit before it is removed from the list */
+		list_del(&entry->entry);
 
 		offset = qp->tx_buf_head;
 
@@ -409,7 +426,11 @@ static void ntb_transport_tx(struct work_struct *work)
 			//pr_info("%s:%d - Wrap", __func__, __LINE__);
 		} else {
 			memcpy(offset, entry->buf, entry->len);
-			offset += entry->len;
+
+			if (offset + sizeof(struct ntb_payload_header) > qp->tx_buf_end)
+				offset = qp->tx_buf_begin;
+			else
+				offset += entry->len;
 		}
 
 		hdr->tx_done = 1;
@@ -417,6 +438,7 @@ static void ntb_transport_tx(struct work_struct *work)
 		hdr->len = entry->len;
 		hdr->ver = qp->tx_pkts;
 
+//FIXME - how do we know if hdr is not at the end of the mw????
 		//set next hdr to not done for remote rxq
 		hdr = offset;
 		hdr->tx_done = 0;
@@ -426,8 +448,10 @@ static void ntb_transport_tx(struct work_struct *work)
 
 		/* Ring doorbell notifying remote side of new packet */
 		rc = ntb_ring_sdb(transport->ndev, 1 << qp->qp_num);
-		if (rc)
+		if (rc) {
+			pr_err("%s: error ringing db %d\n", __func__, 1 << qp->qp_num);
 			break;
+		}
 
 		qp->tx_buf_head = offset;
 
@@ -593,7 +617,6 @@ EXPORT_SYMBOL(ntb_transport_rx_enqueue);
  */
 int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry)
 {
-
 	if (!qp || qp->link != NTB_LINK_UP)
 		return -EINVAL;
 
@@ -603,7 +626,6 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
 		schedule_work(&qp->tx_work);
 
 	return 0;
-//FIXME - handle errors and increment stats
 }
 EXPORT_SYMBOL(ntb_transport_tx_enqueue);
 
