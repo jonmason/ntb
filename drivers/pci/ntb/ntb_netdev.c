@@ -150,14 +150,14 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 			netdev->stats.rx_bytes += entry->len;
 		}
 
-		skb = alloc_skb(netdev->mtu, GFP_ATOMIC);
+		skb = alloc_skb(netdev->mtu + ETH_HLEN, GFP_ATOMIC);
 		if (!skb)
 			//FIXME - increment stats
 			return;
 
 		entry->callback_data = skb;
 		entry->buf = skb->data;
-		entry->len = netdev->mtu;
+		entry->len = netdev->mtu + ETH_HLEN;
 
 		rc = ntb_transport_rx_enqueue(dev->qp, entry);
 		if (rc)
@@ -234,8 +234,8 @@ static int ntb_netdev_open(struct net_device *ndev)
 		goto err1;
 
 	/* Add some empty rx bufs */
-	for (i = 0; i < 100; i++) {
-		entry = alloc_entry(ndev->mtu);
+	for (i = 0; i < 1000; i++) {
+		entry = alloc_entry(ndev->mtu + ETH_HLEN);
 		if (!entry) {
 			rc = -ENOMEM;
 			goto err2;
@@ -321,7 +321,7 @@ static int __init ntb_netdev_init_module(void)
 	netdev->hw_features = netdev->features;
 	netdev->watchdog_timeo = msecs_to_jiffies(NTB_TX_TIMEOUT_MS);
 
-	netdev->mtu = PAGE_SIZE;
+	netdev->mtu = PAGE_SIZE - ETH_HLEN;
 
 	random_ether_addr(netdev->perm_addr);
 	memcpy(netdev->dev_addr, netdev->perm_addr, netdev->addr_len);
