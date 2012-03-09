@@ -57,91 +57,229 @@
  * Jon Mason <jon.mason@intel.com>
  */
 
-#ifndef _NTB_HW_H_
-#define _NTB_HW_H_
+#define msix_table_size(control)	((control & PCI_MSIX_FLAGS_QSIZE)+1)
 
-#define SNB_MSIX_CNT		4
-#define BWD_MSIX_CNT		32
+#define NTB_CONN_CLASSIC	0
+#define NTB_CONN_B2B		1
+#define NTB_CONN_RP		2
 
-#define SNB_DB_HW_LINK		0x8000
+#define NTB_DEV_USD		0
+#define NTB_DEV_DSD		1
 
-#define SNB_MSIXMSGCTRL_OFFSET	0x82
+#define NTB_BAR_MMIO		0
+#define NTB_BAR_23		2
+#define NTB_BAR_45		4
+#define NTB_BAR_MASK		(1 << NTB_BAR_MMIO) | (1 << NTB_BAR_23) |\
+				(1 << NTB_BAR_45)
 
-#define BWD_MSIXMSGCTRL_OFFSET	0xb2
+#define NTB_LINK_DOWN		0
+#define NTB_LINK_UP		1
 
-#define SNB_LINK_STATUS_OFFSET	0x01A2
-#define BWD_LINK_STATUS_OFFSET	0x52
-#define NTB_LINK_ENABLE		0x0000
-#define NTB_LINK_DISABLE	0x0002
-#define NTB_LINK_STATUS_ACTIVE	0x2000
+#define NTB_HB_TIMEOUT		msecs_to_jiffies(1000)
 
-#define SNB_MAX_SPADS		16
-#define SNB_MAX_COMPAT_SPADS	8
-#define SNB_MAX_DB_BITS		16
+typedef void(*db_cb_func)(int db_num);
+typedef void(*event_cb_func)(void *handle, unsigned int event);
 
-#define BWD_MAX_SPADS		16
-#define BWD_MAX_COMPAT_SPADS	16
-#define BWD_MAX_DB_BITS		32
-#define BWD_DB_HEARTBEAT	(1 << (BWD_MAX_DB_BITS - 1))
+struct ntb_db_cb {
+	db_cb_func callback;
+	unsigned int db_num;
+};
+
+#define NTB_NUM_MW	2
+
+struct ntb_mw {
+	dma_addr_t phys_addr;
+	void __iomem *vbase;
+	resource_size_t bar_sz;
+};
+
+struct ntb_device {
+	struct pci_dev *pdev;
+	struct msix_entry *msix_entries;
+	void __iomem *reg_base;
+	struct ntb_mw mw[NTB_NUM_MW];
+	struct {
+		int max_compat_spads;
+		int max_spads;
+		int max_db_bits;
+		int msix_cnt;
+	} limits;
+	struct {
+		u32 pdb;
+		u32 pdb_mask;
+		u32 sdb;
+		u32 sbar2_xlat;
+		u32 sbar4_xlat;
+		u32 spad_write;
+		u32 spad_read;
+		u32 lnk_cntl;
+		u32 lnk_stat;
+		u32 msix_msgctrl;
+	} reg_ofs;
+	void *ntb_transport;
+	event_cb_func event_cb;
+	struct ntb_db_cb *db_cb;
+	int conn_type:2;
+	int dev_type:1;
+	int num_msix:6;
+	int link_status:1;
+	struct delayed_work hb_timer;
+	unsigned long last_ts;
+};
 
 
-#define SNB_PBAR2LMT_OFFSET	0x0000
-#define SNB_PBAR4LMT_OFFSET	0x0008
-#define SNB_PBAR2XLAT_OFFSET	0x0010
-#define SNB_PBAR4XLAT_OFFSET	0x0018
-#define SNB_SBAR2LMT_OFFSET	0x0020
-#define SNB_SBAR4LMT_OFFSET	0x0028
-#define SNB_SBAR2XLAT_OFFSET	0x0030
-#define SNB_SBAR4XLAT_OFFSET	0x0038
-#define SNB_SBAR0BASE_OFFSET	0x0040
-#define SNB_SBAR2BASE_OFFSET	0x0048
-#define SNB_SBAR4BASE_OFFSET	0x0050
-#define SNB_NTBCNTL_OFFSET	0x0058
-#define SNB_SBDF_OFFSET		0x005C
-#define SNB_PDOORBELL_OFFSET	0x0060
-#define SNB_PDBMSK_OFFSET	0x0062
-#define SNB_SDOORBELL_OFFSET	0x0064
-#define SNB_SDBMSK_OFFSET	0x0066
-#define SNB_USMEMMISS		0x0070
-#define SNB_SPAD_OFFSET		0x0080
-#define SNB_SPADSEMA4_OFFSET	0x00c0
-#define SNB_WCCNTRL_OFFSET	0x00e0
-#define SNB_B2B_SPAD_OFFSET	0x0100
-#define SNB_B2B_DOORBELL_OFFSET	0x0140
-#define SNB_B2B_XLAT_OFFSET	0x0144
+/**
+ * ntb_query_db_bits() - return the number of doorbell bits
+ * @ndev: pointer to ntb_device instance
+ *
+ * The number of bits in the doorbell can vary depending on the platform
+ *
+ * RETURNS: the number of doorbell bits being used (16 or 64)
+ */
+unsigned int ntb_query_db_bits(struct ntb_device *ndev);
 
-#define BWD_PBAR0XLAT_OFFSET	0x0000
-#define BWD_PBAR2XLAT_OFFSET	0x0008
-#define BWD_PBAR4XLAT_OFFSET	0x0010
-#define BWD_PXROMXLAT_OFFSET	0x0018
-#define BWD_PDOORBELL_OFFSET	0x0020
-#define BWD_PDBMSK_OFFSET	0x0028
-#define BWD_NTBCNTL_OFFSET	0x0060
-#define BWD_EBDF_OFFSET		0x0064
-#define BWD_SPAD_OFFSET		0x0080
-#define BWD_SPADSEMA_OFFSET	0x00c0
-#define BWD_STKYSPAD_OFFSET	0x00c4
+/**
+ * ntb_register_transport() - Register NTB transport with NTB HW driver
+ * @transport: transport identifier
+ *
+ * This function allows a transport to reserve the hardware driver for
+ * NTB usage.
+ *
+ * RETURNS: pointer to ntb_device, NULL on error.
+ */
+struct ntb_device *ntb_register_transport(void *transport);
 
-#define BWD_SBAR0XLAT_OFFSET	0x8000
-#define BWD_SBAR2XLAT_OFFSET	0x8008
-#define BWD_SBAR4XLAT_OFFSET	0x8010
-#define BWD_SXROMXLAT_OFFSET	0x8018
-#define BWD_B2B_DOORBELL_OFFSET	0x8020
-#define BWD_B2B_SPAD_OFFSET	0x8080
-#define BWD_B2B_SPADSEMA_OFFSET	0x80c0
-#define BWD_B2B_STKYSPAD_OFFSET	0x80c4
+/**
+ * ntb_unregister_transport() - Unregister the transport with the NTB HW driver
+ * @ndev - ntb_device of the transport to be freed
+ *
+ * This function unregisters the transport from the HW driver and performs any
+ * necessary cleanups.
+ */
+void ntb_unregister_transport(struct ntb_device *ndev);
 
-#define SNB_DB_LINKSTATE	0x8000
-#define SNB_DB_WC_FLUSH_ACK	0x4000
-#define SNB_DB_DBMSK		0x3fff
+/**
+ * ntb_set_mw_addr - set the memory window address
+ * @ndev: pointer to ntb_device instance
+ * @mw: memory window number
+ * @addr: base address for remote data to be transferred into
+ *
+ * This function sets the base physical address of the memory window.  This
+ * memory address is where data from the remote system will be transfered into.
+ */
+void ntb_set_mw_addr(struct ntb_device *ndev, unsigned int mw, u64 addr);
 
-#define NTB_CNTL_BAR23_SNOOP	(1 << 2)
-#define NTB_CNTL_BAR45_SNOOP	(1 << 6)
+/**
+ * ntb_register_db_callback() - register a callback for doorbell interrupt
+ * @ndev: pointer to ntb_device instance
+ * @idx: doorbell index to register callback, 0 based
+ * @func: callback function to register
+ *
+ * This function registers a callback function for the doorbell interrupt
+ * on the primary side. The function will unmask the doorbell as well to
+ * allow interrupt.
+ *
+ * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
+ */
+int ntb_register_db_callback(struct ntb_device *ndev, unsigned int idx, db_cb_func func);
 
-#define NTB_PPD_OFFSET		0xD4
-#define NTB_PPD_CONN_TYPE	0x3
-#define NTB_PPD_DEV_TYPE	0x10
+/**
+ * ntb_unregister_db_callback() - unregister a callback for doorbell interrupt
+ * @ndev: pointer to ntb_device instance
+ * @idx: doorbell index to register callback, 0 based
+ *
+ * This function unregisters a callback function for the doorbell interrupt
+ * on the primary side. The function will also mask the said doorbell.
+ */
+void ntb_unregister_db_callback(struct ntb_device *ndev, unsigned int idx);
 
-#define NTB_PCICMD_OFFSET	0x504
+/**
+ * ntb_register_event_callback() - register event callback
+ * @ndev: pointer to ntb_device instance
+ * @func: callback function to register
+ *
+ * This function registers a callback for any HW driver events such as link up/down,
+ * power management notices and etc.
+ *
+ * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
+ */
+int ntb_register_event_callback(struct ntb_device *ndev, event_cb_func func);
 
-#endif
+/**
+ * ntb_unregister_event_callback() - unregisters the event callback
+ * @ndev: pointer to ntb_device instance
+ *
+ * This function unregisters the existing callback from transport
+ */
+void ntb_unregister_event_callback(struct ntb_device *ndev);
+
+/**
+ * ntb_get_max_spads() - get the total scratch regs usable
+ * @ndev: pointer to ntb_device instance
+ *
+ * This function returns the max 32bit scratchpad registers usable by the
+ * upper layer.
+ *
+ * RETURNS: total number of scratch pad registers available
+ */
+int ntb_get_max_spads(struct ntb_device *ndev);
+
+/**
+ * ntb_write_spad() - write to the secondary scratchpad register
+ * @ndev: pointer to ntb_device instance
+ * @idx: index to the scratchpad register, 0 based
+ * @val: the data value to put into the register
+ *
+ * This function allows writing of a 32bit value to the indexed scratchpad
+ * register. The register resides on the secondary (external) side.
+ *
+ * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
+ */
+int ntb_write_spad(struct ntb_device *ndev, unsigned int idx, u32 val);
+
+/**
+ * ntb_read_spad() - read from the primary scratchpad register
+ * @ndev: pointer to ntb_device instance
+ * @idx: index to scratchpad register, 0 based
+ * @val: pointer to 32bit integer for storing the register value
+ *
+ * This function allows reading of the 32bit scratchpad register on
+ * the primary (internal) side.
+ *
+ * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
+ */
+int ntb_read_spad(struct ntb_device *ndev, unsigned int idx, u32 *val);
+
+/**
+ * ntb_get_mw_vbase() - get virtual addr for the NTB memory window
+ * @ndev: pointer to ntb_device instance
+ * @mw: memory window number
+ *
+ * This function provides the base virtual address of the memory window specified.
+ *
+ * RETURNS: pointer to virtual address, or NULL on error.
+ */
+void *ntb_get_mw_vbase(struct ntb_device *ndev, unsigned int mw);
+
+/**
+ * ntb_get_mw_size() - return size of NTB memory window
+ * @ndev: pointer to ntb_device instance
+ * @mw: memory window number
+ *
+ * This function provides the physical size of the memory window specified
+ *
+ * RETURNS: the size of the memory window or zero on error
+ */
+resource_size_t ntb_get_mw_size(struct ntb_device *ndev, unsigned int mw);
+
+/**
+ * ntb_ring_sdb() - Set the doorbell on the secondary/external side
+ * @ndev: pointer to ntb_device instance
+ * @db: doorbell(s) to ring
+ *
+ * This function allows triggering of a doorbell on the secondary/external
+ * side that will initiate an interrupt on the remote host
+ *
+ * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
+ */
+int ntb_ring_sdb(struct ntb_device *ndev, unsigned int idx);

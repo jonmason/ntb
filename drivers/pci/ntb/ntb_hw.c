@@ -57,15 +57,15 @@
  * Jon Mason <jon.mason@intel.com>
  */
 #include <linux/init.h>
+#include <linux/interrupt.h>
 #include <linux/module.h>
 #include <linux/pci.h>
-#include <linux/interrupt.h>
 #include <linux/slab.h>
 #include "ntb_hw.h"
-#include "ntb_dev.h"
+#include "ntb_regs.h"
 
 #define NTB_NAME	"Intel(R) PCIe Non-Transparent Bridge Driver"
-#define NTB_VER		"0.2"
+#define NTB_VER		"0.3"
 
 MODULE_DESCRIPTION(NTB_NAME);
 MODULE_VERSION(NTB_VER);

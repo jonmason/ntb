@@ -57,15 +57,14 @@
  * Jon Mason <jon.mason@intel.com>
  */
 
+#include <linux/dma-mapping.h>
 #include <linux/errno.h>
+#include <linux/export.h>
+#include <linux/pci.h>
+#include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/workqueue.h>
-#include <linux/slab.h>
-#include <linux/dma-mapping.h>
-#include <linux/pci.h>
-#include <linux/export.h>
-
-#include "ntb_dev.h"
+#include "ntb_hw.h"
 #include "ntb_transport.h"
 
 struct ntb_transport_qp {
