@@ -221,6 +221,7 @@ void ntb_transport_free(void)
 	int i;
 
 	//FIXME - verify that the event and db callbacks are empty?
+	ntb_unregister_event_callback(transport->ndev);
 
 	for (i = 0; i < NTB_NUM_MW; i++)
 		  dma_free_coherent(&transport->ndev->pdev->dev, transport->mw[i].size, transport->mw[i].virt_addr, transport->mw[i].dma_addr);
@@ -234,6 +235,7 @@ static void ntb_transport_rxc_db(int db_num)
 {
 	struct ntb_transport_qp *qp = &transport->qps[DB_TO_QP(db_num)];
 
+#if 0
 	//pr_info("%s: doorbell %d received\n", __func__, db_num);
 
 	//if (!work_busy(&qp->rx_work))
@@ -243,6 +245,7 @@ static void ntb_transport_rxc_db(int db_num)
 static void ntb_transport_rxc(struct work_struct *work)
 {
 	struct ntb_transport_qp *qp = container_of(work, struct ntb_transport_qp, rx_work);
+#endif
 	struct ntb_queue_entry *entry;
 	struct ntb_payload_header *hdr;
 	int rc;
@@ -252,6 +255,7 @@ static void ntb_transport_rxc(struct work_struct *work)
 	do {
 		//FIXME - need to have error paths update the rx_mw_offset, otherwise the tx and rx will get out of sync
 		offset = qp->rx_mw_offset;
+
 		hdr = offset;
 		//pr_info("Header len %d, ver %x, tx done %x, rx done %x \n", hdr->len, hdr->ver, hdr->tx_done, hdr->rx_done);
 
@@ -269,18 +273,14 @@ static void ntb_transport_rxc(struct work_struct *work)
 		//pr_info("%d payload received, buf size %d\n", hdr->len, entry->len);
 		if (hdr->len > entry->len) {
 			//FIXME - need to move to the next pkt but do not copy
-			pr_err("RX overflow\n");
+			pr_err("RX overflow! Wanted %d got %d\n", hdr->len, entry->len);
 			list_add_tail(&entry->entry, &qp->rxq);
 			qp->rx_err_oflow++;
 			oflow = true;
 		} else
 			oflow = false;
 
-		if (offset + sizeof(struct ntb_payload_header) > qp->rx_mw_end)
-			offset = qp->rx_mw_begin;
-
 		offset += sizeof(struct ntb_payload_header);
-		BUG_ON(offset < qp->rx_mw_begin || offset > qp->rx_mw_end);
 
 		if (offset + hdr->len > qp->rx_mw_end) {
 			u32 delta = qp->rx_mw_end - offset;
@@ -297,16 +297,14 @@ static void ntb_transport_rxc(struct work_struct *work)
 			//update offset to point to the end of the buff
 			offset += hdr->len - delta;
 			//pr_info("%s: Wrap", __func__);
-			BUG_ON(offset < qp->rx_mw_begin || offset > qp->rx_mw_end);
 		} else {
 			if (!oflow)
 				memcpy(entry->buf, offset, hdr->len);
 
+			offset += hdr->len;
+
 			if (offset + sizeof(struct ntb_payload_header) > qp->rx_mw_end)
 				offset = qp->rx_mw_begin;
-			else
-				offset += hdr->len;
-			BUG_ON(offset < qp->rx_mw_begin || offset > qp->rx_mw_end);
 		}
 
 		//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
@@ -314,8 +312,6 @@ static void ntb_transport_rxc(struct work_struct *work)
 		hdr->rx_done = 1;
 
 		qp->rx_mw_offset = offset;
-		BUG_ON(qp->rx_mw_offset < qp->rx_mw_begin);
-		BUG_ON(qp->rx_mw_offset > qp->rx_mw_end);
 
 		/* Ring doorbell notifying remote side to update TXC */
 		rc = ntb_ring_sdb(transport->ndev, 2 << qp->qp_num);//FIXME - hacky
@@ -335,12 +331,14 @@ static void ntb_transport_rxc(struct work_struct *work)
 	} while (true);//FIXME - this could starve client....this needs to be threaded
 
 	//FIXME - this should kick off wq thread or we should document that it runs in irq context
-	qp->rx_handler(qp);
+	if (qp->rx_handler && qp->link)
+		qp->rx_handler(qp);
 }
 
 static void ntb_transport_txc_db(int db_num)
 {
 	struct ntb_transport_qp *qp = &transport->qps[DB_TO_QP(db_num)];
+#if 0
 	//pr_info("%s: doorbell %d received\n", __func__, db_num);
 
 	//if (!work_busy(&qp->txc_work))
@@ -350,6 +348,7 @@ static void ntb_transport_txc_db(int db_num)
 static void ntb_transport_txc(struct work_struct *work)
 {
 	struct ntb_transport_qp *qp = container_of(work, struct ntb_transport_qp, txc_work);
+#endif
 	struct ntb_payload_header *hdr;
 	void *offset;
 
@@ -363,49 +362,53 @@ static void ntb_transport_txc(struct work_struct *work)
 
 		offset = qp->tx_buf_tail;
 
-		if (qp->tx_buf_tail + sizeof(struct ntb_payload_header) > qp->tx_buf_end)
-			offset = qp->tx_buf_begin;
-
 		offset += sizeof(struct ntb_payload_header);
 
 		if (offset + hdr->len > qp->tx_buf_end)
 			offset = qp->tx_buf_begin + (hdr->len - (qp->tx_buf_end - offset));
-		else
+		else {
 			offset += hdr->len;
+
+			if (offset + sizeof(struct ntb_payload_header) > qp->tx_buf_end)
+				offset = qp->tx_buf_begin;
+		}
 
 		qp->tx_buf_tail = offset;
 	} while (qp->tx_buf_tail != qp->tx_buf_head);
 }
 
+#if 0
 static void ntb_transport_tx(struct work_struct *work)
 {
 	struct ntb_transport_qp *qp = container_of(work, struct ntb_transport_qp, tx_work);
-	struct ntb_payload_header *hdr;
 	struct ntb_queue_entry *entry;
+#else
+static void ntb_transport_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry)
+{
+#endif
+	struct ntb_payload_header *hdr;
 	void *offset;
 	int rc;
 
 	do {
-		if (list_empty(&qp->txq))
-			break;
+//		if (list_empty(&qp->txq))
+//			break;
 
-		entry = list_first_entry(&qp->txq, struct ntb_queue_entry, entry);
-
-		if (qp->tx_buf_head + sizeof(struct ntb_payload_header) > qp->tx_buf_end)
-			qp->tx_buf_head = qp->tx_buf_begin;
+//		entry = list_first_entry(&qp->txq, struct ntb_queue_entry, entry);
 
 		//pr_info("tx head %p tail %p diff %ld size %d\n", qp->tx_buf_head, qp->tx_buf_tail, transport->mw[QP_TO_MW(qp->qp_num)].size - (qp->tx_buf_head - qp->tx_buf_tail), (u32) transport->mw[QP_TO_MW(qp->qp_num)].size);
+#define	free_len(qp)	(qp->tx_buf_head < qp->tx_buf_tail ? qp->tx_buf_tail - qp->tx_buf_head : (qp->tx_buf_end - qp->tx_buf_head) + (qp->tx_buf_tail - qp->tx_buf_begin))
+		//pr_err("%lld - tx head %p, tail %p, entry len %d, free size %ld\n", qp->tx_pkts, qp->tx_buf_head, qp->tx_buf_tail, entry->len, free_len(qp));
+
 		//check to see if there is enough room on the local buf
-#define free_len(qp, size)	(qp->tx_buf_head < qp->tx_buf_tail ? \
-				 size - ((qp->tx_buf_head - qp->tx_buf_begin) + (qp->tx_buf_tail - qp->tx_buf_end)) : \
-				 size - (qp->tx_buf_head - qp->tx_buf_tail))
-		if (entry->len > free_len(qp, transport->mw[QP_TO_MW(qp->qp_num)].size))
+		if (entry->len > free_len(qp))
 			break;
 
 		/* Make sure it can fit before it is removed from the list */
-		list_del(&entry->entry);
+//		list_del(&entry->entry);
 
 		offset = qp->tx_buf_head;
+		//BUG_ON(offset > qp->tx_buf_end);
 
 		hdr = offset;
 		offset += sizeof(struct ntb_payload_header);
@@ -418,25 +421,28 @@ static void ntb_transport_tx(struct work_struct *work)
 			memcpy(offset, entry->buf, delta);
 
 			//copy the rest
-			offset = qp->tx_buf_begin;
-			memcpy(offset, entry->buf + delta, entry->len - delta);
+			memcpy(qp->tx_buf_begin, entry->buf + delta, entry->len - delta);
 
 			//update offset to point to the end of the buff
-			offset += entry->len - delta;
-			//pr_info("%s:%d - Wrap", __func__, __LINE__);
+			offset = qp->tx_buf_begin + (entry->len - delta);
+
+			//pr_err("WRAP! %d\n", __LINE__);
 		} else {
 			memcpy(offset, entry->buf, entry->len);
+			offset += entry->len;
 
-			if (offset + sizeof(struct ntb_payload_header) > qp->tx_buf_end)
+			if (offset + sizeof(struct ntb_payload_header) > qp->tx_buf_end) {
 				offset = qp->tx_buf_begin;
-			else
-				offset += entry->len;
+				//pr_err("WRAP! %d\n", __LINE__);
+			}
 		}
 
 		hdr->tx_done = 1;
 		hdr->rx_done = 0;
 		hdr->len = entry->len;
 		hdr->ver = qp->tx_pkts;
+
+		qp->tx_buf_head = offset;
 
 //FIXME - how do we know if hdr is not at the end of the mw????
 		//set next hdr to not done for remote rxq
@@ -453,17 +459,17 @@ static void ntb_transport_tx(struct work_struct *work)
 			break;
 		}
 
-		qp->tx_buf_head = offset;
-
 		qp->tx_pkts++;
 		qp->tx_bytes += entry->len;
 
 		/* Add fully transmitted data to completion queue */
 		list_add_tail(&entry->entry, &qp->tx_comp_q);
-	} while (qp->tx_buf_tail != qp->tx_buf_head);
+	} while (0);
+	//} while (qp->tx_buf_tail != qp->tx_buf_head);
 
 	//FIXME - might want to kick off a thread/wq to handle the tx completion
-	qp->tx_handler(qp);
+	if (qp->tx_handler)
+		qp->tx_handler(qp);
 }
 
 /**
@@ -501,10 +507,11 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 
 	qp->rx_handler = rx_handler;
 	qp->tx_handler = tx_handler;
+	qp->event_handler = NULL;
 
-	INIT_WORK(&qp->rx_work, ntb_transport_rxc);
-	INIT_WORK(&qp->tx_work, ntb_transport_tx);
-	INIT_WORK(&qp->txc_work, ntb_transport_txc);
+//	INIT_WORK(&qp->rx_work, ntb_transport_rxc);
+//	INIT_WORK(&qp->tx_work, ntb_transport_tx);
+//	INIT_WORK(&qp->txc_work, ntb_transport_txc);
 
 	INIT_LIST_HEAD(&qp->rxq);
 	INIT_LIST_HEAD(&qp->rx_comp_q);
@@ -514,11 +521,13 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 	qp->rx_mw_begin = ntb_get_mw_vbase(transport->ndev, QP_TO_MW(free_queue));
 	qp->rx_mw_end = qp->rx_mw_begin + transport->mw[QP_TO_MW(free_queue)].size;
 	qp->rx_mw_offset = qp->rx_mw_begin;
+	pr_err("RX MW start %p end %p\n", qp->rx_mw_begin, qp->rx_mw_end);
 
 	qp->tx_buf_begin = transport->mw[QP_TO_MW(free_queue)].virt_addr;
 	qp->tx_buf_end = qp->tx_buf_begin + transport->mw[QP_TO_MW(free_queue)].size;
 	qp->tx_buf_head = qp->tx_buf_begin;
 	qp->tx_buf_tail = qp->tx_buf_begin;
+	pr_err("TX buf start %p end %p\n", qp->tx_buf_begin, qp->tx_buf_end);
 
 	//FIXME - transport->qps[free_queue].queue.hw_caps; is it even necessary for transport client to know?
 
@@ -566,6 +575,7 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 		return;
 
 	qp->link = 0;
+	qp->event_handler = NULL;
 	ntb_unregister_db_callback(transport->ndev, QP_TO_DB(qp->qp_num));
 	ntb_unregister_db_callback(transport->ndev, QP_TO_DB(qp->qp_num) + 1);
 	//FIXME - wait for qps to quience or notify the transport to stop?
@@ -620,11 +630,14 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
 	if (!qp || qp->link != NTB_LINK_UP)
 		return -EINVAL;
 
+#if 0
 	list_add_tail(&entry->entry, &qp->txq);
 
 	//if (!work_busy(&qp->txc_work))
 		schedule_work(&qp->tx_work);
-
+#else
+	ntb_transport_tx(qp, entry);
+#endif
 	return 0;
 }
 EXPORT_SYMBOL(ntb_transport_tx_enqueue);
@@ -714,7 +727,8 @@ static void ntb_transport_event_work(struct work_struct *work)
 {
 	struct ntb_transport_qp *qp = container_of(work, struct ntb_transport_qp, event_work.work);
 
-	qp->event_handler(qp->event_flags);
+	if (qp->event_handler)
+		qp->event_handler(qp->event_flags);
 }
 
 /**
