@@ -314,7 +314,7 @@ static void ntb_transport_rxc(struct work_struct *work)
 		qp->rx_mw_offset = offset;
 
 		/* Ring doorbell notifying remote side to update TXC */
-		rc = ntb_ring_sdb(transport->ndev, 2 << qp->qp_num);//FIXME - hacky
+		rc = ntb_ring_sdb(transport->ndev, QP_TO_DB(qp->qp_num) + 1);//FIXME - hacky
 		if (rc) {
 			pr_err("%s: error ringing db %d\n", __func__, 2 << qp->qp_num);
 			break;
@@ -453,7 +453,7 @@ static void ntb_transport_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry
 		//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
 
 		/* Ring doorbell notifying remote side of new packet */
-		rc = ntb_ring_sdb(transport->ndev, 1 << qp->qp_num);
+		rc = ntb_ring_sdb(transport->ndev, QP_TO_DB(qp->qp_num));
 		if (rc) {
 			pr_err("%s: error ringing db %d\n", __func__, 1 << qp->qp_num);
 			break;

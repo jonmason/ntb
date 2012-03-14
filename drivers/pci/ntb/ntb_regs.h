@@ -58,7 +58,7 @@
  */
 
 #define SNB_MSIX_CNT		4
-#define BWD_MSIX_CNT		32
+#define BWD_MSIX_CNT		34
 
 #define SNB_DB_HW_LINK		0x8000
 
@@ -78,8 +78,9 @@
 
 #define BWD_MAX_SPADS		16
 #define BWD_MAX_COMPAT_SPADS	16
-#define BWD_MAX_DB_BITS		32
-#define BWD_DB_HEARTBEAT	(1 << (BWD_MAX_DB_BITS - 1))
+#define BWD_MAX_DB_BITS		34
+#define BWD_DB_HEARTBEAT	(BWD_MAX_DB_BITS - 3)
+//#define BWD_DB_HEARTBEAT	(1 << (BWD_MAX_DB_BITS - 1))
 
 
 #define SNB_PBAR2LMT_OFFSET	0x0000
@@ -136,7 +137,9 @@
 #define NTB_CNTL_BAR45_SNOOP	(1 << 6)
 
 #define NTB_PPD_OFFSET		0xD4
-#define NTB_PPD_CONN_TYPE	0x3
-#define NTB_PPD_DEV_TYPE	0x10
+#define SNB_PPD_CONN_TYPE	0x3
+#define SNB_PPD_DEV_TYPE	0x10
+#define BWD_PPD_CONN_TYPE	0x300
+#define BWD_PPD_DEV_TYPE	0x1000
 
 #define NTB_PCICMD_OFFSET	0x504

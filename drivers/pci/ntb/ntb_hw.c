@@ -74,6 +74,7 @@ MODULE_AUTHOR("Intel Corporation");
 
 //FIXME - magic numbers
 #define MW_TO_BAR(bar)	(bar * 2 + 2)
+#define BWD
 
 static struct pci_device_id ntb_pci_tbl[] = {
 	{ PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_NTB_B2B_JSF) },
@@ -446,7 +447,7 @@ EXPORT_SYMBOL(ntb_set_mw_addr);
 /**
  * ntb_ring_sdb() - Set the doorbell on the secondary/external side
  * @ndev: pointer to ntb_device instance
- * @db: doorbell(s) to ring
+ * @db: doorbell to ring
  *
  * This function allows triggering of a doorbell on the secondary/external
  * side that will initiate an interrupt on the remote host
@@ -455,12 +456,12 @@ EXPORT_SYMBOL(ntb_set_mw_addr);
  */
 int ntb_ring_sdb(struct ntb_device *ndev, unsigned int db)
 {
-	if (db >= 1 << ndev->limits.max_db_bits)
+	dev_info(&ndev->pdev->dev, "%s: ringing doorbell %d\n", __func__, db);
+
+	if (db > ndev->limits.max_db_bits)
 		return -EINVAL;
 
-	//dev_info(&ndev->pdev->dev, "%s: ringing doorbell(s) %x\n", __func__, db);
-
-	writew(db, ndev->reg_base + ndev->reg_ofs.sdb);
+	writew(1 << db, ndev->reg_base + ndev->reg_ofs.sdb);
 
 	return 0;
 }
@@ -527,9 +528,30 @@ static int ntb_link_status(struct ntb_device *ndev)
 	return 0;
 }
 
-static void ntb_snb_b2b_setup(struct ntb_device *ndev)
+static int ntb_snb_b2b_setup(struct ntb_device *ndev)
 {
-	int i;
+	int i, rc;
+	u8 val;
+
+	rc = pci_read_config_byte(ndev->pdev, NTB_PPD_OFFSET, &val);
+	if (rc)
+		return rc;
+
+	switch (val & SNB_PPD_CONN_TYPE) {
+	case NTB_CONN_B2B:
+		ndev->conn_type = NTB_CONN_B2B;
+		break;
+	case NTB_CONN_CLASSIC:
+	case NTB_CONN_RP:
+	default:
+		dev_err(&ndev->pdev->dev, "Only B2B supported at this time\n");
+		return -EINVAL;
+	}
+
+	if (val & SNB_PPD_DEV_TYPE)
+		ndev->dev_type = NTB_DEV_DSD;
+	else
+		ndev->dev_type = NTB_DEV_USD;
 
 	for (i = 0; i < NTB_NUM_MW; i++)
 		ndev->mw[i].bar_sz = pci_resource_len(ndev->pdev, MW_TO_BAR(i));
@@ -558,11 +580,34 @@ static void ntb_snb_b2b_setup(struct ntb_device *ndev)
 	/* Reserve the uppermost bit for link interrupt */
 	ndev->limits.max_db_bits = SNB_MAX_DB_BITS;
 	ndev->limits.msix_cnt = SNB_MSIX_CNT;
+
+	return 0;
 }
 
-static void ntb_bwd_setup(struct ntb_device *ndev)
+static int ntb_bwd_setup(struct ntb_device *ndev)
 {
-	int i;
+	int i, rc;
+	u32 val;
+
+	rc = pci_read_config_dword(ndev->pdev, NTB_PPD_OFFSET, &val);
+	if (rc)
+		return rc;
+
+	switch ((val & BWD_PPD_CONN_TYPE) >> 8) {
+	case NTB_CONN_B2B:
+		ndev->conn_type = NTB_CONN_B2B;
+		break;
+	case NTB_CONN_CLASSIC:
+	case NTB_CONN_RP:
+	default:
+		dev_err(&ndev->pdev->dev, "Only B2B supported at this time\n");
+		return -EINVAL;
+	}
+
+	if (val & BWD_PPD_DEV_TYPE)
+		ndev->dev_type = NTB_DEV_DSD;
+	else
+		ndev->dev_type = NTB_DEV_USD;
 
 	for (i = 0; i < NTB_NUM_MW; i++)
 		ndev->mw[i].bar_sz = pci_resource_len(ndev->pdev, MW_TO_BAR(i));
@@ -594,46 +639,27 @@ static void ntb_bwd_setup(struct ntb_device *ndev)
 	/* Since bwd doesn't have a link interrupt, setup a heartbeat timer */
 	INIT_DELAYED_WORK(&ndev->hb_timer, ntb_handle_heartbeat);
 	schedule_delayed_work(&ndev->hb_timer, NTB_HB_TIMEOUT); //FIXME - this might fire before the probe has finished
+
+	return 0;
 }
 
 static int ntb_device_setup(struct ntb_device *ndev)
 {
 	int rc;
-	u8 val;
-
-	rc = pci_read_config_byte(ndev->pdev, NTB_PPD_OFFSET, &val);
-	if (rc)
-		return rc;
-
-	switch (val & NTB_PPD_CONN_TYPE) {
-	case NTB_CONN_B2B:
-		ndev->conn_type = NTB_CONN_B2B;
-		break;
-	case NTB_CONN_CLASSIC:
-	case NTB_CONN_RP:
-	default:
-		dev_err(&ndev->pdev->dev, "Only B2B supported at this time\n");
-		return -EINVAL;
-	}
-
-	if (val & NTB_PPD_DEV_TYPE)
-		ndev->dev_type = NTB_DEV_DSD;
-	else
-		ndev->dev_type = NTB_DEV_USD;
 
 	switch (ndev->pdev->device) {
 	case PCI_DEVICE_ID_INTEL_NTB_B2B_JSF:
 	case PCI_DEVICE_ID_INTEL_NTB_B2B_SNB:
-		ntb_snb_b2b_setup(ndev);
+		rc = ntb_snb_b2b_setup(ndev);
 		break;
 	case PCI_DEVICE_ID_INTEL_NTB_B2B_BWD:
-		ntb_bwd_setup(ndev);
+		rc = ntb_bwd_setup(ndev);
 		break;
 	default:
-		return -ENODEV;
+		rc = -ENODEV;
 	}
 
-	return 0;
+	return rc;
 }
 
 static void ntb_device_free(struct ntb_device *ndev)
@@ -644,8 +670,53 @@ static void ntb_device_free(struct ntb_device *ndev)
 }
 
 //FIXME - find way to sync irq handling between jt/bwd and msix/msi/intx
+static irqreturn_t ntb_msix_irq(int irq, void *dev)
+{
+	struct ntb_device *ndev = dev;
+	int i;
+#ifdef BWD
+	u64 pdb;
+
+	pdb = readq(ndev->reg_base + ndev->reg_ofs.pdb);
+
+	dev_info(&ndev->pdev->dev, "irq %d - pdb = %Lx\n", irq, pdb);
+#else
+	u16 pdb;
+
+	pdb = readw(ndev->reg_base + ndev->reg_ofs.pdb);
+
+	//if (pdb & ~SNB_DB_HW_LINK)
+	//	dev_info(&ndev->pdev->dev, "irq %d - pdb = %x sdb %x\n", irq, pdb, readw(ndev->reg_base + ndev->reg_ofs.sdb));
+#endif
+
+	for (i = 0; i < ndev->limits.max_db_bits - 1; i++) {
+		if (test_bit(i, (const volatile long unsigned int *)&pdb) && ndev->db_cb[i].callback)
+				ndev->db_cb[i].callback(ndev->db_cb[i].db_num);
+	}
+	//FIXME - can this be optimized using ffs or is that unnecessary?
+	//FIXME - can use the irq number to determine which bits to clear, otherwise we may be clearing interrupts we don't want to
+
+#ifdef BWD
+	if (pdb & (u64) 1 << BWD_DB_HEARTBEAT)
+		ndev->last_ts = jiffies;
+
+	writeq(pdb, ndev->reg_base + ndev->reg_ofs.pdb);
+#else
+	if (pdb & SNB_DB_HW_LINK) {
+		int rc = ntb_link_status(ndev);
+		if (rc)
+			dev_err(&ndev->pdev->dev, "Error determining link status\n");
+	}
+
+	writew(pdb, ndev->reg_base + ndev->reg_ofs.pdb);
+#endif
+
+	return IRQ_HANDLED;
+}
+
 static irqreturn_t ntb_interrupt(int irq, void *dev)
 {
+#if 0
 	struct ntb_device *ndev = dev;
 	u16 pdb;
 	int rc;
@@ -669,48 +740,9 @@ static irqreturn_t ntb_interrupt(int irq, void *dev)
 	writew(pdb, ndev->reg_base + ndev->reg_ofs.pdb);
 
 	return IRQ_HANDLED;
-}
-
-static irqreturn_t ntb_msix_irq(int irq, void *dev)
-{
-	struct ntb_device *ndev = dev;
-	int rc, i;
-#ifdef BWD
-	u64 pdb;
-
-	pdb = readq(ndev->reg_base + ndev->reg_ofs.pdb);
 #else
-	u16 pdb;
-
-	pdb = readw(ndev->reg_base + ndev->reg_ofs.pdb);
-
-	//if (pdb & ~SNB_DB_HW_LINK)
-	//	dev_info(&ndev->pdev->dev, "irq %d - pdb = %x sdb %x\n", irq, pdb, readw(ndev->reg_base + ndev->reg_ofs.sdb));
+	return ntb_msix_irq(irq, dev);
 #endif
-
-	for (i = 0; i < ndev->limits.max_db_bits - 1; i++) {
-		if (test_bit(i, (const volatile long unsigned int *)&pdb) && ndev->db_cb[i].callback)
-				ndev->db_cb[i].callback(ndev->db_cb[i].db_num);
-	}
-	//FIXME - can this be optimized using ffs or is that unnecessary?
-	//FIXME - can use the irq number to determine which bits to clear, otherwise we may be clearing interrupts we don't want to
-
-#ifdef BWD
-	if (pdb & BWD_DB_HEARTBEAT)
-		ndev->last_ts = jiffies;
-
-	writeq(pdb, ndev->reg_base + ndev->reg_ofs.pdb);
-#else
-	if (pdb & SNB_DB_HW_LINK) {
-		rc = ntb_link_status(ndev);
-		if (rc)
-			dev_err(&ndev->pdev->dev, "Error determining link status\n");
-	}
-
-	writew(pdb, ndev->reg_base + ndev->reg_ofs.pdb);
-#endif
-
-	return IRQ_HANDLED;
 }
 
 static int ntb_setup_msix(struct ntb_device *ndev)
@@ -727,6 +759,7 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 
 	msix_entries = msix_table_size(val);
 
+	dev_info(&ndev->pdev->dev, "%d entries, %d max\n", msix_entries, ndev->limits.msix_cnt);
 	if (msix_entries > ndev->limits.msix_cnt) {
 		rc = -EINVAL;
 		goto err;
@@ -856,8 +889,12 @@ static void ntb_free_interrupts(struct ntb_device *ndev)
 			free_irq(msix->vector, ndev);
 		}
 		pci_disable_msix(pdev);
-	} else
+	} else {
 		free_irq(pdev->irq, ndev);
+
+		if (pci_dev_msi_enabled(pdev))
+			pci_disable_msi(pdev);
+	}
 }
 
 static int ntb_create_callbacks(struct ntb_device *ndev)
@@ -910,6 +947,7 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	ndev->reg_base = pci_ioremap_bar(pdev, NTB_BAR_MMIO);
 	if (!ndev->reg_base) {
+		dev_warn(&pdev->dev, "Cannot remap BAR 0\n");
 		err = -EIO;
 		goto err2;
 	}
@@ -918,6 +956,7 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		ndev->mw[i].vbase = pci_ioremap_bar(pdev, MW_TO_BAR(i));
 		dev_info(&pdev->dev, "Addr %p len %d\n", ndev->mw[i].vbase, (u32) pci_resource_len(pdev, i));
 		if (!ndev->mw[i].vbase) {
+			dev_warn(&pdev->dev, "Cannot remap BAR %d\n", MW_TO_BAR(i));
 			err = -EIO;
 			goto err3;
 		}
