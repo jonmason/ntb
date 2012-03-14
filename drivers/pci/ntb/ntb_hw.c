@@ -639,6 +639,8 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	INIT_DELAYED_WORK(&ndev->hb_timer, ntb_handle_heartbeat);
 	schedule_delayed_work(&ndev->hb_timer, NTB_HB_TIMEOUT); //FIXME - this might fire before the probe has finished
 
+	writew(0x4, ndev->reg_base + 0xFC);
+
 	return 0;
 }
 

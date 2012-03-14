@@ -174,10 +174,12 @@ static void ntb_netdev_tx_handler(struct ntb_transport_qp *qp)
 	do {
 		entry = ntb_transport_tx_dequeue(qp);
 		if (!entry)
-			return;
+			break;
 
 		free_entry(entry);
 	} while (true);
+
+	netif_wake_queue(netdev);
 }
 
 static netdev_tx_t ntb_netdev_start_xmit(struct sk_buff *skb, struct net_device *ndev)
@@ -205,11 +207,10 @@ static netdev_tx_t ntb_netdev_start_xmit(struct sk_buff *skb, struct net_device 
 	ndev->stats.tx_packets++;
 	ndev->stats.tx_bytes += skb->len;
 
-	ndev->trans_start = jiffies;
-
 	return NETDEV_TX_OK;
 
 err1:
+	netif_stop_queue(ndev);
 	free_entry(entry);
 err:
 	ndev->stats.tx_dropped++;
@@ -219,8 +220,8 @@ err:
 
 static int ntb_netdev_open(struct net_device *ndev)
 {
-	struct ntb_queue_entry *entry;
 	struct ntb_netdev *dev = netdev_priv(ndev);
+	struct ntb_queue_entry *entry;
 	int rc, i;
 
 	dev->qp = ntb_transport_create_queue(ntb_netdev_rx_handler, ntb_netdev_tx_handler);
@@ -266,9 +267,9 @@ err:
 	return rc;
 }
 
-static int ntb_netdev_close(struct net_device *netdev)
+static int ntb_netdev_close(struct net_device *ndev)
 {
-	struct ntb_netdev *dev = netdev_priv(netdev);
+	struct ntb_netdev *dev = netdev_priv(ndev);
 	struct ntb_queue_entry *entry;
 
 	ntb_transport_link_down(dev->qp);
@@ -281,9 +282,9 @@ static int ntb_netdev_close(struct net_device *netdev)
 	return 0;
 }
 
-static int ntb_netdev_change_mtu(struct net_device *netdev, int new_mtu)
+static int ntb_netdev_change_mtu(struct net_device *ndev, int new_mtu)
 {
-	struct ntb_netdev *dev = netdev_priv(netdev);
+	struct ntb_netdev *dev = netdev_priv(ndev);
 	struct ntb_queue_entry *entry;
 	int rc;
 
@@ -294,7 +295,7 @@ static int ntb_netdev_change_mtu(struct net_device *netdev, int new_mtu)
 	/* Bring down the link and dispose of posted rx entries */
 	ntb_transport_link_down(dev->qp);
 
-	if (netdev->mtu < new_mtu) {
+	if (ndev->mtu < new_mtu) {
 		int i;
 
 		for (i = 0; (entry = ntb_transport_rx_remove(dev->qp)); i++)
@@ -315,7 +316,7 @@ static int ntb_netdev_change_mtu(struct net_device *netdev, int new_mtu)
 		}
 	}
 
-	netdev->mtu = new_mtu;
+	ndev->mtu = new_mtu;
 
 	ntb_transport_link_up(dev->qp);
 
@@ -329,12 +330,12 @@ err:
 	return rc;
 }
 
-static void ntb_netdev_tx_timeout(struct net_device *dev)
+static void ntb_netdev_tx_timeout(struct net_device *ndev)
 {
 	pr_err("%s\n", __func__);
 
-	ntb_netdev_open(dev);//FIXME - do something with rc
-	ntb_netdev_close(dev);//FIXME - do something with rc
+	ntb_netdev_open(ndev);//FIXME - do something with rc
+	ntb_netdev_close(ndev);//FIXME - do something with rc
 }
 
 static const struct net_device_ops ntb_netdev_ops = {

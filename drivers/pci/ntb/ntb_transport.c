@@ -383,7 +383,7 @@ static void ntb_transport_tx(struct work_struct *work)
 	struct ntb_transport_qp *qp = container_of(work, struct ntb_transport_qp, tx_work);
 	struct ntb_queue_entry *entry;
 #else
-static void ntb_transport_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry)
+static int ntb_transport_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry)
 {
 #endif
 	struct ntb_payload_header *hdr;
@@ -402,7 +402,7 @@ static void ntb_transport_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry
 
 		//check to see if there is enough room on the local buf
 		if (entry->len > free_len(qp))
-			break;
+			return -EBUSY;
 
 		/* Make sure it can fit before it is removed from the list */
 //		list_del(&entry->entry);
@@ -456,7 +456,7 @@ static void ntb_transport_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry
 		rc = ntb_ring_sdb(transport->ndev, QP_TO_DB(qp->qp_num));
 		if (rc) {
 			pr_err("%s: error ringing db %d\n", __func__, 1 << qp->qp_num);
-			break;
+			return -EIO;
 		}
 
 		qp->tx_pkts++;
@@ -470,6 +470,8 @@ static void ntb_transport_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry
 	//FIXME - might want to kick off a thread/wq to handle the tx completion
 	if (qp->tx_handler)
 		qp->tx_handler(qp);
+
+	return 0;
 }
 
 /**
@@ -580,7 +582,7 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 	ntb_unregister_db_callback(transport->ndev, QP_TO_DB(qp->qp_num) + 1);
 	//FIXME - wait for qps to quience or notify the transport to stop?
 
-	cancel_work_sync(&qp->txc_work);
+	//cancel_work_sync(&qp->txc_work);
 
 	ntb_purge_list(&qp->rxq);
 	ntb_purge_list(&qp->rx_comp_q);
@@ -650,10 +652,11 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
 
 	//if (!work_busy(&qp->txc_work))
 		schedule_work(&qp->tx_work);
-#else
-	ntb_transport_tx(qp, entry);
-#endif
+
 	return 0;
+#else
+	return ntb_transport_tx(qp, entry);
+#endif
 }
 EXPORT_SYMBOL(ntb_transport_tx_enqueue);
 
