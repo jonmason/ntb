@@ -316,7 +316,7 @@ static void ntb_transport_rxc(struct work_struct *work)
 		/* Ring doorbell notifying remote side to update TXC */
 		rc = ntb_ring_sdb(transport->ndev, QP_TO_DB(qp->qp_num) + 1);//FIXME - hacky
 		if (rc) {
-			pr_err("%s: error ringing db %d\n", __func__, 2 << qp->qp_num);
+			pr_err("%s: error ringing db %d\n", __func__, QP_TO_DB(qp->qp_num) + 1);
 			break;
 		}
 
@@ -594,6 +594,21 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 }
 EXPORT_SYMBOL(ntb_transport_free_queue);
 
+struct ntb_queue_entry *ntb_transport_rx_remove(struct ntb_transport_qp *qp)
+{
+	struct ntb_queue_entry *entry;
+
+	if (!qp || qp->link || list_empty(&qp->rxq))
+		return NULL;
+
+	entry = list_first_entry(&qp->rxq, struct ntb_queue_entry, entry);
+	list_del(&entry->entry);
+
+	return entry;
+
+}
+EXPORT_SYMBOL(ntb_transport_rx_remove);
+
 /**
  * ntb_transport_rx_enqueue - Enqueue a new NTB queue entry
  * @qp: NTB transport layer queue the entry is to be enqueued on
@@ -770,3 +785,9 @@ bool ntb_transport_hw_link_query(struct ntb_transport_qp *qp)
 	return transport->ndev->link_status;
 }
 EXPORT_SYMBOL(ntb_transport_hw_link_query);
+
+size_t ntb_transport_max_size(struct ntb_transport_qp *qp)
+{
+	return transport->mw[QP_TO_MW(qp->qp_num)].size - sizeof(struct ntb_payload_header);
+}
+EXPORT_SYMBOL(ntb_transport_max_size);

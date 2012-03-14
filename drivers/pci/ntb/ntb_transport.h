@@ -66,14 +66,14 @@ struct ntb_queue_entry {
 	void *callback_data;
 	void *buf;
 	unsigned int len;
-	/* NTB is finished with this data and it can be reaped */
-	bool done;
 };
 
 typedef void(*handler)(struct ntb_transport_qp *qp);
 
 int ntb_transport_init(void);
 void ntb_transport_free(void);
+struct ntb_queue_entry *ntb_transport_rx_remove(struct ntb_transport_qp *qp);
+size_t ntb_transport_max_size(struct ntb_transport_qp *qp);
 
 /**
  * ntb_transport_create_queue - Create a new NTB transport layer queue

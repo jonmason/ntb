@@ -74,7 +74,6 @@ MODULE_AUTHOR("Intel Corporation");
 
 //FIXME - magic numbers
 #define MW_TO_BAR(bar)	(bar * 2 + 2)
-#define BWD
 
 static struct pci_device_id ntb_pci_tbl[] = {
 	{ PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_NTB_B2B_JSF) },
@@ -456,9 +455,9 @@ EXPORT_SYMBOL(ntb_set_mw_addr);
  */
 int ntb_ring_sdb(struct ntb_device *ndev, unsigned int db)
 {
-	dev_info(&ndev->pdev->dev, "%s: ringing doorbell %d\n", __func__, db);
+//	dev_info(&ndev->pdev->dev, "%s: ringing doorbell %d\n", __func__, db);
 
-	if (db > ndev->limits.max_db_bits)
+	if (db >= ndev->limits.max_db_bits)
 		return -EINVAL;
 
 	writew(1 << db, ndev->reg_base + ndev->reg_ofs.sdb);

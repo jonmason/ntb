@@ -242,8 +242,10 @@ static int ntb_netdev_open(struct net_device *ndev)
 		}
 
 		rc = ntb_transport_rx_enqueue(dev->qp, entry);
-		if (rc)
+		if (rc) {
+			free_entry(entry);
 			goto err2;
+		}
 	}
 
 	ntb_transport_link_up(dev->qp);
@@ -256,7 +258,8 @@ static int ntb_netdev_open(struct net_device *ndev)
 	return 0;
 
 err2:
-	//FIXME - no current way to empty the rxq
+	while ((entry = ntb_transport_rx_remove(dev->qp)))
+		free_entry(entry);
 err1:
 	ntb_transport_free_queue(dev->qp);
 err:
@@ -266,23 +269,64 @@ err:
 static int ntb_netdev_close(struct net_device *netdev)
 {
 	struct ntb_netdev *dev = netdev_priv(netdev);
+	struct ntb_queue_entry *entry;
 
-	//FIXME - no current way to empty the rxq
 	ntb_transport_link_down(dev->qp);
+
+	while ((entry = ntb_transport_rx_remove(dev->qp)))
+		free_entry(entry);
+
 	ntb_transport_free_queue(dev->qp);
 
 	return 0;
 }
 
-static int ntb_netdev_change_mtu(struct net_device *dev, int new_mtu)
+static int ntb_netdev_change_mtu(struct net_device *netdev, int new_mtu)
 {
+	struct ntb_netdev *dev = netdev_priv(netdev);
+	struct ntb_queue_entry *entry;
+	int rc;
+
 	//FIXME - check against size of mw
-	if (0)
+	if (new_mtu > ntb_transport_max_size(dev->qp))
 		return -EINVAL;
 
-	dev->mtu = new_mtu;
+	/* Bring down the link and dispose of posted rx entries */
+	ntb_transport_link_down(dev->qp);
+
+	if (netdev->mtu < new_mtu) {
+		int i;
+
+		for (i = 0; (entry = ntb_transport_rx_remove(dev->qp)); i++)
+			free_entry(entry);
+
+		for (; i; i--) {
+			entry = alloc_entry(new_mtu + ETH_HLEN);
+			if (!entry) {
+				rc = -ENOMEM;
+				goto err;
+			}
+
+			rc = ntb_transport_rx_enqueue(dev->qp, entry);
+			if (rc) {
+				free_entry(entry);
+				goto err;
+			}
+		}
+	}
+
+	netdev->mtu = new_mtu;
+
+	ntb_transport_link_up(dev->qp);
 
 	return 0;
+
+err:
+	while ((entry = ntb_transport_rx_remove(dev->qp)))
+		free_entry(entry);
+
+	pr_err("Error changing MTU, device inoperable\n");
+	return rc;
 }
 
 static void ntb_netdev_tx_timeout(struct net_device *dev)
