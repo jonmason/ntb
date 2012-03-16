@@ -74,6 +74,7 @@ MODULE_AUTHOR("Intel Corporation");
 
 //FIXME - magic numbers
 #define MW_TO_BAR(bar)	(bar * 2 + 2)
+//#define BWD
 
 static struct pci_device_id ntb_pci_tbl[] = {
 	{ PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_NTB_B2B_JSF) },
@@ -116,7 +117,6 @@ static void ntb_debug_dump(struct ntb_device *ndev)
 		return;
 
 	dev_info(&ndev->pdev->dev, "Link %s, Link Width %d, Link Speed %d\n", !!(status16 & NTB_LINK_STATUS_ACTIVE) ? "Up" : "Down", (status16 & 0x3f0) >> 4, (status16 & 0xf));
-	dev_info(&ndev->pdev->dev, "Local BAR0 %p, Reg BAR0 %lx, Remote BAR0 %lx, B2BBAR0XLAT %lx\n", ndev->reg_base, readq(ndev->reg_base + 0x10), readq(ndev->reg_base + 0x40) & ~(0x3fff), readq(ndev->reg_base + 0x144));
 
 	rc = pci_read_config_qword(ndev->pdev, 0x10, &status64);
 	if (rc)
@@ -124,49 +124,27 @@ static void ntb_debug_dump(struct ntb_device *ndev)
 
 	dev_info(&ndev->pdev->dev, "PB01BASE %llx\n", status64);
 
-	if (ndev->dev_type == NTB_DEV_USD) {
-		u32 val = 0;
-		u64 lbase, rbase;
+	//FIXME - is ndev->dev_type needed anymore
 
-		ntb_read_spad(ndev, 0, &val);
-		lbase = ((u64) val) << 32;
-		ntb_read_spad(ndev, 1, &val);
-		lbase |= val;
-
-		ntb_read_spad(ndev, 2, &val);
-		rbase = ((u64) val) << 32;
-		ntb_read_spad(ndev, 3, &val);
-		rbase |= val;
-
-		dev_info(&ndev->pdev->dev, "local base %llx remote base %llx\n", lbase, rbase);
-	} else {
-		u32 val = 0;
-		u64 lbase, rbase;
-
-		ntb_read_spad(ndev, 0, &val);
-		rbase = ((u64) val) << 32;
-		ntb_read_spad(ndev, 1, &val);
-		rbase |= val;
-
-		ntb_read_spad(ndev, 2, &val);
-		lbase = ((u64) val) << 32;
-		ntb_read_spad(ndev, 3, &val);
-		lbase |= val;
-
-		dev_info(&ndev->pdev->dev, "local base %llx remote base %llx\n", lbase, rbase);
-	}
-
-	dev_info(&ndev->pdev->dev, "Upstream Memory Misses %d\n", readw(ndev->reg_base + 0x70));
+	dev_info(&ndev->pdev->dev, "Local BAR0 %p\n", ndev->reg_base);
 
 	rc = pci_read_config_qword(ndev->pdev, 0x18, &status64);
 	if (rc)
 		return;
 
 	dev_info(&ndev->pdev->dev, "PBAR2BASE %llx MMIO addr %p\n", status64, ndev->mw[0].vbase);
+#ifdef BWD
+	dev_info(&ndev->pdev->dev, "MBAR01XLAT %lx\n", readq(ndev->reg_base));
+	dev_info(&ndev->pdev->dev, "MBAR23XLAT %lx MBAR45XLAT %lx\n", readq(ndev->reg_base + 0x8), readq(ndev->reg_base + 0x10));
+#else
 	dev_info(&ndev->pdev->dev, "PBAR2XLAT %lx PBAR4XLAT %lx\n", readq(ndev->reg_base + 0x10), readq(ndev->reg_base + 0x18));
-	dev_info(&ndev->pdev->dev, "SBAR2XLAT %lx SBAR4XLAT %lx\n", readq(ndev->reg_base + 0x30), readq(ndev->reg_base + 0x38));
+#endif
+	dev_info(&ndev->pdev->dev, "SBAR2XLAT %lx SBAR4XLAT %lx\n", readq(ndev->reg_base + ndev->reg_ofs.sbar2_xlat), readq(ndev->reg_base + ndev->reg_ofs.sbar4_xlat));
 	dev_info(&ndev->pdev->dev, "SBAR0BASE %lx SBAR2BASE %lx SBAR4BASE %lx\n", readq(ndev->reg_base + 0x40), readq(ndev->reg_base + 0x48), readq(ndev->reg_base + 0x50));
 	dev_info(&ndev->pdev->dev, "B2BBAR0XLAT %lx\n", readq(ndev->reg_base + 0x144));
+	dev_info(&ndev->pdev->dev, "NTBCNTL %x\n", readl(ndev->reg_base + ndev->reg_ofs.lnk_cntl));
+
+	dev_info(&ndev->pdev->dev, "Upstream Memory Misses %d\n", readw(ndev->reg_base + 0x70));
 }
 
 /**
@@ -455,7 +433,9 @@ EXPORT_SYMBOL(ntb_set_mw_addr);
  */
 int ntb_ring_sdb(struct ntb_device *ndev, unsigned int db)
 {
-//	dev_info(&ndev->pdev->dev, "%s: ringing doorbell %d\n", __func__, db);
+#ifdef BWD
+	dev_info(&ndev->pdev->dev, "%s: ringing doorbell %d\n", __func__, db);
+#endif
 
 	if (db >= ndev->limits.max_db_bits)
 		return -EINVAL;
@@ -531,6 +511,9 @@ static int ntb_snb_b2b_setup(struct ntb_device *ndev)
 {
 	int i, rc;
 	u8 val;
+
+	/* Enable Bus Master and Memory Space on the secondary side */
+	writew(PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, ndev->reg_base + NTB_PCICMD_OFFSET);
 
 	rc = pci_read_config_byte(ndev->pdev, NTB_PPD_OFFSET, &val);
 	if (rc)
@@ -623,7 +606,7 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 		ndev->reg_ofs.sdb = BWD_B2B_DOORBELL_OFFSET;
 		ndev->reg_ofs.spad_write = BWD_B2B_SPAD_OFFSET;
 	} else {
-		ndev->reg_ofs.sdb = BWD_PDOORBELL_OFFSET;//FIXME - investigate the lack of sdb
+		ndev->reg_ofs.sdb = BWD_PDOORBELL_OFFSET;
 		ndev->reg_ofs.spad_write = BWD_SPAD_OFFSET;
 	}
 
@@ -640,6 +623,8 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	schedule_delayed_work(&ndev->hb_timer, NTB_HB_TIMEOUT); //FIXME - this might fire before the probe has finished
 
 	writew(0x4, ndev->reg_base + 0xFC);
+
+	writeq((u64) ndev->reg_base, ndev->reg_base + 0x8000);//Write MBAR01 addr into remote mapped MBAR01XLAT reg
 
 	return 0;
 }
@@ -753,6 +738,11 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 	u16 val;
 	int msix_entries;
 	int rc, i;
+
+#ifdef BWD
+	//FIXME - MSIX busted on BWD
+	return -1;
+#endif
 
 	rc = pci_read_config_word(pdev, ndev->reg_ofs.msix_msgctrl, &val);
 	if (rc)
@@ -981,9 +971,6 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		dev_warn(&pdev->dev, "Cannot DMA consistent highmem\n");
 	}
 
-	/* Enable Bus Master and Memory Space on the secondary side */
-	writew(PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, ndev->reg_base + NTB_PCICMD_OFFSET);
-
 	err = ntb_device_setup(ndev);
 	if (err)
 		goto err3;
@@ -997,6 +984,8 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto err5;
 
 	ndev->link_status = NTB_LINK_DOWN;
+
+	ntb_debug_dump(ndev);
 
 	/* lets bring the NTB link up */
 	writel(NTB_CNTL_BAR23_SNOOP | NTB_CNTL_BAR45_SNOOP, ndev->reg_base + ndev->reg_ofs.lnk_cntl);
