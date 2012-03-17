@@ -124,11 +124,7 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 	struct sk_buff *skb;
 	int rc;
 
-	do {
-		entry = ntb_transport_rx_dequeue(dev->qp);
-		if (!entry)
-			break;
-
+	while ((entry = ntb_transport_rx_dequeue(dev->qp))) {
 		//pr_info("%s: %d byte payload received\n", __func__, entry->len);
 
 		skb = entry->callback_data;
@@ -151,19 +147,23 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 		}
 
 		skb = alloc_skb(netdev->mtu + ETH_HLEN, GFP_ATOMIC);
-		if (!skb)
+		if (!skb) {
 			//FIXME - increment stats
+			pr_err("%s: No skb\n", __func__);
+			kfree(entry);
 			return;
+		}
 
 		entry->callback_data = skb;
 		entry->buf = skb->data;
 		entry->len = netdev->mtu + ETH_HLEN;
 
 		rc = ntb_transport_rx_enqueue(dev->qp, entry);
-		if (rc)
-			break;
-	} while (true);
-
+		if (rc) {
+			pr_err("%s: error re-enqueuing\n", __func__);
+			return;
+		}
+	}
 //FIXME - add stats
 }
 

@@ -304,6 +304,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
 
 	hdr->rx_done = 1;
+	//FIXME - flush???
 
 	qp->rx_mw_offset = offset;
 
@@ -321,7 +322,12 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	qp->rx_pkts++;
 
 	entry->len = hdr->len;
+
 	list_add_tail(&entry->entry, &qp->rx_comp_q);
+
+	//FIXME - this should kick off wq thread or we should document that it runs in irq context
+	if (qp->rx_handler && qp->link)
+		qp->rx_handler(qp);
 
 	return 0;
 }
@@ -329,17 +335,9 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 static int ntb_transport_rxc(void *data)
 {
 	struct ntb_transport_qp *qp = data;
-	int rc;
 
 	while (!kthread_should_stop()) {
-		do {
-			rc = ntb_process_rxc(qp);
-
-			//FIXME - this should kick off wq thread or we should document that it runs in irq context
-			if (!rc && qp->rx_handler && qp->link)
-				qp->rx_handler(qp);
-
-		} while (!rc);
+		while (ntb_process_rxc(qp) == 0);
 
 		/* Sleep if no rx work */
 		set_current_state(TASK_INTERRUPTIBLE);
@@ -397,88 +395,98 @@ static int ntb_transport_txc(void *data)
 
 #define	free_len(qp)	(qp->tx_buf_head < qp->tx_buf_tail ? qp->tx_buf_tail - qp->tx_buf_head : (qp->tx_buf_end - qp->tx_buf_head) + (qp->tx_buf_tail - qp->tx_buf_begin))
 
+static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry)
+{
+	struct ntb_payload_header *hdr;
+	void *offset;
+	int rc;
+
+	//pr_info("tx head %p tail %p diff %ld size %d\n", qp->tx_buf_head, qp->tx_buf_tail, transport->mw[QP_TO_MW(qp->qp_num)].size - (qp->tx_buf_head - qp->tx_buf_tail), (u32) transport->mw[QP_TO_MW(qp->qp_num)].size);
+	//pr_err("%lld - tx head %p, tail %p, entry len %d, free size %ld\n", qp->tx_pkts, qp->tx_buf_head, qp->tx_buf_tail, entry->len, free_len(qp));
+
+	/* check to see if there is enough room on the local buf */
+	if (entry->len > free_len(qp)) {
+		list_add(&entry->entry, &qp->txq);
+		return -EAGAIN;
+	}
+
+	offset = qp->tx_buf_head;
+
+	hdr = offset;
+	offset += sizeof(struct ntb_payload_header);
+
+	/* If it can't fit into whats left of the ring, copy to the end and put the rest at the beginning */
+	if (offset + entry->len > qp->tx_buf_end) {
+		u32 delta = qp->tx_buf_end - offset;
+
+		//copy to end of buf
+		memcpy(offset, entry->buf, delta);
+
+		//copy the rest
+		memcpy(qp->tx_buf_begin, entry->buf + delta, entry->len - delta);
+
+		//update offset to point to the end of the buff
+		offset = qp->tx_buf_begin + (entry->len - delta);
+
+		//pr_err("WRAP! %d\n", __LINE__);
+	} else {
+		memcpy(offset, entry->buf, entry->len);
+		offset += entry->len;
+
+		if (offset + sizeof(struct ntb_payload_header) > qp->tx_buf_end) {
+			offset = qp->tx_buf_begin;
+			//pr_err("WRAP! %d\n", __LINE__);
+		}
+	}
+
+	hdr->tx_done = 1;
+	hdr->rx_done = 0;
+	hdr->len = entry->len;
+	hdr->ver = qp->tx_pkts;
+
+	qp->tx_buf_head = offset;
+
+	//set next hdr to not done for remote rxq
+	hdr = offset;
+	hdr->tx_done = 0;
+	hdr->rx_done = 0;
+
+	//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
+
+	/* Ring doorbell notifying remote side of new packet */
+	rc = ntb_ring_sdb(transport->ndev, QP_TO_DB(qp->qp_num));
+	if (rc) {
+		pr_err("%s: error ringing db %d\n", __func__, 1 << qp->qp_num);
+		return -EIO;
+	}
+
+	qp->tx_pkts++;
+	qp->tx_bytes += entry->len;
+
+	/* Add fully transmitted data to completion queue */
+	list_add_tail(&entry->entry, &qp->tx_comp_q);
+
+	//FIXME - might want to kick off a thread/wq to handle the tx completion
+	if (qp->tx_handler)
+		qp->tx_handler(qp);
+
+	return 0;
+}
+
 static int ntb_transport_tx(void *data)
 {
 	struct ntb_transport_qp *qp = data;
 	struct ntb_queue_entry *entry;
-	struct ntb_payload_header *hdr;
-	void *offset;
 	int rc;
 
 	while (!kthread_should_stop()) {
 		while (!list_empty(&qp->txq)) {
 			entry = list_first_entry(&qp->txq, struct ntb_queue_entry, entry);
-
-			//pr_info("tx head %p tail %p diff %ld size %d\n", qp->tx_buf_head, qp->tx_buf_tail, transport->mw[QP_TO_MW(qp->qp_num)].size - (qp->tx_buf_head - qp->tx_buf_tail), (u32) transport->mw[QP_TO_MW(qp->qp_num)].size);
-			//pr_err("%lld - tx head %p, tail %p, entry len %d, free size %ld\n", qp->tx_pkts, qp->tx_buf_head, qp->tx_buf_tail, entry->len, free_len(qp));
-
-			/* check to see if there is enough room on the local buf */
-			if (entry->len > free_len(qp))
-				break;
-
-			/* Make sure it can fit before it is removed from the list */
 			list_del(&entry->entry);
 
-			offset = qp->tx_buf_head;
-
-			hdr = offset;
-			offset += sizeof(struct ntb_payload_header);
-
-			/* If it can't fit into whats left of the ring, copy to the end and put the rest at the beginning */
-			if (offset + entry->len > qp->tx_buf_end) {
-				u32 delta = qp->tx_buf_end - offset;
-
-				//copy to end of buf
-				memcpy(offset, entry->buf, delta);
-
-				//copy the rest
-				memcpy(qp->tx_buf_begin, entry->buf + delta, entry->len - delta);
-
-				//update offset to point to the end of the buff
-				offset = qp->tx_buf_begin + (entry->len - delta);
-
-				//pr_err("WRAP! %d\n", __LINE__);
-			} else {
-				memcpy(offset, entry->buf, entry->len);
-				offset += entry->len;
-
-				if (offset + sizeof(struct ntb_payload_header) > qp->tx_buf_end) {
-					offset = qp->tx_buf_begin;
-					//pr_err("WRAP! %d\n", __LINE__);
-				}
-			}
-
-			hdr->tx_done = 1;
-			hdr->rx_done = 0;
-			hdr->len = entry->len;
-			hdr->ver = qp->tx_pkts;
-
-			qp->tx_buf_head = offset;
-
-			//set next hdr to not done for remote rxq
-			hdr = offset;
-			hdr->tx_done = 0;
-			hdr->rx_done = 0;
-
-			//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
-
-			/* Ring doorbell notifying remote side of new packet */
-			rc = ntb_ring_sdb(transport->ndev, QP_TO_DB(qp->qp_num));
-			if (rc) {
-				pr_err("%s: error ringing db %d\n", __func__, 1 << qp->qp_num);
+			rc = ntb_process_tx(qp, entry);
+			if (rc)
 				break;
-			}
-
-			qp->tx_pkts++;
-			qp->tx_bytes += entry->len;
-
-			/* Add fully transmitted data to completion queue */
-			list_add_tail(&entry->entry, &qp->tx_comp_q);
-
-			//FIXME - might want to kick off a thread/wq to handle the tx completion
-			if (qp->tx_handler)
-				qp->tx_handler(qp);
-
 		}
 
 		/* Sleep if no tx work */
