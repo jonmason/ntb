@@ -622,9 +622,12 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	INIT_DELAYED_WORK(&ndev->hb_timer, ntb_handle_heartbeat);
 	schedule_delayed_work(&ndev->hb_timer, NTB_HB_TIMEOUT); //FIXME - this might fire before the probe has finished
 
-	writew(0x4, ndev->reg_base + 0xFC);
+	/* FIXME - MSI-X bug on BWD.  Mask parity errors.  Remove once BWD goes GA or we get access to better boards */
+	rc = pci_write_config_dword(ndev->pdev, 0xFC, 0x4);
+	if (rc)
+		return rc;
 
-	writeq((u64) ndev->reg_base, ndev->reg_base + 0x8000);//Write MBAR01 addr into remote mapped MBAR01XLAT reg
+	//writeq((u64) ndev->reg_base, ndev->reg_base + 0x8000);//Write MBAR01 addr into remote mapped MBAR01XLAT reg
 
 	return 0;
 }
@@ -738,11 +741,6 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 	u16 val;
 	int msix_entries;
 	int rc, i;
-
-#ifdef BWD
-	//FIXME - MSIX busted on BWD
-	return -1;
-#endif
 
 	rc = pci_read_config_word(pdev, ndev->reg_ofs.msix_msgctrl, &val);
 	if (rc)
