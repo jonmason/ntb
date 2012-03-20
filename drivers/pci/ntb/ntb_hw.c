@@ -74,7 +74,7 @@ MODULE_AUTHOR("Intel Corporation");
 
 //FIXME - magic numbers
 #define MW_TO_BAR(bar)	(bar * 2 + 2)
-//#define BWD
+#define BWD
 
 static struct pci_device_id ntb_pci_tbl[] = {
 	{ PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_NTB_B2B_JSF) },
@@ -622,12 +622,81 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	INIT_DELAYED_WORK(&ndev->hb_timer, ntb_handle_heartbeat);
 	schedule_delayed_work(&ndev->hb_timer, NTB_HB_TIMEOUT); //FIXME - this might fire before the probe has finished
 
-	/* FIXME - MSI-X bug on BWD.  Mask parity errors.  Remove once BWD goes GA or we get access to better boards */
+
+	//FIXME - all of these are magic from the verification guys.  no idea why theya re needed, but let's see if it makes a difference
+
+
+	//Turn off Common Clock in linkctl
+	writew(0, ndev->reg_base + 0xb050);
+
+	/* FIXME - MSI-X bug on BWD.  Mask transaction layer internal parity errors.  Remove once BWD goes GA or we get access to better boards */
 	rc = pci_write_config_dword(ndev->pdev, 0xFC, 0x4);
 	if (rc)
 		return rc;
 
-	//writeq((u64) ndev->reg_base, ndev->reg_base + 0x8000);//Write MBAR01 addr into remote mapped MBAR01XLAT reg
+	//FIXME - since BIOS isn't filling out these regs, let's do it outselves
+	if (ndev->dev_type == NTB_DEV_USD) {
+		//Setting eEP MBAR23XLAT, should match eEP MBAR23 on remote system
+		writeq(0x0000004000000000, ndev->reg_base + 0x8008);
+		//Setting eEP MBAR45XLAT, should match eEP MBAR23 on remote system
+		writeq(0x0000008000000000, ndev->reg_base + 0x8010);
+		//Setting eEP MBAR23, should match eEP MBAR23XLAT on remote system
+		writeq(0x000000410000000C, ndev->reg_base + 0xb018);
+		//Setting eEP MBAR45, should match eEP MBAR45XLAT on remote system
+		writeq(0x000000810000000C, ndev->reg_base + 0xb020);
+	} else {
+		//Setting eEP MBAR23XLAT, should match eEP MBAR23 on remote system
+		writeq(0x0000004100000000, ndev->reg_base + 0x8008);
+		//Setting eEP MBAR45XLAT, should match eEP MBAR23 on remote system
+		writeq(0x0000008100000000, ndev->reg_base + 0x8010);
+		//Setting eEP MBAR23, should match eEP MBAR23XLAT on remote system
+		writeq(0x000000400000000C, ndev->reg_base + 0xb018);
+		//Setting eEP MBAR45, should match eEP MBAR45XLAT on remote system
+		writeq(0x000000800000000C, ndev->reg_base + 0xb020);
+	}
+
+	//Setting iEP MBAR23 Size in sec_rsbctl23
+	writew(0x0022, ndev->reg_base + 0xb1a8);
+
+	//Setting iEP MBAR23_IP IB Translate
+	writeq(0x0000000070000000, ndev->reg_base + 0x0008);
+
+	//Setting iEP MBAR45 Size in sec_rsbctl45
+	writew(0x0004, ndev->reg_base + 0xb1b0);
+
+	//Setting iEP MBAR45_IP IB Translate
+	writeq(0x0000000078000000, ndev->reg_base + 0x0010);
+
+	//Setting iEP Payload Size in devctl
+	rc = pci_write_config_word(ndev->pdev, 0x0048, 0x282F);
+	if (rc)
+		return rc;
+
+	rc = pci_write_config_word(ndev->pdev, 0x004a, 0xFFFF);
+	if (rc)
+		return rc;
+
+	//Setting eEP Payload Size in devctl
+	writew(0x282F, ndev->reg_base + 0xb048);
+	writew(0xFFFF, ndev->reg_base + 0xb04a);
+
+	//Clear the Error Registers
+	rc = pci_write_config_word(ndev->pdev, 0x0006, 0xFFFF);
+	if (rc)
+		return rc;
+
+	writew(0xFFFF, ndev->reg_base + 0xb006);
+
+	rc = pci_write_config_dword(ndev->pdev, 0x0104, 0xFFFFFFFF);
+	if (rc)
+		return rc;
+
+	rc = pci_write_config_dword(ndev->pdev, 0x0110, 0xFFFFFFFF);
+	if (rc)
+		return rc;
+
+	writel(0xFFFFFFFF, ndev->reg_base + 0xb104);
+	writel(0xFFFFFFFF, ndev->reg_base + 0xb110);
 
 	return 0;
 }
@@ -655,6 +724,7 @@ static void ntb_device_free(struct ntb_device *ndev)
 {
 #ifdef BWD
 	cancel_delayed_work_sync(&ndev->hb_timer);
+	pci_write_config_dword(ndev->pdev, 0xFC, 0x4);
 #endif
 }
 
@@ -748,7 +818,6 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 
 	msix_entries = msix_table_size(val);
 
-	dev_info(&ndev->pdev->dev, "%d entries, %d max\n", msix_entries, ndev->limits.msix_cnt);
 	if (msix_entries > ndev->limits.msix_cnt) {
 		rc = -EINVAL;
 		goto err;
@@ -775,13 +844,11 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 
 	for (i = 0; i < msix_entries; i++) {
 		msix = &ndev->msix_entries[i];
+		WARN_ON(!msix->vector);
 		rc = request_irq(msix->vector, ntb_msix_irq, 0, "ntb-msix", ndev);
 		if (rc)
 			goto err2;
 	}
-
-	/* Disable intx */
-	pci_intx(pdev, 0);
 
 	ndev->num_msix = msix_entries;
 
@@ -842,7 +909,11 @@ static int ntb_setup_interrupts(struct ntb_device *ndev)
 	int rc;
 
 	/* Enable Link/HB Interrupt, the rest will be unmasked as callbacks are registered */
+#ifdef BWD
+	writeq(0, ndev->reg_base + ndev->reg_ofs.pdb_mask);
+#else
 	writew(~(1 << (ndev->limits.max_db_bits - 1)), ndev->reg_base + ndev->reg_ofs.pdb_mask);
+#endif
 
 	rc = ntb_setup_msix(ndev);
 	if (!rc)
@@ -867,7 +938,11 @@ static void ntb_free_interrupts(struct ntb_device *ndev)
 	struct pci_dev *pdev = ndev->pdev;
 
 	/* mask interrupts */
+#ifdef BWD
+	writeq(~0, ndev->reg_base + ndev->reg_ofs.pdb_mask);
+#else
 	writew(~0, ndev->reg_base + ndev->reg_ofs.pdb_mask);
+#endif
 
 	if (ndev->num_msix) {
 		struct msix_entry *msix;
@@ -1026,10 +1101,10 @@ static void __devexit ntb_pci_remove(struct pci_dev *pdev)
 
 	ntb_device_free(ndev);
 
-	iounmap(ndev->reg_base);
-
 	for (i = 0; i < NTB_NUM_MW; i++)
 		iounmap(ndev->mw[i].vbase);
+
+	iounmap(ndev->reg_base);
 
 	pci_release_selected_regions(pdev, NTB_BAR_MASK);
 

@@ -119,10 +119,10 @@ struct ntb_device {
 	void *ntb_transport;
 	event_cb_func event_cb;
 	struct ntb_db_cb *db_cb;
-	int conn_type:2;
-	int dev_type:1;
-	int num_msix:6;
-	int link_status:1;
+	unsigned int conn_type:2;
+	unsigned int dev_type:1;
+	unsigned int num_msix:6;
+	unsigned int link_status:1;
 	struct delayed_work hb_timer;
 	unsigned long last_ts;
 };
