@@ -112,10 +112,13 @@ static void ntb_debug_dump(struct ntb_device *ndev)
 
 	dev_info(&ndev->pdev->dev, "%s %s\n", (ndev->conn_type == NTB_CONN_B2B) ? "NTB B2B" : "NTB-RP", (ndev->dev_type == NTB_DEV_USD) ? "USD/DSP" : "DSD/USP");
 
+#ifdef BWD
+	status16 = readw(ndev->reg_base + 0xb052);
+#else
 	rc = pci_read_config_word(ndev->pdev, ndev->reg_ofs.lnk_stat, &status16);
 	if (rc)
 		return;
-
+#endif
 	dev_info(&ndev->pdev->dev, "Link %s, Link Width %d, Link Speed %d\n", !!(status16 & NTB_LINK_STATUS_ACTIVE) ? "Up" : "Down", (status16 & 0x3f0) >> 4, (status16 & 0xf));
 
 	rc = pci_read_config_qword(ndev->pdev, 0x10, &status64);
@@ -144,7 +147,13 @@ static void ntb_debug_dump(struct ntb_device *ndev)
 	dev_info(&ndev->pdev->dev, "B2BBAR0XLAT %lx\n", readq(ndev->reg_base + 0x144));
 	dev_info(&ndev->pdev->dev, "NTBCNTL %x\n", readl(ndev->reg_base + ndev->reg_ofs.lnk_cntl));
 
+#ifdef BWD
+	dev_info(&ndev->pdev->dev, "MSI-X Control Internal %x\n", readw(ndev->reg_base + 0x30B2));
+	dev_info(&ndev->pdev->dev, "MSI-X Control External %x\n", readw(ndev->reg_base + 0xB0B2));
+#else
 	dev_info(&ndev->pdev->dev, "Upstream Memory Misses %d\n", readw(ndev->reg_base + 0x70));
+#endif
+
 }
 
 /**
@@ -495,9 +504,13 @@ static int ntb_link_status(struct ntb_device *ndev)
 	u16 status;
 	int rc;
 
+#ifdef BWD
+	status = readw(ndev->reg_base + 0xb052);
+#else
 	rc = pci_read_config_word(ndev->pdev, ndev->reg_ofs.lnk_stat, &status);
 	if (rc)
 		return rc;
+#endif
 
 	if (status & NTB_LINK_STATUS_ACTIVE)
 		ntb_link_event(ndev, NTB_LINK_UP);
@@ -513,7 +526,7 @@ static int ntb_snb_b2b_setup(struct ntb_device *ndev)
 	u8 val;
 
 	/* Enable Bus Master and Memory Space on the secondary side */
-	writew(PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, ndev->reg_base + NTB_PCICMD_OFFSET);
+	writew(PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, ndev->reg_base + SNB_PCICMD_OFFSET);
 
 	rc = pci_read_config_byte(ndev->pdev, NTB_PPD_OFFSET, &val);
 	if (rc)
@@ -570,6 +583,9 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 {
 	int i, rc;
 	u32 val;
+
+	/* Enable Bus Master and Memory Space on the secondary side */
+	writew(PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, ndev->reg_base + 0xB004);//Make common code
 
 	rc = pci_read_config_dword(ndev->pdev, NTB_PPD_OFFSET, &val);
 	if (rc)
@@ -698,6 +714,9 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	writel(0xFFFFFFFF, ndev->reg_base + 0xb104);
 	writel(0xFFFFFFFF, ndev->reg_base + 0xb110);
 
+	//enable external msi-x irqs
+	writew(0x8021, ndev->reg_base + 0xB0B2);//FIXME - should read current value and or in the enable bit
+
 	return 0;
 }
 
@@ -724,7 +743,7 @@ static void ntb_device_free(struct ntb_device *ndev)
 {
 #ifdef BWD
 	cancel_delayed_work_sync(&ndev->hb_timer);
-	pci_write_config_dword(ndev->pdev, 0xFC, 0x4);
+//	pci_write_config_dword(ndev->pdev, 0xFC, 0x4);
 #endif
 }
 
@@ -1060,7 +1079,7 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	ntb_debug_dump(ndev);
 
-	/* lets bring the NTB link up */
+	/* Let's bring the NTB link up */
 	writel(NTB_CNTL_BAR23_SNOOP | NTB_CNTL_BAR45_SNOOP, ndev->reg_base + ndev->reg_ofs.lnk_cntl);
 
 	return 0;
