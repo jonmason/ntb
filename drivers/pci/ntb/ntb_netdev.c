@@ -379,6 +379,7 @@ static int __init ntb_netdev_init_module(void)
 	if (rc)
 		goto err;
 
+	pr_info("%s: %s created\n", KBUILD_MODNAME, netdev->name);
 	return 0;
 
 err:

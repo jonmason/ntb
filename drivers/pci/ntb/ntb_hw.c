@@ -140,6 +140,7 @@ static void ntb_debug_dump(struct ntb_device *ndev)
 	dev_info(&ndev->pdev->dev, "MBAR01XLAT %lx\n", readq(ndev->reg_base));
 	dev_info(&ndev->pdev->dev, "MBAR23XLAT %lx MBAR45XLAT %lx\n", readq(ndev->reg_base + 0x8), readq(ndev->reg_base + 0x10));
 	dev_info(&ndev->pdev->dev, "eEP MBAR23XLAT %lx eEP MBAR45XLAT %lx\n", readq(ndev->reg_base + 0xb018), readq(ndev->reg_base + 0xb020));
+	dev_info(&ndev->pdev->dev, "iEP MBAR23_IP %lx iEP MBAR45_IP %lx\n", readq(ndev->reg_base + 0x8), readq(ndev->reg_base + 0x10));
 #else
 	dev_info(&ndev->pdev->dev, "PBAR2XLAT %lx PBAR4XLAT %lx\n", readq(ndev->reg_base + 0x10), readq(ndev->reg_base + 0x18));
 #endif
@@ -420,6 +421,8 @@ void ntb_set_mw_addr(struct ntb_device *ndev, unsigned int mw, u64 addr)
 
 	ndev->mw[mw].phys_addr = addr;
 
+	dev_info(&ndev->pdev->dev, "Writing addr %Lx to BAR %d\n", addr, MW_TO_BAR(mw));
+
 	switch (MW_TO_BAR(mw)) {
 	case NTB_BAR_23:
 		writeq(addr, ndev->reg_base + ndev->reg_ofs.sbar2_xlat);
@@ -443,15 +446,16 @@ EXPORT_SYMBOL(ntb_set_mw_addr);
  */
 int ntb_ring_sdb(struct ntb_device *ndev, unsigned int db)
 {
-#ifdef BWD
-	//dev_info(&ndev->pdev->dev, "%s: ringing doorbell %d\n", __func__, db);
-#endif
+//	dev_info(&ndev->pdev->dev, "%s: ringing doorbell %d\n", __func__, db);
 
 	if (db >= ndev->limits.max_db_bits)
 		return -EINVAL;
 
+#ifdef BWD
+	writeq((u64) 1 << db, ndev->reg_base + ndev->reg_ofs.sdb);
+#else
 	writew(1 << db, ndev->reg_base + ndev->reg_ofs.sdb);
-
+#endif
 	return 0;
 }
 EXPORT_SYMBOL(ntb_ring_sdb);
@@ -504,7 +508,6 @@ static void ntb_handle_heartbeat(struct work_struct *work)
 	struct ntb_device *ndev = container_of(work, struct ntb_device, hb_timer.work);
 	unsigned long ts = jiffies;
 	int rc;
-	int val;
 
 	/* Send Heartbeat signal to remote system */
 	rc = ntb_ring_sdb(ndev, BWD_DB_HEARTBEAT);
@@ -513,20 +516,12 @@ static void ntb_handle_heartbeat(struct work_struct *work)
 		return;
 	}
 
-#if 0
 	/* Check to see if HB has timed out */
 	if (ts > ndev->last_ts + 2 * NTB_HB_TIMEOUT) {
 		dev_err(&ndev->pdev->dev, "HB Timeout\n");
 		ntb_link_event(ndev, NTB_LINK_DOWN);
 	} else
 		ntb_link_event(ndev, NTB_LINK_UP);
-#else
-	ntb_read_spad(ndev, 0, &val);
-	if (val)
-		dev_info(&ndev->pdev->dev, "spad 0 = %x\n", val);
-//	memcpy(ndev->mw[0].vbase, KBUILD_MODNAME, sizeof(KBUILD_MODNAME));
-	ntb_link_status(ndev);
-#endif
 
 	schedule_delayed_work(&ndev->hb_timer, NTB_HB_TIMEOUT);
 }
@@ -772,7 +767,7 @@ static irqreturn_t ntb_msix_irq(int irq, void *dev)
 
 	pdb = readq(ndev->reg_base + ndev->reg_ofs.pdb);
 
-	dev_info(&ndev->pdev->dev, "irq %d - pdb = %Lx\n", irq, pdb);
+	//dev_info(&ndev->pdev->dev, "irq %d - pdb = %Lx\n", irq, pdb);
 #else
 	u16 pdb;
 
@@ -1049,6 +1044,10 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto err2;
 	}
 
+	err = ntb_device_setup(ndev);
+	if (err)
+		goto err3;
+
 	for (i = 0; i < NTB_NUM_MW; i++) {
 		ndev->mw[i].bar_sz = pci_resource_len(pdev, MW_TO_BAR(i));
 		ndev->mw[i].vbase = pci_ioremap_bar(pdev, MW_TO_BAR(i));
@@ -1078,10 +1077,6 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		dev_warn(&pdev->dev, "Cannot DMA consistent highmem\n");
 	}
 
-	err = ntb_device_setup(ndev);
-	if (err)
-		goto err3;
-
 	err = ntb_setup_interrupts(ndev);
 	if (err)
 		goto err4;
@@ -1097,8 +1092,6 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	ntb_debug_dump(ndev);
 
-	ntb_write_spad(ndev, 0, 0xbeef);
-	memcpy(ndev->mw[0].vbase, KBUILD_MODNAME, sizeof(KBUILD_MODNAME));
 	return 0;
 
 err5:

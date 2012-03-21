@@ -236,7 +236,7 @@ static void ntb_transport_rxc_db(int db_num)
 {
 	struct ntb_transport_qp *qp = &transport->qps[DB_TO_QP(db_num)];
 
-	//pr_info("%s: doorbell %d received\n", __func__, db_num);
+	pr_info("%s: doorbell %d received\n", __func__, db_num);
 
 	wake_up_process(qp->rx_work);
 }
@@ -265,7 +265,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	entry = list_first_entry(&qp->rxq, struct ntb_queue_entry, entry);
 	list_del(&entry->entry);
 
-	//pr_info("%d payload received, buf size %d\n", hdr->len, entry->len);
+	pr_info("%d payload received, buf size %d\n", hdr->len, entry->len);
 	if (hdr->len > entry->len) {
 		pr_err("RX overflow! Wanted %d got %d\n", hdr->len, entry->len);
 		list_add_tail(&entry->entry, &qp->rxq);
@@ -350,7 +350,7 @@ static int ntb_transport_rxc(void *data)
 static void ntb_transport_txc_db(int db_num)
 {
 	struct ntb_transport_qp *qp = &transport->qps[DB_TO_QP(db_num)];
-	//pr_info("%s: doorbell %d received\n", __func__, db_num);
+	pr_info("%s: doorbell %d received\n", __func__, db_num);
 
 	wake_up_process(qp->txc_work);
 }
@@ -402,7 +402,7 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 	int rc;
 
 	//pr_info("tx head %p tail %p diff %ld size %d\n", qp->tx_buf_head, qp->tx_buf_tail, transport->mw[QP_TO_MW(qp->qp_num)].size - (qp->tx_buf_head - qp->tx_buf_tail), (u32) transport->mw[QP_TO_MW(qp->qp_num)].size);
-	//pr_err("%lld - tx head %p, tail %p, entry len %d, free size %ld\n", qp->tx_pkts, qp->tx_buf_head, qp->tx_buf_tail, entry->len, free_len(qp));
+	pr_info("%lld - tx head %p, tail %p, entry len %d, free size %ld\n", qp->tx_pkts, qp->tx_buf_head, qp->tx_buf_tail, entry->len, free_len(qp));
 
 	/* check to see if there is enough room on the local buf */
 	if (entry->len > free_len(qp)) {
