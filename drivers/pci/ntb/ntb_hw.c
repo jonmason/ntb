@@ -113,7 +113,7 @@ static void ntb_debug_dump(struct ntb_device *ndev)
 	dev_info(&ndev->pdev->dev, "%s %s\n", (ndev->conn_type == NTB_CONN_B2B) ? "NTB B2B" : "NTB-RP", (ndev->dev_type == NTB_DEV_USD) ? "USD/DSP" : "DSD/USP");
 
 #ifdef BWD
-	status16 = readw(ndev->reg_base + 0xb052);
+	status16 = readw(ndev->reg_base + ndev->reg_ofs.lnk_stat);
 #else
 	rc = pci_read_config_word(ndev->pdev, ndev->reg_ofs.lnk_stat, &status16);
 	if (rc)
@@ -139,6 +139,7 @@ static void ntb_debug_dump(struct ntb_device *ndev)
 #ifdef BWD
 	dev_info(&ndev->pdev->dev, "MBAR01XLAT %lx\n", readq(ndev->reg_base));
 	dev_info(&ndev->pdev->dev, "MBAR23XLAT %lx MBAR45XLAT %lx\n", readq(ndev->reg_base + 0x8), readq(ndev->reg_base + 0x10));
+	dev_info(&ndev->pdev->dev, "eEP MBAR23XLAT %lx eEP MBAR45XLAT %lx\n", readq(ndev->reg_base + 0xb018), readq(ndev->reg_base + 0xb020));
 #else
 	dev_info(&ndev->pdev->dev, "PBAR2XLAT %lx PBAR4XLAT %lx\n", readq(ndev->reg_base + 0x10), readq(ndev->reg_base + 0x18));
 #endif
@@ -443,7 +444,7 @@ EXPORT_SYMBOL(ntb_set_mw_addr);
 int ntb_ring_sdb(struct ntb_device *ndev, unsigned int db)
 {
 #ifdef BWD
-	dev_info(&ndev->pdev->dev, "%s: ringing doorbell %d\n", __func__, db);
+	//dev_info(&ndev->pdev->dev, "%s: ringing doorbell %d\n", __func__, db);
 #endif
 
 	if (db >= ndev->limits.max_db_bits)
@@ -475,38 +476,15 @@ static void ntb_link_event(struct ntb_device *ndev, int link_state)
 		ndev->event_cb(ndev->ntb_transport, link_state);
 }
 
-/* BWD doesn't have link status interrupt, so we need to poll on that platform */
-static void ntb_handle_heartbeat(struct work_struct *work)
-{
-	struct ntb_device *ndev = container_of(work, struct ntb_device, hb_timer.work);
-	unsigned long ts = jiffies;
-	int rc;
-
-	/* Send Heartbeat signal to remote system */
-	rc = ntb_ring_sdb(ndev, BWD_DB_HEARTBEAT);
-	if (rc) {
-		dev_err(&ndev->pdev->dev, "Invalid Index\n");
-		return;
-	}
-
-	/* Check to see if HB has timed out */
-	if (ts > ndev->last_ts + 2 * NTB_HB_TIMEOUT) {
-		dev_err(&ndev->pdev->dev, "HB Timeout\n");
-		ntb_link_event(ndev, NTB_LINK_DOWN);
-	} else
-		ntb_link_event(ndev, NTB_LINK_UP);
-
-	schedule_delayed_work(&ndev->hb_timer, NTB_HB_TIMEOUT);
-}
-
 static int ntb_link_status(struct ntb_device *ndev)
 {
 	u16 status;
-	int rc;
 
 #ifdef BWD
-	status = readw(ndev->reg_base + 0xb052);
+	status = readw(ndev->reg_base + ndev->reg_ofs.lnk_stat);
 #else
+	int rc;
+
 	rc = pci_read_config_word(ndev->pdev, ndev->reg_ofs.lnk_stat, &status);
 	if (rc)
 		return rc;
@@ -520,9 +498,42 @@ static int ntb_link_status(struct ntb_device *ndev)
 	return 0;
 }
 
+/* BWD doesn't have link status interrupt, so we need to poll on that platform */
+static void ntb_handle_heartbeat(struct work_struct *work)
+{
+	struct ntb_device *ndev = container_of(work, struct ntb_device, hb_timer.work);
+	unsigned long ts = jiffies;
+	int rc;
+	int val;
+
+	/* Send Heartbeat signal to remote system */
+	rc = ntb_ring_sdb(ndev, BWD_DB_HEARTBEAT);
+	if (rc) {
+		dev_err(&ndev->pdev->dev, "Invalid Index\n");
+		return;
+	}
+
+#if 0
+	/* Check to see if HB has timed out */
+	if (ts > ndev->last_ts + 2 * NTB_HB_TIMEOUT) {
+		dev_err(&ndev->pdev->dev, "HB Timeout\n");
+		ntb_link_event(ndev, NTB_LINK_DOWN);
+	} else
+		ntb_link_event(ndev, NTB_LINK_UP);
+#else
+	ntb_read_spad(ndev, 0, &val);
+	if (val)
+		dev_info(&ndev->pdev->dev, "spad 0 = %x\n", val);
+//	memcpy(ndev->mw[0].vbase, KBUILD_MODNAME, sizeof(KBUILD_MODNAME));
+	ntb_link_status(ndev);
+#endif
+
+	schedule_delayed_work(&ndev->hb_timer, NTB_HB_TIMEOUT);
+}
+
 static int ntb_snb_b2b_setup(struct ntb_device *ndev)
 {
-	int i, rc;
+	int rc;
 	u8 val;
 
 	/* Enable Bus Master and Memory Space on the secondary side */
@@ -548,9 +559,6 @@ static int ntb_snb_b2b_setup(struct ntb_device *ndev)
 	else
 		ndev->dev_type = NTB_DEV_USD;
 
-	for (i = 0; i < NTB_NUM_MW; i++)
-		ndev->mw[i].bar_sz = pci_resource_len(ndev->pdev, MW_TO_BAR(i));
-
 	ndev->reg_ofs.pdb = SNB_PDOORBELL_OFFSET;
 	ndev->reg_ofs.pdb_mask = SNB_PDBMSK_OFFSET;
 	ndev->reg_ofs.sbar2_xlat = SNB_SBAR2XLAT_OFFSET;
@@ -561,7 +569,7 @@ static int ntb_snb_b2b_setup(struct ntb_device *ndev)
 	if (ndev->conn_type == NTB_CONN_B2B) {
 		ndev->reg_ofs.sdb = SNB_B2B_DOORBELL_OFFSET;
 		ndev->reg_ofs.spad_write = SNB_B2B_SPAD_OFFSET;
-		ndev->reg_ofs.spad_read = SNB_B2B_SPAD_OFFSET;
+	//BUSTED - needs to be different location...	ndev->reg_ofs.spad_read = SNB_B2B_SPAD_OFFSET;
 	} else {
 		ndev->reg_ofs.sdb = SNB_SDOORBELL_OFFSET; 
 		ndev->reg_ofs.spad_write = SNB_SPAD_OFFSET;
@@ -581,7 +589,7 @@ static int ntb_snb_b2b_setup(struct ntb_device *ndev)
 
 static int ntb_bwd_setup(struct ntb_device *ndev)
 {
-	int i, rc;
+	int rc;
 	u32 val;
 
 	/* Enable Bus Master and Memory Space on the secondary side */
@@ -607,8 +615,10 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	else
 		ndev->dev_type = NTB_DEV_USD;
 
-	for (i = 0; i < NTB_NUM_MW; i++)
-		ndev->mw[i].bar_sz = pci_resource_len(ndev->pdev, MW_TO_BAR(i));
+	//enable link training in ppd0
+	rc = pci_write_config_dword(ndev->pdev, NTB_PPD_OFFSET, val | 0x4);
+	if (rc)
+		return rc;
 
 	ndev->reg_ofs.pdb = BWD_PDOORBELL_OFFSET;
 	ndev->reg_ofs.pdb_mask = BWD_PDBMSK_OFFSET;
@@ -649,6 +659,12 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	rc = pci_write_config_dword(ndev->pdev, 0xFC, 0x4);
 	if (rc)
 		return rc;
+
+	//Setting eEP MBAR23 Size in sec_rsbctl23
+	writew(0x0022, ndev->reg_base + 0x31a8);
+
+	//Setting eEP MBAR45 Size in sec_rsbctl45
+	writew(0x0004, ndev->reg_base + 0x31b0);
 
 	//FIXME - since BIOS isn't filling out these regs, let's do it outselves
 	if (ndev->dev_type == NTB_DEV_USD) {
@@ -743,7 +759,6 @@ static void ntb_device_free(struct ntb_device *ndev)
 {
 #ifdef BWD
 	cancel_delayed_work_sync(&ndev->hb_timer);
-//	pci_write_config_dword(ndev->pdev, 0xFC, 0x4);
 #endif
 }
 
@@ -763,8 +778,7 @@ static irqreturn_t ntb_msix_irq(int irq, void *dev)
 
 	pdb = readw(ndev->reg_base + ndev->reg_ofs.pdb);
 
-	//if (pdb & ~SNB_DB_HW_LINK)
-	//	dev_info(&ndev->pdev->dev, "irq %d - pdb = %x sdb %x\n", irq, pdb, readw(ndev->reg_base + ndev->reg_ofs.sdb));
+	//dev_info(&ndev->pdev->dev, "irq %d - pdb = %x sdb %x\n", irq, pdb, readw(ndev->reg_base + ndev->reg_ofs.sdb));
 #endif
 
 	for (i = 0; i < ndev->limits.max_db_bits - 1; i++) {
@@ -1010,7 +1024,7 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	struct ntb_device *ndev;
 	int err, i;
 
-	ndev = kzalloc(sizeof(*ndev), GFP_KERNEL);
+	ndev = kzalloc(sizeof(struct ntb_device), GFP_KERNEL);
 	if (!ndev)
 		return -ENOMEM;
 
@@ -1036,6 +1050,7 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	}
 
 	for (i = 0; i < NTB_NUM_MW; i++) {
+		ndev->mw[i].bar_sz = pci_resource_len(pdev, MW_TO_BAR(i));
 		ndev->mw[i].vbase = pci_ioremap_bar(pdev, MW_TO_BAR(i));
 		dev_info(&pdev->dev, "Addr %p len %d\n", ndev->mw[i].vbase, (u32) pci_resource_len(pdev, i));
 		if (!ndev->mw[i].vbase) {
@@ -1077,11 +1092,13 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	ndev->link_status = NTB_LINK_DOWN;
 
-	ntb_debug_dump(ndev);
-
 	/* Let's bring the NTB link up */
 	writel(NTB_CNTL_BAR23_SNOOP | NTB_CNTL_BAR45_SNOOP, ndev->reg_base + ndev->reg_ofs.lnk_cntl);
 
+	ntb_debug_dump(ndev);
+
+	ntb_write_spad(ndev, 0, 0xbeef);
+	memcpy(ndev->mw[0].vbase, KBUILD_MODNAME, sizeof(KBUILD_MODNAME));
 	return 0;
 
 err5:
