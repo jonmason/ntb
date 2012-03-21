@@ -236,7 +236,7 @@ static void ntb_transport_rxc_db(int db_num)
 {
 	struct ntb_transport_qp *qp = &transport->qps[DB_TO_QP(db_num)];
 
-	pr_info("%s: doorbell %d received\n", __func__, db_num);
+	pr_debug("%s: doorbell %d received\n", __func__, db_num);
 
 	wake_up_process(qp->rx_work);
 }
@@ -251,7 +251,6 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 
 	offset = qp->rx_mw_offset;
 	hdr = offset;
-	//pr_info("Header len %d, ver %x, tx done %x, rx done %x \n", hdr->len, hdr->ver, hdr->tx_done, hdr->rx_done);
 
 	if (!hdr->tx_done || hdr->rx_done)
 		return -EAGAIN;
@@ -265,7 +264,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	entry = list_first_entry(&qp->rxq, struct ntb_queue_entry, entry);
 	list_del(&entry->entry);
 
-	pr_info("%d payload received, buf size %d\n", hdr->len, entry->len);
+	pr_debug("%d payload received, buf size %d\n", hdr->len, entry->len);
 	if (hdr->len > entry->len) {
 		pr_err("RX overflow! Wanted %d got %d\n", hdr->len, entry->len);
 		list_add_tail(&entry->entry, &qp->rxq);
@@ -290,7 +289,6 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 
 		//update offset to point to the end of the buff
 		offset += hdr->len - delta;
-		//pr_info("%s: Wrap", __func__);
 	} else {
 		if (!oflow)
 			memcpy(entry->buf, offset, hdr->len);
@@ -350,8 +348,8 @@ static int ntb_transport_rxc(void *data)
 static void ntb_transport_txc_db(int db_num)
 {
 	struct ntb_transport_qp *qp = &transport->qps[DB_TO_QP(db_num)];
-	pr_info("%s: doorbell %d received\n", __func__, db_num);
 
+	pr_debug("%s: doorbell %d received\n", __func__, db_num);
 	wake_up_process(qp->txc_work);
 }
 
@@ -401,8 +399,7 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 	void *offset;
 	int rc;
 
-	//pr_info("tx head %p tail %p diff %ld size %d\n", qp->tx_buf_head, qp->tx_buf_tail, transport->mw[QP_TO_MW(qp->qp_num)].size - (qp->tx_buf_head - qp->tx_buf_tail), (u32) transport->mw[QP_TO_MW(qp->qp_num)].size);
-	pr_info("%lld - tx head %p, tail %p, entry len %d, free size %ld\n", qp->tx_pkts, qp->tx_buf_head, qp->tx_buf_tail, entry->len, free_len(qp));
+	pr_debug("%lld - tx head %p, tail %p, entry len %d, free size %ld\n", qp->tx_pkts, qp->tx_buf_head, qp->tx_buf_tail, entry->len, free_len(qp));
 
 	/* check to see if there is enough room on the local buf */
 	if (entry->len > free_len(qp)) {
@@ -427,16 +424,12 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 
 		//update offset to point to the end of the buff
 		offset = qp->tx_buf_begin + (entry->len - delta);
-
-		//pr_err("WRAP! %d\n", __LINE__);
 	} else {
 		memcpy(offset, entry->buf, entry->len);
 		offset += entry->len;
 
-		if (offset + sizeof(struct ntb_payload_header) > qp->tx_buf_end) {
+		if (offset + sizeof(struct ntb_payload_header) > qp->tx_buf_end)
 			offset = qp->tx_buf_begin;
-			//pr_err("WRAP! %d\n", __LINE__);
-		}
 	}
 
 	hdr->tx_done = 1;
@@ -563,13 +556,13 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 	qp->rx_mw_begin = ntb_get_mw_vbase(transport->ndev, QP_TO_MW(free_queue));
 	qp->rx_mw_end = qp->rx_mw_begin + transport->mw[QP_TO_MW(free_queue)].size;
 	qp->rx_mw_offset = qp->rx_mw_begin;
-	pr_err("RX MW start %p end %p\n", qp->rx_mw_begin, qp->rx_mw_end);
+	pr_debug("RX MW start %p end %p\n", qp->rx_mw_begin, qp->rx_mw_end);
 
 	qp->tx_buf_begin = transport->mw[QP_TO_MW(free_queue)].virt_addr;
 	qp->tx_buf_end = qp->tx_buf_begin + transport->mw[QP_TO_MW(free_queue)].size;
 	qp->tx_buf_head = qp->tx_buf_begin;
 	qp->tx_buf_tail = qp->tx_buf_begin;
-	pr_err("TX buf start %p end %p\n", qp->tx_buf_begin, qp->tx_buf_end);
+	pr_debug("TX buf start %p end %p\n", qp->tx_buf_begin, qp->tx_buf_end);
 
 	//FIXME - transport->qps[free_queue].queue.hw_caps; is it even necessary for transport client to know?
 

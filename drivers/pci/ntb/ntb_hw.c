@@ -419,9 +419,9 @@ void ntb_set_mw_addr(struct ntb_device *ndev, unsigned int mw, u64 addr)
 	if (mw > NTB_NUM_MW)
 		return;
 
-	ndev->mw[mw].phys_addr = addr;
+	dev_dbg(&ndev->pdev->dev, "Writing addr %Lx to BAR %d\n", addr, MW_TO_BAR(mw));
 
-	dev_info(&ndev->pdev->dev, "Writing addr %Lx to BAR %d\n", addr, MW_TO_BAR(mw));
+	ndev->mw[mw].phys_addr = addr;
 
 	switch (MW_TO_BAR(mw)) {
 	case NTB_BAR_23:
@@ -446,7 +446,7 @@ EXPORT_SYMBOL(ntb_set_mw_addr);
  */
 int ntb_ring_sdb(struct ntb_device *ndev, unsigned int db)
 {
-//	dev_info(&ndev->pdev->dev, "%s: ringing doorbell %d\n", __func__, db);
+	dev_dbg(&ndev->pdev->dev, "%s: ringing doorbell %d\n", __func__, db);
 
 	if (db >= ndev->limits.max_db_bits)
 		return -EINVAL;
@@ -767,13 +767,13 @@ static irqreturn_t ntb_msix_irq(int irq, void *dev)
 
 	pdb = readq(ndev->reg_base + ndev->reg_ofs.pdb);
 
-	//dev_info(&ndev->pdev->dev, "irq %d - pdb = %Lx\n", irq, pdb);
+	dev_dbg(&ndev->pdev->dev, "irq %d - pdb = %Lx\n", irq, pdb);
 #else
 	u16 pdb;
 
 	pdb = readw(ndev->reg_base + ndev->reg_ofs.pdb);
 
-	//dev_info(&ndev->pdev->dev, "irq %d - pdb = %x sdb %x\n", irq, pdb, readw(ndev->reg_base + ndev->reg_ofs.sdb));
+	dev_dbg(&ndev->pdev->dev, "irq %d - pdb = %x sdb %x\n", irq, pdb, readw(ndev->reg_base + ndev->reg_ofs.sdb));
 #endif
 
 	for (i = 0; i < ndev->limits.max_db_bits - 1; i++) {
@@ -1044,10 +1044,6 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto err2;
 	}
 
-	err = ntb_device_setup(ndev);
-	if (err)
-		goto err3;
-
 	for (i = 0; i < NTB_NUM_MW; i++) {
 		ndev->mw[i].bar_sz = pci_resource_len(pdev, MW_TO_BAR(i));
 		ndev->mw[i].vbase = pci_ioremap_bar(pdev, MW_TO_BAR(i));
@@ -1077,6 +1073,10 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		dev_warn(&pdev->dev, "Cannot DMA consistent highmem\n");
 	}
 
+	err = ntb_device_setup(ndev);
+	if (err)
+		goto err3;
+
 	err = ntb_setup_interrupts(ndev);
 	if (err)
 		goto err4;
@@ -1089,8 +1089,6 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	/* Let's bring the NTB link up */
 	writel(NTB_CNTL_BAR23_SNOOP | NTB_CNTL_BAR45_SNOOP, ndev->reg_base + ndev->reg_ofs.lnk_cntl);
-
-	ntb_debug_dump(ndev);
 
 	return 0;
 
