@@ -59,13 +59,6 @@
 
 #define msix_table_size(control)	((control & PCI_MSIX_FLAGS_QSIZE)+1)
 
-#define NTB_CONN_CLASSIC	0
-#define NTB_CONN_B2B		1
-#define NTB_CONN_RP		2
-
-#define NTB_DEV_USD		0
-#define NTB_DEV_DSD		1
-
 #define NTB_BAR_MMIO		0
 #define NTB_BAR_23		2
 #define NTB_BAR_45		4
@@ -119,10 +112,12 @@ struct ntb_device {
 	void *ntb_transport;
 	event_cb_func event_cb;
 	struct ntb_db_cb *db_cb;
+	unsigned int hw_type:1;
 	unsigned int conn_type:2;
 	unsigned int dev_type:1;
 	unsigned int num_msix:6;
 	unsigned int link_status:1;
+	unsigned int unused:20;
 	struct delayed_work hb_timer;
 	unsigned long last_ts;
 };

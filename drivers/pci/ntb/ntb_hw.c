@@ -72,9 +72,24 @@ MODULE_VERSION(NTB_VER);
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("Intel Corporation");
 
+enum {
+	NTB_CONN_CLASSIC = 0,
+	NTB_CONN_B2B,
+	NTB_CONN_RP,
+};
+
+enum {
+	NTB_DEV_USD = 0,
+	NTB_DEV_DSD,
+};
+
+enum {
+	SNB_HW = 0,
+	BWD_HW,
+};
+
 /* Translate memory window 0,1 to BAR 2,4 */
 #define MW_TO_BAR(mw)	(mw * 2 + 2)
-#define BWD
 
 static struct pci_device_id ntb_pci_tbl[] = {
 	{ PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_NTB_B2B_JSF) },
@@ -111,15 +126,16 @@ static void ntb_debug_dump(struct ntb_device *ndev)
 	int rc;
 
 	//FIXME - is ndev->dev_type needed anywhere aside from here?
-	dev_info(&ndev->pdev->dev, "%s %s\n", (ndev->conn_type == NTB_CONN_B2B) ? "NTB B2B" : "NTB-RP", (ndev->dev_type == NTB_DEV_USD) ? "USD/DSP" : "DSD/USP");
+	dev_info(&ndev->pdev->dev, "%s %s %s\n", (ndev->hw_type == BWD_HW) ? "BWD" : "SND", (ndev->conn_type == NTB_CONN_B2B) ? "NTB B2B" : "NTB-RP", (ndev->dev_type == NTB_DEV_USD) ? "USD/DSP" : "DSD/USP");
 
-#ifdef BWD
-	status16 = readw(ndev->reg_base + ndev->reg_ofs.lnk_stat);
-#else
-	rc = pci_read_config_word(ndev->pdev, ndev->reg_ofs.lnk_stat, &status16);
-	if (rc)
-		return;
-#endif
+	if (ndev->hw_type == BWD_HW)
+		status16 = readw(ndev->reg_base + ndev->reg_ofs.lnk_stat);
+	else {
+		rc = pci_read_config_word(ndev->pdev, ndev->reg_ofs.lnk_stat, &status16);
+		if (rc)
+			return;
+	}
+
 	dev_info(&ndev->pdev->dev, "Link %s, Link Width %d, Link Speed %d\n", !!(status16 & NTB_LINK_STATUS_ACTIVE) ? "Up" : "Down", (status16 & 0x3f0) >> 4, (status16 & 0xf));
 
 	rc = pci_read_config_qword(ndev->pdev, 0x10, &status64);
@@ -135,26 +151,24 @@ static void ntb_debug_dump(struct ntb_device *ndev)
 		return;
 
 	dev_info(&ndev->pdev->dev, "PBAR2BASE %llx MMIO addr %p\n", status64, ndev->mw[0].vbase);
-#ifdef BWD
-	dev_info(&ndev->pdev->dev, "MBAR01XLAT %lx\n", readq(ndev->reg_base));
-	dev_info(&ndev->pdev->dev, "MBAR23XLAT %lx MBAR45XLAT %lx\n", readq(ndev->reg_base + 0x8), readq(ndev->reg_base + 0x10));
-	dev_info(&ndev->pdev->dev, "eEP MBAR23XLAT %lx eEP MBAR45XLAT %lx\n", readq(ndev->reg_base + 0xb018), readq(ndev->reg_base + 0xb020));
-	dev_info(&ndev->pdev->dev, "iEP MBAR23_IP %lx iEP MBAR45_IP %lx\n", readq(ndev->reg_base + 0x8), readq(ndev->reg_base + 0x10));
-#else
-	dev_info(&ndev->pdev->dev, "PBAR2XLAT %lx PBAR4XLAT %lx\n", readq(ndev->reg_base + 0x10), readq(ndev->reg_base + 0x18));
-#endif
+	if (ndev->hw_type == BWD_HW) {
+		dev_info(&ndev->pdev->dev, "MBAR01XLAT %lx\n", readq(ndev->reg_base));
+		dev_info(&ndev->pdev->dev, "MBAR23XLAT %lx MBAR45XLAT %lx\n", readq(ndev->reg_base + 0x8), readq(ndev->reg_base + 0x10));
+		dev_info(&ndev->pdev->dev, "eEP MBAR23XLAT %lx eEP MBAR45XLAT %lx\n", readq(ndev->reg_base + 0xb018), readq(ndev->reg_base + 0xb020));
+		dev_info(&ndev->pdev->dev, "iEP MBAR23_IP %lx iEP MBAR45_IP %lx\n", readq(ndev->reg_base + 0x8), readq(ndev->reg_base + 0x10));
+	} else
+		dev_info(&ndev->pdev->dev, "PBAR2XLAT %lx PBAR4XLAT %lx\n", readq(ndev->reg_base + 0x10), readq(ndev->reg_base + 0x18));
+
 	dev_info(&ndev->pdev->dev, "SBAR2XLAT %lx SBAR4XLAT %lx\n", readq(ndev->reg_base + ndev->reg_ofs.sbar2_xlat), readq(ndev->reg_base + ndev->reg_ofs.sbar4_xlat));
 	dev_info(&ndev->pdev->dev, "SBAR0BASE %lx SBAR2BASE %lx SBAR4BASE %lx\n", readq(ndev->reg_base + 0x40), readq(ndev->reg_base + 0x48), readq(ndev->reg_base + 0x50));
 	dev_info(&ndev->pdev->dev, "B2BBAR0XLAT %lx\n", readq(ndev->reg_base + 0x144));
 	dev_info(&ndev->pdev->dev, "NTBCNTL %x\n", readl(ndev->reg_base + ndev->reg_ofs.lnk_cntl));
 
-#ifdef BWD
-	dev_info(&ndev->pdev->dev, "MSI-X Control Internal %x\n", readw(ndev->reg_base + 0x30B2));
-	dev_info(&ndev->pdev->dev, "MSI-X Control External %x\n", readw(ndev->reg_base + 0xB0B2));
-#else
-	dev_info(&ndev->pdev->dev, "Upstream Memory Misses %d\n", readw(ndev->reg_base + 0x70));
-#endif
-
+	if (ndev->hw_type == BWD_HW) {
+		dev_info(&ndev->pdev->dev, "MSI-X Control Internal %x\n", readw(ndev->reg_base + 0x30B2));
+		dev_info(&ndev->pdev->dev, "MSI-X Control External %x\n", readw(ndev->reg_base + 0xB0B2));
+	} else
+		dev_info(&ndev->pdev->dev, "Upstream Memory Misses %d\n", readw(ndev->reg_base + 0x70));
 }
 
 /**
@@ -449,11 +463,11 @@ int ntb_ring_sdb(struct ntb_device *ndev, unsigned int db)
 	if (db >= ndev->limits.max_db_bits)
 		return -EINVAL;
 
-#ifdef BWD
-	writeq((u64) 1 << db, ndev->reg_base + ndev->reg_ofs.sdb);
-#else
-	writew(1 << db, ndev->reg_base + ndev->reg_ofs.sdb);
-#endif
+	if (ndev->hw_type == BWD_HW)
+		writeq((u64) 1 << db, ndev->reg_base + ndev->reg_ofs.sdb);
+	else
+		writew(1 << db, ndev->reg_base + ndev->reg_ofs.sdb);
+
 	return 0;
 }
 EXPORT_SYMBOL(ntb_ring_sdb);
@@ -482,15 +496,15 @@ static int ntb_link_status(struct ntb_device *ndev)
 {
 	u16 status;
 
-#ifdef BWD
-	status = readw(ndev->reg_base + ndev->reg_ofs.lnk_stat);
-#else
-	int rc;
+	if (ndev->hw_type == BWD_HW)
+		status = readw(ndev->reg_base + ndev->reg_ofs.lnk_stat);
+	else {
+		int rc;
 
-	rc = pci_read_config_word(ndev->pdev, ndev->reg_ofs.lnk_stat, &status);
-	if (rc)
-		return rc;
-#endif
+		rc = pci_read_config_word(ndev->pdev, ndev->reg_ofs.lnk_stat, &status);
+		if (rc)
+			return rc;
+	}
 
 	if (status & NTB_LINK_STATUS_ACTIVE)
 		ntb_link_event(ndev, NTB_LINK_UP);
@@ -527,6 +541,8 @@ static int ntb_snb_b2b_setup(struct ntb_device *ndev)
 {
 	int rc;
 	u8 val;
+
+	ndev->hw_type = SNB_HW;
 
 	/* Enable Bus Master and Memory Space on the secondary side */
 	writew(PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, ndev->reg_base + SNB_PCICMD_OFFSET);
@@ -582,6 +598,8 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 {
 	int rc;
 	u32 val;
+
+	ndev->hw_type = BWD_HW;
 
 	/* Enable Bus Master and Memory Space on the secondary side */
 	writew(PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, ndev->reg_base + BWD_PCICMD_OFFSET);
@@ -742,9 +760,8 @@ static int ntb_device_setup(struct ntb_device *ndev)
 
 static void ntb_device_free(struct ntb_device *ndev)
 {
-#ifdef BWD
-	cancel_delayed_work_sync(&ndev->hb_timer);
-#endif
+	if (ndev->hw_type == BWD_HW)
+		cancel_delayed_work_sync(&ndev->hb_timer);
 }
 
 //FIXME - find better way to sync irq handling between jt/bwd and msix/msi/intx
@@ -752,19 +769,17 @@ static irqreturn_t ntb_msix_irq(int irq, void *dev)
 {
 	struct ntb_device *ndev = dev;
 	int i;
-#ifdef BWD
 	u64 pdb;
 
-	pdb = readq(ndev->reg_base + ndev->reg_ofs.pdb);
+	if (ndev->hw_type == BWD_HW) {
+		pdb = readq(ndev->reg_base + ndev->reg_ofs.pdb);
 
-	dev_dbg(&ndev->pdev->dev, "irq %d - pdb = %Lx\n", irq, pdb);
-#else
-	u16 pdb;
+		dev_dbg(&ndev->pdev->dev, "irq %d - pdb = %Lx\n", irq, pdb);
+	} else {
+		pdb = readw(ndev->reg_base + ndev->reg_ofs.pdb);
 
-	pdb = readw(ndev->reg_base + ndev->reg_ofs.pdb);
-
-	dev_dbg(&ndev->pdev->dev, "irq %d - pdb = %x sdb %x\n", irq, pdb, readw(ndev->reg_base + ndev->reg_ofs.sdb));
-#endif
+		dev_dbg(&ndev->pdev->dev, "irq %d - pdb = %x sdb %x\n", irq, (u16) pdb, readw(ndev->reg_base + ndev->reg_ofs.sdb));
+	}
 
 	for (i = 0; i < ndev->limits.max_db_bits - 1; i++) {
 		if (test_bit(i, (const volatile long unsigned int *)&pdb) && ndev->db_cb[i].callback)
@@ -773,20 +788,20 @@ static irqreturn_t ntb_msix_irq(int irq, void *dev)
 	//FIXME - can this be optimized using ffs or is that unnecessary?
 	//FIXME - can use the irq number to determine which bits to clear, otherwise we may be clearing interrupts we don't want to
 
-#ifdef BWD
-	if (pdb & (u64) 1 << BWD_DB_HEARTBEAT)
-		ndev->last_ts = jiffies;
+	if (ndev->hw_type == BWD_HW) {
+		if (pdb & (u64) 1 << BWD_DB_HEARTBEAT)
+			ndev->last_ts = jiffies;
 
-	writeq(pdb, ndev->reg_base + ndev->reg_ofs.pdb);
-#else
-	if (pdb & SNB_DB_HW_LINK) {
-		int rc = ntb_link_status(ndev);
-		if (rc)
-			dev_err(&ndev->pdev->dev, "Error determining link status\n");
+		writeq(pdb, ndev->reg_base + ndev->reg_ofs.pdb);
+	} else {
+		if (pdb & SNB_DB_HW_LINK) {
+			int rc = ntb_link_status(ndev);
+			if (rc)
+				dev_err(&ndev->pdev->dev, "Error determining link status\n");
+		}
+
+		writew((u16) pdb, ndev->reg_base + ndev->reg_ofs.pdb);
 	}
-
-	writew(pdb, ndev->reg_base + ndev->reg_ofs.pdb);
-#endif
 
 	return IRQ_HANDLED;
 }
@@ -902,11 +917,10 @@ static int ntb_setup_interrupts(struct ntb_device *ndev)
 	int rc;
 
 	/* Enable Link/HB Interrupt, the rest will be unmasked as callbacks are registered */
-#ifdef BWD
-	writeq(~(1 << (ndev->limits.max_db_bits - 1)), ndev->reg_base + ndev->reg_ofs.pdb_mask);
-#else
-	writew(~(1 << (ndev->limits.max_db_bits - 1)), ndev->reg_base + ndev->reg_ofs.pdb_mask);
-#endif
+	if (ndev->hw_type == BWD_HW)
+		writeq(~(1 << (ndev->limits.max_db_bits - 1)), ndev->reg_base + ndev->reg_ofs.pdb_mask);
+	else
+		writew(~(1 << (ndev->limits.max_db_bits - 1)), ndev->reg_base + ndev->reg_ofs.pdb_mask);
 
 	rc = ntb_setup_msix(ndev);
 	if (!rc)
@@ -931,11 +945,10 @@ static void ntb_free_interrupts(struct ntb_device *ndev)
 	struct pci_dev *pdev = ndev->pdev;
 
 	/* mask interrupts */
-#ifdef BWD
-	writeq(~0, ndev->reg_base + ndev->reg_ofs.pdb_mask);
-#else
-	writew(~0, ndev->reg_base + ndev->reg_ofs.pdb_mask);
-#endif
+	if (ndev->hw_type == BWD_HW)
+		writeq(~0, ndev->reg_base + ndev->reg_ofs.pdb_mask);
+	else
+		writew(~0, ndev->reg_base + ndev->reg_ofs.pdb_mask);
 
 	if (ndev->num_msix) {
 		struct msix_entry *msix;
