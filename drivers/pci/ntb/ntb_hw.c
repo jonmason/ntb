@@ -72,8 +72,8 @@ MODULE_VERSION(NTB_VER);
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("Intel Corporation");
 
-//FIXME - magic numbers
-#define MW_TO_BAR(bar)	(bar * 2 + 2)
+/* Translate memory window 0,1 to BAR 2,4 */
+#define MW_TO_BAR(mw)	(mw * 2 + 2)
 #define BWD
 
 static struct pci_device_id ntb_pci_tbl[] = {
@@ -84,7 +84,7 @@ static struct pci_device_id ntb_pci_tbl[] = {
 };
 MODULE_DEVICE_TABLE(pci, ntb_pci_tbl);
 
-struct ntb_device *ntbdev;//FIXME - hack
+struct ntb_device *ntbdev;
 
 static int pci_read_config_qword(struct pci_dev *dev, int where, u64 *val)
 {
@@ -646,7 +646,7 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	//Turn off Common Clock in linkctl
 	writew(0, ndev->reg_base + 0xb050);
 
-	/* FIXME - MSI-X bug on BWD.  Mask transaction layer internal parity errors.  Remove once BWD goes GA or we get access to better boards */
+	/* FIXME - MSI-X bug on BWD.  Mask transaction layer internal parity errors. */
 	rc = pci_write_config_dword(ndev->pdev, 0xFC, 0x4);
 	if (rc)
 		return rc;

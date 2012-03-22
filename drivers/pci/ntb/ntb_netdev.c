@@ -70,6 +70,7 @@ struct ntb_netdev {
 };
 
 #define	NTB_TX_TIMEOUT_MS	1000
+#define	NTB_RXQ_SIZE		1000
 
 struct net_device *netdev;
 
@@ -110,7 +111,7 @@ static void ntb_netdev_event_handler(int status)
 
 	pr_info("%s: Event %x, Link %x\n", KBUILD_MODNAME, status, ntb_transport_hw_link_query(dev->qp));
 
-	//FIXME - currently, only link status event is supported
+	/* Currently, only link status event is supported */
 	if (ntb_transport_hw_link_query(dev->qp))
 		netif_carrier_on(netdev);
 	else
@@ -125,7 +126,7 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 	int rc;
 
 	while ((entry = ntb_transport_rx_dequeue(dev->qp))) {
-		//pr_info("%s: %d byte payload received\n", __func__, entry->len);
+		pr_debug("%s: %d byte payload received\n", __func__, entry->len);
 
 		skb = entry->callback_data;
 		skb_put(skb, entry->len);
@@ -188,7 +189,7 @@ static netdev_tx_t ntb_netdev_start_xmit(struct sk_buff *skb, struct net_device 
 	struct ntb_queue_entry *entry;
 	int rc;
 
-	//pr_info("%s: ntb_transport_tx_enqueue\n", KBUILD_MODNAME);
+	pr_debug("%s: ntb_transport_tx_enqueue\n", KBUILD_MODNAME);
 
 	entry = kzalloc(sizeof(struct ntb_queue_entry), GFP_ATOMIC);
 	if (!entry)
@@ -235,7 +236,7 @@ static int ntb_netdev_open(struct net_device *ndev)
 		goto err1;
 
 	/* Add some empty rx bufs */
-	for (i = 0; i < 1000; i++) {
+	for (i = 0; i < NTB_RXQ_SIZE; i++) {
 		entry = alloc_entry(ndev->mtu + ETH_HLEN);
 		if (!entry) {
 			rc = -ENOMEM;
@@ -361,7 +362,7 @@ static int __init ntb_netdev_init_module(void)
 
 	dev = netdev_priv(netdev);
 	netdev->features = NETIF_F_HIGHDMA; //FIXME - check this against the flags returned by the ntb dev???
-	//FIXME - there is bound to be more flags supported.  NETIF_F_SG  comes to mind, prolly NETIF_F_FRAGLIST, NETIF_F_NO_CSUM, 
+	//FIXME - there is bound to be more flags supported.  NETIF_F_SG comes to mind, prolly NETIF_F_FRAGLIST, NETIF_F_NO_CSUM, 
 
 	netdev->hw_features = netdev->features;
 	netdev->watchdog_timeo = msecs_to_jiffies(NTB_TX_TIMEOUT_MS);

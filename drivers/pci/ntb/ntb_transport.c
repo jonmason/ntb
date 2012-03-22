@@ -89,9 +89,9 @@ struct ntb_transport_qp {
 	void (*tx_handler)(struct ntb_transport_qp *qp);
 	void (*event_handler)(int status);
 	struct delayed_work event_work;
-	unsigned int event_flags:1;
-	unsigned int link:1;
-	unsigned int qp_num:6;/* Only 64 QP's are allowed.  0-63 */
+	unsigned char event_flags:1;
+	unsigned char link:1;
+	unsigned char qp_num:6;/* Only 64 QP's are allowed.  0-63 */
 
 	/* Stats */
 	u64 rx_bytes;
@@ -133,9 +133,11 @@ struct ntb_payload_header {
 
 struct ntb_transport *transport = NULL;
 
-static void ntb_transport_event_callback(void *handle, unsigned int event) //FIXME - handle is unnecessary, what would it be used for ever?????
+static void ntb_transport_event_callback(void *handle, unsigned int event)
 {
 	int i;
+
+	//FIXME - use handle as a way to pass client specified data back to it.
 
 	/* Pass along the info to any clients */
 	for (i = 0; i < transport->max_qps; i++)
@@ -147,11 +149,12 @@ static void ntb_transport_event_callback(void *handle, unsigned int event) //FIX
 			qp->tx_buf_tail = qp->tx_buf_begin;
 			qp->rx_mw_offset = qp->rx_mw_begin;
 
-			qp->event_flags |= event; //FIXME - racy and only 1 bit
+			qp->event_flags |= event; //FIXME - could be racy and only 1 bit
 			schedule_delayed_work(&qp->event_work, 0);
 		}
 }
 
+//FIXME - currently we have to expose this to the clients, but we should really init it all on the first qp created and free when the alst one is removed
 int ntb_transport_init(void)
 {
 	int rc, i;
@@ -185,10 +188,9 @@ int ntb_transport_init(void)
 	transport->qp_bitmap = (1 << transport->max_qps) - 1;
 
 	for (i = 0; i < NTB_NUM_MW; i++) {
-		/* Alloc memory for receiving data, Must be 4k aligned */
+		/* Alloc memory for receiving data.  Must be 4k aligned */
 		transport->mw[i].size = ALIGN(ntb_get_mw_size(transport->ndev, i), 4096);
 
-		//FIXME - might not need to be coherent if we don't ever touch it by the cpu on this side
 		transport->mw[i].virt_addr = dma_alloc_coherent(&transport->ndev->pdev->dev, transport->mw[i].size, &transport->mw[i].dma_addr, GFP_KERNEL);
 		if (!transport->mw[i].virt_addr) {
 			rc = -ENOMEM;
@@ -278,16 +280,16 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	if (offset + hdr->len > qp->rx_mw_end) {
 		u32 delta = qp->rx_mw_end - offset;
 
-		//copy to end of buf
+		/* copy to end of buf */
 		if (!oflow)
 			memcpy(entry->buf, offset, delta);
 
-		//copy the rest
+		/* copy the rest of the payload at the beginning on the MW */
 		offset = qp->rx_mw_begin;
 		if (!oflow)
 			memcpy(entry->buf + delta, offset, hdr->len - delta);
 
-		//update offset to point to the end of the buff
+		/* update offset to point to the end of the buff */
 		offset += hdr->len - delta;
 	} else {
 		if (!oflow)
@@ -416,13 +418,13 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 	if (offset + entry->len > qp->tx_buf_end) {
 		u32 delta = qp->tx_buf_end - offset;
 
-		//copy to end of buf
+		/* copy to end of buf */
 		memcpy(offset, entry->buf, delta);
 
-		//copy the rest
+		/* copy the rest of the payload at the beginning on the MW */
 		memcpy(qp->tx_buf_begin, entry->buf + delta, entry->len - delta);
 
-		//update offset to point to the end of the buff
+		/* update offset to point to the end of the buff */
 		offset = qp->tx_buf_begin + (entry->len - delta);
 	} else {
 		memcpy(offset, entry->buf, entry->len);
@@ -439,7 +441,7 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 
 	qp->tx_buf_head = offset;
 
-	//set next hdr to not done for remote rxq
+	/* set next hdr to not done for remote rxq */
 	hdr = offset;
 	hdr->tx_done = 0;
 	hdr->rx_done = 0;
