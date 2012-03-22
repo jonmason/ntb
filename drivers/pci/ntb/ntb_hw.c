@@ -110,6 +110,7 @@ static void ntb_debug_dump(struct ntb_device *ndev)
 	u16 status16;
 	int rc;
 
+	//FIXME - is ndev->dev_type needed anywhere aside from here?
 	dev_info(&ndev->pdev->dev, "%s %s\n", (ndev->conn_type == NTB_CONN_B2B) ? "NTB B2B" : "NTB-RP", (ndev->dev_type == NTB_DEV_USD) ? "USD/DSP" : "DSD/USP");
 
 #ifdef BWD
@@ -126,8 +127,6 @@ static void ntb_debug_dump(struct ntb_device *ndev)
 		return;
 
 	dev_info(&ndev->pdev->dev, "PB01BASE %llx\n", status64);
-
-	//FIXME - is ndev->dev_type needed anymore
 
 	dev_info(&ndev->pdev->dev, "Local BAR0 %p\n", ndev->reg_base);
 
@@ -224,7 +223,6 @@ int ntb_register_db_callback(struct ntb_device *ndev,
 {
 	unsigned long mask;
 
-	//FIXME - don't let them specify index???
 	if (idx >= ndev->limits.max_db_bits || ndev->db_cb[idx].callback) {
 		dev_warn(&ndev->pdev->dev, "Invalid Index.\n");
 		return -EBUSY;
@@ -517,10 +515,9 @@ static void ntb_handle_heartbeat(struct work_struct *work)
 	}
 
 	/* Check to see if HB has timed out */
-	if (ts > ndev->last_ts + 2 * NTB_HB_TIMEOUT) {
-		dev_err(&ndev->pdev->dev, "HB Timeout\n");
+	if (ts > ndev->last_ts + 2 * NTB_HB_TIMEOUT)
 		ntb_link_event(ndev, NTB_LINK_DOWN);
-	} else
+	else
 		ntb_link_event(ndev, NTB_LINK_UP);
 
 	schedule_delayed_work(&ndev->hb_timer, NTB_HB_TIMEOUT);
@@ -560,15 +557,14 @@ static int ntb_snb_b2b_setup(struct ntb_device *ndev)
 	ndev->reg_ofs.sbar4_xlat = SNB_SBAR4XLAT_OFFSET;
 	ndev->reg_ofs.lnk_cntl = SNB_NTBCNTL_OFFSET;
 	ndev->reg_ofs.lnk_stat = SNB_LINK_STATUS_OFFSET;
+	ndev->reg_ofs.spad_read = SNB_SPAD_OFFSET;
 
 	if (ndev->conn_type == NTB_CONN_B2B) {
 		ndev->reg_ofs.sdb = SNB_B2B_DOORBELL_OFFSET;
 		ndev->reg_ofs.spad_write = SNB_B2B_SPAD_OFFSET;
-	//BUSTED - needs to be different location...	ndev->reg_ofs.spad_read = SNB_B2B_SPAD_OFFSET;
 	} else {
 		ndev->reg_ofs.sdb = SNB_SDOORBELL_OFFSET; 
 		ndev->reg_ofs.spad_write = SNB_SPAD_OFFSET;
-		ndev->reg_ofs.spad_read = SNB_SPAD_OFFSET;
 	}
 
 	ndev->reg_ofs.msix_msgctrl = SNB_MSIXMSGCTRL_OFFSET;
@@ -588,7 +584,7 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	u32 val;
 
 	/* Enable Bus Master and Memory Space on the secondary side */
-	writew(PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, ndev->reg_base + 0xB004);//Make common code
+	writew(PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, ndev->reg_base + BWD_PCICMD_OFFSET);
 
 	rc = pci_read_config_dword(ndev->pdev, NTB_PPD_OFFSET, &val);
 	if (rc)
@@ -644,7 +640,7 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	schedule_delayed_work(&ndev->hb_timer, NTB_HB_TIMEOUT); //FIXME - this might fire before the probe has finished
 
 
-	//FIXME - all of these are magic from the verification guys.  no idea why theya re needed, but let's see if it makes a difference
+	//FIXME - all of these are magic from the verification guys.  Verify all of these are necessary to get NTB working
 
 
 	//Turn off Common Clock in linkctl
@@ -661,21 +657,21 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	//Setting eEP MBAR45 Size in sec_rsbctl45
 	writew(0x0004, ndev->reg_base + 0x31b0);
 
-	//FIXME - since BIOS isn't filling out these regs, let's do it outselves
+	//FIXME - since BIOS isn't filling out these regs, let's do it ourselves
 	if (ndev->dev_type == NTB_DEV_USD) {
 		//Setting eEP MBAR23XLAT, should match eEP MBAR23 on remote system
-		writeq(0x0000004000000000, ndev->reg_base + 0x8008);
+		writeq(0x0000004000000000, ndev->reg_base + BWD_PBAR2XLAT_OFFSET);
 		//Setting eEP MBAR45XLAT, should match eEP MBAR23 on remote system
-		writeq(0x0000008000000000, ndev->reg_base + 0x8010);
+		writeq(0x0000008000000000, ndev->reg_base + BWD_PBAR4XLAT_OFFSET);
 		//Setting eEP MBAR23, should match eEP MBAR23XLAT on remote system
 		writeq(0x000000410000000C, ndev->reg_base + 0xb018);
 		//Setting eEP MBAR45, should match eEP MBAR45XLAT on remote system
 		writeq(0x000000810000000C, ndev->reg_base + 0xb020);
 	} else {
 		//Setting eEP MBAR23XLAT, should match eEP MBAR23 on remote system
-		writeq(0x0000004100000000, ndev->reg_base + 0x8008);
+		writeq(0x0000004100000000, ndev->reg_base + BWD_PBAR2XLAT_OFFSET);
 		//Setting eEP MBAR45XLAT, should match eEP MBAR23 on remote system
-		writeq(0x0000008100000000, ndev->reg_base + 0x8010);
+		writeq(0x0000008100000000, ndev->reg_base + BWD_PBAR4XLAT_OFFSET);
 		//Setting eEP MBAR23, should match eEP MBAR23XLAT on remote system
 		writeq(0x000000400000000C, ndev->reg_base + 0xb018);
 		//Setting eEP MBAR45, should match eEP MBAR45XLAT on remote system
@@ -685,14 +681,8 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	//Setting iEP MBAR23 Size in sec_rsbctl23
 	writew(0x0022, ndev->reg_base + 0xb1a8);
 
-	//Setting iEP MBAR23_IP IB Translate
-	writeq(0x0000000070000000, ndev->reg_base + 0x0008);
-
 	//Setting iEP MBAR45 Size in sec_rsbctl45
 	writew(0x0004, ndev->reg_base + 0xb1b0);
-
-	//Setting iEP MBAR45_IP IB Translate
-	writeq(0x0000000078000000, ndev->reg_base + 0x0010);
 
 	//Setting iEP Payload Size in devctl
 	rc = pci_write_config_word(ndev->pdev, 0x0048, 0x282F);
@@ -757,7 +747,7 @@ static void ntb_device_free(struct ntb_device *ndev)
 #endif
 }
 
-//FIXME - find way to sync irq handling between jt/bwd and msix/msi/intx
+//FIXME - find better way to sync irq handling between jt/bwd and msix/msi/intx
 static irqreturn_t ntb_msix_irq(int irq, void *dev)
 {
 	struct ntb_device *ndev = dev;
@@ -801,35 +791,10 @@ static irqreturn_t ntb_msix_irq(int irq, void *dev)
 	return IRQ_HANDLED;
 }
 
+//FIXME - once msix irq handler is only handling the vector causing the interrupt, this function will be to contain the functionality of the former.
 static irqreturn_t ntb_interrupt(int irq, void *dev)
 {
-#if 0
-	struct ntb_device *ndev = dev;
-	u16 pdb;
-	int rc;
-
-	pdb = readw(ndev->reg_base + ndev->reg_ofs.pdb);
-	if (!pdb)
-		return IRQ_NONE;
-
-	if (pdb & ~SNB_DB_HW_LINK)
-		dev_info(&ndev->pdev->dev, "irq %d - pdb = %x\n", irq, pdb);
-
-	if (pdb & BWD_DB_HEARTBEAT)
-		ndev->last_ts = jiffies;
-
-	if (pdb & SNB_DB_HW_LINK) {
-		rc = ntb_link_status(ndev);
-		if (rc)
-			dev_err(&ndev->pdev->dev, "Error determining link status\n");
-	}
-
-	writew(pdb, ndev->reg_base + ndev->reg_ofs.pdb);
-
-	return IRQ_HANDLED;
-#else
 	return ntb_msix_irq(irq, dev);
-#endif
 }
 
 static int ntb_setup_msix(struct ntb_device *ndev)
@@ -938,7 +903,7 @@ static int ntb_setup_interrupts(struct ntb_device *ndev)
 
 	/* Enable Link/HB Interrupt, the rest will be unmasked as callbacks are registered */
 #ifdef BWD
-	writeq(0, ndev->reg_base + ndev->reg_ofs.pdb_mask);
+	writeq(~(1 << (ndev->limits.max_db_bits - 1)), ndev->reg_base + ndev->reg_ofs.pdb_mask);
 #else
 	writew(~(1 << (ndev->limits.max_db_bits - 1)), ndev->reg_base + ndev->reg_ofs.pdb_mask);
 #endif
@@ -1017,7 +982,7 @@ static int __devinit
 ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	struct ntb_device *ndev;
-	int err, i;
+	int rc, i;
 
 	ndev = kzalloc(sizeof(struct ntb_device), GFP_KERNEL);
 	if (!ndev)
@@ -1027,20 +992,20 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	ndev->pdev = pdev;
 	pci_set_drvdata(pdev, ndev);
 
-	err = pci_enable_device(pdev);
-	if (err)
+	rc = pci_enable_device(pdev);
+	if (rc)
 		goto err;
 
 	pci_set_master(ndev->pdev);
 
-	err = pci_request_selected_regions(pdev, NTB_BAR_MASK, KBUILD_MODNAME);
-	if (err)
+	rc = pci_request_selected_regions(pdev, NTB_BAR_MASK, KBUILD_MODNAME);
+	if (rc)
 		goto err1;
 
 	ndev->reg_base = pci_ioremap_bar(pdev, NTB_BAR_MMIO);
 	if (!ndev->reg_base) {
 		dev_warn(&pdev->dev, "Cannot remap BAR 0\n");
-		err = -EIO;
+		rc = -EIO;
 		goto err2;
 	}
 
@@ -1050,39 +1015,39 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		dev_info(&pdev->dev, "Addr %p len %d\n", ndev->mw[i].vbase, (u32) pci_resource_len(pdev, i));
 		if (!ndev->mw[i].vbase) {
 			dev_warn(&pdev->dev, "Cannot remap BAR %d\n", MW_TO_BAR(i));
-			err = -EIO;
+			rc = -EIO;
 			goto err3;
 		}
 	}
 
-	err = pci_set_dma_mask(pdev, DMA_BIT_MASK(64));
-	if (err) {
-		err = pci_set_dma_mask(pdev, DMA_BIT_MASK(32));
-		if (err)
+	rc = pci_set_dma_mask(pdev, DMA_BIT_MASK(64));
+	if (rc) {
+		rc = pci_set_dma_mask(pdev, DMA_BIT_MASK(32));
+		if (rc)
 			goto err3;
-		//FIXME - let upper layers know of this limitation?
+		//FIXME - let upper layers know of this limitation
 		dev_warn(&pdev->dev, "Cannot DMA highmem\n");
 	}
 
-	err = pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(64));
-	if (err) {
-		err = pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(32));
-		if (err)
+	rc = pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(64));
+	if (rc) {
+		rc = pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(32));
+		if (rc)
 			goto err3;
 
 		dev_warn(&pdev->dev, "Cannot DMA consistent highmem\n");
 	}
 
-	err = ntb_device_setup(ndev);
-	if (err)
+	rc = ntb_device_setup(ndev);
+	if (rc)
 		goto err3;
 
-	err = ntb_setup_interrupts(ndev);
-	if (err)
+	rc = ntb_setup_interrupts(ndev);
+	if (rc)
 		goto err4;
 
-	err = ntb_create_callbacks(ndev);
-	if (err)
+	rc = ntb_create_callbacks(ndev);
+	if (rc)
 		goto err5;
 
 	ndev->link_status = NTB_LINK_DOWN;
@@ -1108,7 +1073,7 @@ err:
 	kfree(ndev);
 
 	dev_err(&pdev->dev, "Error loading module\n");
-	return err;
+	return rc;
 }
 
 static void __devexit ntb_pci_remove(struct pci_dev *pdev)
