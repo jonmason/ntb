@@ -764,8 +764,7 @@ static void ntb_device_free(struct ntb_device *ndev)
 		cancel_delayed_work_sync(&ndev->hb_timer);
 }
 
-//FIXME - find better way to sync irq handling between jt/bwd and msix/msi/intx
-static irqreturn_t ntb_msix_irq(int irq, void *dev)
+static irqreturn_t ntb_interrupt(int irq, void *dev)
 {
 	struct ntb_device *ndev = dev;
 	int i;
@@ -786,7 +785,6 @@ static irqreturn_t ntb_msix_irq(int irq, void *dev)
 				ndev->db_cb[i].callback(ndev->db_cb[i].db_num);
 	}
 	//FIXME - can this be optimized using ffs or is that unnecessary?
-	//FIXME - can use the irq number to determine which bits to clear, otherwise we may be clearing interrupts we don't want to
 
 	if (ndev->hw_type == BWD_HW) {
 		if (pdb & (u64) 1 << BWD_DB_HEARTBEAT)
@@ -806,10 +804,11 @@ static irqreturn_t ntb_msix_irq(int irq, void *dev)
 	return IRQ_HANDLED;
 }
 
-//FIXME - once msix irq handler is only handling the vector causing the interrupt, this function will be to contain the functionality of the former.
-static irqreturn_t ntb_interrupt(int irq, void *dev)
+//FIXME - find better way to sync irq handling between jt/bwd and msix/msi/intx
+static irqreturn_t ntb_msix_irq(int irq, void *dev)
 {
-	return ntb_msix_irq(irq, dev);
+	//FIXME - can use the irq number to determine which bits to clear, otherwise we may be clearing interrupts we don't want to
+	return ntb_interrupt(irq, dev);
 }
 
 static int ntb_setup_msix(struct ntb_device *ndev)
@@ -845,20 +844,36 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 	if (rc < 0)
 		goto err1;
 	if (rc > 0) {
-		//FIXME - should be able to handle less than the number of irqs we requested, but we'd have to modify the registers to specify which interrupt bits go on each vector
-		rc = -EIO;
-		goto err1;
+		/* We need 1 vector for links and 1 vector for a queue.  If not, then we can't use MSI-X */
+		if (rc > 2) {
+			rc = -EIO;
+			goto err1;
+		}
+
+		dev_warn(&pdev->dev, "Only %d MSI-X vectors.  Limiting the number of queues to that number.\n", rc);
+		msix_entries = rc;
 	}
 
 	for (i = 0; i < msix_entries; i++) {
 		msix = &ndev->msix_entries[i];
 		WARN_ON(!msix->vector);
-		rc = request_irq(msix->vector, ntb_msix_irq, 0, "ntb-msix", ndev);
-		if (rc)
-			goto err2;
+
+		if (ndev->hw_type == BWD_HW) {
+			rc = request_irq(msix->vector, ntb_msix_irq, 0, "ntb-msix", ndev);
+			if (rc)
+				goto err2;
+		} else {
+			rc = request_irq(msix->vector, ntb_msix_irq, 0, "ntb-msix", ndev);
+			if (rc)
+				goto err2;
+		}
 	}
 
 	ndev->num_msix = msix_entries;
+
+	//FIXME - need to handle the SNB vector to num of bits perf vector
+	if (ndev->limits.max_db_bits != msix_entries)
+		ndev->limits.max_db_bits = msix_entries;
 
 	return 0;
 
@@ -1025,7 +1040,7 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	for (i = 0; i < NTB_NUM_MW; i++) {
 		ndev->mw[i].bar_sz = pci_resource_len(pdev, MW_TO_BAR(i));
 		ndev->mw[i].vbase = pci_ioremap_bar(pdev, MW_TO_BAR(i));
-		dev_info(&pdev->dev, "Addr %p len %d\n", ndev->mw[i].vbase, (u32) pci_resource_len(pdev, i));
+		dev_dbg(&pdev->dev, "Addr %p len %d\n", ndev->mw[i].vbase, (u32) pci_resource_len(pdev, i));
 		if (!ndev->mw[i].vbase) {
 			dev_warn(&pdev->dev, "Cannot remap BAR %d\n", MW_TO_BAR(i));
 			rc = -EIO;
