@@ -89,6 +89,7 @@ struct ntb_transport_qp {
 	void (*tx_handler)(struct ntb_transport_qp *qp);
 	void (*event_handler)(int status);
 	struct delayed_work event_work;
+	//FIXME - unless this is getting larger than a cacheline, bit fields might not be worth it
 	unsigned char event_flags:1;
 	unsigned char link:1;
 	unsigned char qp_num:6;/* Only 64 QP's are allowed.  0-63 */
@@ -310,10 +311,8 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 
 	/* Ring doorbell notifying remote side to update TXC */
 	rc = ntb_ring_sdb(transport->ndev, QP_TO_DB(qp->qp_num) + 1);
-	if (rc) {
+	if (rc)
 		pr_err("%s: error ringing db %d\n", __func__, QP_TO_DB(qp->qp_num) + 1);
-		return -EIO;
-	}
 
 	if (oflow)
 		return 0;
@@ -386,6 +385,7 @@ static int ntb_transport_txc(void *data)
 		} while (qp->tx_buf_tail != qp->tx_buf_head);
 
 		/* Sleep if no txc work */
+		//FIXME - this might be the passe
 		set_current_state(TASK_INTERRUPTIBLE);
 		schedule();
 	}
@@ -450,10 +450,8 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 
 	/* Ring doorbell notifying remote side of new packet */
 	rc = ntb_ring_sdb(transport->ndev, QP_TO_DB(qp->qp_num));
-	if (rc) {
+	if (rc)
 		pr_err("%s: error ringing db %d\n", __func__, 1 << qp->qp_num);
-		return -EIO;
-	}
 
 	qp->tx_pkts++;
 	qp->tx_bytes += entry->len;

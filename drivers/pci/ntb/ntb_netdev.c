@@ -74,6 +74,7 @@ struct ntb_netdev {
 
 struct net_device *netdev;
 
+//FIXME - move all of the entry logic into the transport layer and just pass the transport a sgl.
 static struct ntb_queue_entry *alloc_entry(unsigned int len)
 {
 	struct ntb_queue_entry *entry;

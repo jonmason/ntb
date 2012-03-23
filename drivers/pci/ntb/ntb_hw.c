@@ -65,7 +65,7 @@
 #include "ntb_regs.h"
 
 #define NTB_NAME	"Intel(R) PCIe Non-Transparent Bridge Driver"
-#define NTB_VER		"0.3"
+#define NTB_VER		"0.4"
 
 MODULE_DESCRIPTION(NTB_NAME);
 MODULE_VERSION(NTB_VER);
@@ -103,18 +103,18 @@ struct ntb_device *ntbdev;
 
 static int pci_read_config_qword(struct pci_dev *dev, int where, u64 *val)
 {
+	u32 lval, hval;
 	int rc;
-	u32 val32;
 
-	rc = pci_read_config_dword(dev, where, &val32);
+	rc = pci_read_config_dword(dev, where, &hval);
 	if (rc)
 		return rc;
 
-	*val = ((u64) val32) << 32;
-	rc = pci_read_config_dword(dev, where + 0x4, &val32);
+	rc = pci_read_config_dword(dev, where + 0x4, &lval);
 	if (rc)
 		return rc;
-	*val |= val32;
+
+	*val = ((u64) hval) << 32 | lval;
 
 	return 0;
 }
@@ -351,7 +351,7 @@ int ntb_write_spad(struct ntb_device *ndev, unsigned int idx, u32 val)
 	if (idx >= ndev->limits.max_compat_spads)
 		return -EINVAL;
 
-	dev_info(&ndev->pdev->dev, "Writing %x to scratch pad index %d\n", val, idx);
+	dev_dbg(&ndev->pdev->dev, "Writing %x to scratch pad index %d\n", val, idx);
 	writel(val, ndev->reg_base + ndev->reg_ofs.spad_write + idx * 4);
 
 	return 0;
@@ -375,7 +375,7 @@ int ntb_read_spad(struct ntb_device *ndev, unsigned int idx, u32 *val)
 		return -EINVAL;
 
 	*val = readl(ndev->reg_base + ndev->reg_ofs.spad_read + idx * 4);
-	dev_info(&ndev->pdev->dev, "Reading %x from scratch pad index %d\n", *val, idx);
+	dev_dbg(&ndev->pdev->dev, "Reading %x from scratch pad index %d\n", *val, idx);
 
 	return 0;
 }
@@ -421,10 +421,11 @@ EXPORT_SYMBOL(ntb_get_mw_size);
  * ntb_set_mw_addr - set the memory window address
  * @ndev: pointer to ntb_device instance
  * @mw: memory window number
- * @addr: base address for remote data to be transferred into
+ * @addr: base address for data
  *
  * This function sets the base physical address of the memory window.  This
- * memory address is where data from the remote system will be transfered into.
+ * memory address is where data from the remote system will be transfered into
+ * or out of depending on how the transport is configured.
  */
 void ntb_set_mw_addr(struct ntb_device *ndev, unsigned int mw, u64 addr)
 {
@@ -612,7 +613,6 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	case NTB_CONN_B2B:
 		ndev->conn_type = NTB_CONN_B2B;
 		break;
-	case NTB_CONN_CLASSIC:
 	case NTB_CONN_RP:
 	default:
 		dev_err(&ndev->pdev->dev, "Only B2B supported at this time\n");
@@ -658,6 +658,7 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	schedule_delayed_work(&ndev->hb_timer, NTB_HB_TIMEOUT); //FIXME - this might fire before the probe has finished
 
 
+	//FIXME - add documentation on the difference between JKT Primary/Secondary and BWD iEP/eEP
 	//FIXME - all of these are magic from the verification guys.  Verify all of these are necessary to get NTB working
 
 
@@ -878,7 +879,7 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 	return 0;
 
 err2:
-	for (i--; i >= 0; i--) {
+	while (--i >= 0) {
 		msix = &ndev->msix_entries[i];
 		free_irq(msix->vector, ndev);
 	}

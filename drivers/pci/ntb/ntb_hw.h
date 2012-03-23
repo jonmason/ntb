@@ -112,6 +112,7 @@ struct ntb_device {
 	void *ntb_transport;
 	event_cb_func event_cb;
 	struct ntb_db_cb *db_cb;
+	//FIXME - unless this is getting larger than a cacheline, bit fields might not be worth it
 	unsigned int hw_type:1;
 	unsigned int conn_type:2;
 	unsigned int dev_type:1;
@@ -122,159 +123,17 @@ struct ntb_device {
 	unsigned long last_ts;
 };
 
-
-/**
- * ntb_query_db_bits() - return the number of doorbell bits
- * @ndev: pointer to ntb_device instance
- *
- * The number of bits in the doorbell can vary depending on the platform
- *
- * RETURNS: the number of doorbell bits being used (16 or 64)
- */
 unsigned int ntb_query_db_bits(struct ntb_device *ndev);
-
-/**
- * ntb_register_transport() - Register NTB transport with NTB HW driver
- * @transport: transport identifier
- *
- * This function allows a transport to reserve the hardware driver for
- * NTB usage.
- *
- * RETURNS: pointer to ntb_device, NULL on error.
- */
 struct ntb_device *ntb_register_transport(void *transport);
-
-/**
- * ntb_unregister_transport() - Unregister the transport with the NTB HW driver
- * @ndev - ntb_device of the transport to be freed
- *
- * This function unregisters the transport from the HW driver and performs any
- * necessary cleanups.
- */
 void ntb_unregister_transport(struct ntb_device *ndev);
-
-/**
- * ntb_set_mw_addr - set the memory window address
- * @ndev: pointer to ntb_device instance
- * @mw: memory window number
- * @addr: base address for remote data to be transferred into
- *
- * This function sets the base physical address of the memory window.  This
- * memory address is where data from the remote system will be transfered into.
- */
 void ntb_set_mw_addr(struct ntb_device *ndev, unsigned int mw, u64 addr);
-
-/**
- * ntb_register_db_callback() - register a callback for doorbell interrupt
- * @ndev: pointer to ntb_device instance
- * @idx: doorbell index to register callback, 0 based
- * @func: callback function to register
- *
- * This function registers a callback function for the doorbell interrupt
- * on the primary side. The function will unmask the doorbell as well to
- * allow interrupt.
- *
- * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
- */
 int ntb_register_db_callback(struct ntb_device *ndev, unsigned int idx, db_cb_func func);
-
-/**
- * ntb_unregister_db_callback() - unregister a callback for doorbell interrupt
- * @ndev: pointer to ntb_device instance
- * @idx: doorbell index to register callback, 0 based
- *
- * This function unregisters a callback function for the doorbell interrupt
- * on the primary side. The function will also mask the said doorbell.
- */
 void ntb_unregister_db_callback(struct ntb_device *ndev, unsigned int idx);
-
-/**
- * ntb_register_event_callback() - register event callback
- * @ndev: pointer to ntb_device instance
- * @func: callback function to register
- *
- * This function registers a callback for any HW driver events such as link up/down,
- * power management notices and etc.
- *
- * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
- */
 int ntb_register_event_callback(struct ntb_device *ndev, event_cb_func func);
-
-/**
- * ntb_unregister_event_callback() - unregisters the event callback
- * @ndev: pointer to ntb_device instance
- *
- * This function unregisters the existing callback from transport
- */
 void ntb_unregister_event_callback(struct ntb_device *ndev);
-
-/**
- * ntb_get_max_spads() - get the total scratch regs usable
- * @ndev: pointer to ntb_device instance
- *
- * This function returns the max 32bit scratchpad registers usable by the
- * upper layer.
- *
- * RETURNS: total number of scratch pad registers available
- */
 int ntb_get_max_spads(struct ntb_device *ndev);
-
-/**
- * ntb_write_spad() - write to the secondary scratchpad register
- * @ndev: pointer to ntb_device instance
- * @idx: index to the scratchpad register, 0 based
- * @val: the data value to put into the register
- *
- * This function allows writing of a 32bit value to the indexed scratchpad
- * register. The register resides on the secondary (external) side.
- *
- * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
- */
 int ntb_write_spad(struct ntb_device *ndev, unsigned int idx, u32 val);
-
-/**
- * ntb_read_spad() - read from the primary scratchpad register
- * @ndev: pointer to ntb_device instance
- * @idx: index to scratchpad register, 0 based
- * @val: pointer to 32bit integer for storing the register value
- *
- * This function allows reading of the 32bit scratchpad register on
- * the primary (internal) side.
- *
- * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
- */
 int ntb_read_spad(struct ntb_device *ndev, unsigned int idx, u32 *val);
-
-/**
- * ntb_get_mw_vbase() - get virtual addr for the NTB memory window
- * @ndev: pointer to ntb_device instance
- * @mw: memory window number
- *
- * This function provides the base virtual address of the memory window specified.
- *
- * RETURNS: pointer to virtual address, or NULL on error.
- */
 void *ntb_get_mw_vbase(struct ntb_device *ndev, unsigned int mw);
-
-/**
- * ntb_get_mw_size() - return size of NTB memory window
- * @ndev: pointer to ntb_device instance
- * @mw: memory window number
- *
- * This function provides the physical size of the memory window specified
- *
- * RETURNS: the size of the memory window or zero on error
- */
 resource_size_t ntb_get_mw_size(struct ntb_device *ndev, unsigned int mw);
-
-/**
- * ntb_ring_sdb() - Set the doorbell on the secondary/external side
- * @ndev: pointer to ntb_device instance
- * @db: doorbell(s) to ring
- *
- * This function allows triggering of a doorbell on the secondary/external
- * side that will initiate an interrupt on the remote host
- *
- * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
- */
 int ntb_ring_sdb(struct ntb_device *ndev, unsigned int idx);
