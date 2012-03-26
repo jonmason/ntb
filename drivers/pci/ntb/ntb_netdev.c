@@ -57,11 +57,14 @@
  * Jon Mason <jon.mason@intel.com>
  */
 #include <linux/etherdevice.h>
+#include <linux/ethtool.h>
 #include <linux/module.h>
 #include "ntb_transport.h"
 
+#define NTB_NETDEV_VER	"0.1"
+
 MODULE_DESCRIPTION(KBUILD_MODNAME);
-MODULE_VERSION("0.1");
+MODULE_VERSION(NTB_NETDEV_VER);
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("Intel Corporation");
 
@@ -130,6 +133,13 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 		pr_debug("%s: %d byte payload received\n", __func__, entry->len);
 
 		skb = entry->callback_data;
+
+		if (unlikely(skb->tail + entry->len > skb->end)) {
+			pr_err("%s: entry len %d \n", __func__, entry->len);
+			free_entry(entry);
+			break;
+		}
+
 		skb_put(skb, entry->len);
 		skb->protocol = eth_type_trans(skb, netdev);
 		skb->dev = netdev;
@@ -348,6 +358,64 @@ static const struct net_device_ops ntb_netdev_ops = {
 	.ndo_tx_timeout = ntb_netdev_tx_timeout,
 };
 
+static void ntb_get_drvinfo(struct net_device *dev, struct ethtool_drvinfo *info)
+{
+	strcpy(info->driver, KBUILD_MODNAME);
+	strcpy(info->version, NTB_NETDEV_VER);
+}
+
+static const char ntb_nic_stats[][ETH_GSTRING_LEN] = {
+	"rx_packets", "rx_bytes", "rx_dropped",
+	"tx_packets", "tx_bytes", "tx_errors", "tx_dropped",
+};
+
+static int ntb_get_stats_count(struct net_device *dev)
+{
+	return ARRAY_SIZE(ntb_nic_stats);
+}
+
+static int ntb_get_sset_count(struct net_device *dev, int sset)
+{
+	switch (sset) {
+	case ETH_SS_STATS:
+		return ntb_get_stats_count(dev);
+	default:
+		return -EOPNOTSUPP;
+	}
+}
+
+static void ntb_get_strings(struct net_device *dev, u32 sset, u8 *data)
+{
+	switch (sset) {
+	case ETH_SS_STATS:
+		memcpy(data, *ntb_nic_stats, sizeof(ntb_nic_stats));
+	}
+}
+
+static void ntb_get_ethtool_stats(struct net_device *dev, struct ethtool_stats *stats, u64 *data)
+{
+	struct ntb_netdev *ndev = netdev_priv(dev);
+	int i = 0;
+
+	data[i++] = dev->stats.rx_packets;
+	data[i++] = dev->stats.rx_bytes;
+	data[i++] = dev->stats.rx_dropped;
+	data[i++] = dev->stats.tx_packets;
+	data[i++] = dev->stats.tx_bytes;
+	data[i++] = dev->stats.tx_errors;
+	data[i++] = dev->stats.tx_dropped;
+
+	//FIXME - hack to dump transport stats
+	ntb_transport_dump_qp_stats(ndev->qp);
+}
+
+static const struct ethtool_ops ntb_ethtool_ops = {
+	.get_drvinfo = ntb_get_drvinfo,
+	.get_sset_count = ntb_get_sset_count,
+	.get_strings = ntb_get_strings,
+	.get_ethtool_stats = ntb_get_ethtool_stats,
+};
+
 static int __init ntb_netdev_init_module(void)
 {
 	struct ntb_netdev *dev;
@@ -374,7 +442,7 @@ static int __init ntb_netdev_init_module(void)
 	memcpy(netdev->dev_addr, netdev->perm_addr, netdev->addr_len);
 
 	netdev->netdev_ops = &ntb_netdev_ops;
-	//SET_ETHTOOL_OPS(ndev, &ethtool_ops);
+	SET_ETHTOOL_OPS(netdev, &ntb_ethtool_ops);
 	//SET_NETDEV_DEV(ndev, &pdev->dev);
 
 	rc = register_netdev(netdev);

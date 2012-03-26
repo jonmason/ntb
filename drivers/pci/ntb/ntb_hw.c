@@ -794,7 +794,10 @@ static irqreturn_t ntb_interrupt(int irq, void *dev)
 		writeq(pdb, ndev->reg_base + ndev->reg_ofs.pdb);
 	} else {
 		if (pdb & SNB_DB_HW_LINK) {
-			int rc = ntb_link_status(ndev);
+			int rc;
+
+			dev_err(&ndev->pdev->dev, "Link IRQ\n");
+			rc = ntb_link_status(ndev);
 			if (rc)
 				dev_err(&ndev->pdev->dev, "Error determining link status\n");
 		}

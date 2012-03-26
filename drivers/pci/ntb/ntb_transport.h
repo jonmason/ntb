@@ -74,120 +74,17 @@ int ntb_transport_init(void);
 void ntb_transport_free(void);
 struct ntb_queue_entry *ntb_transport_rx_remove(struct ntb_transport_qp *qp);
 size_t ntb_transport_max_size(struct ntb_transport_qp *qp);
+void ntb_transport_dump_qp_stats(struct ntb_transport_qp *qp);
 
-/**
- * ntb_transport_create_queue - Create a new NTB transport layer queue
- * @rx_handler: receive callback function 
- * @tx_handler: transmit callback function 
- *
- * Create a new NTB transport layer queue and provide the queue with a callback
- * routine for both transmit and receive.  The receive callback routine will be
- * used to pass up data when the transport has received it on the queue.   The
- * transmit callback routine will be called when the transport has completed the
- * transmission of the data on the queue and the data is ready to be freed.
- *
- * RETURNS: pointer to newly created ntb_queue, NULL on error.
- */
 struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler, handler tx_handler);
-
-/**
- * ntb_transport_free_queue - Frees NTB transport queue
- * @qp: NTB queue to be freed
- *
- * Frees NTB transport queue 
- */
 void ntb_transport_free_queue(struct ntb_transport_qp *qp);
-
-/**
- * ntb_transport_rx_enqueue - Enqueue a new NTB queue entry
- * @qp: NTB transport layer queue the entry is to be enqueued on
- * @entry: NTB queue entry to be enqueued
- *
- * Enqueue a new NTB queue entry onto the transport queue into which a NTB
- * payload can be received.
- *
- * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
- */
 int ntb_transport_rx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry);
-
-/**
- * ntb_transport_tx_enqueue - Enqueue a new NTB queue entry
- * @qp: NTB transport layer queue the entry is to be enqueued on
- * @entry: NTB queue entry to be enqueued
- *
- * Enqueue a new NTB queue entry onto the transport queue from which a NTB
- * payload will be transmitted.
- *
- * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
- */
 int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry);
-
-/**
- * ntb_transport_tx_dequeue - Dequeue a NTB queue entry
- * @qp: NTB transport layer queue to be dequeued from
- * 
- * This function will dequeue a NTB queue entry from the transmit complete
- * queue.  Entries will only be enqueued on this queue after having been
- * transfered to the remote side.
- *
- * RETURNS: NTB queue entry from the transport queue, or NULL on empty
- */
 struct ntb_queue_entry *ntb_transport_tx_dequeue(struct ntb_transport_qp *qp);
-
-/**
- * ntb_transport_rx_dequeue - Dequeue a NTB queue entry
- * @qp: NTB transport layer queue to be dequeued from
- * 
- * This function will dequeue a new NTB queue entry from the receive complete
- * queue of the transport queue specified.  Entries will only be enqueued on
- * this queue after having been fully received.
- *
- * RETURNS: NTB queue entry from the transport queue, or NULL on empty
- */
 struct ntb_queue_entry *ntb_transport_rx_dequeue(struct ntb_transport_qp *qp);
-
-/**
- * ntb_transport_link_up - Notify NTB transport of client readiness to use queue
- * @qp: NTB transport layer queue to be enabled
- *
- * Notify NTB transport layer of client readiness to use queue
- */
 void ntb_transport_link_up(struct ntb_transport_qp *qp);
-
-/**
- * ntb_transport_link_down - Notify NTB transport to no longer enqueue data
- * @qp: NTB transport layer queue to be disabled
- *
- * Notify NTB transport layer of client's desire to no longer receive data on
- * transport queue specified.  It is the client's responsibility to ensure all
- * entries on queue are purged or otherwise handled appropraitely.
- */
 void ntb_transport_link_down(struct ntb_transport_qp *qp);
 
-
-
 #define LINK_EVENT	(1 << 0)
-
-/**
- * ntb_transport_reg_event_callback - Register event callback handler
- * @qp: NTB transport layer queue to which the callback is bound
- * @handler: Callback routine
- *
- * Register the callback routine to handle all non-data transport related
- * events.  Currently this is only a `link up/down` event, but may be expanded
- * in the future.  A `link up/down` event does not specify the state of the
- * link, only that it has toggled.
- *
- * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
- */
 int ntb_transport_reg_event_callback(struct ntb_transport_qp *qp, void (*handler)(int status));
-
-/**
- * ntb_transport_hw_link_query - Query hardware link state
- * @qp: NTB transport layer queue to be queried
- *
- * Query hardware link state of the NTB transport queue 
- *
- * RETURNS: true for link up or false for link down
- */
 bool ntb_transport_hw_link_query(struct ntb_transport_qp *qp);
