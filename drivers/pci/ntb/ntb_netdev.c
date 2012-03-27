@@ -70,6 +70,7 @@ MODULE_AUTHOR("Intel Corporation");
 
 struct ntb_netdev {
 	struct ntb_transport_qp *qp;
+	struct list_head tx_entries;
 };
 
 #define	NTB_TX_TIMEOUT_MS	1000
@@ -135,7 +136,7 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 		skb = entry->callback_data;
 
 		if (unlikely(skb->tail + entry->len > skb->end)) {
-			pr_err("%s: entry len %d \n", __func__, entry->len);
+			pr_err("%s: entry len %d\n", __func__, entry->len);
 			free_entry(entry);
 			break;
 		}
@@ -181,17 +182,15 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 
 static void ntb_netdev_tx_handler(struct ntb_transport_qp *qp)
 {
+	struct ntb_netdev *dev = netdev_priv(netdev);//FIXME - do it based on qp not global
 	struct ntb_queue_entry *entry;
 
-	do {
-		entry = ntb_transport_tx_dequeue(qp);
-		if (!entry)
-			break;
+	while ((entry = ntb_transport_tx_dequeue(qp))) {
+		kfree_skb(entry->callback_data);
+		list_add_tail(&entry->entry, &dev->tx_entries);
+	}
 
-		free_entry(entry);
-	} while (true);
-
-	netif_wake_queue(netdev);
+	//netif_wake_queue(netdev);
 }
 
 static netdev_tx_t ntb_netdev_start_xmit(struct sk_buff *skb, struct net_device *ndev)
@@ -202,9 +201,11 @@ static netdev_tx_t ntb_netdev_start_xmit(struct sk_buff *skb, struct net_device 
 
 	pr_debug("%s: ntb_transport_tx_enqueue\n", KBUILD_MODNAME);
 
-	entry = kzalloc(sizeof(struct ntb_queue_entry), GFP_ATOMIC);
-	if (!entry)
+	if (list_empty(&dev->tx_entries))
 		goto err;
+
+	entry = list_first_entry(&dev->tx_entries, struct ntb_queue_entry, entry);
+	list_del(&entry->entry);
 
 	entry->callback_data = skb;
 	entry->len = skb->len;
@@ -222,11 +223,11 @@ static netdev_tx_t ntb_netdev_start_xmit(struct sk_buff *skb, struct net_device 
 	return NETDEV_TX_OK;
 
 err1:
-	netif_stop_queue(ndev);
-	free_entry(entry);
+	list_add_tail(&entry->entry, &dev->tx_entries);
 err:
 	ndev->stats.tx_dropped++;
 	ndev->stats.tx_errors++;
+	//netif_stop_queue(ndev);
 	return NETDEV_TX_BUSY;
 }
 
@@ -246,6 +247,8 @@ static int ntb_netdev_open(struct net_device *ndev)
 	if (rc)
 		goto err1;
 
+	INIT_LIST_HEAD(&dev->tx_entries);
+
 	/* Add some empty rx bufs */
 	for (i = 0; i < NTB_RXQ_SIZE; i++) {
 		entry = alloc_entry(ndev->mtu + ETH_HLEN);
@@ -259,6 +262,12 @@ static int ntb_netdev_open(struct net_device *ndev)
 			free_entry(entry);
 			goto err2;
 		}
+
+		entry = kzalloc(sizeof(struct ntb_queue_entry), GFP_ATOMIC);
+		if (!entry)
+			goto err2;
+
+		list_add_tail(&entry->entry, &dev->tx_entries);
 	}
 
 	ntb_transport_link_up(dev->qp);
@@ -271,6 +280,13 @@ static int ntb_netdev_open(struct net_device *ndev)
 	return 0;
 
 err2:
+	while (!list_empty(&dev->tx_entries)) {
+		entry = list_first_entry(&dev->tx_entries, struct ntb_queue_entry, entry);
+		list_del(&entry->entry);
+
+		kfree(entry);
+	}
+
 	while ((entry = ntb_transport_rx_remove(dev->qp)))
 		free_entry(entry);
 err1:
@@ -285,6 +301,13 @@ static int ntb_netdev_close(struct net_device *ndev)
 	struct ntb_queue_entry *entry;
 
 	ntb_transport_link_down(dev->qp);
+
+	while (!list_empty(&dev->tx_entries)) {
+		entry = list_first_entry(&dev->tx_entries, struct ntb_queue_entry, entry);
+		list_del(&entry->entry);
+
+		kfree(entry);
+	}
 
 	while ((entry = ntb_transport_rx_remove(dev->qp)))
 		free_entry(entry);
@@ -344,10 +367,14 @@ err:
 
 static void ntb_netdev_tx_timeout(struct net_device *ndev)
 {
-	pr_err("%s\n", __func__);
+	struct ntb_netdev *dev = netdev_priv(ndev);
 
+	pr_err("%s - Tx list is %s\n", __func__, list_empty(&dev->tx_entries) ? "empty" : "not empty");
+
+#if 0
 	ntb_netdev_open(ndev);//FIXME - do something with rc
 	ntb_netdev_close(ndev);//FIXME - do something with rc
+#endif
 }
 
 static const struct net_device_ops ntb_netdev_ops = {

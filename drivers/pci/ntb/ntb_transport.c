@@ -317,6 +317,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 			memcpy(entry->buf, offset, delta);
 
 		/* copy the rest of the payload at the beginning on the MW */
+		BUG_ON(qp->rx_mw_begin + (hdr->len - delta) > qp->rx_mw_end);
 		offset = qp->rx_mw_begin;
 		if (!oflow)
 			memcpy(entry->buf + delta, offset, hdr->len - delta);
@@ -415,17 +416,21 @@ static int ntb_transport_txc(void *data)
 			offset = qp->tx_buf_tail;
 			offset += sizeof(struct ntb_payload_header);
 
-			if (offset + hdr->len > qp->tx_buf_end)
+			if (offset + hdr->len > qp->tx_buf_end) {
 				offset = qp->tx_buf_begin + (hdr->len - (qp->tx_buf_end - offset));
-			else {
+				BUG_ON(offset > qp->tx_buf_end);
+			} else {
 				offset += hdr->len;
 
 				if (offset + sizeof(struct ntb_payload_header) > qp->tx_buf_end)
 					offset = qp->tx_buf_begin;
 			}
 
+			if (offset == qp->tx_buf_head)
+				break;
+
 			qp->tx_buf_tail = offset;
-		} while (qp->tx_buf_tail != qp->tx_buf_head);
+		} while (true);
 
 		/* Sleep if no txc work */
 		//FIXME - this might be the passe
@@ -445,9 +450,9 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 	pr_debug("%lld - tx head %p, tail %p, entry len %d, free size %ld\n", qp->tx_pkts, qp->tx_buf_head, qp->tx_buf_tail, entry->len, free_len(qp));
 
 	/* check to see if there is enough room on the local buf */
-	if (entry->len > free_len(qp)) {
+	if (entry->len + (2 * sizeof(struct ntb_payload_header)) >= free_len(qp)) {
 		qp->tx_ring_full++;
-		list_add(&entry->entry, &qp->txq);
+		//list_add(&entry->entry, &qp->txq);
 		return -EAGAIN;
 	}
 
@@ -463,6 +468,7 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 		/* copy to end of buf */
 		memcpy(offset, entry->buf, delta);
 
+		BUG_ON(qp->tx_buf_begin + (entry->len - delta) > qp->tx_buf_end);
 		/* copy the rest of the payload at the beginning on the MW */
 		memcpy(qp->tx_buf_begin, entry->buf + delta, entry->len - delta);
 
@@ -744,10 +750,10 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
 	list_add_tail(&entry->entry, &qp->txq);
 
 	wake_up_process(qp->tx_work);
-#else
-	ntb_process_tx(qp, entry);
-#endif
 	return 0;
+#else
+	return ntb_process_tx(qp, entry);
+#endif
 }
 EXPORT_SYMBOL(ntb_transport_tx_enqueue);
 
@@ -765,7 +771,7 @@ struct ntb_queue_entry *ntb_transport_tx_dequeue(struct ntb_transport_qp *qp)
 {
 	struct ntb_queue_entry *entry;
 
-	if (list_empty(&qp->tx_comp_q))
+	if (!qp || list_empty(&qp->tx_comp_q))
 		return NULL;
 	
 	entry = list_first_entry(&qp->tx_comp_q, struct ntb_queue_entry, entry);
@@ -789,7 +795,7 @@ struct ntb_queue_entry *ntb_transport_rx_dequeue(struct ntb_transport_qp *qp)
 {
 	struct ntb_queue_entry *entry;
 
-	if (list_empty(&qp->rx_comp_q))
+	if (!qp || list_empty(&qp->rx_comp_q))
 		return NULL;
 	
 	entry = list_first_entry(&qp->rx_comp_q, struct ntb_queue_entry, entry);
