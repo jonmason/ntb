@@ -136,6 +136,8 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 		skb = entry->callback_data;
 
 		if (unlikely(skb->tail + entry->len > skb->end)) {
+			netdev->stats.rx_errors++;
+			netdev->stats.rx_length_errors++;
 			pr_err("%s: entry len %d\n", __func__, entry->len);
 			free_entry(entry);
 			break;
@@ -152,16 +154,18 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 
 		//print_hex_dump_bytes(__func__, 0, skb->data, skb->len);
 
-		if (netif_rx(skb) == NET_RX_DROP)
+		if (netif_rx(skb) == NET_RX_DROP) {
+			netdev->stats.rx_errors++;
 			netdev->stats.rx_dropped++;
-		else {
+		} else {
 			netdev->stats.rx_packets++;
 			netdev->stats.rx_bytes += entry->len;
 		}
 
 		skb = alloc_skb(netdev->mtu + ETH_HLEN, GFP_ATOMIC);
 		if (!skb) {
-			//FIXME - increment stats
+			netdev->stats.rx_errors++;
+			netdev->stats.rx_frame_errors++;
 			pr_err("%s: No skb\n", __func__);
 			kfree(entry);
 			return;
@@ -173,11 +177,12 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 
 		rc = ntb_transport_rx_enqueue(dev->qp, entry);
 		if (rc) {
+			netdev->stats.rx_errors++;
+			netdev->stats.rx_fifo_errors++;
 			pr_err("%s: error re-enqueuing\n", __func__);
 			return;
 		}
 	}
-//FIXME - add stats
 }
 
 static void ntb_netdev_tx_handler(struct ntb_transport_qp *qp)
@@ -392,7 +397,7 @@ static void ntb_get_drvinfo(struct net_device *dev, struct ethtool_drvinfo *info
 }
 
 static const char ntb_nic_stats[][ETH_GSTRING_LEN] = {
-	"rx_packets", "rx_bytes", "rx_dropped",
+	"rx_packets", "rx_bytes", "rx_errors", "rx_dropped", "rx_length_errors", "rx_frame_errors", "rx_fifo_errors",
 	"tx_packets", "tx_bytes", "tx_errors", "tx_dropped",
 };
 
@@ -426,7 +431,11 @@ static void ntb_get_ethtool_stats(struct net_device *dev, struct ethtool_stats *
 
 	data[i++] = dev->stats.rx_packets;
 	data[i++] = dev->stats.rx_bytes;
+	data[i++] = dev->stats.rx_errors;
 	data[i++] = dev->stats.rx_dropped;
+	data[i++] = dev->stats.rx_length_errors;
+	data[i++] = dev->stats.rx_frame_errors;
+	data[i++] = dev->stats.rx_fifo_errors;
 	data[i++] = dev->stats.tx_packets;
 	data[i++] = dev->stats.tx_bytes;
 	data[i++] = dev->stats.tx_errors;
