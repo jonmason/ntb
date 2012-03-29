@@ -63,6 +63,7 @@
 #include <linux/slab.h>
 #include "ntb_hw.h"
 #include "ntb_regs.h"
+#include <linux/random.h>
 
 #define NTB_NAME	"Intel(R) PCIe Non-Transparent Bridge Driver"
 #define NTB_VER		"0.4"
@@ -336,7 +337,7 @@ int ntb_get_max_spads(struct ntb_device *ndev)
 EXPORT_SYMBOL(ntb_get_max_spads);
 
 /**
- * ntb_write_spad() - write to the secondary scratchpad register
+ * ntb_write_local_spad() - write to the secondary scratchpad register
  * @ndev: pointer to ntb_device instance
  * @idx: index to the scratchpad register, 0 based
  * @val: the data value to put into the register
@@ -346,20 +347,20 @@ EXPORT_SYMBOL(ntb_get_max_spads);
  *
  * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
  */
-int ntb_write_spad(struct ntb_device *ndev, unsigned int idx, u32 val)
+int ntb_write_local_spad(struct ntb_device *ndev, unsigned int idx, u32 val)
 {
 	if (idx >= ndev->limits.max_compat_spads)
 		return -EINVAL;
 
-	dev_dbg(&ndev->pdev->dev, "Writing %x to scratch pad index %d\n", val, idx);
-	writel(val, ndev->reg_base + ndev->reg_ofs.spad_write + idx * 4);
+	dev_dbg(&ndev->pdev->dev, "Writing %x to local scratch pad index %d\n", val, idx);
+	writel(val, ndev->reg_base + ndev->reg_ofs.spad_read + idx * 4);
 
 	return 0;
 }
-EXPORT_SYMBOL(ntb_write_spad);
+EXPORT_SYMBOL(ntb_write_local_spad);
 
 /**
- * ntb_read_spad() - read from the primary scratchpad register
+ * ntb_read_local_spad() - read from the primary scratchpad register
  * @ndev: pointer to ntb_device instance
  * @idx: index to scratchpad register, 0 based
  * @val: pointer to 32bit integer for storing the register value
@@ -369,17 +370,63 @@ EXPORT_SYMBOL(ntb_write_spad);
  *
  * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
  */
-int ntb_read_spad(struct ntb_device *ndev, unsigned int idx, u32 *val)
+int ntb_read_local_spad(struct ntb_device *ndev, unsigned int idx, u32 *val)
+{
+	if (idx >= ndev->limits.max_compat_spads)
+		return -EINVAL;
+
+	*val = readl(ndev->reg_base + ndev->reg_ofs.spad_write + idx * 4);
+	dev_dbg(&ndev->pdev->dev, "Reading %x from local scratch pad index %d\n", *val, idx);
+
+	return 0;
+}
+EXPORT_SYMBOL(ntb_read_local_spad);
+
+/**
+ * ntb_write_remote_spad() - write to the secondary scratchpad register
+ * @ndev: pointer to ntb_device instance
+ * @idx: index to the scratchpad register, 0 based
+ * @val: the data value to put into the register
+ *
+ * This function allows writing of a 32bit value to the indexed scratchpad
+ * register. The register resides on the secondary (external) side.
+ *
+ * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
+ */
+int ntb_write_remote_spad(struct ntb_device *ndev, unsigned int idx, u32 val)
+{
+	if (idx >= ndev->limits.max_compat_spads)
+		return -EINVAL;
+
+	dev_dbg(&ndev->pdev->dev, "Writing %x to remote scratch pad index %d\n", val, idx);
+	writel(val, ndev->reg_base + ndev->reg_ofs.spad_write + idx * 4);
+
+	return 0;
+}
+EXPORT_SYMBOL(ntb_write_remote_spad);
+
+/**
+ * ntb_read_remote_spad() - read from the primary scratchpad register
+ * @ndev: pointer to ntb_device instance
+ * @idx: index to scratchpad register, 0 based
+ * @val: pointer to 32bit integer for storing the register value
+ *
+ * This function allows reading of the 32bit scratchpad register on
+ * the primary (internal) side.
+ *
+ * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
+ */
+int ntb_read_remote_spad(struct ntb_device *ndev, unsigned int idx, u32 *val)
 {
 	if (idx >= ndev->limits.max_compat_spads)
 		return -EINVAL;
 
 	*val = readl(ndev->reg_base + ndev->reg_ofs.spad_read + idx * 4);
-	dev_dbg(&ndev->pdev->dev, "Reading %x from scratch pad index %d\n", *val, idx);
+	dev_dbg(&ndev->pdev->dev, "Reading %x from remote scratch pad index %d\n", *val, idx);
 
 	return 0;
 }
-EXPORT_SYMBOL(ntb_read_spad);
+EXPORT_SYMBOL(ntb_read_remote_spad);
 
 /**
  * ntb_get_mw_vbase() - get virtual addr for the NTB memory window
@@ -796,7 +843,6 @@ static irqreturn_t ntb_interrupt(int irq, void *dev)
 		if (pdb & SNB_DB_HW_LINK) {
 			int rc;
 
-			dev_err(&ndev->pdev->dev, "Link IRQ\n");
 			rc = ntb_link_status(ndev);
 			if (rc)
 				dev_err(&ndev->pdev->dev, "Error determining link status\n");

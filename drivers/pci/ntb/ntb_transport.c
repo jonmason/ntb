@@ -63,27 +63,29 @@
 #include <linux/pci.h>
 #include <linux/slab.h>
 #include <linux/types.h>
+#if 0
 #include <linux/workqueue.h>
+#else
+#include <linux/kthread.h>
+#endif
 #include "ntb_hw.h"
 #include "ntb_transport.h"
-#include <linux/kthread.h>
 
 struct ntb_transport_qp {
+	struct ntb_device *ndev;
+
 	struct task_struct *tx_work;
 	struct task_struct *txc_work;
 	struct list_head txq;
 	struct list_head tx_comp_q;
 	void *tx_buf_begin;
 	void *tx_buf_end;
-	void *tx_buf_head;
-	void *tx_buf_tail;
 
 	struct task_struct *rx_work;
 	struct list_head rxq;
 	struct list_head rx_comp_q;
 	void *rx_mw_begin;
 	void *rx_mw_end;
-	void *rx_mw_offset;
 
 	void (*rx_handler)(struct ntb_transport_qp *qp);
 	void (*tx_handler)(struct ntb_transport_qp *qp);
@@ -126,6 +128,12 @@ struct ntb_payload_header {
 	u32 rx_done:1;
 };
 
+enum {
+	TX_OFFSET = 0,
+	RX_OFFSET,
+	TXC_OFFSET,
+	SPADS_PER_QP,
+};
 
 #define DB_PER_QP		2
 
@@ -133,9 +141,36 @@ struct ntb_payload_header {
 #define DB_TO_QP(db)		((db) / DB_PER_QP)
 #define QP_TO_MW(qp)		((qp) % NTB_NUM_MW)
 
-#define	free_len(qp)	(qp->tx_buf_head < qp->tx_buf_tail ? qp->tx_buf_tail - qp->tx_buf_head : (qp->tx_buf_end - qp->tx_buf_head) + (qp->tx_buf_tail - qp->tx_buf_begin))
+#define	free_len(qp, tx, txc)	(tx > txc ? txc - tx : (qp->tx_buf_end - qp->tx_buf_begin) - (tx - txc))
 
 struct ntb_transport *transport = NULL;
+
+static int ntb_transport_get_local_offset(struct ntb_transport_qp *qp, u8 offset, u32 *val)
+{
+	int idx;
+
+	idx = (qp->qp_num * SPADS_PER_QP) + offset;
+
+	return ntb_read_local_spad(qp->ndev, idx, val);
+}
+
+static int ntb_transport_get_remote_offset(struct ntb_transport_qp *qp, u8 offset, u32 *val)
+{
+	int idx;
+
+	idx = (qp->qp_num * SPADS_PER_QP) + offset;
+
+	return ntb_read_remote_spad(qp->ndev, idx, val);
+}
+
+static int ntb_transport_put_remote_offset(struct ntb_transport_qp *qp, u8 offset, u32 val)
+{
+	int idx;
+
+	idx = (qp->qp_num * SPADS_PER_QP) + offset;
+
+	return ntb_write_remote_spad(qp->ndev, idx, val);
+}
 
 static int list_len(struct list_head *list)
 {
@@ -150,6 +185,9 @@ static int list_len(struct list_head *list)
 
 void ntb_transport_dump_qp_stats(struct ntb_transport_qp *qp)
 {
+	u32 tx_offset, txc_offset, rx_offset;
+	int rc;
+
 	pr_info("NTB Transport stats\n");
 	pr_info("rx_bytes - %Ld\n", qp->rx_bytes);
 	pr_info("rx_pkts - %Ld\n", qp->rx_pkts);
@@ -159,9 +197,29 @@ void ntb_transport_dump_qp_stats(struct ntb_transport_qp *qp)
 	pr_info("tx_pkts - %Ld\n", qp->tx_pkts);
 	pr_info("tx_ring_full - %Ld\n", qp->tx_ring_full);
 	pr_info("tx begin %p, end %p, ring size %ld\n", qp->tx_buf_begin, qp->tx_buf_end, qp->tx_buf_end - qp->tx_buf_begin);
-	pr_info("tx head %p, tail %p, free size %ld\n", qp->tx_buf_head, qp->tx_buf_tail, free_len(qp));
+
+	rc = ntb_transport_get_local_offset(qp, TX_OFFSET, &tx_offset);
+	if (rc) {
+		pr_err("%s: error reading from offset %d\n", __func__, TX_OFFSET);
+		return;
+	}
+
+	rc = ntb_transport_get_local_offset(qp, TXC_OFFSET, &txc_offset);
+	if (rc) {
+		pr_err("%s: error reading from offset %d\n", __func__, TXC_OFFSET);
+		return;
+	}
+
+	pr_info("tx %p, txc %p, free size %ld\n", qp->tx_buf_begin + tx_offset, qp->tx_buf_begin + txc_offset, free_len(qp, tx_offset, txc_offset));
 	pr_info("txq len %d, tx_comp_q len %d\n", list_len(&qp->txq), list_len(&qp->tx_comp_q));
-	pr_info("rx begin %p, end %p, offset %p\n", qp->rx_mw_begin, qp->rx_mw_end, qp->rx_mw_offset);
+
+	rc = ntb_transport_get_remote_offset(qp, RX_OFFSET, &rx_offset);
+	if (rc) {
+		pr_err("%s: error reading from offset %d\n", __func__, RX_OFFSET);
+		return;
+	}
+
+	pr_info("rx begin %p, end %p, offset %p\n", qp->rx_mw_begin, qp->rx_mw_end, qp->rx_mw_begin + rx_offset);
 	pr_info("rxq len %d, rx_comp_q len %d\n", list_len(&qp->rxq), list_len(&qp->rx_comp_q));
 }
 EXPORT_SYMBOL(ntb_transport_dump_qp_stats);
@@ -180,9 +238,9 @@ static void ntb_transport_event_callback(void *data, unsigned int event)
 
 			if (event == NTB_LINK_UP) {
 				/* Reset tx rings on link-up.  This gives the rx ring a little time to catch up on link down. */
-				qp->tx_buf_head = qp->tx_buf_begin;
-				qp->tx_buf_tail = qp->tx_buf_begin;
-				qp->rx_mw_offset = qp->rx_mw_begin;
+				ntb_transport_put_remote_offset(qp, RX_OFFSET, 0); //FIXME - handle rc
+				ntb_transport_put_remote_offset(qp, TX_OFFSET, 0); //FIXME - handle rc
+				ntb_transport_put_remote_offset(qp, TXC_OFFSET, 0); //FIXME - handle rc
 
 				qp->hw_link = NTB_LINK_UP;
 			} else
@@ -282,11 +340,17 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	void *offset;
 	bool oflow;
 	int rc;
+	u32 tx_offset, rx_offset;
 
-	offset = qp->rx_mw_offset;
-	hdr = offset;
+	rc = ntb_transport_get_remote_offset(qp, TX_OFFSET, &tx_offset);
+	if (rc)
+		pr_err("%s: error reading from offset %d\n", __func__, TX_OFFSET);
 
-	if (!hdr->tx_done || hdr->rx_done)
+	rc = ntb_transport_get_local_offset(qp, RX_OFFSET, &rx_offset);
+	if (rc)
+		pr_err("%s: error reading from offset %d\n", __func__, RX_OFFSET);
+
+	if (rx_offset == tx_offset)
 		return -EAGAIN;
 
 	if (list_empty(&qp->rxq)) {
@@ -298,8 +362,12 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	entry = list_first_entry(&qp->rxq, struct ntb_queue_entry, entry);
 	list_del(&entry->entry);
 
-	pr_debug("%d payload received, buf size %d\n", hdr->len, entry->len);
+	offset = qp->rx_mw_begin + rx_offset;
+	hdr = offset;
+
+	pr_debug("offset %x, ver %d - %d payload received, buf size %d\n", rx_offset, hdr->ver, hdr->len, entry->len);
 	if (hdr->len > entry->len) {
+		pr_err("offset %x, ver %d - %d payload received, buf size %d\n", rx_offset, hdr->ver, hdr->len, entry->len);
 		pr_err("RX overflow! Wanted %d got %d\n", hdr->len, entry->len);
 		list_add_tail(&entry->entry, &qp->rxq);
 		qp->rx_err_oflow++;
@@ -309,7 +377,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 
 	offset += sizeof(struct ntb_payload_header);
 
-	if (offset + hdr->len > qp->rx_mw_end) {
+	if (offset + hdr->len >= qp->rx_mw_end) {
 		u32 delta = qp->rx_mw_end - offset;
 
 		/* copy to end of buf */
@@ -317,7 +385,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 			memcpy(entry->buf, offset, delta);
 
 		/* copy the rest of the payload at the beginning on the MW */
-		BUG_ON(qp->rx_mw_begin + (hdr->len - delta) > qp->rx_mw_end);
+		BUG_ON(qp->rx_mw_begin + (hdr->len - delta) >= qp->rx_mw_end);
 		offset = qp->rx_mw_begin;
 		if (!oflow)
 			memcpy(entry->buf + delta, offset, hdr->len - delta);
@@ -330,19 +398,19 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 
 		offset += hdr->len;
 
-		if (offset + sizeof(struct ntb_payload_header) > qp->rx_mw_end)
+		if (offset + sizeof(struct ntb_payload_header) >= qp->rx_mw_end)
 			offset = qp->rx_mw_begin;
 	}
 
 	//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
 
-	hdr->rx_done = 1;
-	//FIXME - flush???
-
-	qp->rx_mw_offset = offset;
+	rx_offset = offset - qp->rx_mw_begin;
+	rc = ntb_transport_put_remote_offset(qp, RX_OFFSET, rx_offset);
+	if (rc)
+		pr_err("%s: error writing to offset %d\n", __func__, RX_OFFSET);
 
 	/* Ring doorbell notifying remote side to update TXC */
-	rc = ntb_ring_sdb(transport->ndev, QP_TO_DB(qp->qp_num) + 1);
+	rc = ntb_ring_sdb(qp->ndev, QP_TO_DB(qp->qp_num) + 1);
 	if (rc)
 		pr_err("%s: error ringing db %d\n", __func__, QP_TO_DB(qp->qp_num) + 1);
 
@@ -403,36 +471,36 @@ static int ntb_transport_txc(void *data)
 	struct ntb_transport_qp *qp = data;
 	struct ntb_payload_header *hdr;
 	void *offset;
+	u32 txc_offset, rx_offset;
 
 	/* Update tail pointer */
 
 	while (!kthread_should_stop()) {
-		do {
-			hdr = qp->tx_buf_tail;
+		//FIXME - txc will always be accurate in this func (except in link down case), so maybe it should just be read once then referenced via variable...
+		ntb_transport_get_local_offset(qp, TXC_OFFSET, &txc_offset); //FIXME - handle rc
+		ntb_transport_get_remote_offset(qp, RX_OFFSET, &rx_offset); //FIXME - handle rc
 
-			if (!(hdr->tx_done && hdr->rx_done))
-				break;
+		offset = qp->tx_buf_begin + txc_offset;
 
-			offset = qp->tx_buf_tail;
-			offset += sizeof(struct ntb_payload_header);
-
-			if (offset + hdr->len > qp->tx_buf_end) {
-				offset = qp->tx_buf_begin + (hdr->len - (qp->tx_buf_end - offset));
-				BUG_ON(offset > qp->tx_buf_end);
-			} else {
-				offset += hdr->len;
-
-				if (offset + sizeof(struct ntb_payload_header) > qp->tx_buf_end)
-					offset = qp->tx_buf_begin;
+		while (txc_offset != rx_offset) {
+			hdr = offset;
+			pr_debug("Cleaning %d len %d\n", hdr->ver, hdr->len);
+			if (hdr->len > 4096) {
+				pr_err("Cleaning %d len %d, txc %x, rx %x\n", hdr->ver, hdr->len, txc_offset, rx_offset);
+				BUG();
 			}
 
-			if (offset == qp->tx_buf_head)
-				break;
+			offset += sizeof(struct ntb_payload_header);
+			offset += hdr->len;
+			if (offset >= qp->tx_buf_end)
+				offset = qp->tx_buf_begin + (offset - qp->tx_buf_end);
+			else if (offset + sizeof(struct ntb_payload_header) >= qp->tx_buf_end)
+				offset = qp->tx_buf_begin;
 
-			qp->tx_buf_tail = offset;
-		} while (true);
+			txc_offset = offset - qp->tx_buf_begin;
+			ntb_transport_put_remote_offset(qp, TXC_OFFSET, txc_offset); //FIXME - handle rc
+		}
 
-		/* Sleep if no txc work */
 		//FIXME - this might be the passe
 		set_current_state(TASK_INTERRUPTIBLE);
 		schedule();
@@ -446,29 +514,46 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 	struct ntb_payload_header *hdr;
 	void *offset;
 	int rc;
+	u32 tx_offset, txc_offset;
 
-	pr_debug("%lld - tx head %p, tail %p, entry len %d, free size %ld\n", qp->tx_pkts, qp->tx_buf_head, qp->tx_buf_tail, entry->len, free_len(qp));
+	rc = ntb_transport_get_local_offset(qp, TX_OFFSET, &tx_offset);
+	if (rc) {
+		pr_err("%s: error reading from offset %d\n", __func__, TX_OFFSET);
+		return -EIO;
+	}
 
+	rc = ntb_transport_get_local_offset(qp, TXC_OFFSET, &txc_offset);
+	if (rc) {
+		pr_err("%s: error reading from offset %d\n", __func__, TXC_OFFSET);
+		return -EIO;
+	}
+
+	pr_debug("%lld - tx %x, txc %x, entry len %d, free size %ld\n", qp->tx_pkts, tx_offset, txc_offset, entry->len, free_len(qp, tx_offset, txc_offset));
+//diff between tx and txc...must not touch
 	/* check to see if there is enough room on the local buf */
-	if (entry->len + (2 * sizeof(struct ntb_payload_header)) >= free_len(qp)) {
+	if (entry->len + sizeof(struct ntb_payload_header) >= free_len(qp, tx_offset, txc_offset)) {
 		qp->tx_ring_full++;
 		//list_add(&entry->entry, &qp->txq);
 		return -EAGAIN;
 	}
 
-	offset = qp->tx_buf_head;
+	offset = qp->tx_buf_begin + tx_offset;
 
 	hdr = offset;
+	hdr->len = entry->len;
+	BUG_ON(hdr->len > 4096);
+	hdr->ver = qp->tx_pkts;
+
 	offset += sizeof(struct ntb_payload_header);
 
 	/* If it can't fit into whats left of the ring, copy to the end and put the rest at the beginning */
-	if (offset + entry->len > qp->tx_buf_end) {
+	if (offset + entry->len >= qp->tx_buf_end) {
 		u32 delta = qp->tx_buf_end - offset;
 
 		/* copy to end of buf */
 		memcpy(offset, entry->buf, delta);
 
-		BUG_ON(qp->tx_buf_begin + (entry->len - delta) > qp->tx_buf_end);
+		BUG_ON(qp->tx_buf_begin + (entry->len - delta) >= qp->tx_buf_end);
 		/* copy the rest of the payload at the beginning on the MW */
 		memcpy(qp->tx_buf_begin, entry->buf + delta, entry->len - delta);
 
@@ -478,26 +563,22 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 		memcpy(offset, entry->buf, entry->len);
 		offset += entry->len;
 
-		if (offset + sizeof(struct ntb_payload_header) > qp->tx_buf_end)
+		if (offset + sizeof(struct ntb_payload_header) >= qp->tx_buf_end)
 			offset = qp->tx_buf_begin;
 	}
 
-	hdr->tx_done = 1;
-	hdr->rx_done = 0;
-	hdr->len = entry->len;
-	hdr->ver = qp->tx_pkts;
-
-	qp->tx_buf_head = offset;
-
-	/* set next hdr to not done for remote rxq */
-	hdr = offset;
-	hdr->tx_done = 0;
-	hdr->rx_done = 0;
-
 	//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
 
+	tx_offset = offset - qp->tx_buf_begin;
+
+	rc = ntb_transport_put_remote_offset(qp, TX_OFFSET, tx_offset);
+	if (rc) {
+		pr_err("%s: error writing to offset %d\n", __func__, TX_OFFSET);
+		return -EIO;
+	}
+
 	/* Ring doorbell notifying remote side of new packet */
-	rc = ntb_ring_sdb(transport->ndev, QP_TO_DB(qp->qp_num));
+	rc = ntb_ring_sdb(qp->ndev, QP_TO_DB(qp->qp_num));
 	if (rc)
 		pr_err("%s: error ringing db %d\n", __func__, 1 << qp->qp_num);
 
@@ -570,6 +651,7 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 
 	qp = &transport->qps[free_queue];
 	qp->qp_num = free_queue;
+	qp->ndev = transport->ndev;
 
 	qp->rx_handler = rx_handler;
 	qp->tx_handler = tx_handler;
@@ -602,26 +684,27 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 	INIT_LIST_HEAD(&qp->txq);
 	INIT_LIST_HEAD(&qp->tx_comp_q);
 
-	qp->rx_mw_begin = ntb_get_mw_vbase(transport->ndev, QP_TO_MW(free_queue));
+	ntb_transport_put_remote_offset(qp, RX_OFFSET, 0); //FIXME - handle rc
+	ntb_transport_put_remote_offset(qp, TX_OFFSET, 0); //FIXME - handle rc
+	ntb_transport_put_remote_offset(qp, TXC_OFFSET, 0); //FIXME - handle rc
+
+	qp->rx_mw_begin = ntb_get_mw_vbase(qp->ndev, QP_TO_MW(free_queue));
 	qp->rx_mw_end = qp->rx_mw_begin + transport->mw[QP_TO_MW(free_queue)].size;
-	qp->rx_mw_offset = qp->rx_mw_begin;
 	pr_debug("RX MW start %p end %p\n", qp->rx_mw_begin, qp->rx_mw_end);
 
 	qp->tx_buf_begin = transport->mw[QP_TO_MW(free_queue)].virt_addr;
 	qp->tx_buf_end = qp->tx_buf_begin + transport->mw[QP_TO_MW(free_queue)].size;
-	qp->tx_buf_head = qp->tx_buf_begin;
-	qp->tx_buf_tail = qp->tx_buf_begin;
 	pr_debug("TX buf start %p end %p\n", qp->tx_buf_begin, qp->tx_buf_end);
 
 	//FIXME - transport->qps[free_queue].queue.hw_caps; is it even necessary for transport client to know?
 
 	irq = free_queue * DB_PER_QP;
 
-	rc = ntb_register_db_callback(transport->ndev, irq, ntb_transport_rxc_db);
+	rc = ntb_register_db_callback(qp->ndev, irq, ntb_transport_rxc_db);
 	if (rc)
 		goto err4;
 
-	rc = ntb_register_db_callback(transport->ndev, irq + 1, ntb_transport_txc_db);
+	rc = ntb_register_db_callback(qp->ndev, irq + 1, ntb_transport_txc_db);
 	if (rc)
 		goto err5;
 
@@ -629,7 +712,7 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 	wake_up_process(qp->tx_work);
 	wake_up_process(qp->txc_work);
 
-	if (transport->ndev->link_status)
+	if (qp->ndev->link_status)
 		qp->hw_link = NTB_LINK_UP;
 	else
 		qp->hw_link = NTB_LINK_DOWN;
@@ -637,7 +720,7 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 	return qp;
 
 err5:
-	ntb_unregister_db_callback(transport->ndev, irq);
+	ntb_unregister_db_callback(qp->ndev, irq);
 err4:
 	kthread_stop(qp->tx_work);
 err3:
@@ -676,8 +759,8 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 	qp->sw_link = NTB_LINK_DOWN;
 	qp->hw_link = NTB_LINK_DOWN;
 	qp->event_handler = NULL;
-	ntb_unregister_db_callback(transport->ndev, QP_TO_DB(qp->qp_num));
-	ntb_unregister_db_callback(transport->ndev, QP_TO_DB(qp->qp_num) + 1);
+	ntb_unregister_db_callback(qp->ndev, QP_TO_DB(qp->qp_num));
+	ntb_unregister_db_callback(qp->ndev, QP_TO_DB(qp->qp_num) + 1);
 	//FIXME - wait for qps to quience or notify the transport to stop?
 
 	kthread_stop(qp->txc_work);
@@ -882,7 +965,7 @@ EXPORT_SYMBOL(ntb_transport_reg_event_callback);
  */
 bool ntb_transport_hw_link_query(struct ntb_transport_qp *qp)
 {
-	return transport->ndev->link_status;
+	return qp->ndev->link_status;
 }
 EXPORT_SYMBOL(ntb_transport_hw_link_query);
 
