@@ -141,7 +141,7 @@ enum {
 #define DB_TO_QP(db)		((db) / DB_PER_QP)
 #define QP_TO_MW(qp)		((qp) % NTB_NUM_MW)
 
-#define	free_len(qp, tx, txc)	(tx > txc ? txc - tx : (qp->tx_buf_end - qp->tx_buf_begin) - (tx - txc))
+#define	free_len(qp, tx, txc)	(tx < txc ? txc - tx : (qp->tx_buf_end - qp->tx_buf_begin) - (tx - txc))
 
 struct ntb_transport *transport = NULL;
 
@@ -210,10 +210,16 @@ void ntb_transport_dump_qp_stats(struct ntb_transport_qp *qp)
 		return;
 	}
 
-	pr_info("tx %p, txc %p, free size %ld\n", qp->tx_buf_begin + tx_offset, qp->tx_buf_begin + txc_offset, free_len(qp, tx_offset, txc_offset));
+	rc = ntb_transport_get_remote_offset(qp, RX_OFFSET, &rx_offset);
+	if (rc) {
+		pr_err("%s: error reading from offset %d\n", __func__, RX_OFFSET);
+		return;
+	}
+
+	pr_info("tx %p, rx %p, txc %p, free size %ld\n", qp->tx_buf_begin + tx_offset, qp->tx_buf_begin + rx_offset, qp->tx_buf_begin + txc_offset, free_len(qp, tx_offset, txc_offset));
 	pr_info("txq len %d, tx_comp_q len %d\n", list_len(&qp->txq), list_len(&qp->tx_comp_q));
 
-	rc = ntb_transport_get_remote_offset(qp, RX_OFFSET, &rx_offset);
+	rc = ntb_transport_get_local_offset(qp, RX_OFFSET, &rx_offset);
 	if (rc) {
 		pr_err("%s: error reading from offset %d\n", __func__, RX_OFFSET);
 		return;
@@ -341,6 +347,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	bool oflow;
 	int rc;
 	u32 tx_offset, rx_offset;
+	static u32 last;
 
 	rc = ntb_transport_get_remote_offset(qp, TX_OFFSET, &tx_offset);
 	if (rc)
@@ -367,11 +374,13 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 
 	pr_debug("offset %x, ver %d - %d payload received, buf size %d\n", rx_offset, hdr->ver, hdr->len, entry->len);
 	if (hdr->len > entry->len) {
-		pr_err("offset %x, ver %d - %d payload received, buf size %d\n", rx_offset, hdr->ver, hdr->len, entry->len);
+		ntb_transport_dump_qp_stats(qp);
+		pr_err("offset %x last %x, ver %d - %d payload received, buf size %d\n", rx_offset, last, hdr->ver, hdr->len, entry->len);
 		pr_err("RX overflow! Wanted %d got %d\n", hdr->len, entry->len);
 		list_add_tail(&entry->entry, &qp->rxq);
 		qp->rx_err_oflow++;
 		oflow = true;
+		return -1;//FIXME - no crash hack
 	} else
 		oflow = false;
 
@@ -404,6 +413,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 
 	//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
 
+	last = rx_offset;
 	rx_offset = offset - qp->rx_mw_begin;
 	rc = ntb_transport_put_remote_offset(qp, RX_OFFSET, rx_offset);
 	if (rc)
@@ -471,7 +481,7 @@ static int ntb_transport_txc(void *data)
 	struct ntb_transport_qp *qp = data;
 	struct ntb_payload_header *hdr;
 	void *offset;
-	u32 txc_offset, rx_offset;
+	u32 txc_offset, rx_offset, last;
 
 	/* Update tail pointer */
 
@@ -486,8 +496,9 @@ static int ntb_transport_txc(void *data)
 			hdr = offset;
 			pr_debug("Cleaning %d len %d\n", hdr->ver, hdr->len);
 			if (hdr->len > 4096) {
-				pr_err("Cleaning %d len %d, txc %x, rx %x\n", hdr->ver, hdr->len, txc_offset, rx_offset);
-				BUG();
+				pr_err("Cleaning %d len %d, txc %x last %x, rx %x\n", hdr->ver, hdr->len, txc_offset, last, rx_offset);
+				ntb_transport_dump_qp_stats(qp);
+				return 0;
 			}
 
 			offset += sizeof(struct ntb_payload_header);
@@ -497,6 +508,7 @@ static int ntb_transport_txc(void *data)
 			else if (offset + sizeof(struct ntb_payload_header) >= qp->tx_buf_end)
 				offset = qp->tx_buf_begin;
 
+			last = txc_offset;
 			txc_offset = offset - qp->tx_buf_begin;
 			ntb_transport_put_remote_offset(qp, TXC_OFFSET, txc_offset); //FIXME - handle rc
 		}
