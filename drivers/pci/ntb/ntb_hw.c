@@ -66,7 +66,7 @@
 #include <linux/random.h>
 
 #define NTB_NAME	"Intel(R) PCIe Non-Transparent Bridge Driver"
-#define NTB_VER		"0.4"
+#define NTB_VER		"0.6"
 
 MODULE_DESCRIPTION(NTB_NAME);
 MODULE_VERSION(NTB_VER);
