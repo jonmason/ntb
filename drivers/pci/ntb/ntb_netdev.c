@@ -459,8 +459,6 @@ static int __init ntb_netdev_init_module(void)
 
 	pr_info("%s: Probe\n", KBUILD_MODNAME);
 
-	ntb_transport_init();
-
 	netdev = alloc_etherdev(sizeof(struct ntb_netdev));//FIXME - might be worth trying multiple queues...
 	if (!netdev)
 		return -ENOMEM;
@@ -498,8 +496,6 @@ static void __exit ntb_netdev_exit_module(void)
 {
 	unregister_netdev(netdev);
 	free_netdev(netdev);
-
-	ntb_transport_free();
 
 	pr_info("%s: Driver removed\n", KBUILD_MODNAME);
 }

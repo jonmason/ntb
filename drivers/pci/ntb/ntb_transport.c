@@ -291,7 +291,7 @@ static void ntb_transport_event_callback(void *data, unsigned int event)
 }
 
 //FIXME - currently we have to expose this to the clients, but we should really init it all on the first qp created and free when the alst one is removed
-int ntb_transport_init(void)
+static int ntb_transport_init(void)
 {
 	int rc, i;
 
@@ -353,11 +353,13 @@ err:
 	kfree(transport);
 	return rc;
 } 
-EXPORT_SYMBOL(ntb_transport_init);
 
-void ntb_transport_free(void)
+static void ntb_transport_free(void)
 {
 	int i;
+
+	if (!transport)
+		return;
 
 	//FIXME - verify that the event and db callbacks are empty?
 	for (i = 0; i < transport->max_qps; i++)
@@ -374,8 +376,8 @@ void ntb_transport_free(void)
 	kfree(transport->qps);
 	ntb_unregister_transport(transport->ndev);
 	kfree(transport);//FIXME - add refcount
+	transport = NULL;
 }
-EXPORT_SYMBOL(ntb_transport_free);
 
 static int ntb_process_rxc(struct ntb_transport_qp *qp)
 {
@@ -634,6 +636,12 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 	unsigned int free_queue;
 	int rc, irq;
 
+	if (!transport) {
+		rc = ntb_transport_init();
+		if (rc)
+			return NULL;
+	}
+
 	//FIXME - need to handhake with remote side to determine matching number or some mapping between the 2
 	free_queue = ffs(transport->qp_bitmap);
 	if (!free_queue)
@@ -753,10 +761,8 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 
 	set_bit(qp->qp_num, &transport->qp_bitmap);
 
-#if 0
 	if (transport->qp_bitmap == ~(transport->max_qps - 1))
 		ntb_transport_free();
-#endif
 }
 EXPORT_SYMBOL(ntb_transport_free_queue);
 
