@@ -569,17 +569,15 @@ static void ntb_handle_heartbeat(struct work_struct *work)
 	unsigned long ts = jiffies;
 	int rc;
 
-	if (ts > ndev->last_ts + NTB_HB_TIMEOUT) {
-		/* If non irq traffic in 1sec, Send Heartbeat signal to remote system */
-		rc = ntb_ring_sdb(ndev, BWD_DB_HEARTBEAT);
-		if (rc) {
-			dev_err(&ndev->pdev->dev, "Invalid Index\n");
-			return;
-		}
+	/* Send Heartbeat signal to remote system */
+	rc = ntb_ring_sdb(ndev, BWD_DB_HEARTBEAT);
+	if (rc) {
+		dev_err(&ndev->pdev->dev, "Invalid Index\n");
+		return;
 	}
 
 	/* Check to see if HB has timed out */
-	if (ts > ndev->last_ts + 2 * NTB_HB_TIMEOUT)
+	if (ts > ndev->last_ts + NTB_HB_TIMEOUT)
 		ntb_link_event(ndev, NTB_LINK_DOWN);
 	else
 		ntb_link_event(ndev, NTB_LINK_UP);
