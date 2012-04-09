@@ -71,6 +71,7 @@ MODULE_AUTHOR("Intel Corporation");
 struct ntb_netdev {
 	struct ntb_transport_qp *qp;
 	struct list_head tx_entries;
+	struct work_struct txto_work;
 };
 
 #define	NTB_TX_TIMEOUT_MS	1000
@@ -190,12 +191,22 @@ static void ntb_netdev_tx_handler(struct ntb_transport_qp *qp)
 	struct ntb_netdev *dev = netdev_priv(netdev);//FIXME - do it based on qp not global
 	struct ntb_queue_entry *entry;
 
+#if 0
 	while ((entry = ntb_transport_tx_dequeue(qp))) {
 		kfree_skb(entry->callback_data);
 		list_add_tail(&entry->entry, &dev->tx_entries);
 	}
+#else
+	entry = ntb_transport_tx_dequeue(qp);
+	if (!entry)
+		return;
 
-	//netif_wake_queue(netdev);
+	kfree_skb(entry->callback_data);
+	list_add_tail(&entry->entry, &dev->tx_entries);
+#endif
+
+//	if (netif_queue_stopped(netdev))
+//		netif_wake_queue(netdev);
 }
 
 static netdev_tx_t ntb_netdev_start_xmit(struct sk_buff *skb, struct net_device *ndev)
@@ -370,16 +381,31 @@ err:
 	return rc;
 }
 
+static void ntb_netdev_txto_work(struct work_struct *work)
+{
+	//struct ntb_netdev *dev = container_of(work, struct ntb_netdev, txto_work);
+	struct net_device *ndev = netdev; //FIXME - don't use global
+	int rc;
+
+	if (netif_running(ndev)) {
+#if 0
+		ntb_netdev_close(ndev);
+		rc = ntb_netdev_open(ndev);//FIXME - do something with rc
+		if (rc)
+			pr_err("%s: Open failed\n", __func__);
+#else
+		netif_wake_queue(ndev);
+#endif
+	}
+}
+
 static void ntb_netdev_tx_timeout(struct net_device *ndev)
 {
 	struct ntb_netdev *dev = netdev_priv(ndev);
 
 	pr_err("%s - Tx list is %s\n", __func__, list_empty(&dev->tx_entries) ? "empty" : "not empty");
 
-#if 0
-	ntb_netdev_open(ndev);//FIXME - do something with rc
-	ntb_netdev_close(ndev);//FIXME - do something with rc
-#endif
+	schedule_work(&dev->txto_work);
 }
 
 static const struct net_device_ops ntb_netdev_ops = {
@@ -469,6 +495,7 @@ static int __init ntb_netdev_init_module(void)
 
 	netdev->hw_features = netdev->features;
 	netdev->watchdog_timeo = msecs_to_jiffies(NTB_TX_TIMEOUT_MS);
+	INIT_WORK(&dev->txto_work, ntb_netdev_txto_work);
 
 	netdev->mtu = PAGE_SIZE - ETH_HLEN;
 

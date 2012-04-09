@@ -569,11 +569,13 @@ static void ntb_handle_heartbeat(struct work_struct *work)
 	unsigned long ts = jiffies;
 	int rc;
 
-	/* Send Heartbeat signal to remote system */
-	rc = ntb_ring_sdb(ndev, BWD_DB_HEARTBEAT);
-	if (rc) {
-		dev_err(&ndev->pdev->dev, "Invalid Index\n");
-		return;
+	if (ts > ndev->last_ts + NTB_HB_TIMEOUT) {
+		/* If non irq traffic in 1sec, Send Heartbeat signal to remote system */
+		rc = ntb_ring_sdb(ndev, BWD_DB_HEARTBEAT);
+		if (rc) {
+			dev_err(&ndev->pdev->dev, "Invalid Index\n");
+			return;
+		}
 	}
 
 	/* Check to see if HB has timed out */
@@ -835,8 +837,8 @@ static irqreturn_t ntb_interrupt(int irq, void *dev)
 	//FIXME - can this be optimized using ffs or is that unnecessary?
 
 	if (ndev->hw_type == BWD_HW) {
-		if (pdb & (u64) 1 << BWD_DB_HEARTBEAT)
-			ndev->last_ts = jiffies;
+		/* No need to check for the specific HB irq, any interrupt means we're connected */
+		ndev->last_ts = jiffies;
 
 		writeq(pdb, ndev->reg_base + ndev->reg_ofs.pdb);
 	} else {

@@ -168,7 +168,7 @@ static struct ntb_queue_entry *ntb_list_rm_head(struct ntb_transport_qp *qp, str
 	unsigned long flags;
 
 	spin_lock_irqsave(&qp->list_lock, flags);
-	if (list_empty(list)) {
+	if (list_empty_careful(list)) {
 		entry = NULL;
 		goto out;
 	}
@@ -179,7 +179,6 @@ out:
 
 	return entry;
 }
-
 
 static int ntb_transport_get_local_offset(struct ntb_transport_qp *qp, u8 offset, u32 *val)
 {
@@ -275,8 +274,10 @@ static void ntb_transport_event_callback(void *data, unsigned int event)
 
 			if (event == NTB_LINK_UP) {
 				/* Reset tx rings on link-up.  This gives the rx ring a little time to catch up on link down. */
+#if 0
 				ntb_transport_put_remote_offset(qp, RX_OFFSET, 0); //FIXME - handle rc
 				ntb_transport_put_remote_offset(qp, TX_OFFSET, 0); //FIXME - handle rc
+#endif
 				//FIXME - set the # pkts to zero
 
 				qp->hw_link = NTB_LINK_UP;
@@ -298,7 +299,7 @@ static int ntb_transport_init(void)
 	if (transport)
 		return -EINVAL;//FIXME - add refcount
 
-	transport = kmalloc(sizeof(struct ntb_transport), GFP_KERNEL);
+	transport = kmalloc(sizeof(struct ntb_transport), GFP_ATOMIC);
 	if (!transport)
 		return -ENOMEM;
 
@@ -315,7 +316,7 @@ static int ntb_transport_init(void)
 		goto err1;
 	}
 
-	transport->qps = kcalloc(transport->max_qps, sizeof(struct ntb_transport_qp), GFP_KERNEL);
+	transport->qps = kcalloc(transport->max_qps, sizeof(struct ntb_transport_qp), GFP_ATOMIC);
 	if (!transport->qps) {
 		rc = -ENOMEM;
 		goto err1;
@@ -327,7 +328,7 @@ static int ntb_transport_init(void)
 		/* Alloc memory for receiving data.  Must be 4k aligned */
 		transport->mw[i].size = ALIGN(ntb_get_mw_size(transport->ndev, i), 4096);
 
-		transport->mw[i].virt_addr = dma_alloc_coherent(&transport->ndev->pdev->dev, transport->mw[i].size, &transport->mw[i].dma_addr, GFP_KERNEL);
+		transport->mw[i].virt_addr = dma_alloc_coherent(&transport->ndev->pdev->dev, transport->mw[i].size, &transport->mw[i].dma_addr, GFP_ATOMIC);
 		if (!transport->mw[i].virt_addr) {
 			rc = -ENOMEM;
 			goto err2;
@@ -377,6 +378,28 @@ static void ntb_transport_free(void)
 	ntb_unregister_transport(transport->ndev);
 	kfree(transport);//FIXME - add refcount
 	transport = NULL;
+}
+
+static bool pass_check(u32 tx_orig, u32 tx_curr, u32 rx)
+{
+	if (tx_orig < rx)
+		return (tx_curr >= rx);
+	else //tx_orig >= rx
+		if (tx_curr < tx_orig) //wrap
+			return (tx_curr >= rx);
+		else
+			return (tx_curr < rx);
+}
+
+static bool pass_check_rx(u32 rx_orig, u32 rx_curr, u32 tx)
+{
+	if (rx_orig < tx)
+		return (rx_curr > tx);
+	else//rx_orig >= tx
+		if (rx_curr < rx_orig) //wrap
+			return (rx_curr > tx);
+		else
+			return (rx_curr < tx);
 }
 
 static int ntb_process_rxc(struct ntb_transport_qp *qp)
@@ -454,6 +477,8 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	qp->rx_bytes += entry->len;
 	qp->rx_pkts++;
 
+	WARN_ON(pass_check_rx(rx_offset, offset - qp->rx_mw_begin, tx_offset));
+
 	last = rx_offset;
 	qp->rx_offset = offset;
 	rx_offset = offset - qp->rx_mw_begin;
@@ -494,22 +519,11 @@ static void ntb_transport_rxc_db(int db_num)
 
 	pr_debug("%s: doorbell %d received\n", __func__, db_num);
 
-#if 0 
+#if 1 
 	wake_up_process(qp->rx_work);
 #else
 	while (ntb_process_rxc(qp) == 0);
 #endif
-}
-
-static bool pass_check(u32 tx_orig, u32 tx_curr, u32 rx)
-{
-	if (tx_orig < rx)
-		return (tx_curr >= rx);
-	else
-		if (tx_curr < tx_orig)
-			return (tx_curr >= rx);
-		else
-			return (tx_curr < rx);
 }
 
 static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry)
@@ -522,18 +536,23 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 	rc = ntb_transport_get_local_offset(qp, TX_OFFSET, &tx_offset);
 	if (rc) {
 		pr_err("%s: error reading from offset %d\n", __func__, TX_OFFSET);
+//		ntb_list_add_head(qp, &entry->entry, &qp->txq);
 		return -EIO;
 	}
 
 	rc = ntb_transport_get_remote_offset(qp, RX_OFFSET, &rx_offset);
 	if (rc) {
 		pr_err("%s: error reading from offset %d\n", __func__, RX_OFFSET);
+//		ntb_list_add_head(qp, &entry->entry, &qp->txq);
 		return -EIO;
 	}
 
 	//FIXME - major hack to avoid ring wrapping.  this seems to fix the lock up and ring corruption issues
-	if (free_len(qp, tx_offset, rx_offset) < 4096 * 2)
+	if (free_len(qp, tx_offset, rx_offset) < 4096 * 2) {
+//		ntb_list_add_head(qp, &entry->entry, &qp->txq);
+		qp->tx_ring_full++;
 		return -EAGAIN;
+	}
 
 	offset = qp->tx_buf_begin + tx_offset;
 	WARN_ON(qp->tx_offset != offset);
@@ -542,7 +561,7 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 
 	//did this hit or pass the rx offset
 	if (pass_check(tx_offset, offset - qp->tx_buf_begin, rx_offset)) {
-		//ntb_list_add_head(qp, &entry->entry, &qp->txq);
+//		ntb_list_add_head(qp, &entry->entry, &qp->txq);
 		qp->tx_ring_full++;
 		return -EAGAIN;
 	}
@@ -555,7 +574,7 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 		offset = qp->tx_buf_begin;
 
 	if (pass_check(tx_offset, (offset - qp->tx_buf_begin) + entry->len, rx_offset)) {
-		//ntb_list_add_head(qp, &entry->entry, &qp->txq);
+//		ntb_list_add_head(qp, &entry->entry, &qp->txq);
 		qp->tx_ring_full++;
 		return -EAGAIN;
 	}
@@ -577,6 +596,7 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 	rc = ntb_transport_put_remote_offset(qp, TX_OFFSET, tx_offset);
 	if (rc) {
 		pr_err("%s: error writing to offset %d\n", __func__, TX_OFFSET);
+//		ntb_list_add_head(qp, &entry->entry, &qp->txq);
 		return -EIO;
 	}
 
@@ -602,11 +622,15 @@ static int ntb_transport_tx(void *data)
 	int rc;
 
 	while (!kthread_should_stop()) {
-		while ((entry = ntb_list_rm_head(qp, &qp->txq))) {
+		do {
+		 	entry = ntb_list_rm_head(qp, &qp->txq);
+			if (!entry)
+				break;
+
 			rc = ntb_process_tx(qp, entry);
 			if (rc)
 				break;
-		}
+		} while (true);
 
 		/* Sleep if no tx work */
 		set_current_state(TASK_INTERRUPTIBLE);
@@ -653,6 +677,10 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 	clear_bit(free_queue, &transport->qp_bitmap);//FIXME - this might be racy, either add lock or make atomic
 
 	qp = &transport->qps[free_queue];
+//FIXME - hack
+	qp->rx_pkts = 0;
+	qp->tx_pkts = 0;
+
 	qp->qp_num = free_queue;
 	qp->ndev = transport->ndev;
 
@@ -811,7 +839,7 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
 	if (!qp || qp->hw_link != NTB_LINK_UP)
 		return -EINVAL;
 
-#if 0
+#if 0 
 	ntb_list_add_tail(qp, &entry->entry, &qp->txq);
 
 	wake_up_process(qp->tx_work);
