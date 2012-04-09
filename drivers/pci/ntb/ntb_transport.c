@@ -409,20 +409,14 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	void *offset;
 	bool oflow;
 	int rc;
-	u32 tx_offset, rx_offset;
+	u32 tx_offset;
 	static u32 last = -1;
 
 	rc = ntb_transport_get_remote_offset(qp, TX_OFFSET, &tx_offset);
 	if (rc)
 		pr_err("%s: error reading from offset %d\n", __func__, TX_OFFSET);
 
-	rc = ntb_transport_get_local_offset(qp, RX_OFFSET, &rx_offset);
-	if (rc)
-		pr_err("%s: error reading from offset %d\n", __func__, RX_OFFSET);
-
-	WARN_ON(qp->rx_offset != (qp->rx_mw_begin + rx_offset));
-
-	if (rx_offset == tx_offset) {
+	if (qp->rx_offset == (qp->rx_mw_begin + tx_offset)) {
 		qp->rx_ring_empty++;
 		return -EAGAIN;
 	}
@@ -433,7 +427,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 		return -EAGAIN;
 	}
 
-	offset = qp->rx_mw_begin + rx_offset;
+	offset = qp->rx_offset;
 	if (offset + sizeof(struct ntb_payload_header) >= qp->rx_mw_end)
 		offset = qp->rx_mw_begin;
 
@@ -442,12 +436,12 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	if (hdr->ver != qp->rx_pkts) {
 		pr_err("Version mismatch, expected %Ld - got %Ld\n", qp->rx_pkts, hdr->ver);
 		pr_err("rx offset %lx last %x, last to end %ld, curr to end %ld, tx offset %x, ver %Ld\n",
-			 offset - qp->rx_mw_begin, last, qp->rx_mw_end - (qp->rx_mw_begin + last), qp->rx_mw_end - (qp->rx_mw_begin + rx_offset), tx_offset, hdr->ver);
+			 offset - qp->rx_mw_begin, last, qp->rx_mw_end - (qp->rx_mw_begin + last), qp->rx_mw_end - qp->rx_offset, tx_offset, hdr->ver);
 		ntb_list_add_tail(qp, &entry->entry, &qp->rxq);
 		return -EIO;
 	}
 
-	pr_debug("offset %x, ver %Ld - %d payload received, buf size %d\n", rx_offset, hdr->ver, hdr->len, entry->len);
+	pr_debug("offset %p, ver %Ld - %d payload received, buf size %d\n", qp->rx_offset, hdr->ver, hdr->len, entry->len);
 	if (hdr->len > entry->len) {
 		pr_err("RX overflow! Wanted %d got %d\n", hdr->len, entry->len);
 		ntb_transport_dump_qp_stats(qp);
@@ -470,19 +464,13 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 
 	offset += hdr->len;
 
-	//FIXME - prefetch the next hdr
-	if (rx_offset != tx_offset)
-		prefetch(offset);
-
 	qp->rx_bytes += entry->len;
 	qp->rx_pkts++;
 
-	WARN_ON(pass_check_rx(rx_offset, offset - qp->rx_mw_begin, tx_offset));
+	WARN_ON(pass_check_rx(qp->rx_offset - qp->rx_mw_begin, offset - qp->rx_mw_begin, tx_offset));
 
-	last = rx_offset;
 	qp->rx_offset = offset;
-	rx_offset = offset - qp->rx_mw_begin;
-	rc = ntb_transport_put_remote_offset(qp, RX_OFFSET, rx_offset);
+	rc = ntb_transport_put_remote_offset(qp, RX_OFFSET, offset - qp->rx_mw_begin);
 	if (rc)
 		pr_err("%s: error writing to offset %d\n", __func__, RX_OFFSET);
 
@@ -531,14 +519,7 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 	struct ntb_payload_header *hdr;
 	void *offset;
 	int rc;
-	u32 tx_offset, rx_offset;
-
-	rc = ntb_transport_get_local_offset(qp, TX_OFFSET, &tx_offset);
-	if (rc) {
-		pr_err("%s: error reading from offset %d\n", __func__, TX_OFFSET);
-//		ntb_list_add_head(qp, &entry->entry, &qp->txq);
-		return -EIO;
-	}
+	u32 rx_offset;
 
 	rc = ntb_transport_get_remote_offset(qp, RX_OFFSET, &rx_offset);
 	if (rc) {
@@ -548,19 +529,18 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 	}
 
 	//FIXME - major hack to avoid ring wrapping.  this seems to fix the lock up and ring corruption issues
-	if (free_len(qp, tx_offset, rx_offset) < 4096 * 2) {
+	if (free_len(qp, (u32) (qp->tx_offset - qp->tx_buf_begin), rx_offset) < 4096 * 2) {
 //		ntb_list_add_head(qp, &entry->entry, &qp->txq);
 		qp->tx_ring_full++;
 		return -EAGAIN;
 	}
 
-	offset = qp->tx_buf_begin + tx_offset;
-	WARN_ON(qp->tx_offset != offset);
+	offset = qp->tx_offset;
 	if (offset + sizeof(struct ntb_payload_header) >= qp->tx_buf_end)
 		offset = qp->tx_buf_begin;
 
 	//did this hit or pass the rx offset
-	if (pass_check(tx_offset, offset - qp->tx_buf_begin, rx_offset)) {
+	if (pass_check(qp->tx_offset - qp->tx_buf_begin, offset - qp->tx_buf_begin, rx_offset)) {
 //		ntb_list_add_head(qp, &entry->entry, &qp->txq);
 		qp->tx_ring_full++;
 		return -EAGAIN;
@@ -573,13 +553,13 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 	if (offset + entry->len >= qp->tx_buf_end)
 		offset = qp->tx_buf_begin;
 
-	if (pass_check(tx_offset, (offset - qp->tx_buf_begin) + entry->len, rx_offset)) {
+	if (pass_check(qp->tx_offset - qp->tx_buf_begin, (offset - qp->tx_buf_begin) + entry->len, rx_offset)) {
 //		ntb_list_add_head(qp, &entry->entry, &qp->txq);
 		qp->tx_ring_full++;
 		return -EAGAIN;
 	}
 
-	pr_debug("%lld - tx %x, rx %x, entry len %d, free size %ld\n", qp->tx_pkts, tx_offset, rx_offset, entry->len, free_len(qp, tx_offset, rx_offset));
+	pr_debug("%lld - tx %x, rx %x, entry len %d, free size %ld\n", qp->tx_pkts, (u32) (qp->tx_offset - qp->tx_buf_begin), rx_offset, entry->len, free_len(qp, (u32) (qp->tx_offset - qp->tx_buf_begin), rx_offset));
 	//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
 
 	hdr->len = entry->len;
@@ -592,8 +572,7 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 	qp->tx_bytes += entry->len;
 
 	qp->tx_offset = offset;
-	tx_offset = offset - qp->tx_buf_begin;
-	rc = ntb_transport_put_remote_offset(qp, TX_OFFSET, tx_offset);
+	rc = ntb_transport_put_remote_offset(qp, TX_OFFSET, offset - qp->tx_buf_begin);
 	if (rc) {
 		pr_err("%s: error writing to offset %d\n", __func__, TX_OFFSET);
 //		ntb_list_add_head(qp, &entry->entry, &qp->txq);
