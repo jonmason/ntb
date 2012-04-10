@@ -567,20 +567,17 @@ static void ntb_handle_heartbeat(struct work_struct *work)
 {
 	struct ntb_device *ndev = container_of(work, struct ntb_device, hb_timer.work);
 	unsigned long ts = jiffies;
-	int rc;
 
-	/* Send Heartbeat signal to remote system */
-	rc = ntb_ring_sdb(ndev, BWD_DB_HEARTBEAT);
-	if (rc) {
-		dev_err(&ndev->pdev->dev, "Invalid Index\n");
-		return;
+	/* If we haven't gotten an interrupt in a while, check the BWD link status bit */
+	if (ts > ndev->last_ts + NTB_HB_TIMEOUT) {
+		u32 ntb_cntl;
+
+		ntb_cntl = readl(ndev->reg_base + ndev->reg_ofs.lnk_cntl);
+		if (ntb_cntl & BWD_CNTL_LINK_DOWN)
+			ntb_link_event(ndev, NTB_LINK_DOWN);
+		else
+			ntb_link_event(ndev, NTB_LINK_UP);
 	}
-
-	/* Check to see if HB has timed out */
-	if (ts > ndev->last_ts + NTB_HB_TIMEOUT)
-		ntb_link_event(ndev, NTB_LINK_DOWN);
-	else
-		ntb_link_event(ndev, NTB_LINK_UP);
 
 	schedule_delayed_work(&ndev->hb_timer, NTB_HB_TIMEOUT);
 }
@@ -854,11 +851,48 @@ static irqreturn_t ntb_interrupt(int irq, void *dev)
 	return IRQ_HANDLED;
 }
 
-//FIXME - find better way to sync irq handling between jt/bwd and msix/msi/intx
-static irqreturn_t ntb_msix_irq(int irq, void *dev)
+static irqreturn_t ntb_callback_msix_irq(int irq, void *data)
 {
-	//FIXME - can use the irq number to determine which bits to clear, otherwise we may be clearing interrupts we don't want to
-	return ntb_interrupt(irq, dev);
+	struct ntb_db_cb *db_cb = data;
+	struct ntb_device *ndev = db_cb->ndev;
+
+	dev_dbg(&ndev->pdev->dev, "MSI-X irq %d received for DB %d\n", irq, db_cb->db_num);
+
+	if (db_cb->callback)
+		db_cb->callback(db_cb->db_num);
+
+	if (ndev->hw_type == BWD_HW) {
+		ndev->last_ts = jiffies;
+
+		writeq((u64) 1 << db_cb->db_num, ndev->reg_base + ndev->reg_ofs.pdb);
+	 } else 
+		writew(1 << db_cb->db_num, ndev->reg_base + ndev->reg_ofs.pdb);
+
+	return IRQ_HANDLED;
+}
+
+/* FIXME - could make this a generic catch-all if we want more than 3 vectors on Jaketown */
+static irqreturn_t ntb_event_msix_irq(int irq, void *dev)
+{
+	struct ntb_device *ndev = dev;
+	int rc;
+
+	dev_dbg(&ndev->pdev->dev, "MSI-X irq %d received for Events\n", irq);
+
+	if (ndev->hw_type == BWD_HW) {
+		/* No need to check for the specific HB irq, any interrupt means we're connected */
+		ndev->last_ts = jiffies;
+
+		writeq((u64) 1 << (ndev->limits.max_db_bits - 1), ndev->reg_base + ndev->reg_ofs.pdb);
+	} else { 
+		rc = ntb_link_status(ndev);
+		if (rc)
+			dev_err(&ndev->pdev->dev, "Error determining link status\n");
+
+		writew(1 << (ndev->limits.max_db_bits - 1), ndev->reg_base + ndev->reg_ofs.pdb);
+	}
+
+	return IRQ_HANDLED;
 }
 
 static int ntb_setup_msix(struct ntb_device *ndev)
@@ -895,7 +929,7 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 		goto err1;
 	if (rc > 0) {
 		/* We need 1 vector for links and 1 vector for a queue.  If not, then we can't use MSI-X */
-		if (rc > 2) {
+		if (rc < 2) {
 			rc = -EIO;
 			goto err1;
 		}
@@ -908,12 +942,13 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 		msix = &ndev->msix_entries[i];
 		WARN_ON(!msix->vector);
 
-		if (ndev->hw_type == BWD_HW) {
-			rc = request_irq(msix->vector, ntb_msix_irq, 0, "ntb-msix", ndev);
+		/* Use the last MSI-X vector for Link status */
+		if (i == msix_entries - 1) {
+			rc = request_irq(msix->vector, ntb_event_msix_irq, 0, "ntb-event-msix", ndev);
 			if (rc)
 				goto err2;
 		} else {
-			rc = request_irq(msix->vector, ntb_msix_irq, 0, "ntb-msix", ndev);
+			rc = request_irq(msix->vector, ntb_callback_msix_irq, 0, "ntb-callback-msix", &ndev->db_cb[i]);
 			if (rc)
 				goto err2;
 		}
@@ -1021,7 +1056,10 @@ static void ntb_free_interrupts(struct ntb_device *ndev)
 
 		for (i = 0; i < ndev->num_msix; i++) {
 			msix = &ndev->msix_entries[i];
-			free_irq(msix->vector, ndev);
+			if (i == ndev->num_msix - 1)
+				free_irq(msix->vector, ndev);
+			else
+				free_irq(msix->vector, &ndev->db_cb[i]);
 		}
 		pci_disable_msix(pdev);
 	} else {
@@ -1040,8 +1078,10 @@ static int ntb_create_callbacks(struct ntb_device *ndev)
 	if (!ndev->db_cb)
 		return -ENOMEM;
 
-	for (i = 0; i < ndev->limits.max_db_bits; i++)
+	for (i = 0; i < ndev->limits.max_db_bits; i++) {
 		ndev->db_cb[i].db_num = i;
+		ndev->db_cb[i].ndev = ndev;
+	}
 
 	return 0;
 }
@@ -1121,13 +1161,13 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (rc)
 		goto err3;
 
-	rc = ntb_setup_interrupts(ndev);
-	if (rc)
-		goto err4;
-
 	rc = ntb_create_callbacks(ndev);
 	if (rc)
 		goto err5;
+
+	rc = ntb_setup_interrupts(ndev);
+	if (rc)
+		goto err4;
 
 	ndev->link_status = NTB_LINK_DOWN;
 

@@ -76,6 +76,7 @@ typedef void(*event_cb_func)(void *handle, unsigned int event);
 struct ntb_db_cb {
 	db_cb_func callback;
 	unsigned int db_num;
+	struct ntb_device *ndev;
 };
 
 #define NTB_NUM_MW	2
