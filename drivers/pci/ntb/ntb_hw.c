@@ -867,7 +867,7 @@ static irqreturn_t ntb_callback_msix_irq(int irq, void *data)
 
 		writeq((u64) 1 << db_cb->db_num, ndev->reg_base + ndev->reg_ofs.pdb);
 	 } else 
-		writew(1 << db_cb->db_num, ndev->reg_base + ndev->reg_ofs.pdb);
+		writew(0xf << (db_cb->db_num * SNB_MSIX_CNT), ndev->reg_base + ndev->reg_ofs.pdb);
 
 	return IRQ_HANDLED;
 }
@@ -876,21 +876,23 @@ static irqreturn_t ntb_callback_msix_irq(int irq, void *data)
 static irqreturn_t ntb_event_msix_irq(int irq, void *dev)
 {
 	struct ntb_device *ndev = dev;
-	int rc;
 
 	dev_dbg(&ndev->pdev->dev, "MSI-X irq %d received for Events\n", irq);
 
+	//FIXME - currently unused
 	if (ndev->hw_type == BWD_HW) {
 		/* No need to check for the specific HB irq, any interrupt means we're connected */
 		ndev->last_ts = jiffies;
 
 		writeq((u64) 1 << (ndev->limits.max_db_bits - 1), ndev->reg_base + ndev->reg_ofs.pdb);
 	} else { 
+		int rc;
+
 		rc = ntb_link_status(ndev);
 		if (rc)
 			dev_err(&ndev->pdev->dev, "Error determining link status\n");
 
-		writew(1 << (ndev->limits.max_db_bits - 1), ndev->reg_base + ndev->reg_ofs.pdb);
+		writew(0xf << (ndev->limits.max_db_bits - SNB_MSIX_CNT), ndev->reg_base + ndev->reg_ofs.pdb);
 	}
 
 	return IRQ_HANDLED;
