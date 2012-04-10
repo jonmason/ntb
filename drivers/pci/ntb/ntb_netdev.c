@@ -414,6 +414,7 @@ static const struct net_device_ops ntb_netdev_ops = {
 	.ndo_start_xmit = ntb_netdev_start_xmit,
 	.ndo_change_mtu = ntb_netdev_change_mtu,
 	.ndo_tx_timeout = ntb_netdev_tx_timeout,
+	.ndo_set_mac_address = eth_mac_addr,
 };
 
 static void ntb_get_drvinfo(struct net_device *dev, struct ethtool_drvinfo *info)

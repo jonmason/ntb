@@ -66,7 +66,6 @@
 #include <linux/types.h>
 #include "ntb_hw.h"
 #include "ntb_transport.h"
-#include <linux/prefetch.h>
 
 struct ntb_transport_qp {
 	struct ntb_device *ndev;
@@ -274,11 +273,13 @@ static void ntb_transport_event_callback(void *data, unsigned int event)
 
 			if (event == NTB_LINK_UP) {
 				/* Reset tx rings on link-up.  This gives the rx ring a little time to catch up on link down. */
-#if 0
 				ntb_transport_put_remote_offset(qp, RX_OFFSET, 0); //FIXME - handle rc
 				ntb_transport_put_remote_offset(qp, TX_OFFSET, 0); //FIXME - handle rc
-#endif
-				//FIXME - set the # pkts to zero
+
+				qp->rx_offset = qp->rx_mw_begin;
+				qp->tx_offset = qp->tx_buf_begin;
+				qp->rx_pkts = 0;
+				qp->tx_pkts = 0;
 
 				qp->hw_link = NTB_LINK_UP;
 			} else
@@ -291,7 +292,6 @@ static void ntb_transport_event_callback(void *data, unsigned int event)
 		}
 }
 
-//FIXME - currently we have to expose this to the clients, but we should really init it all on the first qp created and free when the alst one is removed
 static int ntb_transport_init(void)
 {
 	int rc, i;
@@ -376,7 +376,7 @@ static void ntb_transport_free(void)
 
 	kfree(transport->qps);
 	ntb_unregister_transport(transport->ndev);
-	kfree(transport);//FIXME - add refcount
+	kfree(transport);
 	transport = NULL;
 }
 
@@ -656,10 +656,6 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 	clear_bit(free_queue, &transport->qp_bitmap);//FIXME - this might be racy, either add lock or make atomic
 
 	qp = &transport->qps[free_queue];
-//FIXME - hack
-	qp->rx_pkts = 0;
-	qp->tx_pkts = 0;
-
 	qp->qp_num = free_queue;
 	qp->ndev = transport->ndev;
 
@@ -709,7 +705,7 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 	if (rc)
 		goto err3;
 
-	//wake_up_process(qp->rx_work);
+	wake_up_process(qp->rx_work);
 	wake_up_process(qp->tx_work);
 
 	if (qp->ndev->link_status)
@@ -898,7 +894,6 @@ void ntb_transport_link_down(struct ntb_transport_qp *qp)
 	qp->sw_link = 0;
 }
 EXPORT_SYMBOL(ntb_transport_link_down);
-
 
 static void ntb_transport_event_work(struct work_struct *work)
 {

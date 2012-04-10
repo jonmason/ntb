@@ -862,6 +862,7 @@ static irqreturn_t ntb_callback_msix_irq(int irq, void *data)
 		db_cb->callback(db_cb->db_num);
 
 	if (ndev->hw_type == BWD_HW) {
+		/* No need to check for the specific HB irq, any interrupt means we're connected */
 		ndev->last_ts = jiffies;
 
 		writeq((u64) 1 << db_cb->db_num, ndev->reg_base + ndev->reg_ofs.pdb);
@@ -957,8 +958,12 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 	ndev->num_msix = msix_entries;
 
 	//FIXME - need to handle the SNB vector to num of bits perf vector
-	if (ndev->limits.max_db_bits != msix_entries)
-		ndev->limits.max_db_bits = msix_entries;
+	if (ndev->limits.max_db_bits != msix_entries) {
+		if (ndev->hw_type == BWD_HW)
+			ndev->limits.max_db_bits = msix_entries;
+		else
+			ndev->limits.max_db_bits = msix_entries * 4;
+	}
 
 	return 0;
 
