@@ -1129,8 +1129,7 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	for (i = 0; i < NTB_NUM_MW; i++) {
 		ndev->mw[i].bar_sz = pci_resource_len(pdev, MW_TO_BAR(i));
-		ndev->mw[i].vbase = pci_ioremap_bar(pdev, MW_TO_BAR(i));
-		//ndev->mw[i].vbase = ioremap_wc(pci_resource_start(pdev, MW_TO_BAR(i)), ndev->mw[i].bar_sz);
+		ndev->mw[i].vbase = ioremap_wc(pci_resource_start(pdev, MW_TO_BAR(i)), ndev->mw[i].bar_sz);
 		dev_dbg(&pdev->dev, "Addr %p len %d\n", ndev->mw[i].vbase, (u32) pci_resource_len(pdev, i));
 		if (!ndev->mw[i].vbase) {
 			dev_warn(&pdev->dev, "Cannot remap BAR %d\n", MW_TO_BAR(i));
