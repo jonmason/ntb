@@ -66,7 +66,7 @@
 #include <linux/random.h>
 
 #define NTB_NAME	"Intel(R) PCIe Non-Transparent Bridge Driver"
-#define NTB_VER		"0.7"
+#define NTB_VER		"0.8"
 
 MODULE_DESCRIPTION(NTB_NAME);
 MODULE_VERSION(NTB_VER);
@@ -1169,11 +1169,11 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	rc = ntb_create_callbacks(ndev);
 	if (rc)
-		goto err5;
+		goto err4;
 
 	rc = ntb_setup_interrupts(ndev);
 	if (rc)
-		goto err4;
+		goto err5;
 
 	ndev->link_status = NTB_LINK_DOWN;
 
@@ -1183,7 +1183,7 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	return 0;
 
 err5:
-	ntb_free_interrupts(ndev);
+	ntb_free_callbacks(ndev);
 err4:
 	ntb_device_free(ndev);
 err3:
@@ -1212,9 +1212,9 @@ static void __devexit ntb_pci_remove(struct pci_dev *pdev)
 	ntb_cntl |= NTB_LINK_DISABLE;
 	writel(ntb_cntl, ndev->reg_base + ndev->reg_ofs.lnk_cntl);
 
-	ntb_free_callbacks(ndev);
-
 	ntb_free_interrupts(ndev);
+
+	ntb_free_callbacks(ndev);
 
 	ntb_device_free(ndev);
 
