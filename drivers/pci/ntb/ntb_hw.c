@@ -63,10 +63,9 @@
 #include <linux/slab.h>
 #include "ntb_hw.h"
 #include "ntb_regs.h"
-#include <linux/random.h>
 
 #define NTB_NAME	"Intel(R) PCIe Non-Transparent Bridge Driver"
-#define NTB_VER		"0.8"
+#define NTB_VER		"0.9"
 
 MODULE_DESCRIPTION(NTB_NAME);
 MODULE_VERSION(NTB_VER);
@@ -101,76 +100,6 @@ static struct pci_device_id ntb_pci_tbl[] = {
 MODULE_DEVICE_TABLE(pci, ntb_pci_tbl);
 
 struct ntb_device *ntbdev;
-
-static int pci_read_config_qword(struct pci_dev *dev, int where, u64 *val)
-{
-	u32 lval, hval;
-	int rc;
-
-	rc = pci_read_config_dword(dev, where, &hval);
-	if (rc)
-		return rc;
-
-	rc = pci_read_config_dword(dev, where + 0x4, &lval);
-	if (rc)
-		return rc;
-
-	*val = ((u64) hval) << 32 | lval;
-
-	return 0;
-}
-
-static void ntb_debug_dump(struct ntb_device *ndev)
-{
-	u64 status64;
-	u16 status16;
-	int rc;
-
-	//FIXME - is ndev->dev_type needed anywhere aside from here?
-	dev_info(&ndev->pdev->dev, "%s %s %s\n", (ndev->hw_type == BWD_HW) ? "BWD" : "SND", (ndev->conn_type == NTB_CONN_B2B) ? "NTB B2B" : "NTB-RP", (ndev->dev_type == NTB_DEV_USD) ? "USD/DSP" : "DSD/USP");
-
-	if (ndev->hw_type == BWD_HW)
-		status16 = readw(ndev->reg_base + ndev->reg_ofs.lnk_stat);
-	else {
-		rc = pci_read_config_word(ndev->pdev, ndev->reg_ofs.lnk_stat, &status16);
-		if (rc)
-			return;
-	}
-
-	dev_info(&ndev->pdev->dev, "Link %s, Link Width %d, Link Speed %d\n", !!(status16 & NTB_LINK_STATUS_ACTIVE) ? "Up" : "Down", (status16 & 0x3f0) >> 4, (status16 & 0xf));
-
-	rc = pci_read_config_qword(ndev->pdev, 0x10, &status64);
-	if (rc)
-		return;
-
-	dev_info(&ndev->pdev->dev, "PB01BASE %llx\n", status64);
-
-	dev_info(&ndev->pdev->dev, "Local BAR0 %p\n", ndev->reg_base);
-
-	rc = pci_read_config_qword(ndev->pdev, 0x18, &status64);
-	if (rc)
-		return;
-
-	dev_info(&ndev->pdev->dev, "PBAR2BASE %llx MMIO addr %p\n", status64, ndev->mw[0].vbase);
-	if (ndev->hw_type == BWD_HW) {
-		dev_info(&ndev->pdev->dev, "MBAR01XLAT %lx\n", readq(ndev->reg_base));
-		dev_info(&ndev->pdev->dev, "MBAR23XLAT %lx MBAR45XLAT %lx\n", readq(ndev->reg_base + 0x8), readq(ndev->reg_base + 0x10));
-		dev_info(&ndev->pdev->dev, "eEP MBAR23XLAT %lx eEP MBAR45XLAT %lx\n", readq(ndev->reg_base + 0xb018), readq(ndev->reg_base + 0xb020));
-		dev_info(&ndev->pdev->dev, "iEP MBAR23_IP %lx iEP MBAR45_IP %lx\n", readq(ndev->reg_base + 0x8), readq(ndev->reg_base + 0x10));
-	} else
-		dev_info(&ndev->pdev->dev, "PBAR2XLAT %lx PBAR4XLAT %lx\n", readq(ndev->reg_base + 0x10), readq(ndev->reg_base + 0x18));
-
-	dev_info(&ndev->pdev->dev, "SBAR2XLAT %lx SBAR4XLAT %lx\n", readq(ndev->reg_base + ndev->reg_ofs.sbar2_xlat), readq(ndev->reg_base + ndev->reg_ofs.sbar4_xlat));
-	dev_info(&ndev->pdev->dev, "SBAR0BASE %lx SBAR2BASE %lx SBAR4BASE %lx\n", readq(ndev->reg_base + 0x40), readq(ndev->reg_base + 0x48), readq(ndev->reg_base + 0x50));
-	dev_info(&ndev->pdev->dev, "B2BBAR0XLAT %lx\n", readq(ndev->reg_base + 0x144));
-	dev_info(&ndev->pdev->dev, "NTBCNTL %x\n", readl(ndev->reg_base + ndev->reg_ofs.lnk_cntl));
-
-	if (ndev->hw_type == BWD_HW) {
-		dev_info(&ndev->pdev->dev, "MSI-X Control Internal %x\n", readw(ndev->reg_base + 0x30B2));
-		dev_info(&ndev->pdev->dev, "MSI-X Control External %x\n", readw(ndev->reg_base + 0xB0B2));
-	} else
-		dev_info(&ndev->pdev->dev, "Upstream Memory Misses %d\n", readw(ndev->reg_base + 0x70));
-}
 
 /**
  * ntb_query_db_bits() - return the number of doorbell bits
@@ -522,6 +451,8 @@ EXPORT_SYMBOL(ntb_ring_sdb);
 
 static void ntb_link_event(struct ntb_device *ndev, int link_state)
 {
+	unsigned int event;
+
 	if (ndev->link_status == link_state)
 		return;
 
@@ -529,15 +460,16 @@ static void ntb_link_event(struct ntb_device *ndev, int link_state)
 		dev_info(&ndev->pdev->dev, "Link Up\n");
 		ndev->link_status = NTB_LINK_UP;
 
-		ntb_debug_dump(ndev);
+		event = NTB_EVENT_HW_LINK_UP;
 	} else {
 		dev_info(&ndev->pdev->dev, "Link Down\n");
 		ndev->link_status = NTB_LINK_DOWN;
+		event = NTB_EVENT_HW_LINK_DOWN;
 	}
 
 	/* notify the upper layer if we have an event change */
 	if (ndev->event_cb)
-		ndev->event_cb(ndev->ntb_transport, link_state);
+		ndev->event_cb(ndev->ntb_transport, event);
 }
 
 static int ntb_link_status(struct ntb_device *ndev)
@@ -946,7 +878,7 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 		WARN_ON(!msix->vector);
 
 		/* Use the last MSI-X vector for Link status */
-		if (i == msix_entries - 1) {
+		if (i == msix_entries - 1 && ndev->hw_type != BWD_HW) {
 			rc = request_irq(msix->vector, ntb_event_msix_irq, 0, "ntb-event-msix", ndev);
 			if (rc)
 				goto err2;
@@ -1025,7 +957,7 @@ static int ntb_setup_interrupts(struct ntb_device *ndev)
 
 	/* Enable Link/HB Interrupt, the rest will be unmasked as callbacks are registered */
 	if (ndev->hw_type == BWD_HW)
-		writeq(~(1 << (ndev->limits.max_db_bits - 1)), ndev->reg_base + ndev->reg_ofs.pdb_mask);
+		writeq(~0, ndev->reg_base + ndev->reg_ofs.pdb_mask);
 	else
 		writew(~(1 << (ndev->limits.max_db_bits - 1)), ndev->reg_base + ndev->reg_ofs.pdb_mask);
 

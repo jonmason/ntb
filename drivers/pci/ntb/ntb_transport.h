@@ -69,12 +69,16 @@ struct ntb_queue_entry {
 };
 
 typedef void(*handler)(struct ntb_transport_qp *qp);
+typedef void (*ehandler)(int status);
+
+int ntb_transport_init(void);
+void ntb_transport_free(void);
 
 struct ntb_queue_entry *ntb_transport_rx_remove(struct ntb_transport_qp *qp);
 size_t ntb_transport_max_size(struct ntb_transport_qp *qp);
 void ntb_transport_dump_qp_stats(struct ntb_transport_qp *qp);
 
-struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler, handler tx_handler);
+struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler, handler tx_handler, ehandler event_handler);
 void ntb_transport_free_queue(struct ntb_transport_qp *qp);
 int ntb_transport_rx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry);
 int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry);
@@ -82,7 +86,4 @@ struct ntb_queue_entry *ntb_transport_tx_dequeue(struct ntb_transport_qp *qp);
 struct ntb_queue_entry *ntb_transport_rx_dequeue(struct ntb_transport_qp *qp);
 void ntb_transport_link_up(struct ntb_transport_qp *qp);
 void ntb_transport_link_down(struct ntb_transport_qp *qp);
-
-#define LINK_EVENT	(1 << 0)
-int ntb_transport_reg_event_callback(struct ntb_transport_qp *qp, void (*handler)(int status));
 bool ntb_transport_hw_link_query(struct ntb_transport_qp *qp);

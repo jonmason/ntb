@@ -124,6 +124,15 @@ struct ntb_device {
 	unsigned long last_ts;
 };
 
+enum {
+	NTB_EVENT_SW_EVENT0	= (1 << 0),
+	NTB_EVENT_SW_EVENT1	= (1 << 1),
+	NTB_EVENT_SW_EVENT2	= (1 << 2),
+	NTB_EVENT_HW_ERROR	= (1 << 3),
+	NTB_EVENT_HW_LINK_UP	= (1 << 4),
+	NTB_EVENT_HW_LINK_DOWN	= (1 << 5),
+};
+
 unsigned int ntb_query_db_bits(struct ntb_device *ndev);
 struct ntb_device *ntb_register_transport(void *transport);
 void ntb_unregister_transport(struct ntb_device *ndev);

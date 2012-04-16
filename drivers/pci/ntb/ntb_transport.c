@@ -89,10 +89,11 @@ struct ntb_transport_qp {
 	void (*tx_handler)(struct ntb_transport_qp *qp);
 	void (*event_handler)(int status);
 	struct delayed_work event_work;
+	struct delayed_work link_work;
 	//FIXME - unless this is getting larger than a cacheline, bit fields might not be worth it
 	unsigned int event_flags:1;
-	unsigned int sw_link:1;
-	unsigned int hw_link:1;
+	unsigned int client_ready:1;
+	unsigned int qp_link:1;
 	unsigned int qp_num:6;/* Only 64 QP's are allowed.  0-63 */
 
 	/* Stats */
@@ -123,8 +124,7 @@ struct ntb_transport {
 struct ntb_payload_header {
 	unsigned int len;
 	u64 ver;
-	u32 tx_done:1;
-	u32 rx_done:1;
+	u8 link:1;
 };
 
 enum {
@@ -271,33 +271,34 @@ static void ntb_transport_event_callback(void *data, unsigned int event)
 		if (!test_bit(i, &transport->qp_bitmap)) {
 			struct ntb_transport_qp *qp = &transport->qps[i];
 
-			if (event == NTB_LINK_UP) {
-				/* Reset tx rings on link-up.  This gives the rx ring a little time to catch up on link down. */
-				ntb_transport_put_remote_offset(qp, RX_OFFSET, 0); //FIXME - handle rc
-				ntb_transport_put_remote_offset(qp, TX_OFFSET, 0); //FIXME - handle rc
+			pr_err("%s: qp %d gets events %x\n", __func__, i, event);
 
-				qp->rx_offset = qp->rx_mw_begin;
-				qp->tx_offset = qp->tx_buf_begin;
-				qp->rx_pkts = 0;
-				qp->tx_pkts = 0;
+			if (event == NTB_EVENT_HW_ERROR)
+				BUG();
 
-				qp->hw_link = NTB_LINK_UP;
-			} else
-				qp->hw_link = NTB_LINK_DOWN;
-
-			if (transport->qps[i].event_handler) {
-				qp->event_flags |= event; //FIXME - could be racy and only 1 bit
-				schedule_delayed_work(&qp->event_work, 0);
+			if (event == NTB_EVENT_HW_LINK_UP) {
+				/* If the HW link comes up, notify the remote side we're up */
+				schedule_delayed_work(&qp->link_work, 0);
+				continue;
 			}
+
+			if (event == NTB_EVENT_HW_LINK_DOWN) {
+				qp->qp_link = NTB_LINK_DOWN;
+				cancel_delayed_work_sync(&qp->link_work);
+			}
+
+			//FIXME - determine what to send to the clients
+			qp->event_flags = qp->qp_link; //FIXME - handle more things
+			schedule_delayed_work(&qp->event_work, 0);
 		}
 }
 
-static int ntb_transport_init(void)
+int ntb_transport_init(void)
 {
 	int rc, i;
 
 	if (transport)
-		return -EINVAL;//FIXME - add refcount
+		return -EINVAL;
 
 	transport = kmalloc(sizeof(struct ntb_transport), GFP_ATOMIC);
 	if (!transport)
@@ -354,8 +355,9 @@ err:
 	kfree(transport);
 	return rc;
 } 
+EXPORT_SYMBOL(ntb_transport_init);
 
-static void ntb_transport_free(void)
+void ntb_transport_free(void)
 {
 	int i;
 
@@ -379,6 +381,7 @@ static void ntb_transport_free(void)
 	kfree(transport);
 	transport = NULL;
 }
+EXPORT_SYMBOL(ntb_transport_free);
 
 static bool pass_check(u32 tx_orig, u32 tx_curr, u32 rx)
 {
@@ -480,7 +483,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	ntb_list_add_tail(qp, &entry->entry, &qp->rx_comp_q);
 
 	//FIXME - this should kick off wq thread or we should document that it runs in irq context
-	if (qp->rx_handler && qp->sw_link)
+	if (qp->rx_handler && qp->client_ready)
 		qp->rx_handler(qp);
 
 	return 0;
@@ -619,6 +622,60 @@ static int ntb_transport_tx(void *data)
 	return 0;
 }
 
+static void ntb_transport_event_work(struct work_struct *work)
+{
+	struct ntb_transport_qp *qp = container_of(work, struct ntb_transport_qp, event_work.work);
+
+	if (qp->event_handler)
+		qp->event_handler(qp->event_flags);
+}
+
+static void ntb_transport_link_work(struct work_struct *work)
+{
+	struct ntb_transport_qp *qp = container_of(work, struct ntb_transport_qp, link_work.work);
+	int rc;
+	u32 rx_offset;
+	struct ntb_queue_entry entry;
+
+	if (!qp->ndev->link_status)
+		return;
+
+
+	/* Reset tx rings on link-up.  This gives the rx ring a little time to catch up on link down. */
+	ntb_transport_put_remote_offset(qp, RX_OFFSET, 0); //FIXME - handle rc
+	ntb_transport_put_remote_offset(qp, TX_OFFSET, 0); //FIXME - handle rc
+
+	qp->rx_offset = qp->rx_mw_begin;
+	qp->tx_offset = qp->tx_buf_begin;
+	qp->rx_pkts = 0;
+	qp->tx_pkts = 0;
+
+#if 0
+	rc = ntb_transport_get_remote_offset(qp, RX_OFFSET, &rx_offset);
+	if (rc)
+		pr_err("%s: error reading from offset %d\n", __func__, RX_OFFSET);
+
+	/* If the rx_offset is non-zero, then the remote system received the previously sent link message */
+	if (rx_offset) {
+		pr_info("QP %d Link Up\n", qp->qp_num);
+#endif
+		qp->qp_link = NTB_LINK_UP;
+		qp->event_flags = qp->qp_link; 
+
+		schedule_delayed_work(&qp->event_work, 0);
+#if 0
+		return;
+	}
+
+	entry.len = 0;
+	entry.buf = NULL;
+
+	ntb_process_tx(qp, &entry);//FIXME - check rc
+
+	schedule_delayed_work(&qp->link_work, msecs_to_jiffies(1000));
+#endif
+}
+
 /**
  * ntb_transport_create_queue - Create a new NTB transport layer queue
  * @rx_handler: receive callback function 
@@ -633,17 +690,19 @@ static int ntb_transport_tx(void *data)
  * RETURNS: pointer to newly created ntb_queue, NULL on error.
  */
 struct ntb_transport_qp *
-ntb_transport_create_queue(handler rx_handler, handler tx_handler)
+ntb_transport_create_queue(handler rx_handler, handler tx_handler, ehandler event_handler)
 {
 	struct ntb_transport_qp *qp;
 	unsigned int free_queue;
 	int rc, irq;
 
+#if 0
 	if (!transport) {
 		rc = ntb_transport_init();
 		if (rc)
 			return NULL;
 	}
+#endif
 
 	//FIXME - need to handhake with remote side to determine matching number or some mapping between the 2
 	free_queue = ffs(transport->qp_bitmap);
@@ -656,12 +715,17 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 	clear_bit(free_queue, &transport->qp_bitmap);//FIXME - this might be racy, either add lock or make atomic
 
 	qp = &transport->qps[free_queue];
+	qp->qp_link = NTB_LINK_DOWN;
 	qp->qp_num = free_queue;
 	qp->ndev = transport->ndev;
 
 	qp->rx_handler = rx_handler;
 	qp->tx_handler = tx_handler;
-	qp->event_handler = NULL;
+	qp->event_handler = event_handler;
+
+	//FIXME - workqueue might be overkill, and might not need to be delayed...
+	INIT_DELAYED_WORK(&qp->event_work, ntb_transport_event_work);
+	INIT_DELAYED_WORK(&qp->link_work, ntb_transport_link_work);
 
 	spin_lock_init(&qp->list_lock);
 
@@ -684,15 +748,18 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 		goto err2;
 	}
 
+	//FIXME - zero stats
 	ntb_transport_put_remote_offset(qp, RX_OFFSET, 0); //FIXME - handle rc
 	ntb_transport_put_remote_offset(qp, TX_OFFSET, 0); //FIXME - handle rc
 
-	qp->rx_mw_begin = ntb_get_mw_vbase(qp->ndev, QP_TO_MW(free_queue));
+	qp->rx_mw_begin = transport->mw[QP_TO_MW(free_queue)].virt_addr;
+	//qp->rx_mw_begin = ntb_get_mw_vbase(qp->ndev, QP_TO_MW(free_queue));
 	qp->rx_mw_end = qp->rx_mw_begin + transport->mw[QP_TO_MW(free_queue)].size;
 	pr_debug("RX MW start %p end %p\n", qp->rx_mw_begin, qp->rx_mw_end);
 	qp->rx_offset = qp->rx_mw_begin;
 
-	qp->tx_buf_begin = transport->mw[QP_TO_MW(free_queue)].virt_addr;
+	qp->tx_buf_begin = ntb_get_mw_vbase(qp->ndev, QP_TO_MW(free_queue));
+	//qp->tx_buf_begin = transport->mw[QP_TO_MW(free_queue)].virt_addr;
 	qp->tx_buf_end = qp->tx_buf_begin + transport->mw[QP_TO_MW(free_queue)].size;
 	pr_debug("TX buf start %p end %p\n", qp->tx_buf_begin, qp->tx_buf_end);
 	qp->tx_offset = qp->tx_buf_begin;
@@ -709,9 +776,7 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler)
 	wake_up_process(qp->tx_work);
 
 	if (qp->ndev->link_status)
-		qp->hw_link = NTB_LINK_UP;
-	else
-		qp->hw_link = NTB_LINK_DOWN;
+		schedule_delayed_work(&qp->link_work, 0);
 
 	return qp;
 
@@ -748,8 +813,11 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 	if (!qp)
 		return;
 
-	qp->sw_link = NTB_LINK_DOWN;
-	qp->hw_link = NTB_LINK_DOWN;
+	qp->qp_link = NTB_LINK_DOWN;
+
+	cancel_delayed_work_sync(&qp->event_work);
+	cancel_delayed_work_sync(&qp->link_work);
+
 	qp->event_handler = NULL;
 	ntb_unregister_db_callback(qp->ndev, QP_TO_DB(qp->qp_num));
 	//FIXME - wait for qps to quience or notify the transport to stop?
@@ -762,16 +830,21 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 	ntb_purge_list(&qp->txq);
 	ntb_purge_list(&qp->tx_comp_q);
 
+	ntb_transport_put_remote_offset(qp, RX_OFFSET, 0); //FIXME - handle rc
+	ntb_transport_put_remote_offset(qp, TX_OFFSET, 0); //FIXME - handle rc
+
 	set_bit(qp->qp_num, &transport->qp_bitmap);
 
+#if 0
 	if (transport->qp_bitmap == ~(transport->max_qps - 1))
 		ntb_transport_free();
+#endif
 }
 EXPORT_SYMBOL(ntb_transport_free_queue);
 
 struct ntb_queue_entry *ntb_transport_rx_remove(struct ntb_transport_qp *qp)
 {
-	if (!qp || qp->sw_link)
+	if (!qp || qp->client_ready == NTB_LINK_UP)
 		return NULL;
 
 	return ntb_list_rm_head(qp, &qp->rxq);
@@ -811,7 +884,7 @@ EXPORT_SYMBOL(ntb_transport_rx_enqueue);
  */
 int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry)
 {
-	if (!qp || qp->hw_link != NTB_LINK_UP)
+	if (!qp || qp->qp_link != NTB_LINK_UP)
 		return -EINVAL;
 
 #if 0 
@@ -874,7 +947,7 @@ void ntb_transport_link_up(struct ntb_transport_qp *qp)
 	if (!qp)
 		return;
 
-	qp->sw_link = 1;
+	qp->client_ready = NTB_LINK_UP;
 }
 EXPORT_SYMBOL(ntb_transport_link_up);
 
@@ -891,43 +964,9 @@ void ntb_transport_link_down(struct ntb_transport_qp *qp)
 	if (!qp)
 		return;
 
-	qp->sw_link = 0;
+	qp->client_ready = NTB_LINK_DOWN;
 }
 EXPORT_SYMBOL(ntb_transport_link_down);
-
-static void ntb_transport_event_work(struct work_struct *work)
-{
-	struct ntb_transport_qp *qp = container_of(work, struct ntb_transport_qp, event_work.work);
-
-	if (qp->event_handler)
-		qp->event_handler(qp->event_flags);
-}
-
-/**
- * ntb_transport_reg_event_callback - Register event callback handler
- * @qp: NTB transport layer queue to which the callback is bound
- * @handler: Callback routine
- *
- * Register the callback routine to handle all non-data transport related
- * events.  Currently this is only a `link up/down` event, but may be expanded
- * in the future.  A `link up/down` event does not specify the state of the
- * link, only that it has toggled.
- *
- * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
- */
-int ntb_transport_reg_event_callback(struct ntb_transport_qp *qp, void (*handler)(int status))
-{
-	if (!qp)
-		return -EINVAL;
-
-	qp->event_handler = handler;
-
-	//FIXME - workqueue might be overkill, and might not need to be delayed...
-	INIT_DELAYED_WORK(&qp->event_work, ntb_transport_event_work);
-
-	return 0;
-}
-EXPORT_SYMBOL(ntb_transport_reg_event_callback);
 
 /**
  * ntb_transport_hw_link_query - Query hardware link state
@@ -937,9 +976,9 @@ EXPORT_SYMBOL(ntb_transport_reg_event_callback);
  *
  * RETURNS: true for link up or false for link down
  */
-bool ntb_transport_hw_link_query(struct ntb_transport_qp *qp)
+bool ntb_transport_hw_link_query(struct ntb_transport_qp *qp)//FIXME - rename
 {
-	return qp->ndev->link_status;
+	return qp->qp_link == NTB_LINK_UP;
 }
 EXPORT_SYMBOL(ntb_transport_hw_link_query);
 

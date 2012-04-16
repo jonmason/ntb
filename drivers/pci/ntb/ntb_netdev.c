@@ -118,7 +118,7 @@ static void ntb_netdev_event_handler(int status)
 	pr_info("%s: Event %x, Link %x\n", KBUILD_MODNAME, status, ntb_transport_hw_link_query(dev->qp));
 
 	/* Currently, only link status event is supported */
-	if (ntb_transport_hw_link_query(dev->qp))
+	if (status)
 		netif_carrier_on(netdev);
 	else
 		netif_carrier_off(netdev);
@@ -253,15 +253,11 @@ static int ntb_netdev_open(struct net_device *ndev)
 	struct ntb_queue_entry *entry;
 	int rc, i;
 
-	dev->qp = ntb_transport_create_queue(ntb_netdev_rx_handler, ntb_netdev_tx_handler);
+	dev->qp = ntb_transport_create_queue(ntb_netdev_rx_handler, ntb_netdev_tx_handler, ntb_netdev_event_handler);
 	if (!dev->qp) {
 		rc = -EIO;
 		goto err;
 	}
-
-	rc = ntb_transport_reg_event_callback(dev->qp, ntb_netdev_event_handler);
-	if (rc)
-		goto err1;
 
 	INIT_LIST_HEAD(&dev->tx_entries);
 
@@ -270,18 +266,18 @@ static int ntb_netdev_open(struct net_device *ndev)
 		entry = alloc_entry(ndev->mtu + ETH_HLEN);
 		if (!entry) {
 			rc = -ENOMEM;
-			goto err2;
+			goto err1;
 		}
 
 		rc = ntb_transport_rx_enqueue(dev->qp, entry);
 		if (rc) {
 			free_entry(entry);
-			goto err2;
+			goto err1;
 		}
 
 		entry = kzalloc(sizeof(struct ntb_queue_entry), GFP_ATOMIC);
 		if (!entry)
-			goto err2;
+			goto err1;
 
 		list_add_tail(&entry->entry, &dev->tx_entries);
 	}
@@ -295,7 +291,7 @@ static int ntb_netdev_open(struct net_device *ndev)
 
 	return 0;
 
-err2:
+err1:
 	while (!list_empty(&dev->tx_entries)) {
 		entry = list_first_entry(&dev->tx_entries, struct ntb_queue_entry, entry);
 		list_del(&entry->entry);
@@ -305,7 +301,7 @@ err2:
 
 	while ((entry = ntb_transport_rx_remove(dev->qp)))
 		free_entry(entry);
-err1:
+
 	ntb_transport_free_queue(dev->qp);
 err:
 	return rc;
@@ -486,6 +482,8 @@ static int __init ntb_netdev_init_module(void)
 
 	pr_info("%s: Probe\n", KBUILD_MODNAME);
 
+	ntb_transport_init();//FIXME - rc
+
 	netdev = alloc_etherdev(sizeof(struct ntb_netdev));//FIXME - might be worth trying multiple queues...
 	if (!netdev)
 		return -ENOMEM;
@@ -524,6 +522,7 @@ static void __exit ntb_netdev_exit_module(void)
 {
 	unregister_netdev(netdev);
 	free_netdev(netdev);
+	ntb_transport_free();
 
 	pr_info("%s: Driver removed\n", KBUILD_MODNAME);
 }
