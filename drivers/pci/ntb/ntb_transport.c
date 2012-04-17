@@ -460,14 +460,11 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 		qp->rx_err_oflow++;
 		oflow = true;
 	} else {
-		if (hdr->len == 0) {//FIXME - ugly
-			if (!hdr->link) {
-				pr_info("QP %d Link Down\n", qp->qp_num);
-				qp->event_flags = NTB_LINK_DOWN; 
+		if (!hdr->link) {
+			pr_info("QP %d Link Down\n", qp->qp_num);
+			qp->event_flags = NTB_LINK_DOWN; 
 
-				schedule_delayed_work(&qp->event_work, msecs_to_jiffies(1000));
-			}
-
+			schedule_delayed_work(&qp->event_work, msecs_to_jiffies(1000));
 			oflow = true;
 		} else {
 			entry->len = hdr->len;
@@ -656,6 +653,8 @@ static void ntb_transport_event_work(struct work_struct *work)
 		qp->qp_link = NTB_LINK_DOWN;
 		qp->rx_pkts = 0;
 		qp->tx_pkts = 0;
+		qp->tx_offset = qp->tx_buf_begin;
+		qp->rx_offset = qp->rx_mw_begin;
 		ntb_transport_put_remote_offset(qp, RX_OFFSET, 0); //FIXME - handle rc
 		ntb_transport_put_remote_offset(qp, TX_OFFSET, 0); //FIXME - handle rc
 
