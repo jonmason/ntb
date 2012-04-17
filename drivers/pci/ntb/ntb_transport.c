@@ -415,6 +415,14 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	u32 tx_offset;
 	static u32 last = -1;
 
+	if (qp->qp_link == NTB_LINK_DOWN) {
+		pr_info("QP %d Link Up\n", qp->qp_num);
+		qp->event_flags = NTB_LINK_UP; 
+
+		schedule_delayed_work(&qp->event_work, msecs_to_jiffies(1000));
+		return -EAGAIN;
+	}
+
 	rc = ntb_transport_get_remote_offset(qp, TX_OFFSET, &tx_offset);
 	if (rc)
 		pr_err("%s: error reading from offset %d\n", __func__, TX_OFFSET);
@@ -444,7 +452,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 		return -EIO;
 	}
 
-	pr_debug("offset %p, ver %Ld - %d payload received, buf size %d\n", qp->rx_offset, hdr->ver, hdr->len, entry->len);
+	pr_debug("rx offset %p, tx offset %x, ver %Ld - %d payload received, buf size %d\n", qp->rx_offset, tx_offset, hdr->ver, hdr->len, entry->len);
 	if (hdr->len > entry->len) {
 		pr_err("RX overflow! Wanted %d got %d\n", hdr->len, entry->len);
 		ntb_transport_dump_qp_stats(qp);
@@ -452,8 +460,19 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 		qp->rx_err_oflow++;
 		oflow = true;
 	} else {
-		entry->len = hdr->len;
-		oflow = false;
+		if (hdr->len == 0) {//FIXME - ugly
+			if (!hdr->link) {
+				pr_info("QP %d Link Down\n", qp->qp_num);
+				qp->event_flags = NTB_LINK_DOWN; 
+
+				schedule_delayed_work(&qp->event_work, msecs_to_jiffies(1000));
+			}
+
+			oflow = true;
+		} else {
+			entry->len = hdr->len;
+			oflow = false;
+		}
 	}
 
 	offset += sizeof(struct ntb_payload_header);
@@ -467,9 +486,6 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 
 	offset += hdr->len;
 
-	qp->rx_bytes += entry->len;
-	qp->rx_pkts++;
-
 	WARN_ON(pass_check_rx(qp->rx_offset - qp->rx_mw_begin, offset - qp->rx_mw_begin, tx_offset));
 
 	qp->rx_offset = offset;
@@ -479,6 +495,9 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 
 	if (oflow)
 		return 0;
+
+	qp->rx_bytes += entry->len;
+	qp->rx_pkts++;
 
 	ntb_list_add_tail(qp, &entry->entry, &qp->rx_comp_q);
 
@@ -517,7 +536,7 @@ static void ntb_transport_rxc_db(int db_num)
 #endif
 }
 
-static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry)
+static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry, int link)
 {
 	struct ntb_payload_header *hdr;
 	void *offset;
@@ -567,12 +586,10 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 
 	hdr->len = entry->len;
 	hdr->ver = qp->tx_pkts;
+	hdr->link = (link == NTB_LINK_UP);
 
 	memcpy(offset, entry->buf, entry->len);
 	offset += entry->len;
-
-	qp->tx_pkts++;
-	qp->tx_bytes += entry->len;
 
 	qp->tx_offset = offset;
 	rc = ntb_transport_put_remote_offset(qp, TX_OFFSET, offset - qp->tx_buf_begin);
@@ -585,7 +602,13 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 	/* Ring doorbell notifying remote side of new packet */
 	rc = ntb_ring_sdb(qp->ndev, QP_TO_DB(qp->qp_num));
 	if (rc)
-		pr_err("%s: error ringing db %d\n", __func__, 1 << qp->qp_num);
+		pr_err("%s: error ringing db %d\n", __func__, QP_TO_DB(qp->qp_num));
+
+	if (entry->len == 0)
+		return 0;
+
+	qp->tx_pkts++;
+	qp->tx_bytes += entry->len;
 
 	/* Add fully transmitted data to completion queue */
 	ntb_list_add_tail(qp, &entry->entry, &qp->tx_comp_q);
@@ -609,7 +632,7 @@ static int ntb_transport_tx(void *data)
 			if (!entry)
 				break;
 
-			rc = ntb_process_tx(qp, entry);
+			rc = ntb_process_tx(qp, entry, NTB_LINK_UP);
 			if (rc)
 				break;
 		} while (true);
@@ -626,6 +649,20 @@ static void ntb_transport_event_work(struct work_struct *work)
 {
 	struct ntb_transport_qp *qp = container_of(work, struct ntb_transport_qp, event_work.work);
 
+	if (qp->qp_link == NTB_LINK_DOWN) {
+		cancel_delayed_work_sync(&qp->link_work);
+		qp->qp_link = NTB_LINK_UP;
+	} else {
+		qp->qp_link = NTB_LINK_DOWN;
+		qp->rx_pkts = 0;
+		qp->tx_pkts = 0;
+		ntb_transport_put_remote_offset(qp, RX_OFFSET, 0); //FIXME - handle rc
+		ntb_transport_put_remote_offset(qp, TX_OFFSET, 0); //FIXME - handle rc
+
+		if (qp->ndev->link_status)
+			schedule_delayed_work(&qp->link_work, 0);
+	}
+
 	if (qp->event_handler)
 		qp->event_handler(qp->event_flags);
 }
@@ -634,46 +671,13 @@ static void ntb_transport_link_work(struct work_struct *work)
 {
 	struct ntb_transport_qp *qp = container_of(work, struct ntb_transport_qp, link_work.work);
 	int rc;
-	u32 rx_offset;
-	struct ntb_queue_entry entry;
 
-	if (!qp->ndev->link_status)
-		return;
-
-
-	/* Reset tx rings on link-up.  This gives the rx ring a little time to catch up on link down. */
-	ntb_transport_put_remote_offset(qp, RX_OFFSET, 0); //FIXME - handle rc
-	ntb_transport_put_remote_offset(qp, TX_OFFSET, 0); //FIXME - handle rc
-
-	qp->rx_offset = qp->rx_mw_begin;
-	qp->tx_offset = qp->tx_buf_begin;
-	qp->rx_pkts = 0;
-	qp->tx_pkts = 0;
-
-#if 0
-	rc = ntb_transport_get_remote_offset(qp, RX_OFFSET, &rx_offset);
+	/* Ring doorbell notifying remote side of new packet */
+	rc = ntb_ring_sdb(qp->ndev, QP_TO_DB(qp->qp_num));
 	if (rc)
-		pr_err("%s: error reading from offset %d\n", __func__, RX_OFFSET);
-
-	/* If the rx_offset is non-zero, then the remote system received the previously sent link message */
-	if (rx_offset) {
-		pr_info("QP %d Link Up\n", qp->qp_num);
-#endif
-		qp->qp_link = NTB_LINK_UP;
-		qp->event_flags = qp->qp_link; 
-
-		schedule_delayed_work(&qp->event_work, 0);
-#if 0
-		return;
-	}
-
-	entry.len = 0;
-	entry.buf = NULL;
-
-	ntb_process_tx(qp, &entry);//FIXME - check rc
+		pr_err("%s: error ringing db %d\n", __func__, QP_TO_DB(qp->qp_num));
 
 	schedule_delayed_work(&qp->link_work, msecs_to_jiffies(1000));
-#endif
 }
 
 /**
@@ -696,13 +700,11 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler, ehandler even
 	unsigned int free_queue;
 	int rc, irq;
 
-#if 0
 	if (!transport) {
 		rc = ntb_transport_init();
 		if (rc)
 			return NULL;
 	}
-#endif
 
 	//FIXME - need to handhake with remote side to determine matching number or some mapping between the 2
 	free_queue = ffs(transport->qp_bitmap);
@@ -748,7 +750,8 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler, ehandler even
 		goto err2;
 	}
 
-	//FIXME - zero stats
+	qp->rx_pkts = 0;
+	qp->tx_pkts = 0;
 	ntb_transport_put_remote_offset(qp, RX_OFFSET, 0); //FIXME - handle rc
 	ntb_transport_put_remote_offset(qp, TX_OFFSET, 0); //FIXME - handle rc
 
@@ -771,9 +774,6 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler, ehandler even
 	rc = ntb_register_db_callback(qp->ndev, irq, ntb_transport_rxc_db);
 	if (rc)
 		goto err3;
-
-	wake_up_process(qp->rx_work);
-	wake_up_process(qp->tx_work);
 
 	if (qp->ndev->link_status)
 		schedule_delayed_work(&qp->link_work, 0);
@@ -810,35 +810,38 @@ static void ntb_purge_list(struct list_head *list)
  */
 void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 {
+	struct ntb_queue_entry entry;
+
 	if (!qp)
 		return;
 
 	qp->qp_link = NTB_LINK_DOWN;
 
+	entry.len = 0;
+	entry.buf = NULL;
+	ntb_process_tx(qp, &entry, NTB_LINK_DOWN);//FIXME - check rc
+
 	cancel_delayed_work_sync(&qp->event_work);
 	cancel_delayed_work_sync(&qp->link_work);
 
-	qp->event_handler = NULL;
 	ntb_unregister_db_callback(qp->ndev, QP_TO_DB(qp->qp_num));
 	//FIXME - wait for qps to quience or notify the transport to stop?
 
-	kthread_stop(qp->tx_work);
 	kthread_stop(qp->rx_work);
+	kthread_stop(qp->tx_work);
+
+	ntb_transport_put_remote_offset(qp, RX_OFFSET, 0); //FIXME - handle rc
+	ntb_transport_put_remote_offset(qp, TX_OFFSET, 0); //FIXME - handle rc
 
 	ntb_purge_list(&qp->rxq);
 	ntb_purge_list(&qp->rx_comp_q);
 	ntb_purge_list(&qp->txq);
 	ntb_purge_list(&qp->tx_comp_q);
 
-	ntb_transport_put_remote_offset(qp, RX_OFFSET, 0); //FIXME - handle rc
-	ntb_transport_put_remote_offset(qp, TX_OFFSET, 0); //FIXME - handle rc
-
 	set_bit(qp->qp_num, &transport->qp_bitmap);
 
-#if 0
 	if (transport->qp_bitmap == ~(transport->max_qps - 1))
 		ntb_transport_free();
-#endif
 }
 EXPORT_SYMBOL(ntb_transport_free_queue);
 
@@ -893,7 +896,7 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
 	wake_up_process(qp->tx_work);
 	return 0;
 #else
-	return ntb_process_tx(qp, entry);
+	return ntb_process_tx(qp, entry, NTB_LINK_UP);
 #endif
 }
 EXPORT_SYMBOL(ntb_transport_tx_enqueue);

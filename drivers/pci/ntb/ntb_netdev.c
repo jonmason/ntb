@@ -282,12 +282,8 @@ static int ntb_netdev_open(struct net_device *ndev)
 		list_add_tail(&entry->entry, &dev->tx_entries);
 	}
 
+	netif_carrier_off(ndev);
 	ntb_transport_link_up(dev->qp);
-
-	if (ntb_transport_hw_link_query(dev->qp))
-		netif_carrier_on(ndev);
-	else
-		netif_carrier_off(ndev);
 
 	return 0;
 
@@ -482,8 +478,6 @@ static int __init ntb_netdev_init_module(void)
 
 	pr_info("%s: Probe\n", KBUILD_MODNAME);
 
-	ntb_transport_init();//FIXME - rc
-
 	netdev = alloc_etherdev(sizeof(struct ntb_netdev));//FIXME - might be worth trying multiple queues...
 	if (!netdev)
 		return -ENOMEM;
@@ -522,7 +516,6 @@ static void __exit ntb_netdev_exit_module(void)
 {
 	unregister_netdev(netdev);
 	free_netdev(netdev);
-	ntb_transport_free();
 
 	pr_info("%s: Driver removed\n", KBUILD_MODNAME);
 }
