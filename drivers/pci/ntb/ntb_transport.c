@@ -71,17 +71,20 @@ struct ntb_transport_qp {
 	struct ntb_device *ndev;
 	struct workqueue_struct *qp_wq;
 
-	spinlock_t list_lock;
 	struct work_struct tx_work;
 	struct list_head txq;
-	struct list_head tx_comp_q;
+	struct list_head txc;
+	spinlock_t txq_lock;
+	spinlock_t txc_lock;
 	void *tx_buf_begin;
 	void *tx_buf_end;
 	void *tx_offset;
 
 	struct work_struct rx_work;
 	struct list_head rxq;
-	struct list_head rx_comp_q;
+	struct list_head rxc;
+	spinlock_t rxq_lock;
+	spinlock_t rxc_lock;
 	void *rx_mw_begin;
 	void *rx_mw_end;
 	void *rx_offset;
@@ -144,38 +147,38 @@ enum {
 
 struct ntb_transport *transport = NULL;
 
-static void ntb_list_add_head(struct ntb_transport_qp *qp, struct list_head *entry, struct list_head *list)
+static void ntb_list_add_head(spinlock_t *lock, struct list_head *entry, struct list_head *list)
 {
 	unsigned long flags;
 
-	spin_lock_irqsave(&qp->list_lock, flags);
+	spin_lock_irqsave(lock, flags);
 	list_add(entry, list);
-	spin_unlock_irqrestore(&qp->list_lock, flags);
+	spin_unlock_irqrestore(lock, flags);
 }
 
-static void ntb_list_add_tail(struct ntb_transport_qp *qp, struct list_head *entry, struct list_head *list)
+static void ntb_list_add_tail(spinlock_t *lock, struct list_head *entry, struct list_head *list)
 {
 	unsigned long flags;
 
-	spin_lock_irqsave(&qp->list_lock, flags);
+	spin_lock_irqsave(lock, flags);
 	list_add_tail(entry, list);
-	spin_unlock_irqrestore(&qp->list_lock, flags);
+	spin_unlock_irqrestore(lock, flags);
 }
 
-static struct ntb_queue_entry *ntb_list_rm_head(struct ntb_transport_qp *qp, struct list_head *list)
+static struct ntb_queue_entry *ntb_list_rm_head(spinlock_t *lock, struct list_head *list)
 {
 	struct ntb_queue_entry *entry;
 	unsigned long flags;
 
-	spin_lock_irqsave(&qp->list_lock, flags);
-	if (list_empty_careful(list)) {
+	spin_lock_irqsave(lock, flags);
+	if (list_empty(list)) {
 		entry = NULL;
 		goto out;
 	}
 	entry = list_first_entry(list, struct ntb_queue_entry, entry);
 	list_del(&entry->entry);
 out:
-	spin_unlock_irqrestore(&qp->list_lock, flags);
+	spin_unlock_irqrestore(lock, flags);
 
 	return entry;
 }
@@ -247,7 +250,7 @@ void ntb_transport_dump_qp_stats(struct ntb_transport_qp *qp)
 	}
 
 	pr_info("tx %p, rx %p, free size %ld\n", qp->tx_buf_begin + tx_offset, qp->tx_buf_begin + rx_offset, free_len(qp, tx_offset, rx_offset));
-	pr_info("txq len %d, tx_comp_q len %d\n", list_len(&qp->txq), list_len(&qp->tx_comp_q));
+	pr_info("txq len %d, txc len %d\n", list_len(&qp->txq), list_len(&qp->txc));
 
 	rc = ntb_transport_get_local_offset(qp, RX_OFFSET, &rx_offset);
 	if (rc) {
@@ -256,7 +259,7 @@ void ntb_transport_dump_qp_stats(struct ntb_transport_qp *qp)
 	}
 
 	pr_info("rx begin %p, end %p, offset %p\n", qp->rx_mw_begin, qp->rx_mw_end, qp->rx_mw_begin + rx_offset);
-	pr_info("rxq len %d, rx_comp_q len %d\n", list_len(&qp->rxq), list_len(&qp->rx_comp_q));
+	pr_info("rxq len %d, rxc len %d\n", list_len(&qp->rxq), list_len(&qp->rxc));
 }
 EXPORT_SYMBOL(ntb_transport_dump_qp_stats);
 
@@ -433,7 +436,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 		return -EAGAIN;
 	}
 
-	entry = ntb_list_rm_head(qp, &qp->rxq);
+	entry = ntb_list_rm_head(&qp->rxq_lock, &qp->rxq);
 	if (!entry) {
 		qp->rx_err_no_buf++;
 		return -EAGAIN;
@@ -449,7 +452,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 		pr_err("Version mismatch, expected %Ld - got %Ld\n", qp->rx_pkts, hdr->ver);
 		pr_err("rx offset %lx last %x, last to end %ld, curr to end %ld, tx offset %x, ver %Ld\n",
 			 offset - qp->rx_mw_begin, last, qp->rx_mw_end - (qp->rx_mw_begin + last), qp->rx_mw_end - qp->rx_offset, tx_offset, hdr->ver);
-		ntb_list_add_tail(qp, &entry->entry, &qp->rxq);
+		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
 		return -EIO;
 	}
 
@@ -457,7 +460,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	if (hdr->len > entry->len) {
 		pr_err("RX overflow! Wanted %d got %d\n", hdr->len, entry->len);
 		ntb_transport_dump_qp_stats(qp);
-		ntb_list_add_tail(qp, &entry->entry, &qp->rxq);
+		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
 		qp->rx_err_oflow++;
 		oflow = true;
 	} else {
@@ -497,7 +500,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	qp->rx_bytes += entry->len;
 	qp->rx_pkts++;
 
-	ntb_list_add_tail(qp, &entry->entry, &qp->rx_comp_q);
+	ntb_list_add_tail(&qp->rxc_lock, &entry->entry, &qp->rxc);
 
 	//FIXME - this should kick off wq thread or we should document that it runs in irq context
 	if (qp->rx_handler && qp->client_ready)
@@ -533,13 +536,13 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 	rc = ntb_transport_get_remote_offset(qp, RX_OFFSET, &rx_offset);
 	if (rc) {
 		pr_err("%s: error reading from offset %d\n", __func__, RX_OFFSET);
-//		ntb_list_add_head(qp, &entry->entry, &qp->txq);
+//		ntb_list_add_head(&qp->txq_lock, &entry->entry, &qp->txq);
 		return -EIO;
 	}
 
 	//FIXME - major hack to avoid ring wrapping.  this seems to fix the lock up and ring corruption issues
 	if (free_len(qp, (u32) (qp->tx_offset - qp->tx_buf_begin), rx_offset) < 4096 * 2) {
-//		ntb_list_add_head(qp, &entry->entry, &qp->txq);
+//		ntb_list_add_head(&qp->txq_lock, &entry->entry, &qp->txq);
 		qp->tx_ring_full++;
 		return -EAGAIN;
 	}
@@ -550,7 +553,7 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 
 	//did this hit or pass the rx offset
 	if (pass_check(qp->tx_offset - qp->tx_buf_begin, offset - qp->tx_buf_begin, rx_offset)) {
-//		ntb_list_add_head(qp, &entry->entry, &qp->txq);
+//		ntb_list_add_head(&qp->txq_lock, &entry->entry, &qp->txq);
 		qp->tx_ring_full++;
 		return -EAGAIN;
 	}
@@ -563,7 +566,7 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 		offset = qp->tx_buf_begin;
 
 	if (pass_check(qp->tx_offset - qp->tx_buf_begin, (offset - qp->tx_buf_begin) + entry->len, rx_offset)) {
-//		ntb_list_add_head(qp, &entry->entry, &qp->txq);
+//		ntb_list_add_head(&qp->txq_lock, &entry->entry, &qp->txq);
 		qp->tx_ring_full++;
 		return -EAGAIN;
 	}
@@ -580,11 +583,8 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 
 	qp->tx_offset = offset;
 	rc = ntb_transport_put_remote_offset(qp, TX_OFFSET, offset - qp->tx_buf_begin);
-	if (rc) {
+	if (rc)
 		pr_err("%s: error writing to offset %d\n", __func__, TX_OFFSET);
-//		ntb_list_add_head(qp, &entry->entry, &qp->txq);
-		return -EIO;
-	}
 
 	/* Ring doorbell notifying remote side of new packet */
 	rc = ntb_ring_sdb(qp->ndev, QP_TO_DB(qp->qp_num));
@@ -598,7 +598,7 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 	qp->tx_bytes += entry->len;
 
 	/* Add fully transmitted data to completion queue */
-	ntb_list_add_tail(qp, &entry->entry, &qp->tx_comp_q);
+	ntb_list_add_tail(&qp->txc_lock, &entry->entry, &qp->txc);
 
 	//FIXME - might want to kick off a thread/wq to handle the tx completion
 	if (qp->tx_handler)
@@ -613,15 +613,11 @@ static void ntb_transport_tx(struct work_struct *work)
 	struct ntb_queue_entry *entry;
 	int rc;
 
-	do {
-	 	entry = ntb_list_rm_head(qp, &qp->txq);
-		if (!entry)
-			break;
-
+	while ((entry = ntb_list_rm_head(&qp->txq_lock, &qp->txq))) {
 		rc = ntb_process_tx(qp, entry, NTB_LINK_UP);
 		if (rc)
 			break;
-	} while (true);
+	}
 }
 
 static void ntb_transport_event_work(struct work_struct *work)
@@ -710,12 +706,15 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler, ehandler even
 	INIT_DELAYED_WORK(&qp->event_work, ntb_transport_event_work);
 	INIT_DELAYED_WORK(&qp->link_work, ntb_transport_link_work);
 
-	spin_lock_init(&qp->list_lock);
+	spin_lock_init(&qp->rxc_lock);
+	spin_lock_init(&qp->rxq_lock);
+	spin_lock_init(&qp->txc_lock);
+	spin_lock_init(&qp->txq_lock);
 
 	INIT_LIST_HEAD(&qp->rxq);
-	INIT_LIST_HEAD(&qp->rx_comp_q);
+	INIT_LIST_HEAD(&qp->rxc);
 	INIT_LIST_HEAD(&qp->txq);
-	INIT_LIST_HEAD(&qp->tx_comp_q);
+	INIT_LIST_HEAD(&qp->txc);
 
 	INIT_WORK(&qp->rx_work, ntb_transport_rxc);
 	INIT_WORK(&qp->tx_work, ntb_transport_tx);
@@ -807,9 +806,9 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 	ntb_transport_put_remote_offset(qp, TX_OFFSET, 0); //FIXME - handle rc
 
 	ntb_purge_list(&qp->rxq);
-	ntb_purge_list(&qp->rx_comp_q);
+	ntb_purge_list(&qp->rxc);
 	ntb_purge_list(&qp->txq);
-	ntb_purge_list(&qp->tx_comp_q);
+	ntb_purge_list(&qp->txc);
 
 	set_bit(qp->qp_num, &transport->qp_bitmap);
 
@@ -823,7 +822,7 @@ struct ntb_queue_entry *ntb_transport_rx_remove(struct ntb_transport_qp *qp)
 	if (!qp || qp->client_ready == NTB_LINK_UP)
 		return NULL;
 
-	return ntb_list_rm_head(qp, &qp->rxq);
+	return ntb_list_rm_head(&qp->rxq_lock, &qp->rxq);
 }
 EXPORT_SYMBOL(ntb_transport_rx_remove);
 
@@ -842,7 +841,7 @@ int ntb_transport_rx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
 	if (!qp)
 		return -EINVAL;
 
-	ntb_list_add_tail(qp, &entry->entry, &qp->rxq);
+	ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
 
 	return 0;
 }
@@ -864,7 +863,7 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
 		return -EINVAL;
 
 #if 0 
-	ntb_list_add_tail(qp, &entry->entry, &qp->txq);
+	ntb_list_add_tail(&qp->txq_lock, &entry->entry, &qp->txq);
 
 	//if (!work_busy(&qp->tx_work))
 		queue_work(qp->qp_wq, &qp->tx_work);
@@ -891,7 +890,7 @@ struct ntb_queue_entry *ntb_transport_tx_dequeue(struct ntb_transport_qp *qp)
 	if (!qp)
 		return NULL;
 	
-	return ntb_list_rm_head(qp, &qp->tx_comp_q);
+	return ntb_list_rm_head(&qp->txc_lock, &qp->txc);
 }
 EXPORT_SYMBOL(ntb_transport_tx_dequeue);
 
@@ -910,7 +909,7 @@ struct ntb_queue_entry *ntb_transport_rx_dequeue(struct ntb_transport_qp *qp)
 	if (!qp)
 		return NULL;
 
-	return ntb_list_rm_head(qp, &qp->rx_comp_q);
+	return ntb_list_rm_head(&qp->rxc_lock, &qp->rxc);
 }
 EXPORT_SYMBOL(ntb_transport_rx_dequeue);
 
