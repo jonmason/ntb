@@ -540,13 +540,6 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 		return -EIO;
 	}
 
-	//FIXME - major hack to avoid ring wrapping.  this seems to fix the lock up and ring corruption issues
-	if (free_len(qp, (u32) (qp->tx_offset - qp->tx_buf_begin), rx_offset) < 4096 * 2) {
-//		ntb_list_add_head(&qp->txq_lock, &entry->entry, &qp->txq);
-		qp->tx_ring_full++;
-		return -EAGAIN;
-	}
-
 	offset = qp->tx_offset;
 	if (offset + sizeof(struct ntb_payload_header) >= qp->tx_buf_end)
 		offset = qp->tx_buf_begin;
@@ -812,7 +805,7 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 
 	set_bit(qp->qp_num, &transport->qp_bitmap);
 
-	if (transport->qp_bitmap == ~(transport->max_qps - 1))
+	if (transport->qp_bitmap == (1 << transport->max_qps) - 1)
 		ntb_transport_free();
 }
 EXPORT_SYMBOL(ntb_transport_free_queue);
