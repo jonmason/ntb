@@ -115,7 +115,7 @@ static void ntb_netdev_event_handler(int status)
 {
 	struct ntb_netdev *dev = netdev_priv(netdev);
 
-	pr_info("%s: Event %x, Link %x\n", KBUILD_MODNAME, status, ntb_transport_hw_link_query(dev->qp));
+	pr_debug("%s: Event %x, Link %x\n", KBUILD_MODNAME, status, ntb_transport_hw_link_query(dev->qp));
 
 	/* Currently, only link status event is supported */
 	if (status)
@@ -205,8 +205,8 @@ static void ntb_netdev_tx_handler(struct ntb_transport_qp *qp)
 	list_add_tail(&entry->entry, &dev->tx_entries);
 #endif
 
-//	if (netif_queue_stopped(netdev))
-//		netif_wake_queue(netdev);
+	if (netif_queue_stopped(netdev))
+		netif_wake_queue(netdev);
 }
 
 static netdev_tx_t ntb_netdev_start_xmit(struct sk_buff *skb, struct net_device *ndev)
@@ -243,7 +243,7 @@ err1:
 err:
 	ndev->stats.tx_dropped++;
 	ndev->stats.tx_errors++;
-	//netif_stop_queue(ndev);
+	netif_stop_queue(ndev);
 	return NETDEV_TX_BUSY;
 }
 
@@ -377,10 +377,11 @@ static void ntb_netdev_txto_work(struct work_struct *work)
 {
 	//struct ntb_netdev *dev = container_of(work, struct ntb_netdev, txto_work);
 	struct net_device *ndev = netdev; //FIXME - don't use global
-	int rc;
 
 	if (netif_running(ndev)) {
 #if 0
+		int rc;
+
 		ntb_netdev_close(ndev);
 		rc = ntb_netdev_open(ndev);//FIXME - do something with rc
 		if (rc)
@@ -497,7 +498,6 @@ static int __init ntb_netdev_init_module(void)
 
 	netdev->netdev_ops = &ntb_netdev_ops;
 	SET_ETHTOOL_OPS(netdev, &ntb_ethtool_ops);
-	//SET_NETDEV_DEV(ndev, &pdev->dev);
 
 	rc = register_netdev(netdev);
 	if (rc)
