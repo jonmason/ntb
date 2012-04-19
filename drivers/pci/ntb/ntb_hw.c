@@ -878,7 +878,7 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 		WARN_ON(!msix->vector);
 
 		/* Use the last MSI-X vector for Link status */
-		if (i == msix_entries - 1 && ndev->hw_type != BWD_HW) {
+		if (ndev->hw_type != BWD_HW && i == msix_entries - 1) {
 			rc = request_irq(msix->vector, ntb_event_msix_irq, 0, "ntb-event-msix", ndev);
 			if (rc)
 				goto err2;
@@ -995,7 +995,7 @@ static void ntb_free_interrupts(struct ntb_device *ndev)
 
 		for (i = 0; i < ndev->num_msix; i++) {
 			msix = &ndev->msix_entries[i];
-			if (i == ndev->num_msix - 1)
+			if (ndev->hw_type != BWD_HW && i == ndev->num_msix - 1)
 				free_irq(msix->vector, ndev);
 			else
 				free_irq(msix->vector, &ndev->db_cb[i]);
