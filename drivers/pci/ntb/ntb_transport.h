@@ -71,9 +71,6 @@ struct ntb_queue_entry {
 typedef void(*handler)(struct ntb_transport_qp *qp);
 typedef void (*ehandler)(int status);
 
-int ntb_transport_init(void);
-void ntb_transport_free(void);
-
 struct ntb_queue_entry *ntb_transport_rx_remove(struct ntb_transport_qp *qp);
 size_t ntb_transport_max_size(struct ntb_transport_qp *qp);
 void ntb_transport_dump_qp_stats(struct ntb_transport_qp *qp);

@@ -137,10 +137,6 @@ enum {
 	SPADS_PER_QP,
 };
 
-#define DB_PER_QP		1
-
-#define QP_TO_DB(qp)		((qp) * DB_PER_QP)
-#define DB_TO_QP(db)		((db) / DB_PER_QP)
 #define QP_TO_MW(qp)		((qp) % NTB_NUM_MW)
 
 #define	free_len(qp, tx, rx)	(tx < rx ? rx - tx : (qp->tx_buf_end - qp->tx_buf_begin) - (tx - rx))
@@ -275,7 +271,7 @@ static void ntb_transport_event_callback(void *data, unsigned int event)
 		if (!test_bit(i, &transport->qp_bitmap)) {
 			struct ntb_transport_qp *qp = &transport->qps[i];
 
-			pr_err("%s: qp %d gets events %x\n", __func__, i, event);
+			pr_debug("%s: qp %d gets events %x\n", __func__, i, event);
 
 			if (event == NTB_EVENT_HW_ERROR)
 				BUG();
@@ -297,7 +293,7 @@ static void ntb_transport_event_callback(void *data, unsigned int event)
 		}
 }
 
-int ntb_transport_init(void)
+static int ntb_transport_init(void)
 {
 	int rc, i;
 
@@ -315,7 +311,7 @@ int ntb_transport_init(void)
 	}
 
 	/* 1 Doorbell bit is used by Link/HB, but the rest can be used for the transport qp's */
-	transport->max_qps = (ntb_query_db_bits(transport->ndev) - 1) / DB_PER_QP;
+	transport->max_qps = ntb_query_db_bits(transport->ndev);
 	if (!transport->max_qps) {
 		rc = -EIO;
 		goto err1;
@@ -327,7 +323,7 @@ int ntb_transport_init(void)
 		goto err1;
 	}
 
-	transport->qp_bitmap = (1 << transport->max_qps) - 1;
+	transport->qp_bitmap = ((u64) 1 << transport->max_qps) - 1;
 
 	for (i = 0; i < NTB_NUM_MW; i++) {
 		/* Alloc memory for receiving data.  Must be 4k aligned */
@@ -359,21 +355,15 @@ err:
 	kfree(transport);
 	return rc;
 } 
-EXPORT_SYMBOL(ntb_transport_init);
 
-void ntb_transport_free(void)
+static void ntb_transport_free(void)
 {
 	int i;
 
 	if (!transport)
 		return;
 
-	//FIXME - verify that the event and db callbacks are empty?
-	for (i = 0; i < transport->max_qps; i++)
-		if (!test_bit(i, &transport->qp_bitmap)) {
-			struct ntb_transport_qp *qp = &transport->qps[i];
-			ntb_transport_free_queue(qp);
-		}
+	/* To be here, all of the queues were already free'd.  No need to try and clean them up */
 
 	ntb_unregister_event_callback(transport->ndev);
 
@@ -385,7 +375,6 @@ void ntb_transport_free(void)
 	kfree(transport);
 	transport = NULL;
 }
-EXPORT_SYMBOL(ntb_transport_free);
 
 static bool pass_check(u32 tx_orig, u32 tx_curr, u32 rx)
 {
@@ -518,7 +507,7 @@ static void ntb_transport_rxc(struct work_struct *work)
 
 static void ntb_transport_rxc_db(int db_num)
 {
-	struct ntb_transport_qp *qp = &transport->qps[DB_TO_QP(db_num)];
+	struct ntb_transport_qp *qp = &transport->qps[db_num];
 
 	pr_debug("%s: doorbell %d received\n", __func__, db_num);
 
@@ -580,9 +569,9 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 		pr_err("%s: error writing to offset %d\n", __func__, TX_OFFSET);
 
 	/* Ring doorbell notifying remote side of new packet */
-	rc = ntb_ring_sdb(qp->ndev, QP_TO_DB(qp->qp_num));
+	rc = ntb_ring_sdb(qp->ndev, qp->qp_num);
 	if (rc)
-		pr_err("%s: error ringing db %d\n", __func__, QP_TO_DB(qp->qp_num));
+		pr_err("%s: error ringing db %d\n", __func__, qp->qp_num);
 
 	if (entry->len == 0)
 		return 0;
@@ -643,9 +632,9 @@ static void ntb_transport_link_work(struct work_struct *work)
 	int rc;
 
 	/* Ring doorbell notifying remote side of new packet */
-	rc = ntb_ring_sdb(qp->ndev, QP_TO_DB(qp->qp_num));
+	rc = ntb_ring_sdb(qp->ndev, qp->qp_num);
 	if (rc)
-		pr_err("%s: error ringing db %d\n", __func__, QP_TO_DB(qp->qp_num));
+		pr_err("%s: error ringing db %d\n", __func__, qp->qp_num);
 
 	schedule_delayed_work(&qp->link_work, msecs_to_jiffies(1000));
 }
@@ -668,7 +657,7 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler, ehandler even
 {
 	struct ntb_transport_qp *qp;
 	unsigned int free_queue;
-	int rc, irq;
+	int rc;
 
 	if (!transport) {
 		rc = ntb_transport_init();
@@ -735,9 +724,7 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler, ehandler even
 
 	//FIXME - transport->qps[free_queue].queue.hw_caps; is it even necessary for transport client to know?
 
-	irq = free_queue * DB_PER_QP;
-
-	rc = ntb_register_db_callback(qp->ndev, irq, ntb_transport_rxc_db);
+	rc = ntb_register_db_callback(qp->ndev, free_queue, ntb_transport_rxc_db);
 	if (rc)
 		goto err2;
 
@@ -788,7 +775,7 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 	cancel_delayed_work_sync(&qp->event_work);
 	cancel_delayed_work_sync(&qp->link_work);
 
-	ntb_unregister_db_callback(qp->ndev, QP_TO_DB(qp->qp_num));
+	ntb_unregister_db_callback(qp->ndev, qp->qp_num);
 	//FIXME - wait for qps to quience or notify the transport to stop?
 
 	cancel_work_sync(&qp->tx_work);
@@ -805,7 +792,7 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 
 	set_bit(qp->qp_num, &transport->qp_bitmap);
 
-	if (transport->qp_bitmap == (1 << transport->max_qps) - 1)
+	if (transport->qp_bitmap == ((u64) 1 << transport->max_qps) - 1)
 		ntb_transport_free();
 }
 EXPORT_SYMBOL(ntb_transport_free_queue);

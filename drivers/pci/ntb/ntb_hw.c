@@ -65,7 +65,7 @@
 #include "ntb_regs.h"
 
 #define NTB_NAME	"Intel(R) PCIe Non-Transparent Bridge Driver"
-#define NTB_VER		"0.10"
+#define NTB_VER		"0.11"
 
 MODULE_DESCRIPTION(NTB_NAME);
 MODULE_VERSION(NTB_VER);
@@ -111,7 +111,10 @@ struct ntb_device *ntbdev;
  */
 unsigned int ntb_query_db_bits(struct ntb_device *ndev)
 {
-	return ndev->limits.max_db_bits;
+	if (ndev->hw_type == BWD_HW)
+		return ndev->limits.max_db_bits;
+	else
+		return ndev->limits.max_db_bits - 1;
 }
 EXPORT_SYMBOL(ntb_query_db_bits);
 
@@ -799,12 +802,16 @@ static irqreturn_t ntb_callback_msix_irq(int irq, void *data)
 
 		writeq((u64) 1 << db_cb->db_num, ndev->reg_base + ndev->reg_ofs.pdb);
 	 } else 
-		writew(0xf << (db_cb->db_num * SNB_MSIX_CNT), ndev->reg_base + ndev->reg_ofs.pdb);
+		/* On Sandybridge, there are 16 bits in the interrupt register
+		 * but only 4 vectors.  So, 5 bits are assigned to each vector.
+		 * Instead of trying to see which bit got us here, clear them
+		 * all.
+		 */
+		writew(0x1f << (db_cb->db_num * SNB_MSIX_CNT), ndev->reg_base + ndev->reg_ofs.pdb);
 
 	return IRQ_HANDLED;
 }
 
-/* FIXME - could make this a generic catch-all if we want more than 3 vectors on Jaketown */
 static irqreturn_t ntb_event_msix_irq(int irq, void *dev)
 {
 	struct ntb_device *ndev = dev;
@@ -824,7 +831,7 @@ static irqreturn_t ntb_event_msix_irq(int irq, void *dev)
 		if (rc)
 			dev_err(&ndev->pdev->dev, "Error determining link status\n");
 
-		writew(0xf << (ndev->limits.max_db_bits - SNB_MSIX_CNT), ndev->reg_base + ndev->reg_ofs.pdb);
+		writew(1 << (ndev->limits.max_db_bits - 1), ndev->reg_base + ndev->reg_ofs.pdb);
 	}
 
 	return IRQ_HANDLED;
