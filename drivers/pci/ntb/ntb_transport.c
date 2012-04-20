@@ -60,10 +60,10 @@
 #include <linux/dma-mapping.h>
 #include <linux/errno.h>
 #include <linux/export.h>
+#include <linux/kthread.h>
 #include <linux/pci.h>
 #include <linux/slab.h>
 #include <linux/types.h>
-#include <linux/workqueue.h>
 #include "ntb_hw.h"
 #include "ntb_transport.h"
 
@@ -71,7 +71,7 @@ struct ntb_transport_qp {
 	struct ntb_device *ndev;
 	struct workqueue_struct *qp_wq;
 
-	struct work_struct tx_work;
+	struct task_struct *tx_work;
 	struct list_head txq;
 	struct list_head txc;
 	spinlock_t txq_lock;
@@ -80,7 +80,7 @@ struct ntb_transport_qp {
 	void *tx_mw_end;
 	void *tx_offset;
 
-	struct work_struct rx_work;
+	struct task_struct *rx_work;
 	struct list_head rxq;
 	struct list_head rxc;
 	spinlock_t rxq_lock;
@@ -409,7 +409,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	static u32 last = -1;
 
 	if (qp->qp_link == NTB_LINK_DOWN) {
-		pr_debug("QP %d Link Up\n", qp->qp_num);
+		pr_info("QP %d Link Up\n", qp->qp_num);
 		qp->event_flags = NTB_LINK_UP; 
 
 		schedule_delayed_work(&qp->event_work, msecs_to_jiffies(1000));
@@ -454,7 +454,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 		oflow = true;
 	} else {
 		if (!hdr->link) {
-			pr_debug("QP %d Link Down\n", qp->qp_num);
+			pr_info("QP %d Link Down\n", qp->qp_num);
 			qp->event_flags = NTB_LINK_DOWN; 
 
 			schedule_delayed_work(&qp->event_work, msecs_to_jiffies(1000));
@@ -498,11 +498,19 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	return 0;
 }
 
-static void ntb_transport_rxc(struct work_struct *work)
+static int ntb_transport_rxc(void *data)
 {
-	struct ntb_transport_qp *qp = container_of(work, struct ntb_transport_qp, rx_work);
+	struct ntb_transport_qp *qp = data;
 
-	while (ntb_process_rxc(qp) == 0);
+	while (!kthread_should_stop()) {
+		while (ntb_process_rxc(qp) == 0);
+
+		/* Sleep if no rx work */
+		set_current_state(TASK_INTERRUPTIBLE);
+		schedule();
+	}
+
+	return 0;
 }
 
 static void ntb_transport_rxc_db(int db_num)
@@ -511,7 +519,7 @@ static void ntb_transport_rxc_db(int db_num)
 
 	pr_debug("%s: doorbell %d received\n", __func__, db_num);
 
-	queue_work(qp->qp_wq, &qp->rx_work);
+	wake_up_process(qp->rx_work);
 }
 
 static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry, int link)
@@ -588,17 +596,29 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 	return 0;
 }
 
-static void ntb_transport_tx(struct work_struct *work)
+static int ntb_transport_tx(void *data)
 {
-	struct ntb_transport_qp *qp = container_of(work, struct ntb_transport_qp, tx_work);
+	struct ntb_transport_qp *qp = data;
 	struct ntb_queue_entry *entry;
 	int rc;
 
-	while ((entry = ntb_list_rm_head(&qp->txq_lock, &qp->txq))) {
-		rc = ntb_process_tx(qp, entry, NTB_LINK_UP);
-		if (rc)
-			break;
+	while (!kthread_should_stop()) {
+		do {
+		 	entry = ntb_list_rm_head(&qp->txq_lock, &qp->txq);
+			if (!entry)
+				break;
+
+			rc = ntb_process_tx(qp, entry, NTB_LINK_UP);
+			if (rc)
+				break;
+		} while (true);
+
+		/* Sleep if no tx work */
+		set_current_state(TASK_INTERRUPTIBLE);
+		schedule();
 	}
+
+	return 0;
 }
 
 static void ntb_transport_event_work(struct work_struct *work)
@@ -697,12 +717,19 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler, ehandler even
 	INIT_LIST_HEAD(&qp->txq);
 	INIT_LIST_HEAD(&qp->txc);
 
-	INIT_WORK(&qp->rx_work, ntb_transport_rxc);
-	INIT_WORK(&qp->tx_work, ntb_transport_tx);
-
-	qp->qp_wq = alloc_workqueue("ntb-wq", WQ_NON_REENTRANT | WQ_UNBOUND | WQ_HIGHPRI | WQ_CPU_INTENSIVE, 2);
-	if (!qp->qp_wq)
+	qp->rx_work = kthread_create(ntb_transport_rxc, qp, "ntb_rx");
+	if (IS_ERR(qp->rx_work)) {
+		rc = PTR_ERR(qp->rx_work);
+		pr_err("Error allocing rxc kthread\n");
 		goto err1;
+	}
+
+	qp->tx_work = kthread_create(ntb_transport_tx, qp, "ntb_tx");
+	if (IS_ERR(qp->tx_work)) {
+		rc = PTR_ERR(qp->tx_work);
+		pr_err("Error allocing tx kthread\n");
+		goto err2;
+	}
 
 	qp->rx_pkts = 0;
 	qp->tx_pkts = 0;
@@ -723,15 +750,17 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler, ehandler even
 
 	rc = ntb_register_db_callback(qp->ndev, free_queue, ntb_transport_rxc_db);
 	if (rc)
-		goto err2;
+		goto err3;
 
 	if (qp->ndev->link_status)
 		schedule_delayed_work(&qp->link_work, 0);
 
 	return qp;
 
+err3:
+	kthread_stop(qp->tx_work);
 err2:
-	destroy_workqueue(qp->qp_wq);
+	kthread_stop(qp->rx_work);
 err1:
 	set_bit(free_queue, &transport->qp_bitmap);
 err:
@@ -775,9 +804,8 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 	ntb_unregister_db_callback(qp->ndev, qp->qp_num);
 	//FIXME - wait for qps to quience or notify the transport to stop?
 
-	cancel_work_sync(&qp->tx_work);
-	cancel_work_sync(&qp->rx_work);
-	destroy_workqueue(qp->qp_wq);
+	kthread_stop(qp->rx_work);
+	kthread_stop(qp->tx_work);
 
 	ntb_transport_put_remote_offset(qp, RX_OFFSET, 0); //FIXME - handle rc
 	ntb_transport_put_remote_offset(qp, TX_OFFSET, 0); //FIXME - handle rc
@@ -842,7 +870,7 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
 #if 1 
 	ntb_list_add_tail(&qp->txq_lock, &entry->entry, &qp->txq);
 
-	queue_work(qp->qp_wq, &qp->tx_work);
+	wake_up_process(qp->tx_work);
 
 	return 0;
 #else
