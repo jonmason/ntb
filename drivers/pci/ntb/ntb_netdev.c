@@ -61,7 +61,7 @@
 #include <linux/module.h>
 #include "ntb_transport.h"
 
-#define NTB_NETDEV_VER	"0.1"
+#define NTB_NETDEV_VER	"0.2"
 
 MODULE_DESCRIPTION(KBUILD_MODNAME);
 MODULE_VERSION(NTB_NETDEV_VER);
@@ -72,12 +72,40 @@ struct ntb_netdev {
 	struct ntb_transport_qp *qp;
 	struct list_head tx_entries;
 	struct work_struct txto_work;
+	spinlock_t tx_list_lock;
 };
 
 #define	NTB_TX_TIMEOUT_MS	1000
 #define	NTB_RXQ_SIZE		1000
 
 struct net_device *netdev;
+
+static void ntb_list_add_tail(spinlock_t *lock, struct list_head *entry, struct list_head *list)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(lock, flags);
+	list_add_tail(entry, list);
+	spin_unlock_irqrestore(lock, flags);
+}
+
+static struct ntb_queue_entry *ntb_list_rm_head(spinlock_t *lock, struct list_head *list)
+{
+	struct ntb_queue_entry *entry;
+	unsigned long flags;
+
+	spin_lock_irqsave(lock, flags);
+	if (list_empty(list)) {
+		entry = NULL;
+		goto out;
+	}
+	entry = list_first_entry(list, struct ntb_queue_entry, entry);
+	list_del(&entry->entry);
+out:
+	spin_unlock_irqrestore(lock, flags);
+
+	return entry;
+}
 
 //FIXME - move all of the entry logic into the transport layer and just pass the transport a sgl.
 static struct ntb_queue_entry *alloc_entry(unsigned int len)
@@ -191,19 +219,10 @@ static void ntb_netdev_tx_handler(struct ntb_transport_qp *qp)
 	struct ntb_netdev *dev = netdev_priv(netdev);//FIXME - do it based on qp not global
 	struct ntb_queue_entry *entry;
 
-#if 0
 	while ((entry = ntb_transport_tx_dequeue(qp))) {
 		kfree_skb(entry->callback_data);
-		list_add_tail(&entry->entry, &dev->tx_entries);
+		ntb_list_add_tail(&dev->tx_list_lock, &entry->entry, &dev->tx_entries);
 	}
-#else
-	entry = ntb_transport_tx_dequeue(qp);
-	if (!entry)
-		return;
-
-	kfree_skb(entry->callback_data);
-	list_add_tail(&entry->entry, &dev->tx_entries);
-#endif
 
 	if (netif_queue_stopped(netdev))
 		netif_wake_queue(netdev);
@@ -217,11 +236,9 @@ static netdev_tx_t ntb_netdev_start_xmit(struct sk_buff *skb, struct net_device 
 
 	pr_debug("%s: ntb_transport_tx_enqueue\n", KBUILD_MODNAME);
 
-	if (list_empty(&dev->tx_entries))
+	entry = ntb_list_rm_head(&dev->tx_list_lock, &dev->tx_entries);
+	if (!entry)
 		goto err;
-
-	entry = list_first_entry(&dev->tx_entries, struct ntb_queue_entry, entry);
-	list_del(&entry->entry);
 
 	entry->callback_data = skb;
 	entry->len = skb->len;
@@ -239,7 +256,7 @@ static netdev_tx_t ntb_netdev_start_xmit(struct sk_buff *skb, struct net_device 
 	return NETDEV_TX_OK;
 
 err1:
-	list_add_tail(&entry->entry, &dev->tx_entries);
+	ntb_list_add_tail(&dev->tx_list_lock, &entry->entry, &dev->tx_entries);
 err:
 	ndev->stats.tx_dropped++;
 	ndev->stats.tx_errors++;
@@ -260,6 +277,7 @@ static int ntb_netdev_open(struct net_device *ndev)
 	}
 
 	INIT_LIST_HEAD(&dev->tx_entries);
+	spin_lock_init(&dev->tx_list_lock);
 
 	/* Add some empty rx bufs */
 	for (i = 0; i < NTB_RXQ_SIZE; i++) {
@@ -279,7 +297,7 @@ static int ntb_netdev_open(struct net_device *ndev)
 		if (!entry)
 			goto err1;
 
-		list_add_tail(&entry->entry, &dev->tx_entries);
+		ntb_list_add_tail(&dev->tx_list_lock, &entry->entry, &dev->tx_entries);
 	}
 
 	netif_carrier_off(ndev);
@@ -288,12 +306,8 @@ static int ntb_netdev_open(struct net_device *ndev)
 	return 0;
 
 err1:
-	while (!list_empty(&dev->tx_entries)) {
-		entry = list_first_entry(&dev->tx_entries, struct ntb_queue_entry, entry);
-		list_del(&entry->entry);
-
+	while ((entry = ntb_list_rm_head(&dev->tx_list_lock, &dev->tx_entries)))
 		kfree(entry);
-	}
 
 	while ((entry = ntb_transport_rx_remove(dev->qp)))
 		free_entry(entry);
@@ -310,12 +324,8 @@ static int ntb_netdev_close(struct net_device *ndev)
 
 	ntb_transport_link_down(dev->qp);
 
-	while (!list_empty(&dev->tx_entries)) {
-		entry = list_first_entry(&dev->tx_entries, struct ntb_queue_entry, entry);
-		list_del(&entry->entry);
-
+	while ((entry = ntb_list_rm_head(&dev->tx_list_lock, &dev->tx_entries)))
 		kfree(entry);
-	}
 
 	while ((entry = ntb_transport_rx_remove(dev->qp)))
 		free_entry(entry);
@@ -331,7 +341,6 @@ static int ntb_netdev_change_mtu(struct net_device *ndev, int new_mtu)
 	struct ntb_queue_entry *entry;
 	int rc;
 
-	//FIXME - check against size of mw
 	if (new_mtu > ntb_transport_max_size(dev->qp))
 		return -EINVAL;
 

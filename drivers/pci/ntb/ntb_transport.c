@@ -76,8 +76,8 @@ struct ntb_transport_qp {
 	struct list_head txc;
 	spinlock_t txq_lock;
 	spinlock_t txc_lock;
-	void *tx_buf_begin;
-	void *tx_buf_end;
+	void *tx_mw_begin;
+	void *tx_mw_end;
 	void *tx_offset;
 
 	struct work_struct rx_work;
@@ -85,8 +85,8 @@ struct ntb_transport_qp {
 	struct list_head rxc;
 	spinlock_t rxq_lock;
 	spinlock_t rxc_lock;
-	void *rx_mw_begin;
-	void *rx_mw_end;
+	void *rx_buff_begin;
+	void *rx_buff_end;
 	void *rx_offset;
 
 	void (*rx_handler)(struct ntb_transport_qp *qp);
@@ -139,7 +139,7 @@ enum {
 
 #define QP_TO_MW(qp)		((qp) % NTB_NUM_MW)
 
-#define	free_len(qp, tx, rx)	(tx < rx ? rx - tx : (qp->tx_buf_end - qp->tx_buf_begin) - (tx - rx))
+#define	free_len(qp, tx, rx)	(tx < rx ? rx - tx : (qp->tx_mw_end - qp->tx_mw_begin) - (tx - rx))
 
 struct ntb_transport *transport = NULL;
 
@@ -231,7 +231,7 @@ void ntb_transport_dump_qp_stats(struct ntb_transport_qp *qp)
 	pr_info("tx_bytes - %Ld\n", qp->tx_bytes);
 	pr_info("tx_pkts - %Ld\n", qp->tx_pkts);
 	pr_info("tx_ring_full - %Ld\n", qp->tx_ring_full);
-	pr_info("tx begin %p, end %p, ring size %ld\n", qp->tx_buf_begin, qp->tx_buf_end, qp->tx_buf_end - qp->tx_buf_begin);
+	pr_info("tx begin %p, end %p, ring size %ld\n", qp->tx_mw_begin, qp->tx_mw_end, qp->tx_mw_end - qp->tx_mw_begin);
 
 	rc = ntb_transport_get_local_offset(qp, TX_OFFSET, &tx_offset);
 	if (rc) {
@@ -245,7 +245,7 @@ void ntb_transport_dump_qp_stats(struct ntb_transport_qp *qp)
 		return;
 	}
 
-	pr_info("tx %p, rx %p, free size %ld\n", qp->tx_buf_begin + tx_offset, qp->tx_buf_begin + rx_offset, free_len(qp, tx_offset, rx_offset));
+	pr_info("tx %p, rx %p, free size %ld\n", qp->tx_mw_begin + tx_offset, qp->tx_mw_begin + rx_offset, free_len(qp, tx_offset, rx_offset));
 	pr_info("txq len %d, txc len %d\n", list_len(&qp->txq), list_len(&qp->txc));
 
 	rc = ntb_transport_get_local_offset(qp, RX_OFFSET, &rx_offset);
@@ -254,7 +254,7 @@ void ntb_transport_dump_qp_stats(struct ntb_transport_qp *qp)
 		return;
 	}
 
-	pr_info("rx begin %p, end %p, offset %p\n", qp->rx_mw_begin, qp->rx_mw_end, qp->rx_mw_begin + rx_offset);
+	pr_info("rx begin %p, end %p, offset %p\n", qp->rx_buff_begin, qp->rx_buff_end, qp->rx_buff_begin + rx_offset);
 	pr_info("rxq len %d, rxc len %d\n", list_len(&qp->rxq), list_len(&qp->rxc));
 }
 EXPORT_SYMBOL(ntb_transport_dump_qp_stats);
@@ -420,7 +420,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	if (rc)
 		pr_err("%s: error reading from offset %d\n", __func__, TX_OFFSET);
 
-	if (qp->rx_offset == (qp->rx_mw_begin + tx_offset)) {
+	if (qp->rx_offset == (qp->rx_buff_begin + tx_offset)) {
 		qp->rx_ring_empty++;
 		return -EAGAIN;
 	}
@@ -432,15 +432,15 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	}
 
 	offset = qp->rx_offset;
-	if (offset + sizeof(struct ntb_payload_header) >= qp->rx_mw_end)
-		offset = qp->rx_mw_begin;
+	if (offset + sizeof(struct ntb_payload_header) >= qp->rx_buff_end)
+		offset = qp->rx_buff_begin;
 
 	hdr = offset;
 
 	if (hdr->ver != qp->rx_pkts) {
 		pr_err("Version mismatch, expected %Ld - got %Ld\n", qp->rx_pkts, hdr->ver);
 		pr_err("rx offset %lx last %x, last to end %ld, curr to end %ld, tx offset %x, ver %Ld\n",
-			 offset - qp->rx_mw_begin, last, qp->rx_mw_end - (qp->rx_mw_begin + last), qp->rx_mw_end - qp->rx_offset, tx_offset, hdr->ver);
+			 offset - qp->rx_buff_begin, last, qp->rx_buff_end - (qp->rx_buff_begin + last), qp->rx_buff_end - qp->rx_offset, tx_offset, hdr->ver);
 		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
 		return -EIO;
 	}
@@ -467,8 +467,8 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 
 	offset += sizeof(struct ntb_payload_header);
 
-	if (offset + hdr->len >= qp->rx_mw_end)
-		offset = qp->rx_mw_begin;
+	if (offset + hdr->len >= qp->rx_buff_end)
+		offset = qp->rx_buff_begin;
 
 	if (!oflow)
 		memcpy(entry->buf, offset, entry->len);
@@ -476,10 +476,10 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 
 	offset += hdr->len;
 
-	WARN_ON(pass_check_rx(qp->rx_offset - qp->rx_mw_begin, offset - qp->rx_mw_begin, tx_offset));
+	WARN_ON(pass_check_rx(qp->rx_offset - qp->rx_buff_begin, offset - qp->rx_buff_begin, tx_offset));
 
 	qp->rx_offset = offset;
-	rc = ntb_transport_put_remote_offset(qp, RX_OFFSET, offset - qp->rx_mw_begin);
+	rc = ntb_transport_put_remote_offset(qp, RX_OFFSET, offset - qp->rx_buff_begin);
 	if (rc)
 		pr_err("%s: error writing to offset %d\n", __func__, RX_OFFSET);
 
@@ -511,8 +511,7 @@ static void ntb_transport_rxc_db(int db_num)
 
 	pr_debug("%s: doorbell %d received\n", __func__, db_num);
 
-	//if (!work_busy(&qp->rx_work))
-		queue_work(qp->qp_wq, &qp->rx_work);
+	queue_work(qp->qp_wq, &qp->rx_work);
 }
 
 static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry, int link)
@@ -525,17 +524,17 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 	rc = ntb_transport_get_remote_offset(qp, RX_OFFSET, &rx_offset);
 	if (rc) {
 		pr_err("%s: error reading from offset %d\n", __func__, RX_OFFSET);
-//		ntb_list_add_head(&qp->txq_lock, &entry->entry, &qp->txq);
+		ntb_list_add_head(&qp->txq_lock, &entry->entry, &qp->txq);
 		return -EIO;
 	}
 
 	offset = qp->tx_offset;
-	if (offset + sizeof(struct ntb_payload_header) >= qp->tx_buf_end)
-		offset = qp->tx_buf_begin;
+	if (offset + sizeof(struct ntb_payload_header) >= qp->tx_mw_end)
+		offset = qp->tx_mw_begin;
 
 	//did this hit or pass the rx offset
-	if (pass_check(qp->tx_offset - qp->tx_buf_begin, offset - qp->tx_buf_begin, rx_offset)) {
-//		ntb_list_add_head(&qp->txq_lock, &entry->entry, &qp->txq);
+	if (pass_check(qp->tx_offset - qp->tx_mw_begin, offset - qp->tx_mw_begin, rx_offset)) {
+		ntb_list_add_head(&qp->txq_lock, &entry->entry, &qp->txq);
 		qp->tx_ring_full++;
 		return -EAGAIN;
 	}
@@ -544,16 +543,16 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 	offset += sizeof(struct ntb_payload_header);
 
 	/* If it can't fit into whats left of the ring, move to the beginning */
-	if (offset + entry->len >= qp->tx_buf_end)
-		offset = qp->tx_buf_begin;
+	if (offset + entry->len >= qp->tx_mw_end)
+		offset = qp->tx_mw_begin;
 
-	if (pass_check(qp->tx_offset - qp->tx_buf_begin, (offset - qp->tx_buf_begin) + entry->len, rx_offset)) {
-//		ntb_list_add_head(&qp->txq_lock, &entry->entry, &qp->txq);
+	if (pass_check(qp->tx_offset - qp->tx_mw_begin, (offset - qp->tx_mw_begin) + entry->len, rx_offset)) {
+		ntb_list_add_head(&qp->txq_lock, &entry->entry, &qp->txq);
 		qp->tx_ring_full++;
 		return -EAGAIN;
 	}
 
-	pr_debug("%lld - tx %x, rx %x, entry len %d, free size %ld\n", qp->tx_pkts, (u32) (qp->tx_offset - qp->tx_buf_begin), rx_offset, entry->len, free_len(qp, (u32) (qp->tx_offset - qp->tx_buf_begin), rx_offset));
+	pr_debug("%lld - tx %x, rx %x, entry len %d, free size %ld\n", qp->tx_pkts, (u32) (qp->tx_offset - qp->tx_mw_begin), rx_offset, entry->len, free_len(qp, (u32) (qp->tx_offset - qp->tx_mw_begin), rx_offset));
 	//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
 
 	hdr->len = entry->len;
@@ -564,7 +563,7 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 	offset += entry->len;
 
 	qp->tx_offset = offset;
-	rc = ntb_transport_put_remote_offset(qp, TX_OFFSET, offset - qp->tx_buf_begin);
+	rc = ntb_transport_put_remote_offset(qp, TX_OFFSET, offset - qp->tx_mw_begin);
 	if (rc)
 		pr_err("%s: error writing to offset %d\n", __func__, TX_OFFSET);
 
@@ -613,8 +612,8 @@ static void ntb_transport_event_work(struct work_struct *work)
 		qp->qp_link = NTB_LINK_DOWN;
 		qp->rx_pkts = 0;
 		qp->tx_pkts = 0;
-		qp->tx_offset = qp->tx_buf_begin;
-		qp->rx_offset = qp->rx_mw_begin;
+		qp->tx_offset = qp->tx_mw_begin;
+		qp->rx_offset = qp->rx_buff_begin;
 		ntb_transport_put_remote_offset(qp, RX_OFFSET, 0); //FIXME - handle rc
 		ntb_transport_put_remote_offset(qp, TX_OFFSET, 0); //FIXME - handle rc
 
@@ -710,17 +709,15 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler, ehandler even
 	ntb_transport_put_remote_offset(qp, RX_OFFSET, 0); //FIXME - handle rc
 	ntb_transport_put_remote_offset(qp, TX_OFFSET, 0); //FIXME - handle rc
 
-	qp->rx_mw_begin = transport->mw[QP_TO_MW(free_queue)].virt_addr;
-	//qp->rx_mw_begin = ntb_get_mw_vbase(qp->ndev, QP_TO_MW(free_queue));
-	qp->rx_mw_end = qp->rx_mw_begin + transport->mw[QP_TO_MW(free_queue)].size;
-	pr_debug("RX MW start %p end %p\n", qp->rx_mw_begin, qp->rx_mw_end);
-	qp->rx_offset = qp->rx_mw_begin;
+	qp->rx_buff_begin = transport->mw[QP_TO_MW(free_queue)].virt_addr;
+	qp->rx_buff_end = qp->rx_buff_begin + transport->mw[QP_TO_MW(free_queue)].size;
+	pr_debug("RX Buff start %p end %p\n", qp->rx_buff_begin, qp->rx_buff_end);
+	qp->rx_offset = qp->rx_buff_begin;
 
-	qp->tx_buf_begin = ntb_get_mw_vbase(qp->ndev, QP_TO_MW(free_queue));
-	//qp->tx_buf_begin = transport->mw[QP_TO_MW(free_queue)].virt_addr;
-	qp->tx_buf_end = qp->tx_buf_begin + transport->mw[QP_TO_MW(free_queue)].size;
-	pr_debug("TX buf start %p end %p\n", qp->tx_buf_begin, qp->tx_buf_end);
-	qp->tx_offset = qp->tx_buf_begin;
+	qp->tx_mw_begin = ntb_get_mw_vbase(qp->ndev, QP_TO_MW(free_queue));
+	qp->tx_mw_end = qp->tx_mw_begin + transport->mw[QP_TO_MW(free_queue)].size;
+	pr_debug("TX MW start %p end %p\n", qp->tx_mw_begin, qp->tx_mw_end);
+	qp->tx_offset = qp->tx_mw_begin;
 
 	//FIXME - transport->qps[free_queue].queue.hw_caps; is it even necessary for transport client to know?
 
@@ -842,11 +839,10 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
 	if (!qp || qp->qp_link != NTB_LINK_UP)
 		return -EINVAL;
 
-#if 0 
+#if 1 
 	ntb_list_add_tail(&qp->txq_lock, &entry->entry, &qp->txq);
 
-	//if (!work_busy(&qp->tx_work))
-		queue_work(qp->qp_wq, &qp->tx_work);
+	queue_work(qp->qp_wq, &qp->tx_work);
 
 	return 0;
 #else
