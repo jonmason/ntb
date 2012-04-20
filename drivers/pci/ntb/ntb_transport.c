@@ -282,13 +282,9 @@ static void ntb_transport_event_callback(void *data, unsigned int event)
 				continue;
 			}
 
-			if (event == NTB_EVENT_HW_LINK_DOWN) {
-				qp->qp_link = NTB_LINK_DOWN;
-				cancel_delayed_work_sync(&qp->link_work);
-			}
+			if (event == NTB_EVENT_HW_LINK_DOWN)
+				qp->event_flags = NTB_LINK_DOWN;
 
-			//FIXME - determine what to send to the clients
-			qp->event_flags = qp->qp_link; //FIXME - handle more things
 			schedule_delayed_work(&qp->event_work, 0);
 		}
 }
@@ -625,6 +621,11 @@ static void ntb_transport_event_work(struct work_struct *work)
 {
 	struct ntb_transport_qp *qp = container_of(work, struct ntb_transport_qp, event_work.work);
 
+	if (qp->event_flags == qp->qp_link) {
+		pr_err("Erroneous link event.  Link already %s\n", (qp->qp_link == NTB_LINK_UP) ? "up": "down");
+		return;
+	}
+
 	if (qp->qp_link == NTB_LINK_DOWN) {
 		cancel_delayed_work_sync(&qp->link_work);
 		qp->qp_link = NTB_LINK_UP;
@@ -655,7 +656,8 @@ static void ntb_transport_link_work(struct work_struct *work)
 	if (rc)
 		pr_err("%s: error ringing db %d\n", __func__, qp->qp_num);
 
-	schedule_delayed_work(&qp->link_work, msecs_to_jiffies(1000));
+	if (qp->ndev->link_status)
+		schedule_delayed_work(&qp->link_work, msecs_to_jiffies(1000));
 }
 
 /**

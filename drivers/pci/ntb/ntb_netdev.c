@@ -479,6 +479,7 @@ static const struct ethtool_ops ntb_ethtool_ops = {
 	.get_sset_count = ntb_get_sset_count,
 	.get_strings = ntb_get_strings,
 	.get_ethtool_stats = ntb_get_ethtool_stats,
+	.get_link = ethtool_op_get_link,
 };
 
 static int __init ntb_netdev_init_module(void)
