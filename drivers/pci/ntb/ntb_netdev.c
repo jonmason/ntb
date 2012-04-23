@@ -341,6 +341,12 @@ static int ntb_netdev_change_mtu(struct net_device *ndev, int new_mtu)
 	struct ntb_queue_entry *entry;
 	int rc;
 
+	if (!netif_running(ndev)) {
+		ndev->mtu = new_mtu;
+		return 0;
+	}
+
+	//FIXME - should sanity check the max size before the check for running, but there is no qp to check yet
 	if (new_mtu > ntb_transport_max_size(dev->qp))
 		return -EINVAL;
 
