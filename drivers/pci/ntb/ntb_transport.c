@@ -402,10 +402,9 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	bool oflow;
 	int rc;
 	u32 tx_offset;
-	static u32 last = -1;
 
 	if (qp->qp_link == NTB_LINK_DOWN) {
-		pr_info("QP %d Link Up\n", qp->qp_num);
+		pr_debug("QP %d Link Up\n", qp->qp_num);
 		qp->event_flags = NTB_LINK_UP; 
 
 		schedule_delayed_work(&qp->event_work, msecs_to_jiffies(1000));
@@ -435,8 +434,8 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 
 	if (hdr->ver != qp->rx_pkts) {
 		pr_err("Version mismatch, expected %Ld - got %Ld\n", qp->rx_pkts, hdr->ver);
-		pr_err("rx offset %lx last %x, last to end %ld, curr to end %ld, tx offset %x, ver %Ld\n",
-			 offset - qp->rx_buff_begin, last, qp->rx_buff_end - (qp->rx_buff_begin + last), qp->rx_buff_end - qp->rx_offset, tx_offset, hdr->ver);
+		pr_err("rx offset %lx, curr to end %ld, tx offset %x, ver %Ld\n",
+			 offset - qp->rx_buff_begin, qp->rx_buff_end - qp->rx_offset, tx_offset, hdr->ver);
 		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
 		return -EIO;
 	}
@@ -450,7 +449,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 		oflow = true;
 	} else {
 		if (!hdr->link) {
-			pr_info("QP %d Link Down\n", qp->qp_num);
+			pr_debug("QP %d Link Down\n", qp->qp_num);
 			qp->event_flags = NTB_LINK_DOWN; 
 
 			schedule_delayed_work(&qp->event_work, msecs_to_jiffies(1000));
@@ -504,6 +503,7 @@ static int ntb_transport_rxc(void *data)
 		/* Sleep if no rx work */
 		set_current_state(TASK_INTERRUPTIBLE);
 		schedule();
+		set_current_state(TASK_RUNNING);
 	}
 
 	return 0;
@@ -521,9 +521,9 @@ static void ntb_transport_rxc_db(int db_num)
 static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry, int link)
 {
 	struct ntb_payload_header *hdr;
+	u32 rx_offset;
 	void *offset;
 	int rc;
-	u32 rx_offset;
 
 	rc = ntb_transport_get_remote_offset(qp, RX_OFFSET, &rx_offset);
 	if (rc) {
@@ -532,17 +532,26 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 		return -EIO;
 	}
 
+#if 1 
+	//FIXME - major hack to avoid ring wrapping.  this seems to fix the lock up and ring corruption issues
+	if (free_len(qp, (u32) (qp->tx_offset - qp->tx_mw_begin), rx_offset) < 4096 * 2) {
+		ntb_list_add_head(&qp->txq_lock, &entry->entry, &qp->txq);
+		qp->tx_ring_full++;
+		return -EAGAIN;
+	}
+#endif
 	offset = qp->tx_offset;
 	if (offset + sizeof(struct ntb_payload_header) >= qp->tx_mw_end)
 		offset = qp->tx_mw_begin;
 
+#if 0
 	//did this hit or pass the rx offset
 	if (pass_check(qp->tx_offset - qp->tx_mw_begin, offset - qp->tx_mw_begin, rx_offset)) {
 		ntb_list_add_head(&qp->txq_lock, &entry->entry, &qp->txq);
 		qp->tx_ring_full++;
 		return -EAGAIN;
 	}
-
+#endif
 	hdr = offset;
 	offset += sizeof(struct ntb_payload_header);
 
@@ -610,8 +619,13 @@ static int ntb_transport_tx(void *data)
 		} while (true);
 
 		/* Sleep if no tx work */
+#if 0
 		set_current_state(TASK_INTERRUPTIBLE);
 		schedule();
+		set_current_state(TASK_RUNNING);
+#else
+		schedule_timeout_interruptible(msecs_to_jiffies(500));//HACK - timeout to avoid ring full issue
+#endif
 	}
 
 	return 0;
@@ -869,15 +883,11 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry
 	if (!qp || qp->qp_link != NTB_LINK_UP)
 		return -EINVAL;
 
-#if 1 
 	ntb_list_add_tail(&qp->txq_lock, &entry->entry, &qp->txq);
 
 	wake_up_process(qp->tx_work);
 
 	return 0;
-#else
-	return ntb_process_tx(qp, entry, NTB_LINK_UP);
-#endif
 }
 EXPORT_SYMBOL(ntb_transport_tx_enqueue);
 
