@@ -394,14 +394,13 @@ static bool pass_check_rx(u32 rx_orig, u32 rx_curr, u32 tx)
 			return (rx_curr < tx);
 }
 
-static int ntb_process_rxc(struct ntb_transport_qp *qp)
+static int ntb_process_rxc(struct ntb_transport_qp *qp, u32 tx_offset)
 {
 	struct ntb_payload_header *hdr;
 	struct ntb_queue_entry *entry;
 	void *offset;
 	bool oflow;
 	int rc;
-	u32 tx_offset;
 
 	if (qp->qp_link == NTB_LINK_DOWN) {
 		pr_debug("QP %d Link Up\n", qp->qp_num);
@@ -411,10 +410,6 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 		return -EAGAIN;
 	}
 
-	rc = ntb_transport_get_remote_offset(qp, TX_OFFSET, &tx_offset);
-	if (rc)
-		pr_err("%s: error reading from offset %d\n", __func__, TX_OFFSET);
-
 	if (qp->rx_offset == (qp->rx_buff_begin + tx_offset)) {
 		qp->rx_ring_empty++;
 		return -EAGAIN;
@@ -423,7 +418,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	entry = ntb_list_rm_head(&qp->rxq_lock, &qp->rxq);
 	if (!entry) {
 		qp->rx_err_no_buf++;
-		return -EAGAIN;
+		return -ENOMEM;
 	}
 
 	offset = qp->rx_offset;
@@ -496,14 +491,27 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 static int ntb_transport_rxc(void *data)
 {
 	struct ntb_transport_qp *qp = data;
+	u32 tx_offset;
+	int rc;
 
 	while (!kthread_should_stop()) {
-		while (ntb_process_rxc(qp) == 0);
+		rc = ntb_transport_get_remote_offset(qp, TX_OFFSET, &tx_offset);
+		if (rc)
+			pr_err("%s: error reading from offset %d\n", __func__, TX_OFFSET);
 
-		/* Sleep if no rx work */
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule();
-		set_current_state(TASK_RUNNING);
+		rc = ntb_process_rxc(qp, tx_offset);
+		if (!rc)
+			continue;
+
+		/* Sleep for a little bit and hope some memory frees up*/
+		if (rc == -ENOMEM)
+			schedule_timeout_interruptible(msecs_to_jiffies(100));//FIXME - tune this
+		else {
+			/* Sleep if no rx work */
+			set_current_state(TASK_INTERRUPTIBLE);
+			schedule();
+			set_current_state(TASK_RUNNING);
+		}
 	}
 
 	return 0;
@@ -532,26 +540,10 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 		return -EIO;
 	}
 
-#if 1 
-	//FIXME - major hack to avoid ring wrapping.  this seems to fix the lock up and ring corruption issues
-	if (free_len(qp, (u32) (qp->tx_offset - qp->tx_mw_begin), rx_offset) < 4096 * 2) {
-		ntb_list_add_head(&qp->txq_lock, &entry->entry, &qp->txq);
-		qp->tx_ring_full++;
-		return -EAGAIN;
-	}
-#endif
 	offset = qp->tx_offset;
 	if (offset + sizeof(struct ntb_payload_header) >= qp->tx_mw_end)
 		offset = qp->tx_mw_begin;
 
-#if 0
-	//did this hit or pass the rx offset
-	if (pass_check(qp->tx_offset - qp->tx_mw_begin, offset - qp->tx_mw_begin, rx_offset)) {
-		ntb_list_add_head(&qp->txq_lock, &entry->entry, &qp->txq);
-		qp->tx_ring_full++;
-		return -EAGAIN;
-	}
-#endif
 	hdr = offset;
 	offset += sizeof(struct ntb_payload_header);
 
@@ -608,24 +600,18 @@ static int ntb_transport_tx(void *data)
 	int rc;
 
 	while (!kthread_should_stop()) {
-		do {
-		 	entry = ntb_list_rm_head(&qp->txq_lock, &qp->txq);
-			if (!entry)
-				break;
+	 	entry = ntb_list_rm_head(&qp->txq_lock, &qp->txq);
+		if (!entry) {
+			/* Sleep if no tx work */
+			set_current_state(TASK_INTERRUPTIBLE);
+			schedule();
+			set_current_state(TASK_RUNNING);
+			continue;
+		}
 
-			rc = ntb_process_tx(qp, entry, NTB_LINK_UP);
-			if (rc)
-				break;
-		} while (true);
-
-		/* Sleep if no tx work */
-#if 0
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule();
-		set_current_state(TASK_RUNNING);
-#else
-		schedule_timeout_interruptible(msecs_to_jiffies(500));//HACK - timeout to avoid ring full issue
-#endif
+		rc = ntb_process_tx(qp, entry, NTB_LINK_UP);
+		if (rc)
+			schedule_timeout_interruptible(msecs_to_jiffies(100)); //FIXME - tune
 	}
 
 	return 0;
