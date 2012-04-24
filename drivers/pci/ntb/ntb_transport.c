@@ -61,6 +61,7 @@
 #include <linux/errno.h>
 #include <linux/export.h>
 #include <linux/kthread.h>
+#include <linux/moduleparam.h>
 #include <linux/pci.h>
 #include <linux/slab.h>
 #include <linux/types.h>
@@ -137,6 +138,14 @@ enum {
 	SPADS_PER_QP,
 };
 
+static unsigned int rx_ring_timeo = 100;
+module_param(rx_ring_timeo, uint, 0644);
+MODULE_PARM_DESC(rx_ring_timeo, "Receive Ring Out-of-buffers timeout value (in ms)");
+
+static int tx_ring_timeo = 100;
+module_param(tx_ring_timeo, uint, 0644);
+MODULE_PARM_DESC(tx_ring_timeo, "Transmit Ring full timeout value (in ms)");
+
 #define QP_TO_MW(qp)		((qp) % NTB_NUM_MW)
 
 #define	free_len(qp, tx, rx)	(tx < rx ? rx - tx : (qp->tx_mw_end - qp->tx_mw_begin) - (tx - rx))
@@ -197,13 +206,15 @@ static int ntb_transport_get_remote_offset(struct ntb_transport_qp *qp, u8 offse
 	return ntb_read_remote_spad(qp->ndev, idx, val);
 }
 
-static int ntb_transport_put_remote_offset(struct ntb_transport_qp *qp, u8 offset, u32 val)
+static void ntb_transport_put_remote_offset(struct ntb_transport_qp *qp, u8 offset, u32 val)
 {
-	int idx;
+	int idx, rc;
 
 	idx = (qp->qp_num * SPADS_PER_QP) + offset;
 
-	return ntb_write_remote_spad(qp->ndev, idx, val);
+	rc = ntb_write_remote_spad(qp->ndev, idx, val);
+	if (rc)
+		pr_err("Error writing %x to remote spad %d\n", val, idx);
 }
 
 static int list_len(struct list_head *list)
@@ -263,8 +274,6 @@ static void ntb_transport_event_callback(void *data, unsigned int event)
 {
 	struct ntb_transport *transport = data;
 	int i;
-
-	//FIXME - use handle as a way to pass client specified data back to it.
 
 	/* Pass along the info to any clients */
 	for (i = 0; i < transport->max_qps; i++)
@@ -400,7 +409,6 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp, u32 tx_offset)
 	struct ntb_queue_entry *entry;
 	void *offset;
 	bool oflow;
-	int rc;
 
 	if (qp->qp_link == NTB_LINK_DOWN) {
 		pr_debug("QP %d Link Up\n", qp->qp_num);
@@ -469,9 +477,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp, u32 tx_offset)
 	WARN_ON(pass_check_rx(qp->rx_offset - qp->rx_buff_begin, offset - qp->rx_buff_begin, tx_offset));
 
 	qp->rx_offset = offset;
-	rc = ntb_transport_put_remote_offset(qp, RX_OFFSET, offset - qp->rx_buff_begin);
-	if (rc)
-		pr_err("%s: error writing to offset %d\n", __func__, RX_OFFSET);
+	ntb_transport_put_remote_offset(qp, RX_OFFSET, offset - qp->rx_buff_begin);
 
 	if (oflow)
 		return 0;
@@ -481,7 +487,6 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp, u32 tx_offset)
 
 	ntb_list_add_tail(&qp->rxc_lock, &entry->entry, &qp->rxc);
 
-	//FIXME - this should kick off wq thread or we should document that it runs in irq context
 	if (qp->rx_handler && qp->client_ready)
 		qp->rx_handler(qp);
 
@@ -503,9 +508,9 @@ static int ntb_transport_rxc(void *data)
 		if (!rc)
 			continue;
 
-		/* Sleep for a little bit and hope some memory frees up*/
+		/* Sleep for a little bit and hope some memory frees up */
 		if (rc == -ENOMEM)
-			schedule_timeout_interruptible(msecs_to_jiffies(100));//FIXME - tune this
+			schedule_timeout_interruptible(msecs_to_jiffies(rx_ring_timeo));
 		else {
 			/* Sleep if no rx work */
 			set_current_state(TASK_INTERRUPTIBLE);
@@ -568,9 +573,7 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 	offset += entry->len;
 
 	qp->tx_offset = offset;
-	rc = ntb_transport_put_remote_offset(qp, TX_OFFSET, offset - qp->tx_mw_begin);
-	if (rc)
-		pr_err("%s: error writing to offset %d\n", __func__, TX_OFFSET);
+	ntb_transport_put_remote_offset(qp, TX_OFFSET, offset - qp->tx_mw_begin);
 
 	/* Ring doorbell notifying remote side of new packet */
 	rc = ntb_ring_sdb(qp->ndev, qp->qp_num);
@@ -586,7 +589,6 @@ static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *e
 	/* Add fully transmitted data to completion queue */
 	ntb_list_add_tail(&qp->txc_lock, &entry->entry, &qp->txc);
 
-	//FIXME - might want to kick off a thread/wq to handle the tx completion
 	if (qp->tx_handler)
 		qp->tx_handler(qp);
 
@@ -611,7 +613,7 @@ static int ntb_transport_tx(void *data)
 
 		rc = ntb_process_tx(qp, entry, NTB_LINK_UP);
 		if (rc)
-			schedule_timeout_interruptible(msecs_to_jiffies(100)); //FIXME - tune
+			schedule_timeout_interruptible(msecs_to_jiffies(tx_ring_timeo));
 	}
 
 	return 0;
@@ -635,8 +637,8 @@ static void ntb_transport_event_work(struct work_struct *work)
 		qp->tx_pkts = 0;
 		qp->tx_offset = qp->tx_mw_begin;
 		qp->rx_offset = qp->rx_buff_begin;
-		ntb_transport_put_remote_offset(qp, RX_OFFSET, 0); //FIXME - handle rc
-		ntb_transport_put_remote_offset(qp, TX_OFFSET, 0); //FIXME - handle rc
+		ntb_transport_put_remote_offset(qp, RX_OFFSET, 0);
+		ntb_transport_put_remote_offset(qp, TX_OFFSET, 0);
 
 		if (qp->ndev->link_status)
 			schedule_delayed_work(&qp->link_work, 0);
@@ -664,6 +666,7 @@ static void ntb_transport_link_work(struct work_struct *work)
  * ntb_transport_create_queue - Create a new NTB transport layer queue
  * @rx_handler: receive callback function 
  * @tx_handler: transmit callback function 
+ * @event_handler: event callback function 
  *
  * Create a new NTB transport layer queue and provide the queue with a callback
  * routine for both transmit and receive.  The receive callback routine will be
@@ -735,8 +738,8 @@ ntb_transport_create_queue(handler rx_handler, handler tx_handler, ehandler even
 
 	qp->rx_pkts = 0;
 	qp->tx_pkts = 0;
-	ntb_transport_put_remote_offset(qp, RX_OFFSET, 0); //FIXME - handle rc
-	ntb_transport_put_remote_offset(qp, TX_OFFSET, 0); //FIXME - handle rc
+	ntb_transport_put_remote_offset(qp, RX_OFFSET, 0);
+	ntb_transport_put_remote_offset(qp, TX_OFFSET, 0);
 
 	qp->rx_buff_begin = transport->mw[QP_TO_MW(free_queue)].virt_addr;
 	qp->rx_buff_end = qp->rx_buff_begin + transport->mw[QP_TO_MW(free_queue)].size;
@@ -790,27 +793,31 @@ static void ntb_purge_list(struct list_head *list)
 void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 {
 	struct ntb_queue_entry entry;
+	int rc;
 
 	if (!qp)
 		return;
 
 	qp->qp_link = NTB_LINK_DOWN;
 
+	//FIXME - wait for tx queue to be empty
+
 	entry.len = 0;
 	entry.buf = NULL;
-	ntb_process_tx(qp, &entry, NTB_LINK_DOWN);//FIXME - check rc
+	rc = ntb_process_tx(qp, &entry, NTB_LINK_DOWN);
+	if (rc)
+		pr_err("ntb: Failed to send remote side \"link down\"\n");
 
 	cancel_delayed_work_sync(&qp->event_work);
 	cancel_delayed_work_sync(&qp->link_work);
 
 	ntb_unregister_db_callback(qp->ndev, qp->qp_num);
-	//FIXME - wait for qps to quience or notify the transport to stop?
 
 	kthread_stop(qp->rx_work);
 	kthread_stop(qp->tx_work);
 
-	ntb_transport_put_remote_offset(qp, RX_OFFSET, 0); //FIXME - handle rc
-	ntb_transport_put_remote_offset(qp, TX_OFFSET, 0); //FIXME - handle rc
+	ntb_transport_put_remote_offset(qp, RX_OFFSET, 0);
+	ntb_transport_put_remote_offset(qp, TX_OFFSET, 0);
 
 	ntb_purge_list(&qp->rxq);
 	ntb_purge_list(&qp->rxc);
@@ -948,18 +955,18 @@ void ntb_transport_link_down(struct ntb_transport_qp *qp)
 EXPORT_SYMBOL(ntb_transport_link_down);
 
 /**
- * ntb_transport_hw_link_query - Query hardware link state
+ * ntb_transport_link_query - Query hardware link state
  * @qp: NTB transport layer queue to be queried
  *
  * Query hardware link state of the NTB transport queue 
  *
  * RETURNS: true for link up or false for link down
  */
-bool ntb_transport_hw_link_query(struct ntb_transport_qp *qp)//FIXME - rename
+bool ntb_transport_link_query(struct ntb_transport_qp *qp)
 {
 	return qp->qp_link == NTB_LINK_UP;
 }
-EXPORT_SYMBOL(ntb_transport_hw_link_query);
+EXPORT_SYMBOL(ntb_transport_link_query);
 
 size_t ntb_transport_max_size(struct ntb_transport_qp *qp)
 {

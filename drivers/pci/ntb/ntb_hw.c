@@ -65,7 +65,7 @@
 #include "ntb_regs.h"
 
 #define NTB_NAME	"Intel(R) PCIe Non-Transparent Bridge Driver"
-#define NTB_VER		"0.12"
+#define NTB_VER		"0.13"
 
 MODULE_DESCRIPTION(NTB_NAME);
 MODULE_VERSION(NTB_VER);
@@ -131,7 +131,7 @@ EXPORT_SYMBOL(ntb_query_db_bits);
 int ntb_register_event_callback(struct ntb_device *ndev, event_cb_func func)
 {
 	if (ndev->event_cb)
-		return -EBUSY;
+		return -EINVAL;
 
 	ndev->event_cb = func;
 
@@ -147,7 +147,6 @@ EXPORT_SYMBOL(ntb_register_event_callback);
  */
 void ntb_unregister_event_callback(struct ntb_device *ndev)
 {
-	//FIXME - ensure events are flushed
 	ndev->event_cb = NULL;
 }
 EXPORT_SYMBOL(ntb_unregister_event_callback);
@@ -172,7 +171,7 @@ int ntb_register_db_callback(struct ntb_device *ndev,
 
 	if (idx >= ndev->limits.max_db_bits || ndev->db_cb[idx].callback) {
 		dev_warn(&ndev->pdev->dev, "Invalid Index.\n");
-		return -EBUSY;
+		return -EINVAL;
 	}
 
 	ndev->db_cb[idx].callback = func;
@@ -201,7 +200,6 @@ void ntb_unregister_db_callback(struct ntb_device *ndev, unsigned int idx)
 	if (idx >= ndev->limits.max_db_bits || !ndev->db_cb[idx].callback)
 		return;
 
-	//FIXME - ensure the dbs have been flushed
 	mask = readw(ndev->reg_base + ndev->reg_ofs.pdb_mask);
 	set_bit(idx, &mask);
 	writew(mask, ndev->reg_base + ndev->reg_ofs.pdb_mask);
@@ -477,22 +475,31 @@ static void ntb_link_event(struct ntb_device *ndev, int link_state)
 
 static int ntb_link_status(struct ntb_device *ndev)
 {
-	u16 status;
+	int link_state;
 
-	if (ndev->hw_type == BWD_HW)
-		status = readw(ndev->reg_base + ndev->reg_ofs.lnk_stat);
-	else {
+	if (ndev->hw_type == BWD_HW) {
+		u32 ntb_cntl;
+
+		ntb_cntl = readl(ndev->reg_base + ndev->reg_ofs.lnk_cntl);
+		if (ntb_cntl & BWD_CNTL_LINK_DOWN)
+			link_state = NTB_LINK_DOWN;
+		else
+			link_state = NTB_LINK_UP;
+	} else {
+		u16 status;
 		int rc;
 
 		rc = pci_read_config_word(ndev->pdev, ndev->reg_ofs.lnk_stat, &status);
 		if (rc)
 			return rc;
+
+		if (status & NTB_LINK_STATUS_ACTIVE)
+			link_state = NTB_LINK_DOWN;
+		else
+			link_state = NTB_LINK_UP;
 	}
 
-	if (status & NTB_LINK_STATUS_ACTIVE)
-		ntb_link_event(ndev, NTB_LINK_UP);
-	else
-		ntb_link_event(ndev, NTB_LINK_DOWN);
+	ntb_link_event(ndev, link_state);
 
 	return 0;
 }
@@ -505,13 +512,9 @@ static void ntb_handle_heartbeat(struct work_struct *work)
 
 	/* If we haven't gotten an interrupt in a while, check the BWD link status bit */
 	if (ts > ndev->last_ts + NTB_HB_TIMEOUT) {
-		u32 ntb_cntl;
-
-		ntb_cntl = readl(ndev->reg_base + ndev->reg_ofs.lnk_cntl);
-		if (ntb_cntl & BWD_CNTL_LINK_DOWN)
-			ntb_link_event(ndev, NTB_LINK_DOWN);
-		else
-			ntb_link_event(ndev, NTB_LINK_UP);
+		int rc = ntb_link_status(ndev);
+		if (rc)
+			dev_err(&ndev->pdev->dev, "Error determining link status\n");
 	}
 
 	schedule_delayed_work(&ndev->hb_timer, NTB_HB_TIMEOUT);
@@ -719,7 +722,7 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	return 0;
 }
 
-static int ntb_device_setup(struct ntb_device *ndev)
+static int __devinit ntb_device_setup(struct ntb_device *ndev)
 {
 	int rc;
 
@@ -764,7 +767,6 @@ static irqreturn_t ntb_interrupt(int irq, void *dev)
 		if (test_bit(i, (const volatile long unsigned int *)&pdb) && ndev->db_cb[i].callback)
 				ndev->db_cb[i].callback(ndev->db_cb[i].db_num);
 	}
-	//FIXME - can this be optimized using ffs or is that unnecessary?
 
 	if (ndev->hw_type == BWD_HW) {
 		/* No need to check for the specific HB irq, any interrupt means we're connected */
@@ -812,27 +814,19 @@ static irqreturn_t ntb_callback_msix_irq(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
+/* Since we do not have a HW doorbell in BWD, this is only used in JF */
 static irqreturn_t ntb_event_msix_irq(int irq, void *dev)
 {
 	struct ntb_device *ndev = dev;
+	int rc;
 
 	dev_dbg(&ndev->pdev->dev, "MSI-X irq %d received for Events\n", irq);
 
-	//FIXME - currently unused
-	if (ndev->hw_type == BWD_HW) {
-		/* No need to check for the specific HB irq, any interrupt means we're connected */
-		ndev->last_ts = jiffies;
+	rc = ntb_link_status(ndev);
+	if (rc)
+		dev_err(&ndev->pdev->dev, "Error determining link status\n");
 
-		writeq((u64) 1 << (ndev->limits.max_db_bits - 1), ndev->reg_base + ndev->reg_ofs.pdb);
-	} else { 
-		int rc;
-
-		rc = ntb_link_status(ndev);
-		if (rc)
-			dev_err(&ndev->pdev->dev, "Error determining link status\n");
-
-		writew(1 << (ndev->limits.max_db_bits - 1), ndev->reg_base + ndev->reg_ofs.pdb);
-	}
+	writew(1 << (ndev->limits.max_db_bits - 1), ndev->reg_base + ndev->reg_ofs.pdb);
 
 	return IRQ_HANDLED;
 }
@@ -841,16 +835,15 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 {
 	struct pci_dev *pdev = ndev->pdev;
 	struct msix_entry *msix;
-	u16 val;
 	int msix_entries;
 	int rc, i;
+	u16 val;
 
 	rc = pci_read_config_word(pdev, ndev->reg_ofs.msix_msgctrl, &val);
 	if (rc)
 		goto err;
 
 	msix_entries = msix_table_size(val);
-
 	if (msix_entries > ndev->limits.msix_cnt) {
 		rc = -EINVAL;
 		goto err;
@@ -871,7 +864,7 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 		goto err1;
 	if (rc > 0) {
 		/* We need 1 vector for links and 1 vector for a queue.  If not, then we can't use MSI-X */
-		if (rc < 2) {
+		if (ndev->hw_type != BWD_HW && rc < 2) {
 			rc = -EIO;
 			goto err1;
 		}
@@ -898,7 +891,6 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 
 	ndev->num_msix = msix_entries;
 
-	//FIXME - need to handle the SNB vector to num of bits perf vector
 	if (ndev->limits.max_db_bits != msix_entries) {
 		if (ndev->hw_type == BWD_HW)
 			ndev->limits.max_db_bits = msix_entries;
@@ -958,7 +950,7 @@ static int ntb_setup_intx(struct ntb_device *ndev)
 	return 0;
 }
 
-static int ntb_setup_interrupts(struct ntb_device *ndev)
+static int __devinit ntb_setup_interrupts(struct ntb_device *ndev)
 {
 	int rc;
 
@@ -986,7 +978,7 @@ done:
 	return 0;
 }
 
-static void ntb_free_interrupts(struct ntb_device *ndev)
+static void __devexit ntb_free_interrupts(struct ntb_device *ndev)
 {
 	struct pci_dev *pdev = ndev->pdev;
 
@@ -1016,7 +1008,7 @@ static void ntb_free_interrupts(struct ntb_device *ndev)
 	}
 }
 
-static int ntb_create_callbacks(struct ntb_device *ndev)
+static int __devinit ntb_create_callbacks(struct ntb_device *ndev)
 {
 	int i;
 

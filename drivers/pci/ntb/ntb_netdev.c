@@ -69,6 +69,7 @@ MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("Intel Corporation");
 
 struct ntb_netdev {
+	struct net_device *ndev;
 	struct ntb_transport_qp *qp;
 	struct list_head tx_entries;
 	struct work_struct txto_work;
@@ -143,7 +144,7 @@ static void ntb_netdev_event_handler(int status)
 {
 	struct ntb_netdev *dev = netdev_priv(netdev);
 
-	pr_debug("%s: Event %x, Link %x\n", KBUILD_MODNAME, status, ntb_transport_hw_link_query(dev->qp));
+	pr_debug("%s: Event %x, Link %x\n", KBUILD_MODNAME, status, ntb_transport_link_query(dev->qp));
 
 	/* Currently, only link status event is supported */
 	if (status)
@@ -159,7 +160,7 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 	struct sk_buff *skb;
 	int rc;
 
-	while ((entry = ntb_transport_rx_dequeue(dev->qp))) {
+	while ((entry = ntb_transport_rx_dequeue(qp))) {
 		pr_debug("%s: %d byte payload received\n", __func__, entry->len);
 
 		skb = entry->callback_data;
@@ -390,20 +391,16 @@ err:
 
 static void ntb_netdev_txto_work(struct work_struct *work)
 {
-	//struct ntb_netdev *dev = container_of(work, struct ntb_netdev, txto_work);
-	struct net_device *ndev = netdev; //FIXME - don't use global
+	struct ntb_netdev *dev = container_of(work, struct ntb_netdev, txto_work);
+	struct net_device *ndev = dev->ndev;
 
 	if (netif_running(ndev)) {
-#if 0
 		int rc;
 
 		ntb_netdev_close(ndev);
-		rc = ntb_netdev_open(ndev);//FIXME - do something with rc
+		rc = ntb_netdev_open(ndev);
 		if (rc)
 			pr_err("%s: Open failed\n", __func__);
-#else
-		netif_wake_queue(ndev);
-#endif
 	}
 }
 
@@ -500,6 +497,7 @@ static int __init ntb_netdev_init_module(void)
 		return -ENOMEM;
 
 	dev = netdev_priv(netdev);
+	dev->ndev = netdev;
 	netdev->features = NETIF_F_HIGHDMA; //FIXME - check this against the flags returned by the ntb dev???
 	//FIXME - there is bound to be more flags supported.  NETIF_F_SG comes to mind, prolly NETIF_F_FRAGLIST, NETIF_F_NO_CSUM, 
 

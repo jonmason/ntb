@@ -83,4 +83,4 @@ struct ntb_queue_entry *ntb_transport_tx_dequeue(struct ntb_transport_qp *qp);
 struct ntb_queue_entry *ntb_transport_rx_dequeue(struct ntb_transport_qp *qp);
 void ntb_transport_link_up(struct ntb_transport_qp *qp);
 void ntb_transport_link_down(struct ntb_transport_qp *qp);
-bool ntb_transport_hw_link_query(struct ntb_transport_qp *qp);
+bool ntb_transport_link_query(struct ntb_transport_qp *qp);
