@@ -606,8 +606,8 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	else
 		ndev->dev_type = NTB_DEV_USD;
 
-	//enable link training in ppd0
-	rc = pci_write_config_dword(ndev->pdev, NTB_PPD_OFFSET, val | 0x4);
+	/* Initiate PCI-E link training */
+	rc = pci_write_config_dword(ndev->pdev, NTB_PPD_OFFSET, val | BWD_PPD_INIT_LINK);
 	if (rc)
 		return rc;
 
@@ -637,87 +637,12 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 
 	/* Since bwd doesn't have a link interrupt, setup a heartbeat timer */
 	INIT_DELAYED_WORK(&ndev->hb_timer, ntb_handle_heartbeat);
-	schedule_delayed_work(&ndev->hb_timer, NTB_HB_TIMEOUT); //FIXME - this might fire before the probe has finished
+	schedule_delayed_work(&ndev->hb_timer, NTB_HB_TIMEOUT);
 
-
-	//FIXME - add documentation on the difference between JKT Primary/Secondary and BWD iEP/eEP
-	//FIXME - all of these are magic from the verification guys.  Verify all of these are necessary to get NTB working
-
-
-	//Turn off Common Clock in linkctl
-	writew(0, ndev->reg_base + 0xb050);
-
-	/* FIXME - MSI-X bug on BWD.  Mask transaction layer internal parity errors. */
+	/* FIXME - MSI-X bug on early BWD HW, remove once internal issue is resolved.  Mask transaction layer internal parity errors. */
 	rc = pci_write_config_dword(ndev->pdev, 0xFC, 0x4);
 	if (rc)
 		return rc;
-
-	//Setting eEP MBAR23 Size in sec_rsbctl23
-	writew(0x0022, ndev->reg_base + 0x31a8);
-
-	//Setting eEP MBAR45 Size in sec_rsbctl45
-	writew(0x0004, ndev->reg_base + 0x31b0);
-
-	//FIXME - since BIOS isn't filling out these regs, let's do it ourselves
-	if (ndev->dev_type == NTB_DEV_USD) {
-		//Setting eEP MBAR23XLAT, should match eEP MBAR23 on remote system
-		writeq(0x0000004000000000, ndev->reg_base + BWD_PBAR2XLAT_OFFSET);
-		//Setting eEP MBAR45XLAT, should match eEP MBAR23 on remote system
-		writeq(0x0000008000000000, ndev->reg_base + BWD_PBAR4XLAT_OFFSET);
-		//Setting eEP MBAR23, should match eEP MBAR23XLAT on remote system
-		writeq(0x000000410000000C, ndev->reg_base + 0xb018);
-		//Setting eEP MBAR45, should match eEP MBAR45XLAT on remote system
-		writeq(0x000000810000000C, ndev->reg_base + 0xb020);
-	} else {
-		//Setting eEP MBAR23XLAT, should match eEP MBAR23 on remote system
-		writeq(0x0000004100000000, ndev->reg_base + BWD_PBAR2XLAT_OFFSET);
-		//Setting eEP MBAR45XLAT, should match eEP MBAR23 on remote system
-		writeq(0x0000008100000000, ndev->reg_base + BWD_PBAR4XLAT_OFFSET);
-		//Setting eEP MBAR23, should match eEP MBAR23XLAT on remote system
-		writeq(0x000000400000000C, ndev->reg_base + 0xb018);
-		//Setting eEP MBAR45, should match eEP MBAR45XLAT on remote system
-		writeq(0x000000800000000C, ndev->reg_base + 0xb020);
-	}
-
-	//Setting iEP MBAR23 Size in sec_rsbctl23
-	writew(0x0022, ndev->reg_base + 0xb1a8);
-
-	//Setting iEP MBAR45 Size in sec_rsbctl45
-	writew(0x0004, ndev->reg_base + 0xb1b0);
-
-	//Setting iEP Payload Size in devctl
-	rc = pci_write_config_word(ndev->pdev, 0x0048, 0x282F);
-	if (rc)
-		return rc;
-
-	rc = pci_write_config_word(ndev->pdev, 0x004a, 0xFFFF);
-	if (rc)
-		return rc;
-
-	//Setting eEP Payload Size in devctl
-	writew(0x282F, ndev->reg_base + 0xb048);
-	writew(0xFFFF, ndev->reg_base + 0xb04a);
-
-	//Clear the Error Registers
-	rc = pci_write_config_word(ndev->pdev, 0x0006, 0xFFFF);
-	if (rc)
-		return rc;
-
-	writew(0xFFFF, ndev->reg_base + 0xb006);
-
-	rc = pci_write_config_dword(ndev->pdev, 0x0104, 0xFFFFFFFF);
-	if (rc)
-		return rc;
-
-	rc = pci_write_config_dword(ndev->pdev, 0x0110, 0xFFFFFFFF);
-	if (rc)
-		return rc;
-
-	writel(0xFFFFFFFF, ndev->reg_base + 0xb104);
-	writel(0xFFFFFFFF, ndev->reg_base + 0xb110);
-
-	//enable external msi-x irqs
-	writew(0x8021, ndev->reg_base + 0xB0B2);//FIXME - should read current value and or in the enable bit
 
 	return 0;
 }
@@ -1046,6 +971,7 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	ntbdev = ndev;
 	ndev->pdev = pdev;
+	ndev->link_status = NTB_LINK_DOWN;
 	pci_set_drvdata(pdev, ndev);
 
 	rc = pci_enable_device(pdev);
@@ -1081,7 +1007,7 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		rc = pci_set_dma_mask(pdev, DMA_BIT_MASK(32));
 		if (rc)
 			goto err3;
-		//FIXME - let upper layers know of this limitation
+
 		dev_warn(&pdev->dev, "Cannot DMA highmem\n");
 	}
 
@@ -1105,8 +1031,6 @@ ntb_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	rc = ntb_setup_interrupts(ndev);
 	if (rc)
 		goto err5;
-
-	ndev->link_status = NTB_LINK_DOWN;
 
 	/* Let's bring the NTB link up */
 	writel(NTB_CNTL_BAR23_SNOOP | NTB_CNTL_BAR45_SNOOP, ndev->reg_base + ndev->reg_ofs.lnk_cntl);

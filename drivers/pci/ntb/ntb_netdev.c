@@ -395,12 +395,14 @@ static void ntb_netdev_txto_work(struct work_struct *work)
 	struct net_device *ndev = dev->ndev;
 
 	if (netif_running(ndev)) {
+#if 0
 		int rc;
 
 		ntb_netdev_close(ndev);
 		rc = ntb_netdev_open(ndev);
 		if (rc)
 			pr_err("%s: Open failed\n", __func__);
+#endif
 	}
 }
 

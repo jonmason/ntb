@@ -777,9 +777,7 @@ EXPORT_SYMBOL(ntb_transport_create_queue);
 static void ntb_purge_list(struct list_head *list)
 {
 	while (!list_empty(list)) {
-		struct device *dev = &transport->ndev->pdev->dev;
-
-		dev_warn(dev, "Freeing item from a non-empty queue\n");
+		pr_warn("Freeing item from a non-empty queue\n");
 		list_del(list->next);
 	}
 }
