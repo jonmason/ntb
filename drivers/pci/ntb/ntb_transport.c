@@ -568,21 +568,11 @@ static void ntb_transport_rxc_db(int db_num)
 	wake_up_process(qp->rx_work);
 }
 
-static int ntb_process_tx(struct ntb_transport_qp *qp,
-			  struct ntb_queue_entry *entry, int link)
+static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry, u32 rx_offset, int link)
 {
 	struct ntb_payload_header *hdr;
-	u32 rx_offset;
 	void *offset;
 	int rc;
-
-	rc = ntb_transport_get_remote_offset(qp, RX_OFFSET, &rx_offset);
-	if (rc) {
-		pr_err("%s: error reading from offset %d\n", __func__,
-		       RX_OFFSET);
-		ntb_list_add_head(&qp->txq_lock, &entry->entry, &qp->txq);
-		return -EIO;
-	}
 
 	offset = qp->tx_offset;
 	if (offset + sizeof(struct ntb_payload_header) >= qp->tx_mw_end)
@@ -642,6 +632,7 @@ static int ntb_transport_tx(void *data)
 {
 	struct ntb_transport_qp *qp = data;
 	struct ntb_queue_entry *entry;
+	u32 rx_offset;
 	int rc;
 
 	while (!kthread_should_stop()) {
@@ -654,7 +645,12 @@ static int ntb_transport_tx(void *data)
 			continue;
 		}
 
-		rc = ntb_process_tx(qp, entry, NTB_LINK_UP);
+		rc = ntb_transport_get_remote_offset(qp, RX_OFFSET, &rx_offset);
+		if (rc)
+			pr_err("%s: error reading from offset %d\n", __func__,
+			       RX_OFFSET);
+
+		rc = ntb_process_tx(qp, entry, rx_offset, NTB_LINK_UP);
 		if (!rc)
 			continue;
 
@@ -834,6 +830,23 @@ static void ntb_purge_list(struct list_head *list)
 	}
 }
 
+static void ntb_send_link_down(struct ntb_transport_qp *qp)
+{
+	struct ntb_queue_entry entry;
+	u32 rx_offset;
+	int rc;
+
+	rc = ntb_transport_get_remote_offset(qp, RX_OFFSET, &rx_offset);
+	if (rc)
+		pr_err("%s: error reading from offset %d\n", __func__, RX_OFFSET);
+
+	entry.len = 0;
+	entry.buf = NULL;
+	rc = ntb_process_tx(qp, &entry, rx_offset, NTB_LINK_DOWN);
+	if (rc)
+		pr_err("ntb: Failed to send remote side \"link down\"\n");
+}
+
 /**
  * ntb_transport_free_queue - Frees NTB transport queue
  * @qp: NTB queue to be freed
@@ -842,21 +855,13 @@ static void ntb_purge_list(struct list_head *list)
  */
 void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 {
-	struct ntb_queue_entry entry;
-	int rc;
-
 	if (!qp)
 		return;
 
 	qp->qp_link = NTB_LINK_DOWN;
 
 	//FIXME - wait for tx queue to be empty
-
-	entry.len = 0;
-	entry.buf = NULL;
-	rc = ntb_process_tx(qp, &entry, NTB_LINK_DOWN);
-	if (rc)
-		pr_err("ntb: Failed to send remote side \"link down\"\n");
+	ntb_send_link_down(qp);
 
 	cancel_delayed_work_sync(&qp->event_work);
 	cancel_delayed_work_sync(&qp->link_work);
