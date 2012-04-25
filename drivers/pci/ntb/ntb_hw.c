@@ -499,9 +499,9 @@ static int ntb_link_status(struct ntb_device *ndev)
 			return rc;
 
 		if (status & NTB_LINK_STATUS_ACTIVE)
-			link_state = NTB_LINK_DOWN;
-		else
 			link_state = NTB_LINK_UP;
+		else
+			link_state = NTB_LINK_DOWN;
 	}
 
 	ntb_link_event(ndev, link_state);
