@@ -57,7 +57,6 @@
  * Jon Mason <jon.mason@intel.com>
  */
 
-
 #define NTB_LINK_ENABLE		0x0000
 #define NTB_LINK_DISABLE	0x0002
 #define NTB_LINK_STATUS_ACTIVE	0x2000
@@ -133,4 +132,3 @@
 #define BWD_PPD_INIT_LINK	0x0004
 #define BWD_PPD_CONN_TYPE	0x0300
 #define BWD_PPD_DEV_TYPE	0x1000
-

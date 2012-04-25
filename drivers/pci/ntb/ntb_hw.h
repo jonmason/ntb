@@ -70,8 +70,8 @@
 
 #define NTB_HB_TIMEOUT		msecs_to_jiffies(1000)
 
-typedef void(*db_cb_func)(int db_num);
-typedef void(*event_cb_func)(void *handle, unsigned int event);
+typedef void (*db_cb_func) (int db_num);
+typedef void (*event_cb_func) (void *handle, unsigned int event);
 
 struct ntb_db_cb {
 	db_cb_func callback;
@@ -137,7 +137,8 @@ unsigned int ntb_query_db_bits(struct ntb_device *ndev);
 struct ntb_device *ntb_register_transport(void *transport);
 void ntb_unregister_transport(struct ntb_device *ndev);
 void ntb_set_mw_addr(struct ntb_device *ndev, unsigned int mw, u64 addr);
-int ntb_register_db_callback(struct ntb_device *ndev, unsigned int idx, db_cb_func func);
+int ntb_register_db_callback(struct ntb_device *ndev, unsigned int idx,
+			     db_cb_func func);
 void ntb_unregister_db_callback(struct ntb_device *ndev, unsigned int idx);
 int ntb_register_event_callback(struct ntb_device *ndev, event_cb_func func);
 void ntb_unregister_event_callback(struct ntb_device *ndev);

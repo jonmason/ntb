@@ -81,7 +81,8 @@ struct ntb_netdev {
 
 struct net_device *netdev;
 
-static void ntb_list_add_tail(spinlock_t *lock, struct list_head *entry, struct list_head *list)
+static void ntb_list_add_tail(spinlock_t *lock, struct list_head *entry,
+			      struct list_head *list)
 {
 	unsigned long flags;
 
@@ -90,7 +91,8 @@ static void ntb_list_add_tail(spinlock_t *lock, struct list_head *entry, struct 
 	spin_unlock_irqrestore(lock, flags);
 }
 
-static struct ntb_queue_entry *ntb_list_rm_head(spinlock_t *lock, struct list_head *list)
+static struct ntb_queue_entry *ntb_list_rm_head(spinlock_t *lock,
+						struct list_head *list)
 {
 	struct ntb_queue_entry *entry;
 	unsigned long flags;
@@ -144,7 +146,8 @@ static void ntb_netdev_event_handler(int status)
 {
 	struct ntb_netdev *dev = netdev_priv(netdev);
 
-	pr_debug("%s: Event %x, Link %x\n", KBUILD_MODNAME, status, ntb_transport_link_query(dev->qp));
+	pr_debug("%s: Event %x, Link %x\n", KBUILD_MODNAME, status,
+		 ntb_transport_link_query(dev->qp));
 
 	/* Currently, only link status event is supported */
 	if (status)
@@ -155,13 +158,14 @@ static void ntb_netdev_event_handler(int status)
 
 static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 {
-	struct ntb_netdev *dev = netdev_priv(netdev);//FIXME - do it based on qp not global
+	struct ntb_netdev *dev = netdev_priv(netdev);	//FIXME - do it based on qp not global
 	struct ntb_queue_entry *entry;
 	struct sk_buff *skb;
 	int rc;
 
 	while ((entry = ntb_transport_rx_dequeue(qp))) {
-		pr_debug("%s: %d byte payload received\n", __func__, entry->len);
+		pr_debug("%s: %d byte payload received\n", __func__,
+			 entry->len);
 
 		skb = entry->callback_data;
 
@@ -217,19 +221,21 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 
 static void ntb_netdev_tx_handler(struct ntb_transport_qp *qp)
 {
-	struct ntb_netdev *dev = netdev_priv(netdev);//FIXME - do it based on qp not global
+	struct ntb_netdev *dev = netdev_priv(netdev);	//FIXME - do it based on qp not global
 	struct ntb_queue_entry *entry;
 
 	while ((entry = ntb_transport_tx_dequeue(qp))) {
 		kfree_skb(entry->callback_data);
-		ntb_list_add_tail(&dev->tx_list_lock, &entry->entry, &dev->tx_entries);
+		ntb_list_add_tail(&dev->tx_list_lock, &entry->entry,
+				  &dev->tx_entries);
 	}
 
 	if (netif_queue_stopped(netdev))
 		netif_wake_queue(netdev);
 }
 
-static netdev_tx_t ntb_netdev_start_xmit(struct sk_buff *skb, struct net_device *ndev)
+static netdev_tx_t ntb_netdev_start_xmit(struct sk_buff *skb,
+					 struct net_device *ndev)
 {
 	struct ntb_netdev *dev = netdev_priv(ndev);
 	struct ntb_queue_entry *entry;
@@ -271,7 +277,9 @@ static int ntb_netdev_open(struct net_device *ndev)
 	struct ntb_queue_entry *entry;
 	int rc, i;
 
-	dev->qp = ntb_transport_create_queue(ntb_netdev_rx_handler, ntb_netdev_tx_handler, ntb_netdev_event_handler);
+	dev->qp = ntb_transport_create_queue(ntb_netdev_rx_handler,
+					     ntb_netdev_tx_handler,
+					     ntb_netdev_event_handler);
 	if (!dev->qp) {
 		rc = -EIO;
 		goto err;
@@ -298,7 +306,8 @@ static int ntb_netdev_open(struct net_device *ndev)
 		if (!entry)
 			goto err1;
 
-		ntb_list_add_tail(&dev->tx_list_lock, &entry->entry, &dev->tx_entries);
+		ntb_list_add_tail(&dev->tx_list_lock, &entry->entry,
+				  &dev->tx_entries);
 	}
 
 	netif_carrier_off(ndev);
@@ -391,7 +400,8 @@ err:
 
 static void ntb_netdev_txto_work(struct work_struct *work)
 {
-	struct ntb_netdev *dev = container_of(work, struct ntb_netdev, txto_work);
+	struct ntb_netdev *dev = container_of(work, struct ntb_netdev,
+					      txto_work);
 	struct net_device *ndev = dev->ndev;
 
 	if (netif_running(ndev)) {
@@ -410,7 +420,8 @@ static void ntb_netdev_tx_timeout(struct net_device *ndev)
 {
 	struct ntb_netdev *dev = netdev_priv(ndev);
 
-	pr_err("%s - Tx list is %s\n", __func__, list_empty(&dev->tx_entries) ? "empty" : "not empty");
+	pr_err("%s - Tx list is %s\n", __func__,
+	       list_empty(&dev->tx_entries) ? "empty" : "not empty");
 
 	schedule_work(&dev->txto_work);
 }
@@ -424,14 +435,16 @@ static const struct net_device_ops ntb_netdev_ops = {
 	.ndo_set_mac_address = eth_mac_addr,
 };
 
-static void ntb_get_drvinfo(struct net_device *dev, struct ethtool_drvinfo *info)
+static void ntb_get_drvinfo(struct net_device *dev,
+			    struct ethtool_drvinfo *info)
 {
 	strcpy(info->driver, KBUILD_MODNAME);
 	strcpy(info->version, NTB_NETDEV_VER);
 }
 
 static const char ntb_nic_stats[][ETH_GSTRING_LEN] = {
-	"rx_packets", "rx_bytes", "rx_errors", "rx_dropped", "rx_length_errors", "rx_frame_errors", "rx_fifo_errors",
+	"rx_packets", "rx_bytes", "rx_errors", "rx_dropped", "rx_length_errors",
+	    "rx_frame_errors", "rx_fifo_errors",
 	"tx_packets", "tx_bytes", "tx_errors", "tx_dropped",
 };
 
@@ -458,7 +471,8 @@ static void ntb_get_strings(struct net_device *dev, u32 sset, u8 *data)
 	}
 }
 
-static void ntb_get_ethtool_stats(struct net_device *dev, struct ethtool_stats *stats, u64 *data)
+static void ntb_get_ethtool_stats(struct net_device *dev,
+				  struct ethtool_stats *stats, u64 *data)
 {
 	struct ntb_netdev *ndev = netdev_priv(dev);
 	int i = 0;
@@ -494,13 +508,13 @@ static int __init ntb_netdev_init_module(void)
 
 	pr_info("%s: Probe\n", KBUILD_MODNAME);
 
-	netdev = alloc_etherdev(sizeof(struct ntb_netdev));//FIXME - might be worth trying multiple queues...
+	netdev = alloc_etherdev(sizeof(struct ntb_netdev));	//FIXME - might be worth trying multiple queues...
 	if (!netdev)
 		return -ENOMEM;
 
 	dev = netdev_priv(netdev);
 	dev->ndev = netdev;
-	netdev->features = NETIF_F_HIGHDMA; //FIXME - check this against the flags returned by the ntb dev???
+	netdev->features = NETIF_F_HIGHDMA;	//FIXME - check this against the flags returned by the ntb dev???
 	//FIXME - there is bound to be more flags supported.  NETIF_F_SG comes to mind, prolly NETIF_F_FRAGLIST, NETIF_F_NO_CSUM, 
 
 	netdev->hw_features = netdev->features;

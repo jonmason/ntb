@@ -68,17 +68,21 @@ struct ntb_queue_entry {
 	unsigned int len;
 };
 
-typedef void(*handler)(struct ntb_transport_qp *qp);
-typedef void (*ehandler)(int status);
+typedef void (*handler) (struct ntb_transport_qp * qp);
+typedef void (*ehandler) (int status);
 
 struct ntb_queue_entry *ntb_transport_rx_remove(struct ntb_transport_qp *qp);
 size_t ntb_transport_max_size(struct ntb_transport_qp *qp);
 void ntb_transport_dump_qp_stats(struct ntb_transport_qp *qp);
 
-struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler, handler tx_handler, ehandler event_handler);
+struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
+						    handler tx_handler,
+						    ehandler event_handler);
 void ntb_transport_free_queue(struct ntb_transport_qp *qp);
-int ntb_transport_rx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry);
-int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry);
+int ntb_transport_rx_enqueue(struct ntb_transport_qp *qp,
+			     struct ntb_queue_entry *entry);
+int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp,
+			     struct ntb_queue_entry *entry);
 struct ntb_queue_entry *ntb_transport_tx_dequeue(struct ntb_transport_qp *qp);
 struct ntb_queue_entry *ntb_transport_rx_dequeue(struct ntb_transport_qp *qp);
 void ntb_transport_link_up(struct ntb_transport_qp *qp);
