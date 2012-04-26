@@ -568,7 +568,9 @@ static void ntb_transport_rxc_db(int db_num)
 	wake_up_process(qp->rx_work);
 }
 
-static int ntb_process_tx(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry, u32 rx_offset, int link)
+static int ntb_process_tx(struct ntb_transport_qp *qp,
+			  struct ntb_queue_entry *entry, u32 rx_offset,
+			  int link)
 {
 	struct ntb_payload_header *hdr;
 	void *offset;
@@ -838,7 +840,8 @@ static void ntb_send_link_down(struct ntb_transport_qp *qp)
 
 	rc = ntb_transport_get_remote_offset(qp, RX_OFFSET, &rx_offset);
 	if (rc)
-		pr_err("%s: error reading from offset %d\n", __func__, RX_OFFSET);
+		pr_err("%s: error reading from offset %d\n", __func__,
+		       RX_OFFSET);
 
 	entry.len = 0;
 	entry.buf = NULL;

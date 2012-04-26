@@ -471,7 +471,9 @@ static void ntb_link_event(struct ntb_device *ndev, int link_state)
 		if (ndev->hw_type == BWD_HW)
 			status = readw(ndev->reg_base + ndev->reg_ofs.lnk_stat);
 		else {
-			int rc = pci_read_config_word(ndev->pdev, ndev->reg_ofs.lnk_stat, &status);
+			int rc = pci_read_config_word(ndev->pdev,
+						      ndev->reg_ofs.lnk_stat,
+						      &status);
 			if (rc)
 				return;
 		}
@@ -1030,7 +1032,8 @@ static int __devinit ntb_pci_probe(struct pci_dev *pdev,
 		ndev->mw[i].vbase =
 		    ioremap_wc(pci_resource_start(pdev, MW_TO_BAR(i)),
 			       ndev->mw[i].bar_sz);
-		dev_info(&pdev->dev, "MW %d size %d\n", i, (u32) pci_resource_len(pdev, MW_TO_BAR(i)));
+		dev_info(&pdev->dev, "MW %d size %d\n", i,
+			 (u32) pci_resource_len(pdev, MW_TO_BAR(i)));
 		if (!ndev->mw[i].vbase) {
 			dev_warn(&pdev->dev, "Cannot remap BAR %d\n",
 				 MW_TO_BAR(i));

@@ -444,7 +444,7 @@ static void ntb_get_drvinfo(struct net_device *dev,
 
 static const char ntb_nic_stats[][ETH_GSTRING_LEN] = {
 	"rx_packets", "rx_bytes", "rx_errors", "rx_dropped", "rx_length_errors",
-	    "rx_frame_errors", "rx_fifo_errors",
+	"rx_frame_errors", "rx_fifo_errors",
 	"tx_packets", "tx_bytes", "tx_errors", "tx_dropped",
 };
 
