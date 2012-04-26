@@ -462,10 +462,22 @@ static void ntb_link_event(struct ntb_device *ndev, int link_state)
 		return;
 
 	if (link_state == NTB_LINK_UP) {
+		u16 status;
+
 		dev_info(&ndev->pdev->dev, "Link Up\n");
 		ndev->link_status = NTB_LINK_UP;
-
 		event = NTB_EVENT_HW_LINK_UP;
+
+		if (ndev->hw_type == BWD_HW)
+			status = readw(ndev->reg_base + ndev->reg_ofs.lnk_stat);
+		else {
+			int rc = pci_read_config_word(ndev->pdev, ndev->reg_ofs.lnk_stat, &status);
+			if (rc)
+				return;
+		}
+		dev_info(&ndev->pdev->dev, "Link Width %d, Link Speed %d\n",
+			 (status & NTB_LINK_WIDTH_MASK) >> 4,
+			 (status & NTB_LINK_SPEED_MASK));
 	} else {
 		dev_info(&ndev->pdev->dev, "Link Down\n");
 		ndev->link_status = NTB_LINK_DOWN;
@@ -641,7 +653,6 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 
 	ndev->limits.max_compat_spads = BWD_MAX_COMPAT_SPADS;
 	ndev->limits.max_spads = BWD_MAX_SPADS;
-	/* Reserve the uppermost bit for link interrupt */
 	ndev->limits.max_db_bits = BWD_MAX_DB_BITS;
 	ndev->limits.msix_cnt = BWD_MSIX_CNT;
 
@@ -1019,8 +1030,7 @@ static int __devinit ntb_pci_probe(struct pci_dev *pdev,
 		ndev->mw[i].vbase =
 		    ioremap_wc(pci_resource_start(pdev, MW_TO_BAR(i)),
 			       ndev->mw[i].bar_sz);
-		dev_dbg(&pdev->dev, "Addr %p len %d\n", ndev->mw[i].vbase,
-			(u32) pci_resource_len(pdev, i));
+		dev_info(&pdev->dev, "MW %d size %d\n", i, (u32) pci_resource_len(pdev, MW_TO_BAR(i)));
 		if (!ndev->mw[i].vbase) {
 			dev_warn(&pdev->dev, "Cannot remap BAR %d\n",
 				 MW_TO_BAR(i));
