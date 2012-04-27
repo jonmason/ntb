@@ -713,7 +713,8 @@ static irqreturn_t ntb_interrupt(int irq, void *dev)
 	}
 
 	for (i = 0; i < ndev->limits.max_db_bits - 1; i++) {
-		if ((pdb & ((u64) 1 << i)) && ndev->db_cb[i].callback)
+		//if ((pdb & ((u64) 1 << i)) && ndev->db_cb[i].callback)
+		if ((pdb & ((u64) 0x1f << (i * 5))) && ndev->db_cb[i].callback)
 			ndev->db_cb[i].callback(ndev->db_cb[i].db_num);
 	}
 
