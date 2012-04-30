@@ -106,9 +106,6 @@ struct ntb_transport_qp {
 	struct dentry *debugfs_rx_to;
 	struct dentry *debugfs_tx_to;
 
-	unsigned int rx_ring_timeo;
-	unsigned int tx_ring_timeo;
-
 	/* Stats */
 	u64 rx_bytes;
 	u64 rx_pkts;
@@ -145,6 +142,9 @@ enum {
 	RX_OFFSET,
 	SPADS_PER_QP,
 };
+
+static unsigned int rx_ring_timeo = 100;
+static unsigned int tx_ring_timeo = 100;
 
 #define QP_TO_MW(qp)		((qp) % NTB_NUM_MW)
 
@@ -532,7 +532,7 @@ static int ntb_transport_rxc(void *data)
 		/* Sleep for a little bit and hope some memory frees up */
 		if (rc == -ENOMEM)
 			schedule_timeout_interruptible(msecs_to_jiffies
-						       (qp->rx_ring_timeo));
+						       (rx_ring_timeo));
 		else {
 			/* Sleep if no rx work */
 			set_current_state(TASK_INTERRUPTIBLE);
@@ -641,7 +641,7 @@ static int ntb_transport_tx(void *data)
 		if (!rc)
 			continue;
 
-		schedule_timeout_interruptible(msecs_to_jiffies(qp->tx_ring_timeo));
+		schedule_timeout_interruptible(msecs_to_jiffies(tx_ring_timeo));
 	}
 
 	return 0;
@@ -736,9 +736,6 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 	qp->qp_num = free_queue;
 	qp->ndev = transport->ndev;
 
-	qp->rx_ring_timeo = 100;
-	qp->tx_ring_timeo = 100;
-
 	if (qp->ndev->debugfs_dir) {
 		char debugfs_name[4];
 
@@ -746,8 +743,8 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 		qp->debugfs_dir = debugfs_create_dir(debugfs_name, qp->ndev->debugfs_dir);
 
 		qp->debugfs_stats = debugfs_create_file("stats", S_IRUSR | S_IRGRP | S_IROTH, qp->debugfs_dir, qp, &ntb_qp_debugfs_stats);
-		qp->debugfs_tx_to = debugfs_create_u32("tx_ring_timeo", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->tx_ring_timeo);
-		qp->debugfs_rx_to = debugfs_create_u32("rx_ring_timeo", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->rx_ring_timeo);
+		qp->debugfs_tx_to = debugfs_create_u32("tx_ring_timeo", S_IRUSR | S_IWUSR, qp->debugfs_dir, &tx_ring_timeo);
+		qp->debugfs_rx_to = debugfs_create_u32("rx_ring_timeo", S_IRUSR | S_IWUSR, qp->debugfs_dir, &rx_ring_timeo);
 	}
 
 	qp->rx_handler = rx_handler;
