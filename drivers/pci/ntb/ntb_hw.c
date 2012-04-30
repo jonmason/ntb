@@ -56,6 +56,7 @@
  * Contact Information:
  * Jon Mason <jon.mason@intel.com>
  */
+#include <linux/debugfs.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/module.h>
@@ -1006,6 +1007,8 @@ static int __devinit ntb_pci_probe(struct pci_dev *pdev,
 	if (!ndev)
 		return -ENOMEM;
 
+	ndev->debugfs_dir = debugfs_create_dir(KBUILD_MODNAME, NULL);
+
 	ntbdev = ndev;
 	ndev->pdev = pdev;
 	ndev->link_status = NTB_LINK_DOWN;
@@ -1092,6 +1095,7 @@ err2:
 err1:
 	pci_disable_device(pdev);
 err:
+	debugfs_remove(ndev->debugfs_dir);
 	kfree(ndev);
 
 	dev_err(&pdev->dev, "Error loading module\n");
@@ -1110,20 +1114,16 @@ static void __devexit ntb_pci_remove(struct pci_dev *pdev)
 	writel(ntb_cntl, ndev->reg_base + ndev->reg_ofs.lnk_cntl);
 
 	ntb_free_interrupts(ndev);
-
 	ntb_free_callbacks(ndev);
-
 	ntb_device_free(ndev);
 
 	for (i = 0; i < NTB_NUM_MW; i++)
 		iounmap(ndev->mw[i].vbase);
 
 	iounmap(ndev->reg_base);
-
 	pci_release_selected_regions(pdev, NTB_BAR_MASK);
-
 	pci_disable_device(pdev);
-
+	debugfs_remove(ndev->debugfs_dir);
 	kfree(ndev);
 }
 

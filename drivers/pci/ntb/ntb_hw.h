@@ -122,6 +122,7 @@ struct ntb_device {
 	unsigned int unused:20;
 	struct delayed_work hb_timer;
 	unsigned long last_ts;
+	struct dentry *debugfs_dir;
 };
 
 enum {

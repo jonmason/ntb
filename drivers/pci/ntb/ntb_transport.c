@@ -56,7 +56,7 @@
  * Contact Information:
  * Jon Mason <jon.mason@intel.com>
  */
-
+#include <linux/debugfs.h>
 #include <linux/dma-mapping.h>
 #include <linux/errno.h>
 #include <linux/export.h>
@@ -101,6 +101,14 @@ struct ntb_transport_qp {
 	unsigned int qp_link:1;
 	unsigned int qp_num:6;	/* Only 64 QP's are allowed.  0-63 */
 
+	struct dentry *debugfs_dir;
+	struct dentry *debugfs_stats;
+	struct dentry *debugfs_rx_to;
+	struct dentry *debugfs_tx_to;
+
+	unsigned int rx_ring_timeo;
+	unsigned int tx_ring_timeo;
+
 	/* Stats */
 	u64 rx_bytes;
 	u64 rx_pkts;
@@ -138,20 +146,59 @@ enum {
 	SPADS_PER_QP,
 };
 
-static unsigned int rx_ring_timeo = 100;
-module_param(rx_ring_timeo, uint, 0644);
-MODULE_PARM_DESC(rx_ring_timeo,
-		 "Receive Ring Out-of-buffers timeout value (in ms)");
-
-static int tx_ring_timeo = 100;
-module_param(tx_ring_timeo, uint, 0644);
-MODULE_PARM_DESC(tx_ring_timeo, "Transmit Ring full timeout value (in ms)");
-
 #define QP_TO_MW(qp)		((qp) % NTB_NUM_MW)
 
-#define	free_len(qp, tx, rx)	(tx < rx ? rx - tx : (qp->tx_mw_end - qp->tx_mw_begin) - (tx - rx))
-
 struct ntb_transport *transport = NULL;
+
+static int debugfs_open(struct inode *inode, struct file *filp)
+{
+	filp->private_data = inode->i_private;
+	return 0;
+}
+
+static ssize_t debugfs_read(struct file *filp, char __user *ubuf,
+	                    size_t count, loff_t *offp)
+{
+	struct ntb_transport_qp *qp;
+	char *buf;
+	ssize_t ret, out_offset, out_count;
+
+	out_count = 1024;
+	buf = kmalloc(out_count, GFP_KERNEL);
+	if (!buf)
+	        return -ENOMEM;
+
+	qp = filp->private_data;
+	out_offset = 0;
+	out_offset += snprintf(buf + out_offset, out_count - out_offset,
+			      "NTB Transport stats\n");
+	out_offset += snprintf(buf + out_offset, out_count - out_offset,
+				"rx_bytes - %Ld\n", qp->rx_bytes);
+	out_offset += snprintf(buf + out_offset, out_count - out_offset,
+				"rx_pkts - %Ld\n", qp->rx_pkts);
+	out_offset += snprintf(buf + out_offset, out_count - out_offset,
+				"rx_ring_empty - %Ld\n", qp->rx_ring_empty);
+	out_offset += snprintf(buf + out_offset, out_count - out_offset,
+				"rx_err_no_buf - %Ld\n", qp->rx_err_no_buf);
+	out_offset += snprintf(buf + out_offset, out_count - out_offset,
+				"rx_err_oflow - %Ld\n", qp->rx_err_oflow);
+	out_offset += snprintf(buf + out_offset, out_count - out_offset,
+				"tx_bytes - %Ld\n", qp->tx_bytes);
+	out_offset += snprintf(buf + out_offset, out_count - out_offset,
+				"tx_pkts - %Ld\n", qp->tx_pkts);
+	out_offset += snprintf(buf + out_offset, out_count - out_offset,
+				"tx_ring_full - %Ld\n", qp->tx_ring_full);
+
+	ret = simple_read_from_buffer(ubuf, count, offp, buf, out_offset);
+	kfree(buf);
+	return ret;
+}
+
+static const struct file_operations ntb_qp_debugfs_stats = {
+	.owner = THIS_MODULE,
+	.open  = debugfs_open,
+	.read  = debugfs_read,
+};
 
 static void ntb_list_add_head(spinlock_t *lock, struct list_head *entry,
 			      struct list_head *list)
@@ -192,6 +239,7 @@ out:
 	return entry;
 }
 
+#if 0
 static int ntb_transport_get_local_offset(struct ntb_transport_qp *qp,
 					  u8 offset, u32 *val)
 {
@@ -201,6 +249,7 @@ static int ntb_transport_get_local_offset(struct ntb_transport_qp *qp,
 
 	return ntb_read_local_spad(qp->ndev, idx, val);
 }
+#endif
 
 static int ntb_transport_get_remote_offset(struct ntb_transport_qp *qp,
 					   u8 offset, u32 *val)
@@ -223,69 +272,6 @@ static void ntb_transport_put_remote_offset(struct ntb_transport_qp *qp,
 	if (rc)
 		pr_err("Error writing %x to remote spad %d\n", val, idx);
 }
-
-static int list_len(struct list_head *list)
-{
-	struct list_head *pos;
-	int i = 0;
-
-	list_for_each(pos, list)
-	    i++;
-
-	return i;
-}
-
-void ntb_transport_dump_qp_stats(struct ntb_transport_qp *qp)
-{
-	u32 tx_offset, rx_offset;
-	int rc;
-
-	pr_info("NTB Transport stats\n");
-	pr_info("rx_bytes - %Ld\n", qp->rx_bytes);
-	pr_info("rx_pkts - %Ld\n", qp->rx_pkts);
-	pr_info("rx_ring_empty - %Ld\n", qp->rx_ring_empty);
-	pr_info("rx_err_no_buf - %Ld\n", qp->rx_err_no_buf);
-	pr_info("rx_err_oflow - %Ld\n", qp->rx_err_oflow);
-	pr_info("tx_bytes - %Ld\n", qp->tx_bytes);
-	pr_info("tx_pkts - %Ld\n", qp->tx_pkts);
-	pr_info("tx_ring_full - %Ld\n", qp->tx_ring_full);
-	pr_info("tx begin %p, end %p, ring size %ld\n", qp->tx_mw_begin,
-		qp->tx_mw_end, qp->tx_mw_end - qp->tx_mw_begin);
-
-	rc = ntb_transport_get_local_offset(qp, TX_OFFSET, &tx_offset);
-	if (rc) {
-		pr_err("%s: error reading from offset %d\n", __func__,
-		       TX_OFFSET);
-		return;
-	}
-
-	rc = ntb_transport_get_remote_offset(qp, RX_OFFSET, &rx_offset);
-	if (rc) {
-		pr_err("%s: error reading from offset %d\n", __func__,
-		       RX_OFFSET);
-		return;
-	}
-
-	pr_info("tx %p, rx %p, free size %ld\n", qp->tx_mw_begin + tx_offset,
-		qp->tx_mw_begin + rx_offset, free_len(qp, tx_offset,
-						      rx_offset));
-	pr_info("txq len %d, txc len %d\n", list_len(&qp->txq),
-		list_len(&qp->txc));
-
-	rc = ntb_transport_get_local_offset(qp, RX_OFFSET, &rx_offset);
-	if (rc) {
-		pr_err("%s: error reading from offset %d\n", __func__,
-		       RX_OFFSET);
-		return;
-	}
-
-	pr_info("rx begin %p, end %p, offset %p\n", qp->rx_buff_begin,
-		qp->rx_buff_end, qp->rx_buff_begin + rx_offset);
-	pr_info("rxq len %d, rxc len %d\n", list_len(&qp->rxq),
-		list_len(&qp->rxc));
-}
-
-EXPORT_SYMBOL(ntb_transport_dump_qp_stats);
 
 static void ntb_transport_event_callback(void *data, unsigned int event)
 {
@@ -478,7 +464,6 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp, u32 tx_offset)
 		 entry->len);
 	if (hdr->len > entry->len) {
 		pr_err("RX overflow! Wanted %d got %d\n", hdr->len, entry->len);
-		ntb_transport_dump_qp_stats(qp);
 		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
 		qp->rx_err_oflow++;
 		oflow = true;
@@ -547,7 +532,7 @@ static int ntb_transport_rxc(void *data)
 		/* Sleep for a little bit and hope some memory frees up */
 		if (rc == -ENOMEM)
 			schedule_timeout_interruptible(msecs_to_jiffies
-						       (rx_ring_timeo));
+						       (qp->rx_ring_timeo));
 		else {
 			/* Sleep if no rx work */
 			set_current_state(TASK_INTERRUPTIBLE);
@@ -656,7 +641,7 @@ static int ntb_transport_tx(void *data)
 		if (!rc)
 			continue;
 
-		schedule_timeout_interruptible(msecs_to_jiffies(tx_ring_timeo));
+		schedule_timeout_interruptible(msecs_to_jiffies(qp->tx_ring_timeo));
 	}
 
 	return 0;
@@ -751,6 +736,20 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 	qp->qp_num = free_queue;
 	qp->ndev = transport->ndev;
 
+	qp->rx_ring_timeo = 100;
+	qp->tx_ring_timeo = 100;
+
+	if (qp->ndev->debugfs_dir) {
+		char debugfs_name[4];
+
+		snprintf(debugfs_name, 4, "qp%d", free_queue);
+		qp->debugfs_dir = debugfs_create_dir(debugfs_name, qp->ndev->debugfs_dir);
+
+		qp->debugfs_stats = debugfs_create_file("stats", S_IRUSR | S_IRGRP | S_IROTH, qp->debugfs_dir, qp, &ntb_qp_debugfs_stats);
+		qp->debugfs_tx_to = debugfs_create_u32("tx_ring_timeo", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->tx_ring_timeo);
+		qp->debugfs_rx_to = debugfs_create_u32("rx_ring_timeo", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->rx_ring_timeo);
+	}
+
 	qp->rx_handler = rx_handler;
 	qp->tx_handler = tx_handler;
 	qp->event_handler = event_handler;
@@ -818,6 +817,7 @@ err3:
 err2:
 	kthread_stop(qp->rx_work);
 err1:
+	debugfs_remove_recursive(qp->debugfs_stats);
 	set_bit(free_queue, &transport->qp_bitmap);
 err:
 	return NULL;
@@ -881,6 +881,8 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 	ntb_purge_list(&qp->rxc);
 	ntb_purge_list(&qp->txq);
 	ntb_purge_list(&qp->txc);
+
+	debugfs_remove_recursive(qp->debugfs_stats);
 
 	set_bit(qp->qp_num, &transport->qp_bitmap);
 

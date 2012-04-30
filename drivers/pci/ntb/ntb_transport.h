@@ -73,8 +73,6 @@ typedef void (*ehandler) (int status);
 
 struct ntb_queue_entry *ntb_transport_rx_remove(struct ntb_transport_qp *qp);
 size_t ntb_transport_max_size(struct ntb_transport_qp *qp);
-void ntb_transport_dump_qp_stats(struct ntb_transport_qp *qp);
-
 struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 						    handler tx_handler,
 						    ehandler event_handler);

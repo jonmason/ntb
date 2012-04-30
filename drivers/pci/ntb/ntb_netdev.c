@@ -474,7 +474,6 @@ static void ntb_get_strings(struct net_device *dev, u32 sset, u8 *data)
 static void ntb_get_ethtool_stats(struct net_device *dev,
 				  struct ethtool_stats *stats, u64 *data)
 {
-	struct ntb_netdev *ndev = netdev_priv(dev);
 	int i = 0;
 
 	data[i++] = dev->stats.rx_packets;
@@ -488,9 +487,6 @@ static void ntb_get_ethtool_stats(struct net_device *dev,
 	data[i++] = dev->stats.tx_bytes;
 	data[i++] = dev->stats.tx_errors;
 	data[i++] = dev->stats.tx_dropped;
-
-	//FIXME - hack to dump transport stats
-	ntb_transport_dump_qp_stats(ndev->qp);
 }
 
 static const struct ethtool_ops ntb_ethtool_ops = {
