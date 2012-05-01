@@ -61,7 +61,6 @@
 #include <linux/errno.h>
 #include <linux/export.h>
 #include <linux/kthread.h>
-#include <linux/moduleparam.h>
 #include <linux/pci.h>
 #include <linux/slab.h>
 #include <linux/types.h>
@@ -90,9 +89,9 @@ struct ntb_transport_qp {
 	void *rx_buff_end;
 	void *rx_offset;
 
-	void (*rx_handler) (struct ntb_transport_qp * qp);
-	void (*tx_handler) (struct ntb_transport_qp * qp);
-	void (*event_handler) (int status);
+	void (*rx_handler)(struct ntb_transport_qp *qp);
+	void (*tx_handler)(struct ntb_transport_qp *qp);
+	void (*event_handler)(int status);
 	struct delayed_work event_work;
 	struct delayed_work link_work;
 	//FIXME - unless this is getting larger than a cacheline, bit fields might not be worth it
