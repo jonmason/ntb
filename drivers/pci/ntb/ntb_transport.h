@@ -57,32 +57,21 @@
  * Jon Mason <jon.mason@intel.com>
  */
 
-struct ntb_transport_qp;
+struct ntb_transport_qp;//FIXME - is this necessary
 
-struct ntb_queue_entry {
-	/* ntb_queue list reference */
-	struct list_head entry;
-	/* pointers to data to be transfered */
-	void *callback_data;
-	void *buf;
-	unsigned int len;
-};
-
-typedef void (*handler) (struct ntb_transport_qp * qp);
+typedef void (*handler) (struct ntb_transport_qp *qp);
 typedef void (*ehandler) (int status);
 
-struct ntb_queue_entry *ntb_transport_rx_remove(struct ntb_transport_qp *qp);
 size_t ntb_transport_max_size(struct ntb_transport_qp *qp);
 struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 						    handler tx_handler,
 						    ehandler event_handler);
 void ntb_transport_free_queue(struct ntb_transport_qp *qp);
-int ntb_transport_rx_enqueue(struct ntb_transport_qp *qp,
-			     struct ntb_queue_entry *entry);
-int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp,
-			     struct ntb_queue_entry *entry);
-struct ntb_queue_entry *ntb_transport_tx_dequeue(struct ntb_transport_qp *qp);
-struct ntb_queue_entry *ntb_transport_rx_dequeue(struct ntb_transport_qp *qp);
+int ntb_transport_rx_enqueue(struct ntb_transport_qp *qp, void *cb, void *data, int len);
+int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, void *cb, void *data, int len);
+void *ntb_transport_tx_dequeue(struct ntb_transport_qp *qp, int *len);
+void *ntb_transport_rx_dequeue(struct ntb_transport_qp *qp, int *len);
+void *ntb_transport_rx_remove(struct ntb_transport_qp *qp, int *len);
 void ntb_transport_link_up(struct ntb_transport_qp *qp);
 void ntb_transport_link_down(struct ntb_transport_qp *qp);
 bool ntb_transport_link_query(struct ntb_transport_qp *qp);

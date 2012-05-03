@@ -61,7 +61,7 @@
 #include <linux/module.h>
 #include "ntb_transport.h"
 
-#define NTB_NETDEV_VER	"0.2"
+#define NTB_NETDEV_VER	"0.3"
 
 MODULE_DESCRIPTION(KBUILD_MODNAME);
 MODULE_VERSION(NTB_NETDEV_VER);
@@ -71,76 +71,13 @@ MODULE_AUTHOR("Intel Corporation");
 struct ntb_netdev {
 	struct net_device *ndev;
 	struct ntb_transport_qp *qp;
-	struct list_head tx_entries;
 	struct work_struct txto_work;
-	spinlock_t tx_list_lock;
 };
 
 #define	NTB_TX_TIMEOUT_MS	1000
 #define	NTB_RXQ_SIZE		1000
 
 struct net_device *netdev;
-
-static void ntb_list_add_tail(spinlock_t *lock, struct list_head *entry,
-			      struct list_head *list)
-{
-	unsigned long flags;
-
-	spin_lock_irqsave(lock, flags);
-	list_add_tail(entry, list);
-	spin_unlock_irqrestore(lock, flags);
-}
-
-static struct ntb_queue_entry *ntb_list_rm_head(spinlock_t *lock,
-						struct list_head *list)
-{
-	struct ntb_queue_entry *entry;
-	unsigned long flags;
-
-	spin_lock_irqsave(lock, flags);
-	if (list_empty(list)) {
-		entry = NULL;
-		goto out;
-	}
-	entry = list_first_entry(list, struct ntb_queue_entry, entry);
-	list_del(&entry->entry);
-out:
-	spin_unlock_irqrestore(lock, flags);
-
-	return entry;
-}
-
-//FIXME - move all of the entry logic into the transport layer and just pass the transport a sgl.
-static struct ntb_queue_entry *alloc_entry(unsigned int len)
-{
-	struct ntb_queue_entry *entry;
-	struct sk_buff *skb;
-
-	entry = kzalloc(sizeof(struct ntb_queue_entry), GFP_ATOMIC);
-	if (!entry)
-		goto err;
-
-	skb = alloc_skb(len, GFP_ATOMIC);
-	if (!skb)
-		goto err1;
-
-	entry->callback_data = skb;
-	entry->buf = skb->data;
-	entry->len = len;
-
-	return entry;
-
-err1:
-	kfree(entry);
-err:
-	return NULL;
-}
-
-static void free_entry(struct ntb_queue_entry *entry)
-{
-	kfree_skb(entry->callback_data);
-	kfree(entry);
-}
 
 static void ntb_netdev_event_handler(int status)
 {
@@ -158,124 +95,93 @@ static void ntb_netdev_event_handler(int status)
 
 static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 {
-	struct ntb_netdev *dev = netdev_priv(netdev);	//FIXME - do it based on qp not global
-	struct ntb_queue_entry *entry;
+	struct net_device *ndev = netdev;
 	struct sk_buff *skb;
-	int rc;
+	int len, rc;
 
-	while ((entry = ntb_transport_rx_dequeue(qp))) {
-		pr_debug("%s: %d byte payload received\n", __func__,
-			 entry->len);
+	while ((skb = ntb_transport_rx_dequeue(qp, &len))) {
+		pr_debug("%s: %d byte payload received\n", __func__, len);
 
-		skb = entry->callback_data;
+		//print_hex_dump_bytes(__func__, DUMP_PREFIX_OFFSET, skb->data, len);
 
-		if (unlikely(skb->tail + entry->len > skb->end)) {
-			netdev->stats.rx_errors++;
-			netdev->stats.rx_length_errors++;
-			pr_err("%s: entry len %d\n", __func__, entry->len);
-			free_entry(entry);
+		skb_put(skb, len);
+		skb->protocol = eth_type_trans(skb, ndev);
+		skb->dev = ndev;
+		skb->ip_summed = CHECKSUM_NONE;
+
+		//print_hex_dump_bytes(__func__, DUMP_PREFIX_OFFSET, skb->data, skb->len);
+
+		if (netif_rx(skb) == NET_RX_DROP) {
+			ndev->stats.rx_errors++;
+			ndev->stats.rx_dropped++;
+		} else {
+			ndev->stats.rx_packets++;
+			ndev->stats.rx_bytes += len;
+		}
+
+		skb = netdev_alloc_skb(ndev, ndev->mtu + ETH_HLEN);
+		if (!skb) {
+			ndev->stats.rx_errors++;
+			ndev->stats.rx_frame_errors++;
+			pr_err("%s: No skb\n", __func__);
 			break;
 		}
 
-		skb_put(skb, entry->len);
-		skb->protocol = eth_type_trans(skb, netdev);
-		skb->dev = netdev;
-#if 0
-		skb->ip_summed = CHECKSUM_UNNECESSARY;
-#else
-		skb->ip_summed = CHECKSUM_NONE;
-#endif
-
-		//print_hex_dump_bytes(__func__, 0, skb->data, skb->len);
-
-		if (netif_rx(skb) == NET_RX_DROP) {
-			netdev->stats.rx_errors++;
-			netdev->stats.rx_dropped++;
-		} else {
-			netdev->stats.rx_packets++;
-			netdev->stats.rx_bytes += entry->len;
-		}
-
-		skb = alloc_skb(netdev->mtu + ETH_HLEN, GFP_ATOMIC);
-		if (!skb) {
-			netdev->stats.rx_errors++;
-			netdev->stats.rx_frame_errors++;
-			pr_err("%s: No skb\n", __func__);
-			kfree(entry);
-			return;
-		}
-
-		entry->callback_data = skb;
-		entry->buf = skb->data;
-		entry->len = netdev->mtu + ETH_HLEN;
-
-		rc = ntb_transport_rx_enqueue(dev->qp, entry);
+		rc = ntb_transport_rx_enqueue(qp, skb, skb->data, ndev->mtu + ETH_HLEN);
 		if (rc) {
-			netdev->stats.rx_errors++;
-			netdev->stats.rx_fifo_errors++;
+			ndev->stats.rx_errors++;
+			ndev->stats.rx_fifo_errors++;
 			pr_err("%s: error re-enqueuing\n", __func__);
-			return;
+			break;
 		}
 	}
 }
 
 static void ntb_netdev_tx_handler(struct ntb_transport_qp *qp)
 {
-	struct ntb_netdev *dev = netdev_priv(netdev);	//FIXME - do it based on qp not global
-	struct ntb_queue_entry *entry;
+	struct net_device *ndev = netdev;
+	struct sk_buff *skb;
+	int len;
 
-	while ((entry = ntb_transport_tx_dequeue(qp))) {
-		kfree_skb(entry->callback_data);
-		ntb_list_add_tail(&dev->tx_list_lock, &entry->entry,
-				  &dev->tx_entries);
+	while ((skb = ntb_transport_tx_dequeue(qp, &len))) {
+		ndev->stats.tx_packets++;
+		ndev->stats.tx_bytes += skb->len;
+		kfree_skb(skb);
 	}
 
-	if (netif_queue_stopped(netdev))
-		netif_wake_queue(netdev);
+//	if (netif_queue_stopped(ndev))
+//		netif_wake_queue(ndev);
 }
 
 static netdev_tx_t ntb_netdev_start_xmit(struct sk_buff *skb,
 					 struct net_device *ndev)
 {
 	struct ntb_netdev *dev = netdev_priv(ndev);
-	struct ntb_queue_entry *entry;
 	int rc;
 
 	pr_debug("%s: ntb_transport_tx_enqueue\n", KBUILD_MODNAME);
 
-	entry = ntb_list_rm_head(&dev->tx_list_lock, &dev->tx_entries);
-	if (!entry)
-		goto err;
+	//print_hex_dump_bytes(__func__, DUMP_PREFIX_OFFSET, skb->data, skb->len);
 
-	entry->callback_data = skb;
-	entry->len = skb->len;
-	entry->buf = skb->data;
-
-	//print_hex_dump_bytes(__func__, 0, skb->data, skb->len);
-
-	rc = ntb_transport_tx_enqueue(dev->qp, entry);
+	rc = ntb_transport_tx_enqueue(dev->qp, skb, skb->data, skb->len);
 	if (rc)
-		goto err1;
-
-	ndev->stats.tx_packets++;
-	ndev->stats.tx_bytes += skb->len;
+		goto err;
 
 	return NETDEV_TX_OK;
 
-err1:
-	ntb_list_add_tail(&dev->tx_list_lock, &entry->entry, &dev->tx_entries);
 err:
 	ndev->stats.tx_dropped++;
 	ndev->stats.tx_errors++;
-	netif_stop_queue(ndev);
-	return NETDEV_TX_BUSY;
+//	netif_stop_queue(ndev);
+	kfree_skb(skb);
+	return NETDEV_TX_BUSY;//FIXME - try NETDEV_TX_OK instead
 }
 
 static int ntb_netdev_open(struct net_device *ndev)
 {
 	struct ntb_netdev *dev = netdev_priv(ndev);
-	struct ntb_queue_entry *entry;
-	int rc, i;
+	struct sk_buff *skb;
+	int rc, i, len;
 
 	dev->qp = ntb_transport_create_queue(ntb_netdev_rx_handler,
 					     ntb_netdev_tx_handler,
@@ -285,29 +191,17 @@ static int ntb_netdev_open(struct net_device *ndev)
 		goto err;
 	}
 
-	INIT_LIST_HEAD(&dev->tx_entries);
-	spin_lock_init(&dev->tx_list_lock);
-
 	/* Add some empty rx bufs */
 	for (i = 0; i < NTB_RXQ_SIZE; i++) {
-		entry = alloc_entry(ndev->mtu + ETH_HLEN);
-		if (!entry) {
+		skb = netdev_alloc_skb(ndev, ndev->mtu + ETH_HLEN);
+		if (!skb) {
 			rc = -ENOMEM;
 			goto err1;
 		}
 
-		rc = ntb_transport_rx_enqueue(dev->qp, entry);
-		if (rc) {
-			free_entry(entry);
+		rc = ntb_transport_rx_enqueue(dev->qp, skb, skb->data, ndev->mtu + ETH_HLEN);
+		if (rc)
 			goto err1;
-		}
-
-		entry = kzalloc(sizeof(struct ntb_queue_entry), GFP_ATOMIC);
-		if (!entry)
-			goto err1;
-
-		ntb_list_add_tail(&dev->tx_list_lock, &entry->entry,
-				  &dev->tx_entries);
 	}
 
 	netif_carrier_off(ndev);
@@ -316,11 +210,8 @@ static int ntb_netdev_open(struct net_device *ndev)
 	return 0;
 
 err1:
-	while ((entry = ntb_list_rm_head(&dev->tx_list_lock, &dev->tx_entries)))
-		kfree(entry);
-
-	while ((entry = ntb_transport_rx_remove(dev->qp)))
-		free_entry(entry);
+	while ((skb = ntb_transport_rx_remove(dev->qp, &len)))
+		kfree(skb);
 
 	ntb_transport_free_queue(dev->qp);
 err:
@@ -330,15 +221,13 @@ err:
 static int ntb_netdev_close(struct net_device *ndev)
 {
 	struct ntb_netdev *dev = netdev_priv(ndev);
-	struct ntb_queue_entry *entry;
+	struct sk_buff *skb;
+	int len;
 
 	ntb_transport_link_down(dev->qp);
 
-	while ((entry = ntb_list_rm_head(&dev->tx_list_lock, &dev->tx_entries)))
-		kfree(entry);
-
-	while ((entry = ntb_transport_rx_remove(dev->qp)))
-		free_entry(entry);
+	while ((skb = ntb_transport_rx_remove(dev->qp, &len)))
+		kfree(skb);
 
 	ntb_transport_free_queue(dev->qp);
 
@@ -348,8 +237,8 @@ static int ntb_netdev_close(struct net_device *ndev)
 static int ntb_netdev_change_mtu(struct net_device *ndev, int new_mtu)
 {
 	struct ntb_netdev *dev = netdev_priv(ndev);
-	struct ntb_queue_entry *entry;
-	int rc;
+	struct sk_buff *skb;
+	int len, rc;
 
 	if (!netif_running(ndev)) {
 		ndev->mtu = new_mtu;
@@ -366,19 +255,20 @@ static int ntb_netdev_change_mtu(struct net_device *ndev, int new_mtu)
 	if (ndev->mtu < new_mtu) {
 		int i;
 
-		for (i = 0; (entry = ntb_transport_rx_remove(dev->qp)); i++)
-			free_entry(entry);
+		for (i = 0; (skb = ntb_transport_rx_remove(dev->qp, &len)); i++)
+			kfree(skb);
+
 
 		for (; i; i--) {
-			entry = alloc_entry(new_mtu + ETH_HLEN);
-			if (!entry) {
+			skb = netdev_alloc_skb(ndev, new_mtu + ETH_HLEN);
+			if (!skb) {
 				rc = -ENOMEM;
 				goto err;
 			}
 
-			rc = ntb_transport_rx_enqueue(dev->qp, entry);
+			rc = ntb_transport_rx_enqueue(dev->qp, skb, skb->data, new_mtu + ETH_HLEN);
 			if (rc) {
-				free_entry(entry);
+				kfree(skb);
 				goto err;
 			}
 		}
@@ -391,8 +281,10 @@ static int ntb_netdev_change_mtu(struct net_device *ndev, int new_mtu)
 	return 0;
 
 err:
-	while ((entry = ntb_transport_rx_remove(dev->qp)))
-		free_entry(entry);
+	ntb_transport_link_down(dev->qp);
+
+	while ((skb = ntb_transport_rx_remove(dev->qp, &len)))
+		kfree(skb);
 
 	pr_err("Error changing MTU, device inoperable\n");
 	return rc;
@@ -405,13 +297,15 @@ static void ntb_netdev_txto_work(struct work_struct *work)
 	struct net_device *ndev = dev->ndev;
 
 	if (netif_running(ndev)) {
-#if 1
+#if 0 
 		int rc;
 
 		ntb_netdev_close(ndev);
 		rc = ntb_netdev_open(ndev);
 		if (rc)
 			pr_err("%s: Open failed\n", __func__);
+#else
+		netif_wake_queue(ndev);
 #endif
 	}
 }
@@ -419,9 +313,6 @@ static void ntb_netdev_txto_work(struct work_struct *work)
 static void ntb_netdev_tx_timeout(struct net_device *ndev)
 {
 	struct ntb_netdev *dev = netdev_priv(ndev);
-
-	pr_err("%s - Tx list is %s\n", __func__,
-	       list_empty(&dev->tx_entries) ? "empty" : "not empty");
 
 	schedule_work(&dev->txto_work);
 }

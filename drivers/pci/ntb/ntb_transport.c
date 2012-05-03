@@ -67,6 +67,15 @@
 #include "ntb_hw.h"
 #include "ntb_transport.h"
 
+struct ntb_queue_entry {
+	/* ntb_queue list reference */
+	struct list_head entry;
+	/* pointers to data to be transfered */
+	void *callback_data;
+	void *buf;
+	unsigned int len;
+};
+
 struct ntb_transport_qp {
 	struct ntb_device *ndev;
 	struct workqueue_struct *qp_wq;
@@ -238,18 +247,6 @@ out:
 	return entry;
 }
 
-#if 0
-static int ntb_transport_get_local_offset(struct ntb_transport_qp *qp,
-					  u8 offset, u32 *val)
-{
-	int idx;
-
-	idx = (qp->qp_num * SPADS_PER_QP) + offset;
-
-	return ntb_read_local_spad(qp->ndev, idx, val);
-}
-#endif
-
 static int ntb_transport_get_remote_offset(struct ntb_transport_qp *qp,
 					   u8 offset, u32 *val)
 {
@@ -308,7 +305,7 @@ static int ntb_transport_init(void)
 	if (transport)
 		return -EINVAL;
 
-	transport = kmalloc(sizeof(struct ntb_transport), GFP_ATOMIC);
+	transport = kmalloc(sizeof(struct ntb_transport), GFP_KERNEL);
 	if (!transport)
 		return -ENOMEM;
 
@@ -327,7 +324,7 @@ static int ntb_transport_init(void)
 
 	transport->qps = kcalloc(transport->max_qps,
 				 sizeof(struct ntb_transport_qp),
-				 GFP_ATOMIC);
+				 GFP_KERNEL);
 	if (!transport->qps) {
 		rc = -ENOMEM;
 		goto err1;
@@ -343,7 +340,8 @@ static int ntb_transport_init(void)
 		transport->mw[i].virt_addr =
 		    dma_alloc_coherent(&transport->ndev->pdev->dev,
 				       transport->mw[i].size,
-				       &transport->mw[i].dma_addr, GFP_ATOMIC);
+				       &transport->mw[i].dma_addr,
+				       GFP_KERNEL);
 		if (!transport->mw[i].virt_addr) {
 			rc = -ENOMEM;
 			goto err2;
@@ -887,12 +885,23 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 }
 EXPORT_SYMBOL(ntb_transport_free_queue);
 
-struct ntb_queue_entry *ntb_transport_rx_remove(struct ntb_transport_qp *qp)
+void *ntb_transport_rx_remove(struct ntb_transport_qp *qp, int *len)
 {
+	struct ntb_queue_entry *entry;
+	void *buf;
+
 	if (!qp || qp->client_ready == NTB_LINK_UP)
 		return NULL;
 
-	return ntb_list_rm_head(&qp->rxq_lock, &qp->rxq);
+	entry = ntb_list_rm_head(&qp->rxq_lock, &qp->rxq);
+	if (!entry)
+		return NULL;
+
+	buf = entry->callback_data;
+	*len = entry->len;
+	kfree(entry);
+
+	return buf;
 }
 EXPORT_SYMBOL(ntb_transport_rx_remove);
 
@@ -906,11 +915,20 @@ EXPORT_SYMBOL(ntb_transport_rx_remove);
  *
  * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
  */
-int ntb_transport_rx_enqueue(struct ntb_transport_qp *qp,
-			     struct ntb_queue_entry *entry)
+int ntb_transport_rx_enqueue(struct ntb_transport_qp *qp, void *cb, void *data, int len)
 {
+	struct ntb_queue_entry *entry;
+
 	if (!qp)
 		return -EINVAL;
+
+	entry = kzalloc(sizeof(struct ntb_queue_entry), GFP_ATOMIC);
+	if (!entry)
+		return -ENOMEM;
+
+	entry->callback_data = cb;
+	entry->buf = data;
+	entry->len = len;
 
 	ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
 
@@ -928,11 +946,20 @@ EXPORT_SYMBOL(ntb_transport_rx_enqueue);
  *
  * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
  */
-int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp,
-			     struct ntb_queue_entry *entry)
+int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, void *cb, void *data, int len)
 {
+	struct ntb_queue_entry *entry;
+
 	if (!qp || qp->qp_link != NTB_LINK_UP)
 		return -EINVAL;
+
+	entry = kzalloc(sizeof(struct ntb_queue_entry), GFP_ATOMIC);
+	if (!entry)
+		return -ENOMEM;
+
+	entry->callback_data = cb;
+	entry->buf = data;
+	entry->len = len;
 
 	ntb_list_add_tail(&qp->txq_lock, &entry->entry, &qp->txq);
 
@@ -952,12 +979,23 @@ EXPORT_SYMBOL(ntb_transport_tx_enqueue);
  *
  * RETURNS: NTB queue entry from the transport queue, or NULL on empty
  */
-struct ntb_queue_entry *ntb_transport_tx_dequeue(struct ntb_transport_qp *qp)
+void *ntb_transport_tx_dequeue(struct ntb_transport_qp *qp, int *len)
 {
+	struct ntb_queue_entry *entry;
+	void *buf;
+
 	if (!qp)
 		return NULL;
 
-	return ntb_list_rm_head(&qp->txc_lock, &qp->txc);
+	entry = ntb_list_rm_head(&qp->txc_lock, &qp->txc);
+	if (!entry)
+		return NULL;
+
+	buf = entry->callback_data;
+	*len = entry->len;
+	kfree(entry);
+
+	return buf;
 }
 EXPORT_SYMBOL(ntb_transport_tx_dequeue);
 
@@ -971,12 +1009,23 @@ EXPORT_SYMBOL(ntb_transport_tx_dequeue);
  *
  * RETURNS: NTB queue entry from the transport queue, or NULL on empty
  */
-struct ntb_queue_entry *ntb_transport_rx_dequeue(struct ntb_transport_qp *qp)
+void *ntb_transport_rx_dequeue(struct ntb_transport_qp *qp, int *len)
 {
+	struct ntb_queue_entry *entry;
+	void *buf;
+
 	if (!qp)
 		return NULL;
 
-	return ntb_list_rm_head(&qp->rxc_lock, &qp->rxc);
+	entry = ntb_list_rm_head(&qp->rxc_lock, &qp->rxc);
+	if (!entry)
+		return NULL;
+
+	buf = entry->callback_data;
+	*len = entry->len;
+	kfree(entry);
+
+	return buf;
 }
 EXPORT_SYMBOL(ntb_transport_rx_dequeue);
 
