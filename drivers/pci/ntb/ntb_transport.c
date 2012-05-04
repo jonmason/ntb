@@ -852,10 +852,10 @@ err4:
 err3:
 	kthread_stop(qp->rx_work);
 err2:
-	while ((entry = ntb_list_rm_head(&qp->rxe_lock, &qp->rxe)))
+	while ((entry = ntb_list_rm_head(&qp->txe_lock, &qp->txe)))
 		kfree(entry);
 err1:
-	while ((entry = ntb_list_rm_head(&qp->txe_lock, &qp->txe)))
+	while ((entry = ntb_list_rm_head(&qp->rxe_lock, &qp->rxe)))
 		kfree(entry);
 	debugfs_remove_recursive(qp->debugfs_stats);
 	set_bit(free_queue, &transport->qp_bitmap);
