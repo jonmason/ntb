@@ -903,7 +903,7 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 	cancel_delayed_work_sync(&qp->event_work);
 	cancel_delayed_work_sync(&qp->link_work);
 
-	debugfs_remove_recursive(qp->debugfs_stats);
+	debugfs_remove_recursive(qp->debugfs_dir);
 	ntb_unregister_db_callback(qp->ndev, qp->qp_num);
 
 	kthread_stop(qp->rx_work);
