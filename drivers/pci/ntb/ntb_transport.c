@@ -83,8 +83,10 @@ struct ntb_transport_qp {
 	struct task_struct *tx_work;
 	struct list_head txq;
 	struct list_head txc;
+	struct list_head txe;
 	spinlock_t txq_lock;
 	spinlock_t txc_lock;
+	spinlock_t txe_lock;
 	void *tx_mw_begin;
 	void *tx_mw_end;
 	void *tx_offset;
@@ -92,8 +94,10 @@ struct ntb_transport_qp {
 	struct task_struct *rx_work;
 	struct list_head rxq;
 	struct list_head rxc;
+	struct list_head rxe;
 	spinlock_t rxq_lock;
 	spinlock_t rxc_lock;
+	spinlock_t rxe_lock;
 	void *rx_buff_begin;
 	void *rx_buff_end;
 	void *rx_offset;
@@ -550,6 +554,14 @@ static void ntb_transport_rxc_db(int db_num)
 	wake_up_process(qp->rx_work);
 }
 
+static u64 free_space(void *head, void *tail, u64 size)
+{
+	if (tail > head)
+		return tail - head;
+	else
+		return size - (head - tail);
+}
+
 static int ntb_process_tx(struct ntb_transport_qp *qp,
 			  struct ntb_queue_entry *entry, u32 rx_offset,
 			  int link)
@@ -557,6 +569,13 @@ static int ntb_process_tx(struct ntb_transport_qp *qp,
 	struct ntb_payload_header *hdr;
 	void *offset;
 	int rc;
+
+	//pr_info("TX Entry len %d, free space %lld\n", entry->len, free_space(qp->tx_offset, qp->tx_mw_begin + rx_offset, (qp->tx_mw_end - qp->tx_mw_begin)));
+	if (free_space(qp->tx_offset, qp->tx_mw_begin + rx_offset, (qp->tx_mw_end - qp->tx_mw_begin)) <= (entry->len + sizeof(struct ntb_payload_header)) * 2) {
+		ntb_list_add_head(&qp->txq_lock, &entry->entry, &qp->txq);
+		qp->tx_ring_full++;
+		return -EAGAIN;
+	}
 
 	offset = qp->tx_offset;
 	if (offset + sizeof(struct ntb_payload_header) >= qp->tx_mw_end)
@@ -710,7 +729,8 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 {
 	struct ntb_transport_qp *qp;
 	unsigned int free_queue;
-	int rc;
+	int rc, i;
+	struct ntb_queue_entry *entry;
 
 	if (!transport) {
 		rc = ntb_transport_init();
@@ -739,6 +759,7 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 		snprintf(debugfs_name, 4, "qp%d", free_queue);
 		qp->debugfs_dir = debugfs_create_dir(debugfs_name, qp->ndev->debugfs_dir);
 
+		//FIXME - check for rc for all
 		qp->debugfs_stats = debugfs_create_file("stats", S_IRUSR | S_IRGRP | S_IROTH, qp->debugfs_dir, qp, &ntb_qp_debugfs_stats);
 		qp->debugfs_tx_to = debugfs_create_u32("tx_ring_timeo", S_IRUSR | S_IWUSR, qp->debugfs_dir, &tx_ring_timeo);
 		qp->debugfs_rx_to = debugfs_create_u32("rx_ring_timeo", S_IRUSR | S_IWUSR, qp->debugfs_dir, &rx_ring_timeo);
@@ -754,26 +775,46 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 
 	spin_lock_init(&qp->rxc_lock);
 	spin_lock_init(&qp->rxq_lock);
+	spin_lock_init(&qp->rxe_lock);
 	spin_lock_init(&qp->txc_lock);
 	spin_lock_init(&qp->txq_lock);
+	spin_lock_init(&qp->txe_lock);
 
 	INIT_LIST_HEAD(&qp->rxq);
 	INIT_LIST_HEAD(&qp->rxc);
+	INIT_LIST_HEAD(&qp->rxe);
 	INIT_LIST_HEAD(&qp->txq);
 	INIT_LIST_HEAD(&qp->txc);
+	INIT_LIST_HEAD(&qp->txe);
+
+	for (i = 0; i < 1000; i++) {//FIXME - 1k magic
+		entry = kzalloc(sizeof(struct ntb_queue_entry), GFP_ATOMIC);
+		if (!entry)
+			goto err1;
+
+		ntb_list_add_tail(&qp->rxe_lock, &entry->entry, &qp->rxe);
+	}
+
+	for (i = 0; i < 1000; i++) {//FIXME - 1k magic
+		entry = kzalloc(sizeof(struct ntb_queue_entry), GFP_ATOMIC);
+		if (!entry)
+			goto err2;
+
+		ntb_list_add_tail(&qp->txe_lock, &entry->entry, &qp->txe);
+	}
 
 	qp->rx_work = kthread_create(ntb_transport_rxc, qp, "ntb_rx");
 	if (IS_ERR(qp->rx_work)) {
 		rc = PTR_ERR(qp->rx_work);
 		pr_err("Error allocing rxc kthread\n");
-		goto err1;
+		goto err2;
 	}
 
 	qp->tx_work = kthread_create(ntb_transport_tx, qp, "ntb_tx");
 	if (IS_ERR(qp->tx_work)) {
 		rc = PTR_ERR(qp->tx_work);
 		pr_err("Error allocing tx kthread\n");
-		goto err2;
+		goto err3;
 	}
 
 	qp->rx_pkts = 0;
@@ -799,32 +840,29 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 	rc = ntb_register_db_callback(qp->ndev, free_queue,
 				      ntb_transport_rxc_db);
 	if (rc)
-		goto err3;
+		goto err4;
 
 	if (qp->ndev->link_status)
 		schedule_delayed_work(&qp->link_work, 0);
 
 	return qp;
 
-err3:
+err4:
 	kthread_stop(qp->tx_work);
-err2:
+err3:
 	kthread_stop(qp->rx_work);
+err2:
+	while ((entry = ntb_list_rm_head(&qp->rxe_lock, &qp->rxe)))
+		kfree(entry);
 err1:
+	while ((entry = ntb_list_rm_head(&qp->txe_lock, &qp->txe)))
+		kfree(entry);
 	debugfs_remove_recursive(qp->debugfs_stats);
 	set_bit(free_queue, &transport->qp_bitmap);
 err:
 	return NULL;
 }
 EXPORT_SYMBOL(ntb_transport_create_queue);
-
-static void ntb_purge_list(struct list_head *list)
-{
-	while (!list_empty(list)) {
-		pr_warn("Freeing item from a non-empty queue\n");
-		list_del(list->next);
-	}
-}
 
 static void ntb_send_link_down(struct ntb_transport_qp *qp)
 {
@@ -852,6 +890,8 @@ static void ntb_send_link_down(struct ntb_transport_qp *qp)
  */
 void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 {
+	struct ntb_queue_entry *entry;
+
 	if (!qp)
 		return;
 
@@ -863,6 +903,7 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 	cancel_delayed_work_sync(&qp->event_work);
 	cancel_delayed_work_sync(&qp->link_work);
 
+	debugfs_remove_recursive(qp->debugfs_stats);
 	ntb_unregister_db_callback(qp->ndev, qp->qp_num);
 
 	kthread_stop(qp->rx_work);
@@ -871,10 +912,31 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 	ntb_transport_put_remote_offset(qp, RX_OFFSET, 0);
 	ntb_transport_put_remote_offset(qp, TX_OFFSET, 0);
 
-	ntb_purge_list(&qp->rxq);
-	ntb_purge_list(&qp->rxc);
-	ntb_purge_list(&qp->txq);
-	ntb_purge_list(&qp->txc);
+	while ((entry = ntb_list_rm_head(&qp->rxe_lock, &qp->rxe)))
+		kfree(entry);
+
+	while ((entry = ntb_list_rm_head(&qp->rxq_lock, &qp->rxq))) {
+		pr_warn("Freeing item from a non-empty queue\n");
+		kfree(entry);
+	}
+
+	while ((entry = ntb_list_rm_head(&qp->rxc_lock, &qp->rxc))) {
+		pr_warn("Freeing item from a non-empty queue\n");
+		kfree(entry);
+	}
+
+	while ((entry = ntb_list_rm_head(&qp->txe_lock, &qp->txe)))
+		kfree(entry);
+
+	while ((entry = ntb_list_rm_head(&qp->txq_lock, &qp->txq))) {
+		pr_warn("Freeing item from a non-empty queue\n");
+		kfree(entry);
+	}
+
+	while ((entry = ntb_list_rm_head(&qp->txc_lock, &qp->txc))) {
+		pr_warn("Freeing item from a non-empty queue\n");
+		kfree(entry);
+	}
 
 	debugfs_remove_recursive(qp->debugfs_stats);
 
@@ -922,7 +984,7 @@ int ntb_transport_rx_enqueue(struct ntb_transport_qp *qp, void *cb, void *data, 
 	if (!qp)
 		return -EINVAL;
 
-	entry = kzalloc(sizeof(struct ntb_queue_entry), GFP_ATOMIC);
+	entry = ntb_list_rm_head(&qp->rxe_lock, &qp->rxe);
 	if (!entry)
 		return -ENOMEM;
 
@@ -953,7 +1015,7 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, void *cb, void *data, 
 	if (!qp || qp->qp_link != NTB_LINK_UP)
 		return -EINVAL;
 
-	entry = kzalloc(sizeof(struct ntb_queue_entry), GFP_ATOMIC);
+	entry = ntb_list_rm_head(&qp->txe_lock, &qp->txe);
 	if (!entry)
 		return -ENOMEM;
 
@@ -993,7 +1055,7 @@ void *ntb_transport_tx_dequeue(struct ntb_transport_qp *qp, int *len)
 
 	buf = entry->callback_data;
 	*len = entry->len;
-	kfree(entry);
+	ntb_list_add_tail(&qp->txe_lock, &entry->entry, &qp->txe);
 
 	return buf;
 }
@@ -1023,7 +1085,7 @@ void *ntb_transport_rx_dequeue(struct ntb_transport_qp *qp, int *len)
 
 	buf = entry->callback_data;
 	*len = entry->len;
-	kfree(entry);
+	ntb_list_add_tail(&qp->rxe_lock, &entry->entry, &qp->rxe);
 
 	return buf;
 }

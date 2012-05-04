@@ -72,7 +72,6 @@ struct ntb_netdev {
 	struct net_device *ndev;
 	struct ntb_transport_qp *qp;
 	struct work_struct txto_work;
-	atomic_t tx_count;
 };
 
 #define	NTB_TX_TIMEOUT_MS	1000
@@ -139,7 +138,6 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 static void ntb_netdev_tx_handler(struct ntb_transport_qp *qp)
 {
 	struct net_device *ndev = netdev;
-	struct ntb_netdev *dev = netdev_priv(ndev);
 	struct sk_buff *skb;
 	int len;
 
@@ -147,7 +145,6 @@ static void ntb_netdev_tx_handler(struct ntb_transport_qp *qp)
 		ndev->stats.tx_packets++;
 		ndev->stats.tx_bytes += skb->len;
 		kfree_skb(skb);
-		atomic_inc(&dev->tx_count);
 	}
 
 	if (netif_queue_stopped(ndev))
@@ -163,9 +160,6 @@ static netdev_tx_t ntb_netdev_start_xmit(struct sk_buff *skb,
 	pr_debug("%s: ntb_transport_tx_enqueue\n", KBUILD_MODNAME);
 
 	//print_hex_dump_bytes(__func__, DUMP_PREFIX_OFFSET, skb->data, skb->len);
-
-	if (atomic_dec_and_test(&dev->tx_count))
-		goto err;
 
 	rc = ntb_transport_tx_enqueue(dev->qp, skb, skb->data, skb->len);
 	if (rc)
@@ -208,7 +202,6 @@ static int ntb_netdev_open(struct net_device *ndev)
 			goto err1;
 	}
 
-	atomic_set(&dev->tx_count, 1000);
 	netif_carrier_off(ndev);
 	ntb_transport_link_up(dev->qp);
 
