@@ -406,7 +406,8 @@ static int __init ntb_netdev_init_module(void)
 	netdev->watchdog_timeo = msecs_to_jiffies(NTB_TX_TIMEOUT_MS);
 	INIT_WORK(&dev->txto_work, ntb_netdev_txto_work);
 
-	netdev->mtu = PAGE_SIZE - ETH_HLEN;
+	//FIXME - magical MTU that has better perf
+	netdev->mtu = 16384;
 
 	random_ether_addr(netdev->perm_addr);
 	memcpy(netdev->dev_addr, netdev->perm_addr, netdev->addr_len);

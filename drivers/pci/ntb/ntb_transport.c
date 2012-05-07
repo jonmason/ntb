@@ -428,14 +428,6 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp, u32 tx_offset)
 	void *offset;
 	bool oflow;
 
-	if (qp->qp_link == NTB_LINK_DOWN) {
-		pr_debug("QP %d Link Up\n", qp->qp_num);
-		qp->event_flags = NTB_LINK_UP;
-
-		schedule_delayed_work(&qp->event_work, msecs_to_jiffies(1000));
-		return -EAGAIN;
-	}
-
 	if (qp->rx_offset == (qp->rx_buff_begin + tx_offset)) {
 		qp->rx_ring_empty++;
 		return -EAGAIN;
@@ -550,6 +542,14 @@ static void ntb_transport_rxc_db(int db_num)
 	struct ntb_transport_qp *qp = &transport->qps[db_num];
 
 	pr_debug("%s: doorbell %d received\n", __func__, db_num);
+
+	if (qp->qp_link == NTB_LINK_DOWN) {
+		pr_debug("QP %d Link Up\n", qp->qp_num);
+		qp->event_flags = NTB_LINK_UP;
+
+		schedule_delayed_work(&qp->event_work, msecs_to_jiffies(1000));
+		return;
+	}
 
 	wake_up_process(qp->rx_work);
 }
