@@ -699,7 +699,7 @@ static void ntb_device_free(struct ntb_device *ndev)
 		cancel_delayed_work_sync(&ndev->hb_timer);
 }
 
-static irqreturn_t ntb_callback_msix_irq(int irq, void *data)
+static irqreturn_t bwd_callback_msix_irq(int irq, void *data)
 {
 	struct ntb_db_cb *db_cb = data;
 	struct ntb_device *ndev = db_cb->ndev;
@@ -710,26 +710,39 @@ static irqreturn_t ntb_callback_msix_irq(int irq, void *data)
 	if (db_cb->callback)
 		db_cb->callback(db_cb->db_num);
 
-	if (ndev->hw_type == BWD_HW) {
-		/* No need to check for the specific HB irq, any interrupt means
-		 * we're connected.
-		 */
-		ndev->last_ts = jiffies;
+	/* No need to check for the specific HB irq, any interrupt means
+	 * we're connected.
+	 */
+	ndev->last_ts = jiffies;
 
-		writeq((u64) 1 << db_cb->db_num, ndev->reg_ofs.pdb);
-	} else
-		/* On Sandybridge, there are 16 bits in the interrupt register
-		 * but only 4 vectors.  So, 5 bits are assigned to the first 3
-		 * vectors, with the 4th having a single bit for link
-		 * interrupts.
-		 */
-		writew(0x1f << db_cb->db_num * SNB_MSIX_CNT, ndev->reg_ofs.pdb);
+	writeq((u64) 1 << db_cb->db_num, ndev->reg_ofs.pdb);
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t snb_callback_msix_irq(int irq, void *data)
+{
+	struct ntb_db_cb *db_cb = data;
+	struct ntb_device *ndev = db_cb->ndev;
+
+	dev_dbg(&ndev->pdev->dev, "MSI-X irq %d received for DB %d\n", irq,
+		db_cb->db_num);
+
+	if (db_cb->callback)
+		db_cb->callback(db_cb->db_num);
+
+	/* On Sandybridge, there are 16 bits in the interrupt register
+	 * but only 4 vectors.  So, 5 bits are assigned to the first 3
+	 * vectors, with the 4th having a single bit for link
+	 * interrupts.
+	 */
+	writew(0x1f << db_cb->db_num * SNB_MSIX_CNT, ndev->reg_ofs.pdb);
 
 	return IRQ_HANDLED;
 }
 
 /* Since we do not have a HW doorbell in BWD, this is only used in JF */
-static irqreturn_t ntb_event_msix_irq(int irq, void *dev)
+static irqreturn_t snb_event_msix_irq(int irq, void *dev)
 {
 	struct ntb_device *ndev = dev;
 	int rc;
@@ -746,29 +759,43 @@ static irqreturn_t ntb_event_msix_irq(int irq, void *dev)
 	return IRQ_HANDLED;
 }
 
+static void snb_callback_msi_irq(int irq, void *data)
+{
+	struct ntb_db_cb *db_cb = data;
+	struct ntb_device *ndev = db_cb->ndev;
+
+	if (db_cb->callback)
+		db_cb->callback(db_cb->db_num);
+
+	writew(1 << db_cb->db_num, ndev->reg_ofs.pdb);
+}
+
 static irqreturn_t ntb_interrupt(int irq, void *dev)
 {
 	struct ntb_device *ndev = dev;
-	u64 pdb;
 	int i;
 
 	if (ndev->hw_type == BWD_HW) {
-		pdb = readq(ndev->reg_ofs.pdb);
+		u64 pdb = readq(ndev->reg_ofs.pdb);
 
 		dev_dbg(&ndev->pdev->dev, "irq %d - pdb = %Lx\n", irq, pdb);
+
+		for (i = 0; i < ndev->limits.max_db_bits; i++)
+			if (pdb & ((u64) 1 << i))
+				bwd_callback_msix_irq(irq, &ndev->db_cb[i]);
 	} else {
-		pdb = readw(ndev->reg_ofs.pdb);
+		u16 pdb = readw(ndev->reg_ofs.pdb);
 
 		dev_dbg(&ndev->pdev->dev, "irq %d - pdb = %x sdb %x\n", irq,
-			(u16) pdb, readw(ndev->reg_ofs.sdb));
+			pdb, readw(ndev->reg_ofs.sdb));
+
+		if (pdb & SNB_DB_HW_LINK)
+			snb_event_msix_irq(irq, dev);
+
+		for (i = 0; i < ndev->limits.max_db_bits; i++)
+			if (pdb & (1 << i))
+				snb_callback_msi_irq(irq, &ndev->db_cb[i]);
 	}
-
-	if (ndev->hw_type != BWD_HW && pdb & SNB_DB_HW_LINK)
-		ntb_event_msix_irq(irq, dev);
-
-	for (i = 0; i < ndev->limits.max_db_bits; i++)
-		if (pdb & ((u64) 1 << i))
-			ntb_callback_msix_irq(irq, &ndev->db_cb[i]);
 
 	return IRQ_HANDLED;
 }
@@ -829,16 +856,26 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 		WARN_ON(!msix->vector);
 
 		/* Use the last MSI-X vector for Link status */
-		if (ndev->hw_type != BWD_HW && i == msix_entries - 1) {
-			rc = request_irq(msix->vector, ntb_event_msix_irq, 0,
-					 "ntb-event-msix", ndev);
-			if (rc)
-				goto err2;
-		} else {
-			rc = request_irq(msix->vector, ntb_callback_msix_irq, 0,
+		if (ndev->hw_type == BWD_HW) {
+			rc = request_irq(msix->vector, bwd_callback_msix_irq, 0,
 					 "ntb-callback-msix", &ndev->db_cb[i]);
 			if (rc)
 				goto err2;
+		} else {
+			if (i == msix_entries - 1) {
+				rc = request_irq(msix->vector,
+						 snb_event_msix_irq, 0,
+						"ntb-event-msix", ndev);
+				if (rc)
+					goto err2;
+			} else {
+				rc = request_irq(msix->vector,
+						 snb_callback_msix_irq, 0,
+						 "ntb-callback-msix",
+						 &ndev->db_cb[i]);
+				if (rc)
+					goto err2;
+			}
 		}
 	}
 
@@ -852,7 +889,10 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 err2:
 	while (--i >= 0) {
 		msix = &ndev->msix_entries[i];
-		free_irq(msix->vector, ndev);
+		if (ndev->hw_type != BWD_HW && i == ndev->num_msix - 1)
+			free_irq(msix->vector, ndev);
+		else
+			free_irq(msix->vector, &ndev->db_cb[i]);
 	}
 	pci_disable_msix(pdev);
 err1:

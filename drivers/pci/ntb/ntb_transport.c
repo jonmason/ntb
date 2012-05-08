@@ -453,6 +453,12 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp, u32 tx_offset)
 		return -EIO;
 	}
 
+	if (!hdr->len) {
+		pr_err("Rx'ed pkt of len 0\n");
+		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
+		return -EIO;
+	}
+
 	pr_debug("rx offset %p, tx offset %x, ver %Ld - %d payload received, "
 		 "buf size %d\n", qp->rx_offset, tx_offset, hdr->ver, hdr->len,
 		 entry->len);
