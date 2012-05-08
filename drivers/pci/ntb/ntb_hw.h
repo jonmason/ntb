@@ -99,16 +99,17 @@ struct ntb_device {
 		int msix_cnt;
 	} limits;
 	struct {
-		u32 pdb;
-		u32 pdb_mask;
-		u32 sdb;
-		u32 sbar2_xlat;
-		u32 sbar4_xlat;
-		u32 spad_write;
-		u32 spad_read;
-		u32 lnk_cntl;
-		u32 lnk_stat;
-		u32 msix_msgctrl;
+		void __iomem *pdb;
+		void __iomem *pdb_mask;
+		void __iomem *sdb;
+		void __iomem *sbar2_xlat;
+		void __iomem *sbar4_xlat;
+		void __iomem *spad_write;
+		void __iomem *spad_read;
+		void __iomem *lnk_cntl;
+		void __iomem *lnk_stat;
+		void __iomem *spci_cmd;
+		void __iomem *sdevctrl;
 	} reg_ofs;
 	void *ntb_transport;
 	event_cb_func event_cb;

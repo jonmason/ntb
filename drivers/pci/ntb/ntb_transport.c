@@ -341,6 +341,7 @@ static int ntb_transport_init(void)
 		transport->mw[i].size =
 		    ALIGN(ntb_get_mw_size(transport->ndev, i), 4096);
 
+		//FIXME - have hw return dev or pdev, and won't need struct ndev
 		transport->mw[i].virt_addr =
 		    dma_alloc_coherent(&transport->ndev->pdev->dev,
 				       transport->mw[i].size,
@@ -686,7 +687,7 @@ static void ntb_transport_event_work(struct work_struct *work)
 		ntb_transport_put_remote_offset(qp, RX_OFFSET, 0);
 		ntb_transport_put_remote_offset(qp, TX_OFFSET, 0);
 
-		if (qp->ndev->link_status)
+		if (qp->ndev->link_status)//FIXME - hw link status call?
 			schedule_delayed_work(&qp->link_work, 0);
 	}
 
@@ -705,7 +706,7 @@ static void ntb_transport_link_work(struct work_struct *work)
 	if (rc)
 		pr_err("%s: error ringing db %d\n", __func__, qp->qp_num);
 
-	if (qp->ndev->link_status)
+	if (qp->ndev->link_status) //FIXME - hw link status call?
 		schedule_delayed_work(&qp->link_work, msecs_to_jiffies(1000));
 }
 
@@ -842,7 +843,7 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 	if (rc)
 		goto err4;
 
-	if (qp->ndev->link_status)
+	if (qp->ndev->link_status) //FIXME - hw link status call?
 		schedule_delayed_work(&qp->link_work, 0);
 
 	return qp;
