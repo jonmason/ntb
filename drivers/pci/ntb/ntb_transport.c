@@ -486,6 +486,8 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp, u32 tx_offset)
 	if (offset + hdr->len >= qp->rx_buff_end)
 		offset = qp->rx_buff_begin;
 
+	BUG_ON(offset >= qp->rx_buff_end || offset < qp->rx_buff_begin);
+
 	if (!oflow)
 		memcpy(entry->buf, offset, entry->len);
 	//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
@@ -611,6 +613,7 @@ static int ntb_process_tx(struct ntb_transport_qp *qp,
 	hdr->ver = qp->tx_pkts;
 	hdr->link = (link == NTB_LINK_UP);
 
+	BUG_ON(offset >= qp->tx_mw_end || offset < qp->tx_mw_begin);
 	memcpy(offset, entry->buf, entry->len);
 	offset += entry->len;
 
