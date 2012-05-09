@@ -66,7 +66,7 @@
 #include "ntb_regs.h"
 
 #define NTB_NAME	"Intel(R) PCIe Non-Transparent Bridge Driver"
-#define NTB_VER		"0.13"
+#define NTB_VER		"0.14"
 
 MODULE_DESCRIPTION(NTB_NAME);
 MODULE_VERSION(NTB_VER);
