@@ -62,7 +62,8 @@ struct ntb_transport_qp;//FIXME - is this necessary
 typedef void (*handler) (struct ntb_transport_qp *qp);
 typedef void (*ehandler) (int status);
 
-size_t ntb_transport_max_size(struct ntb_transport_qp *qp);
+unsigned char ntb_transport_qp_num(struct ntb_transport_qp *qp);
+unsigned int ntb_transport_max_size(struct ntb_transport_qp *qp);
 struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 						    handler tx_handler,
 						    ehandler event_handler);

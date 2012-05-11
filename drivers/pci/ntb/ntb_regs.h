@@ -68,6 +68,7 @@
 #define SNB_MAX_COMPAT_SPADS	8
 /* Reserve the uppermost bit for link interrupt */
 #define SNB_MAX_DB_BITS		15
+#define SNB_DB_BITS_PER_VEC	5
 
 #define SNB_DB_HW_LINK		0x8000
 
@@ -104,6 +105,7 @@
 #define BWD_MAX_SPADS		16
 #define BWD_MAX_COMPAT_SPADS	16
 #define BWD_MAX_DB_BITS		34
+#define BWD_DB_BITS_PER_VEC	1
 
 #define BWD_PCICMD_OFFSET	0xb004
 #define BWD_DEVCTRL_OFFSET	0xb048

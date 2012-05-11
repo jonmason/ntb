@@ -93,10 +93,10 @@ struct ntb_device {
 	void __iomem *reg_base;
 	struct ntb_mw mw[NTB_NUM_MW];
 	struct {
-		int max_compat_spads;
-		int max_spads;
-		int max_db_bits;
-		int msix_cnt;
+		unsigned int max_compat_spads;
+		unsigned int max_spads;
+		unsigned int max_db_bits;
+		unsigned int msix_cnt;
 	} limits;
 	struct {
 		void __iomem *pdb;
@@ -119,8 +119,10 @@ struct ntb_device {
 	unsigned int conn_type:2;
 	unsigned int dev_type:1;
 	unsigned int num_msix:6;
+	unsigned int bits_per_vector:6;
+	unsigned int max_cbs:6;
 	unsigned int link_status:1;
-	unsigned int unused:20;
+	unsigned int unused:9;
 	struct delayed_work hb_timer;
 	unsigned long last_ts;
 	struct dentry *debugfs_dir;
@@ -135,7 +137,7 @@ enum {
 	NTB_EVENT_HW_LINK_DOWN	= (1 << 5),
 };
 
-unsigned int ntb_query_db_bits(struct ntb_device *ndev);
+unsigned int ntb_query_max_cbs(struct ntb_device *ndev);
 struct ntb_device *ntb_register_transport(void *transport);
 void ntb_unregister_transport(struct ntb_device *ndev);
 void ntb_set_mw_addr(struct ntb_device *ndev, unsigned int mw, u64 addr);

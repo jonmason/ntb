@@ -103,18 +103,18 @@ MODULE_DEVICE_TABLE(pci, ntb_pci_tbl);
 struct ntb_device *ntbdev;
 
 /**
- * ntb_query_db_bits() - return the number of doorbell bits
+ * ntb_query_max_cbs() - return the maximum number of callback tuples
  * @ndev: pointer to ntb_device instance
  *
- * The number of bits in the doorbell can vary depending on the platform
+ * The number of callbacks can vary depending on the platform and MSI-X/MSI enablement
  *
- * RETURNS: the number of doorbell bits being used (15 or 33)
+ * RETURNS: the maximum number of callback tuples (3, 15, or 33)
  */
-unsigned int ntb_query_db_bits(struct ntb_device *ndev)
+unsigned int ntb_query_max_cbs(struct ntb_device *ndev)
 {
-	return ndev->limits.max_db_bits;
+	return ndev->max_cbs;
 }
-EXPORT_SYMBOL(ntb_query_db_bits);
+EXPORT_SYMBOL(ntb_query_max_cbs);
 
 /**
  * ntb_register_event_callback() - register event callback
@@ -166,7 +166,7 @@ int ntb_register_db_callback(struct ntb_device *ndev, unsigned int idx,
 {
 	unsigned long mask;
 
-	if (idx >= ndev->limits.max_db_bits || ndev->db_cb[idx].callback) {
+	if (idx >= ndev->max_cbs || ndev->db_cb[idx].callback) {
 		dev_warn(&ndev->pdev->dev, "Invalid Index.\n");
 		return -EINVAL;
 	}
@@ -175,7 +175,7 @@ int ntb_register_db_callback(struct ntb_device *ndev, unsigned int idx,
 
 	/* unmask interrupt */
 	mask = readw(ndev->reg_ofs.pdb_mask);
-	clear_bit(idx, &mask);
+	clear_bit(idx * ndev->bits_per_vector, &mask);
 	writew(mask, ndev->reg_ofs.pdb_mask);
 
 	return 0;
@@ -194,11 +194,11 @@ void ntb_unregister_db_callback(struct ntb_device *ndev, unsigned int idx)
 {
 	unsigned long mask;
 
-	if (idx >= ndev->limits.max_db_bits || !ndev->db_cb[idx].callback)
+	if (idx >= ndev->max_cbs || !ndev->db_cb[idx].callback)
 		return;
 
 	mask = readw(ndev->reg_ofs.pdb_mask);
-	set_bit(idx, &mask);
+	set_bit(idx * ndev->bits_per_vector, &mask);
 	writew(mask, ndev->reg_ofs.pdb_mask);
 
 	ndev->db_cb[idx].callback = NULL;
@@ -240,7 +240,7 @@ void ntb_unregister_transport(struct ntb_device *ndev)
 	if (!ndev->ntb_transport)
 		return;
 
-	for (i = 0; i < ndev->limits.max_db_bits; i++)
+	for (i = 0; i < ndev->max_cbs; i++)
 		ntb_unregister_db_callback(ndev, i);
 
 	ntb_unregister_event_callback(ndev);
@@ -440,13 +440,13 @@ int ntb_ring_sdb(struct ntb_device *ndev, unsigned int db)
 {
 	dev_dbg(&ndev->pdev->dev, "%s: ringing doorbell %d\n", __func__, db);
 
-	if (db >= ndev->limits.max_db_bits)
+	if (db >= ndev->max_cbs)
 		return -EINVAL;
 
 	if (ndev->hw_type == BWD_HW)
 		writeq((u64) 1 << db, ndev->reg_ofs.sdb);
 	else
-		writew(1 << db, ndev->reg_ofs.sdb);
+		writew(((1 << ndev->bits_per_vector) - 1) << (db * ndev->bits_per_vector), ndev->reg_ofs.sdb);
 
 	return 0;
 }
@@ -588,6 +588,7 @@ static int ntb_snb_b2b_setup(struct ntb_device *ndev)
 	ndev->limits.max_spads = SNB_MAX_SPADS;
 	ndev->limits.max_db_bits = SNB_MAX_DB_BITS;
 	ndev->limits.msix_cnt = SNB_MSIX_CNT;
+	ndev->bits_per_vector = SNB_DB_BITS_PER_VEC; 
 
 	return 0;
 }
@@ -631,7 +632,7 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	ndev->reg_ofs.lnk_cntl = ndev->reg_base + BWD_NTBCNTL_OFFSET;
 	ndev->reg_ofs.lnk_stat = ndev->reg_base + BWD_LINK_STATUS_OFFSET;
 	ndev->reg_ofs.spad_read = ndev->reg_base + BWD_SPAD_OFFSET;
-	ndev->reg_ofs.spci_cmd =  ndev->reg_base + BWD_PCICMD_OFFSET;
+	ndev->reg_ofs.spci_cmd = ndev->reg_base + BWD_PCICMD_OFFSET;
 	ndev->reg_ofs.sdevctrl = ndev->reg_base + BWD_DEVCTRL_OFFSET;
 
 	if (ndev->conn_type == NTB_CONN_B2B) {
@@ -646,6 +647,7 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	ndev->limits.max_spads = BWD_MAX_SPADS;
 	ndev->limits.max_db_bits = BWD_MAX_DB_BITS;
 	ndev->limits.msix_cnt = BWD_MSIX_CNT;
+	ndev->bits_per_vector = BWD_DB_BITS_PER_VEC; 
 
 	/* Since bwd doesn't have a link interrupt, setup a heartbeat timer */
 	INIT_DELAYED_WORK(&ndev->hb_timer, ntb_handle_heartbeat);
@@ -736,12 +738,12 @@ static irqreturn_t snb_callback_msix_irq(int irq, void *data)
 	 * vectors, with the 4th having a single bit for link
 	 * interrupts.
 	 */
-	writew(0x1f << db_cb->db_num * SNB_MSIX_CNT, ndev->reg_ofs.pdb);
+	writew(((1 << ndev->bits_per_vector) - 1) << (db_cb->db_num * ndev->bits_per_vector), ndev->reg_ofs.pdb);
 
 	return IRQ_HANDLED;
 }
 
-/* Since we do not have a HW doorbell in BWD, this is only used in JF */
+/* Since we do not have a HW doorbell in BWD, this is only used in JF/JT */
 static irqreturn_t snb_event_msix_irq(int irq, void *dev)
 {
 	struct ntb_device *ndev = dev;
@@ -759,17 +761,6 @@ static irqreturn_t snb_event_msix_irq(int irq, void *dev)
 	return IRQ_HANDLED;
 }
 
-static void snb_callback_msi_irq(int irq, void *data)
-{
-	struct ntb_db_cb *db_cb = data;
-	struct ntb_device *ndev = db_cb->ndev;
-
-	if (db_cb->callback)
-		db_cb->callback(db_cb->db_num);
-
-	writew(1 << db_cb->db_num, ndev->reg_ofs.pdb);
-}
-
 static irqreturn_t ntb_interrupt(int irq, void *dev)
 {
 	struct ntb_device *ndev = dev;
@@ -780,7 +771,7 @@ static irqreturn_t ntb_interrupt(int irq, void *dev)
 
 		dev_dbg(&ndev->pdev->dev, "irq %d - pdb = %Lx\n", irq, pdb);
 
-		for (i = 0; i < ndev->limits.max_db_bits; i++)
+		for (i = 0; i < ndev->max_cbs; i++)
 			if (pdb & ((u64) 1 << i))
 				bwd_callback_msix_irq(irq, &ndev->db_cb[i]);
 	} else {
@@ -792,9 +783,9 @@ static irqreturn_t ntb_interrupt(int irq, void *dev)
 		if (pdb & SNB_DB_HW_LINK)
 			snb_event_msix_irq(irq, dev);
 
-		for (i = 0; i < ndev->limits.max_db_bits; i++)
+		for (i = 0; i < ndev->max_cbs; i++)
 			if (pdb & (1 << i))
-				snb_callback_msi_irq(irq, &ndev->db_cb[i]);
+				snb_callback_msix_irq(irq, &ndev->db_cb[i]);
 	}
 
 	return IRQ_HANDLED;
@@ -880,9 +871,10 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 	}
 
 	ndev->num_msix = msix_entries;
-
-	if (ndev->limits.max_db_bits != msix_entries && ndev->hw_type == BWD_HW)
-		ndev->limits.max_db_bits = msix_entries;
+	if (ndev->hw_type == BWD_HW)
+		ndev->max_cbs = msix_entries;
+	else
+		ndev->max_cbs = msix_entries - 1;
 
 	return 0;
 
@@ -957,6 +949,9 @@ static int __devinit ntb_setup_interrupts(struct ntb_device *ndev)
 	if (!rc)
 		goto done;
 
+	ndev->bits_per_vector = 1;
+	ndev->max_cbs = ndev->limits.max_db_bits;
+
 	rc = ntb_setup_msi(ndev);
 	if (!rc)
 		goto done;
@@ -1004,7 +999,7 @@ static void __devexit ntb_free_interrupts(struct ntb_device *ndev)
 static int __devinit ntb_create_callbacks(struct ntb_device *ndev)
 {
 	int i;
-
+//FIXME - limits.max_db_bits, is mroe than we'll need, but we won't know until we try to get interrupts..which needs this already setup.
 	ndev->db_cb = kcalloc(ndev->limits.max_db_bits, sizeof(struct ntb_db_cb),
 			      GFP_KERNEL);
 	if (!ndev->db_cb)

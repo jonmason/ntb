@@ -175,7 +175,7 @@ static ssize_t debugfs_read(struct file *filp, char __user *ubuf,
 	char *buf;
 	ssize_t ret, out_offset, out_count;
 
-	out_count = 1024;
+	out_count = 1024; //FIXME - magic...
 	buf = kmalloc(out_count, GFP_KERNEL);
 	if (!buf)
 	        return -ENOMEM;
@@ -319,8 +319,7 @@ static int ntb_transport_init(void)
 		goto err;
 	}
 
-	/* 1 Doorbell bit is used by Link/HB, but the rest can be used for the transport qp's */
-	transport->max_qps = ntb_query_db_bits(transport->ndev);
+	transport->max_qps = ntb_query_max_cbs(transport->ndev);
 	if (!transport->max_qps) {
 		rc = -EIO;
 		goto err1;
@@ -447,14 +446,14 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp, u32 tx_offset)
 	hdr = offset;
 
 	if (hdr->ver != qp->rx_pkts) {
-		pr_err("Version mismatch, expected %Ld - got %Ld\n",
-		       qp->rx_pkts, hdr->ver);
+		pr_err("qp %d: version mismatch, expected %Ld - got %Ld\n",
+		       qp->qp_num, qp->rx_pkts, hdr->ver);
 		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
 		return -EIO;
 	}
 
 	if (!hdr->len) {
-		pr_err("Rx'ed pkt of len 0\n");
+		pr_err("qp %d: Rx'ed pkt of len 0\n", qp->qp_num);
 		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
 		return -EIO;
 	}
@@ -469,7 +468,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp, u32 tx_offset)
 		oflow = true;
 	} else {
 		if (!hdr->link) {
-			pr_debug("QP %d Link Down\n", qp->qp_num);
+			pr_info("qp %d: Link Down\n", qp->qp_num);
 			qp->event_flags = NTB_LINK_DOWN;
 
 			schedule_delayed_work(&qp->event_work,
@@ -553,7 +552,7 @@ static void ntb_transport_rxc_db(int db_num)
 	pr_debug("%s: doorbell %d received\n", __func__, db_num);
 
 	if (qp->qp_link == NTB_LINK_DOWN) {
-		pr_debug("QP %d Link Up\n", qp->qp_num);
+		pr_info("QP %d Link Up\n", qp->qp_num);
 		qp->event_flags = NTB_LINK_UP;
 
 		schedule_delayed_work(&qp->event_work, msecs_to_jiffies(1000));
@@ -737,10 +736,10 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 						    handler tx_handler,
 						    ehandler event_handler)
 {
+	struct ntb_queue_entry *entry;
 	struct ntb_transport_qp *qp;
 	unsigned int free_queue;
 	int rc, i;
-	struct ntb_queue_entry *entry;
 
 	if (!transport) {
 		rc = ntb_transport_init();
@@ -813,14 +812,14 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 		ntb_list_add_tail(&qp->txe_lock, &entry->entry, &qp->txe);
 	}
 
-	qp->rx_work = kthread_create(ntb_transport_rxc, qp, "ntb_rx");
+	qp->rx_work = kthread_create(ntb_transport_rxc, qp, "ntb_rx%d", free_queue);
 	if (IS_ERR(qp->rx_work)) {
 		rc = PTR_ERR(qp->rx_work);
 		pr_err("Error allocing rxc kthread\n");
 		goto err2;
 	}
 
-	qp->tx_work = kthread_create(ntb_transport_tx, qp, "ntb_tx");
+	qp->tx_work = kthread_create(ntb_transport_tx, qp, "ntb_tx%d", free_queue);
 	if (IS_ERR(qp->tx_work)) {
 		rc = PTR_ERR(qp->tx_work);
 		pr_err("Error allocing tx kthread\n");
@@ -854,6 +853,8 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 
 	if (qp->ndev->link_status) //FIXME - hw link status call?
 		schedule_delayed_work(&qp->link_work, 0);
+
+	pr_info("NTB Transport QP %d created\n", qp->qp_num);
 
 	return qp;
 
@@ -957,6 +958,16 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 }
 EXPORT_SYMBOL(ntb_transport_free_queue);
 
+/**
+ * ntb_transport_rx_remove - Dequeues enqueued rx packet
+ * @qp: NTB queue to be freed
+ * @len: pointer to variable to write enqueued buffers length
+ *
+ * Dequeues unused buffers from receive queue.  Should only be used during
+ * shutdown of qp.
+ *
+ * RETURNS: NULL error value on error, or void* for success.
+ */
 void *ntb_transport_rx_remove(struct ntb_transport_qp *qp, int *len)
 {
 	struct ntb_queue_entry *entry;
@@ -980,9 +991,11 @@ EXPORT_SYMBOL(ntb_transport_rx_remove);
 /**
  * ntb_transport_rx_enqueue - Enqueue a new NTB queue entry
  * @qp: NTB transport layer queue the entry is to be enqueued on
- * @entry: NTB queue entry to be enqueued
+ * @cb: per buffer pointer for callback function to use
+ * @data: pointer to data buffer that incoming packets will be copied into
+ * @len: length of the data buffer
  *
- * Enqueue a new NTB queue entry onto the transport queue into which a NTB
+ * Enqueue a new receive buffer onto the transport queue into which a NTB
  * payload can be received into.
  *
  * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
@@ -1011,9 +1024,11 @@ EXPORT_SYMBOL(ntb_transport_rx_enqueue);
 /**
  * ntb_transport_tx_enqueue - Enqueue a new NTB queue entry
  * @qp: NTB transport layer queue the entry is to be enqueued on
- * @entry: NTB queue entry to be enqueued
+ * @cb: per buffer pointer for callback function to use
+ * @data: pointer to data buffer that will be sent
+ * @len: length of the data buffer
  *
- * Enqueue a new NTB queue entry onto the transport queue from which a NTB
+ * Enqueue a new transmit buffer onto the transport queue from which a NTB
  * payload will be transmitted.
  *
  * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
@@ -1044,12 +1059,14 @@ EXPORT_SYMBOL(ntb_transport_tx_enqueue);
 /**
  * ntb_transport_tx_dequeue - Dequeue a NTB queue entry
  * @qp: NTB transport layer queue to be dequeued from
+ * @len: length of the data buffer
  * 
- * This function will dequeue a NTB queue entry from the transmit complete
- * queue.  Entries will only be enqueued on this queue after having been
+ * This function will dequeue a buffer from the transmit complete queue.
+ * Entries will only be enqueued on this queue after having been
  * transfered to the remote side.
  *
- * RETURNS: NTB queue entry from the transport queue, or NULL on empty
+ * RETURNS: callback pointer of the buffer from the transport queue, or NULL
+ * on empty
  */
 void *ntb_transport_tx_dequeue(struct ntb_transport_qp *qp, int *len)
 {
@@ -1065,6 +1082,12 @@ void *ntb_transport_tx_dequeue(struct ntb_transport_qp *qp, int *len)
 
 	buf = entry->callback_data;
 	*len = entry->len;
+
+	//Sanity check for now
+	entry->callback_data = NULL;
+	entry->buf = NULL;
+	entry->len = 0;
+
 	ntb_list_add_tail(&qp->txe_lock, &entry->entry, &qp->txe);
 
 	return buf;
@@ -1074,12 +1097,13 @@ EXPORT_SYMBOL(ntb_transport_tx_dequeue);
 /**
  * ntb_transport_rx_dequeue - Dequeue a NTB queue entry
  * @qp: NTB transport layer queue to be dequeued from
+ * @len: length of the data buffer
  * 
- * This function will dequeue a new NTB queue entry from the receive complete
- * queue of the transport queue specified.  Entries will only be enqueued on
- * this queue after having been fully received.
+ * This function will dequeue a buffer from the receive complete queue.
+ * Entries will only be enqueued on this queue after having been fully received.
  *
- * RETURNS: NTB queue entry from the transport queue, or NULL on empty
+ * RETURNS: callback pointer of the buffer from the transport queue, or NULL
+ * on empty
  */
 void *ntb_transport_rx_dequeue(struct ntb_transport_qp *qp, int *len)
 {
@@ -1095,6 +1119,12 @@ void *ntb_transport_rx_dequeue(struct ntb_transport_qp *qp, int *len)
 
 	buf = entry->callback_data;
 	*len = entry->len;
+
+	//Sanity check for now
+	entry->callback_data = NULL;
+	entry->buf = NULL;
+	entry->len = 0;
+
 	ntb_list_add_tail(&qp->rxe_lock, &entry->entry, &qp->rxe);
 
 	return buf;
@@ -1134,10 +1164,10 @@ void ntb_transport_link_down(struct ntb_transport_qp *qp)
 EXPORT_SYMBOL(ntb_transport_link_down);
 
 /**
- * ntb_transport_link_query - Query hardware link state
+ * ntb_transport_link_query - Query transport link state
  * @qp: NTB transport layer queue to be queried
  *
- * Query hardware link state of the NTB transport queue 
+ * Query connectivity to the remote system of the NTB transport queue 
  *
  * RETURNS: true for link up or false for link down
  */
@@ -1147,10 +1177,30 @@ bool ntb_transport_link_query(struct ntb_transport_qp *qp)
 }
 EXPORT_SYMBOL(ntb_transport_link_query);
 
-size_t ntb_transport_max_size(struct ntb_transport_qp *qp)
+/**
+ * ntb_transport_qp_num - Query the qp number
+ * @qp: NTB transport layer queue to be queried
+ *
+ * Query qp number of the NTB transport queue
+ *
+ * RETURNS: a zero based number specifying the qp number
+ */
+unsigned char ntb_transport_qp_num(struct ntb_transport_qp *qp)
 {
-	u8 mw = QP_TO_MW(qp->qp_num);
+	return qp->qp_num;
+}
+EXPORT_SYMBOL(ntb_transport_qp_num);
 
-	return transport->mw[mw].size - sizeof(struct ntb_payload_header);
+/**
+ * ntb_transport_max_size - Query the max payload size of a qp
+ * @qp: NTB transport layer queue to be queried
+ *
+ * Query the maximum payload size permissible on the given qp
+ *
+ * RETURNS: the max payload size of a qp
+ */
+unsigned int ntb_transport_max_size(struct ntb_transport_qp *qp)
+{
+	return (qp->tx_mw_end - qp->tx_mw_begin) - sizeof(struct ntb_payload_header);
 }
 EXPORT_SYMBOL(ntb_transport_max_size);
