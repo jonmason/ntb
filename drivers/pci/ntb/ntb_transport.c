@@ -762,9 +762,10 @@ static int ntb_transport_setup_mw(unsigned int new_qp_num)
 		if (qp_bitmap & (unsigned long) 1 << i) {
 			struct ntb_transport_qp *qp = &transport->qps[i];
 
-			pr_info("Shutting down qp %d while reconfiguring MW %d\n", i, mw_num);
-			ntb_send_link_down(qp);
-
+			if (new_qp_num != i) { 
+				pr_info("Shutting down qp %d while reconfiguring MW %d\n", i, mw_num);
+				ntb_send_link_down(qp);
+			}
 			num_qps++;
 		}
 
@@ -812,6 +813,7 @@ static int ntb_transport_setup_mw(unsigned int new_qp_num)
  *
  * RETURNS: pointer to newly created ntb_queue, NULL on error.
  */
+//FIXME - this might only be permissible in non-interrupt context
 struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 						    handler tx_handler,
 						    ehandler event_handler)
