@@ -57,6 +57,7 @@
  * Jon Mason <jon.mason@intel.com>
  */
 #include <linux/debugfs.h>
+#include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/errno.h>
 #include <linux/export.h>
@@ -74,6 +75,7 @@ struct ntb_queue_entry {
 	void *callback_data;
 	void *buf;
 	unsigned int len;
+	unsigned int flags;
 };
 
 struct ntb_transport_qp {
@@ -118,6 +120,9 @@ struct ntb_transport_qp {
 	struct dentry *debugfs_rx_to;
 	struct dentry *debugfs_tx_to;
 
+	unsigned int rx_ring_timeo;
+	unsigned int tx_ring_timeo;
+
 	/* Stats */
 	u64 rx_bytes;
 	u64 rx_pkts;
@@ -141,6 +146,7 @@ struct ntb_transport {
 	unsigned int max_qps;
 	struct ntb_transport_qp *qps;
 	unsigned long qp_bitmap;
+	spinlock_t lock;
 };
 
 struct ntb_payload_header {
@@ -155,10 +161,9 @@ enum {
 	SPADS_PER_QP,
 };
 
-static unsigned int rx_ring_timeo = 100;
-static unsigned int tx_ring_timeo = 100;
-
 #define QP_TO_MW(qp)		((qp) % NTB_NUM_MW)
+#define	NTB_QP_DEF_RING_TIMEOUT	100
+#define NTB_QP_DEF_NUM_ENTRIES	1000
 
 struct ntb_transport *transport = NULL;
 
@@ -355,6 +360,8 @@ static int ntb_transport_init(void)
 		ntb_set_mw_addr(transport->ndev, i, transport->mw[i].dma_addr);
 	}
 
+	spin_lock_init(&transport->lock);
+
 	rc = ntb_register_event_callback(transport->ndev,
 					 ntb_transport_event_callback);
 	if (rc)
@@ -533,7 +540,7 @@ static int ntb_transport_rxc(void *data)
 		/* Sleep for a little bit and hope some memory frees up */
 		if (rc == -ENOMEM)
 			schedule_timeout_interruptible(msecs_to_jiffies
-						       (rx_ring_timeo));
+						       (qp->rx_ring_timeo));
 		else {
 			/* Sleep if no rx work */
 			set_current_state(TASK_INTERRUPTIBLE);
@@ -571,8 +578,8 @@ static u64 free_space(void *head, void *tail, u64 size)
 }
 
 static int ntb_process_tx(struct ntb_transport_qp *qp,
-			  struct ntb_queue_entry *entry, u32 rx_offset,
-			  int link)
+			  struct ntb_queue_entry *entry,
+			  u32 rx_offset)
 {
 	struct ntb_payload_header *hdr;
 	void *offset;
@@ -610,7 +617,7 @@ static int ntb_process_tx(struct ntb_transport_qp *qp,
 
 	hdr->len = entry->len;
 	hdr->ver = qp->tx_pkts;
-	hdr->link = (link == NTB_LINK_UP);
+	hdr->link = (entry->flags == NTB_LINK_UP);
 
 	BUG_ON(offset >= qp->tx_mw_end || offset < qp->tx_mw_begin);
 	memcpy(offset, entry->buf, entry->len);
@@ -625,8 +632,10 @@ static int ntb_process_tx(struct ntb_transport_qp *qp,
 	if (rc)
 		pr_err("%s: error ringing db %d\n", __func__, qp->qp_num);
 
-	if (entry->len == 0)
+	if (entry->len == 0) {
+		ntb_list_add_tail(&qp->txe_lock, &entry->entry, &qp->txe);
 		return 0;
+	}
 
 	qp->tx_pkts++;
 	qp->tx_bytes += entry->len;
@@ -662,11 +671,11 @@ static int ntb_transport_tx(void *data)
 			pr_err("%s: error reading from offset %d\n", __func__,
 			       RX_OFFSET);
 
-		rc = ntb_process_tx(qp, entry, rx_offset, NTB_LINK_UP);
+		rc = ntb_process_tx(qp, entry, rx_offset);
 		if (!rc)
 			continue;
 
-		schedule_timeout_interruptible(msecs_to_jiffies(tx_ring_timeo));
+		schedule_timeout_interruptible(msecs_to_jiffies(qp->tx_ring_timeo));
 	}
 
 	return 0;
@@ -718,6 +727,77 @@ static void ntb_transport_link_work(struct work_struct *work)
 		schedule_delayed_work(&qp->link_work, msecs_to_jiffies(1000));
 }
 
+static void ntb_send_link_down(struct ntb_transport_qp *qp)
+{
+	struct ntb_queue_entry *entry;
+
+	if (qp->qp_link == NTB_LINK_DOWN)
+		return;
+
+	qp->qp_link = NTB_LINK_DOWN;
+
+	//FIXME - should give this an upper bound...
+	while (!(entry = ntb_list_rm_head(&qp->txe_lock, &qp->txe)))
+		ssleep(1);
+
+	entry->callback_data = NULL;
+	entry->buf = NULL;
+	entry->len = 0;
+	entry->flags = NTB_LINK_DOWN;
+
+	ntb_list_add_tail(&qp->txq_lock, &entry->entry, &qp->txq);
+
+	wake_up_process(qp->tx_work);
+}
+
+static int ntb_transport_setup_mw(unsigned int new_qp_num)
+{
+	u8 mw_num = QP_TO_MW(new_qp_num);
+	int i, num_qps = 0;
+	unsigned long qp_bitmap = ~transport->qp_bitmap;
+	unsigned int new_size;
+
+	//determine number of mw's using the mw and who's using it
+	for (i = mw_num; i < transport->max_qps; i += NTB_NUM_MW)
+		if (qp_bitmap & (unsigned long) 1 << i) {
+			struct ntb_transport_qp *qp = &transport->qps[i];
+
+			pr_info("Shutting down qp %d while reconfiguring MW %d\n", i, mw_num);
+			ntb_send_link_down(qp);
+
+			num_qps++;
+		}
+
+	BUG_ON(!num_qps);
+	//FIXME - this assumes mw on both systems are the same size
+	new_size = transport->mw[mw_num].size / num_qps;
+	pr_info("orig size = %d, num qps = %d, new size = %d\n", (int) transport->mw[mw_num].size, num_qps, new_size);
+
+	for (i = mw_num; i < transport->max_qps; i += NTB_NUM_MW)
+		if (qp_bitmap & (unsigned long) 1 << i) {
+			struct ntb_transport_qp *qp = &transport->qps[i];
+
+			//resize existing partitions buffs and setup new qps buff locations
+
+			qp->rx_buff_begin = transport->mw[mw_num].virt_addr + (i / NTB_NUM_MW * new_size);
+			qp->rx_buff_end = qp->rx_buff_begin + new_size;
+			pr_info("QP %d - RX Buff start %p end %p\n", qp->qp_num, qp->rx_buff_begin, qp->rx_buff_end);
+			qp->rx_offset = qp->rx_buff_begin;
+			ntb_transport_put_remote_offset(qp, RX_OFFSET, 0);
+
+			qp->tx_mw_begin = ntb_get_mw_vbase(qp->ndev, mw_num) + (i / NTB_NUM_MW * new_size);
+			qp->tx_mw_end = qp->tx_mw_begin + new_size;
+			pr_info("QP %d - TX MW start %p end %p\n", qp->qp_num, qp->tx_mw_begin, qp->tx_mw_end);
+			qp->tx_offset = qp->tx_mw_begin;
+			ntb_transport_put_remote_offset(qp, TX_OFFSET, 0);
+
+			if (new_qp_num != i && qp->ndev->link_status) //FIXME - hw link status call?
+				schedule_delayed_work(&qp->link_work, 0);
+		}
+
+	return 0;
+}
+
 /**
  * ntb_transport_create_queue - Create a new NTB transport layer queue
  * @rx_handler: receive callback function 
@@ -747,6 +827,8 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 			return NULL;
 	}
 
+	spin_lock(&transport->lock);
+
 	//FIXME - need to handhake with remote side to determine matching number or some mapping between the 2
 	free_queue = ffs(transport->qp_bitmap);
 	if (!free_queue)
@@ -755,12 +837,15 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 	/* decrement free_queue to make it zero based */
 	free_queue--;
 
-	clear_bit(free_queue, &transport->qp_bitmap);	//FIXME - this might be racy, either add lock or make atomic
+	clear_bit(free_queue, &transport->qp_bitmap);
 
 	qp = &transport->qps[free_queue];
 	qp->qp_link = NTB_LINK_DOWN;
 	qp->qp_num = free_queue;
 	qp->ndev = transport->ndev;
+
+	qp->rx_ring_timeo = NTB_QP_DEF_RING_TIMEOUT;
+	qp->tx_ring_timeo = NTB_QP_DEF_RING_TIMEOUT;
 
 	if (qp->ndev->debugfs_dir) {
 		char debugfs_name[4];
@@ -768,10 +853,9 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 		snprintf(debugfs_name, 4, "qp%d", free_queue);
 		qp->debugfs_dir = debugfs_create_dir(debugfs_name, qp->ndev->debugfs_dir);
 
-		//FIXME - check for rc for all
 		qp->debugfs_stats = debugfs_create_file("stats", S_IRUSR | S_IRGRP | S_IROTH, qp->debugfs_dir, qp, &ntb_qp_debugfs_stats);
-		qp->debugfs_tx_to = debugfs_create_u32("tx_ring_timeo", S_IRUSR | S_IWUSR, qp->debugfs_dir, &tx_ring_timeo);
-		qp->debugfs_rx_to = debugfs_create_u32("rx_ring_timeo", S_IRUSR | S_IWUSR, qp->debugfs_dir, &rx_ring_timeo);
+		qp->debugfs_tx_to = debugfs_create_u32("tx_ring_timeo", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->tx_ring_timeo);
+		qp->debugfs_rx_to = debugfs_create_u32("rx_ring_timeo", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->rx_ring_timeo);
 	}
 
 	qp->rx_handler = rx_handler;
@@ -796,7 +880,7 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 	INIT_LIST_HEAD(&qp->txc);
 	INIT_LIST_HEAD(&qp->txe);
 
-	for (i = 0; i < 1000; i++) {//FIXME - 1k magic
+	for (i = 0; i < NTB_QP_DEF_NUM_ENTRIES; i++) {
 		entry = kzalloc(sizeof(struct ntb_queue_entry), GFP_ATOMIC);
 		if (!entry)
 			goto err1;
@@ -804,7 +888,7 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 		ntb_list_add_tail(&qp->rxe_lock, &entry->entry, &qp->rxe);
 	}
 
-	for (i = 0; i < 1000; i++) {//FIXME - 1k magic
+	for (i = 0; i < NTB_QP_DEF_NUM_ENTRIES; i++) {
 		entry = kzalloc(sizeof(struct ntb_queue_entry), GFP_ATOMIC);
 		if (!entry)
 			goto err2;
@@ -828,21 +912,10 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 
 	qp->rx_pkts = 0;
 	qp->tx_pkts = 0;
-	ntb_transport_put_remote_offset(qp, RX_OFFSET, 0);
-	ntb_transport_put_remote_offset(qp, TX_OFFSET, 0);
 
-	qp->rx_buff_begin = transport->mw[QP_TO_MW(free_queue)].virt_addr;
-	qp->rx_buff_end = transport->mw[QP_TO_MW(free_queue)].size +
-			  qp->rx_buff_begin;
-	pr_debug("RX Buff start %p end %p\n", qp->rx_buff_begin,
-		 qp->rx_buff_end);
-	qp->rx_offset = qp->rx_buff_begin;
-
-	qp->tx_mw_begin = ntb_get_mw_vbase(qp->ndev, QP_TO_MW(free_queue));
-	qp->tx_mw_end = transport->mw[QP_TO_MW(free_queue)].size +
-			qp->tx_mw_begin;
-	pr_debug("TX MW start %p end %p\n", qp->tx_mw_begin, qp->tx_mw_end);
-	qp->tx_offset = qp->tx_mw_begin;
+	rc = ntb_transport_setup_mw(free_queue);
+	if (rc)
+		goto err4;
 
 	//FIXME - transport->qps[free_queue].queue.hw_caps; is it even necessary for transport client to know?
 
@@ -850,6 +923,8 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 				      ntb_transport_rxc_db);
 	if (rc)
 		goto err4;
+
+	spin_unlock(&transport->lock);
 
 	if (qp->ndev->link_status) //FIXME - hw link status call?
 		schedule_delayed_work(&qp->link_work, 0);
@@ -871,27 +946,10 @@ err1:
 	debugfs_remove_recursive(qp->debugfs_stats);
 	set_bit(free_queue, &transport->qp_bitmap);
 err:
+	spin_unlock(&transport->lock);
 	return NULL;
 }
 EXPORT_SYMBOL(ntb_transport_create_queue);
-
-static void ntb_send_link_down(struct ntb_transport_qp *qp)
-{
-	struct ntb_queue_entry entry;
-	u32 rx_offset;
-	int rc;
-
-	rc = ntb_transport_get_remote_offset(qp, RX_OFFSET, &rx_offset);
-	if (rc)
-		pr_err("%s: error reading from offset %d\n", __func__,
-		       RX_OFFSET);
-
-	entry.len = 0;
-	entry.buf = NULL;
-	rc = ntb_process_tx(qp, &entry, rx_offset, NTB_LINK_DOWN);
-	if (rc)
-		pr_err("ntb: Failed to send remote side \"link down\"\n");
-}
 
 /**
  * ntb_transport_free_queue - Frees NTB transport queue
@@ -906,9 +964,6 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 	if (!qp)
 		return;
 
-	qp->qp_link = NTB_LINK_DOWN;
-
-	//FIXME - wait for tx queue to be empty
 	ntb_send_link_down(qp);
 
 	cancel_delayed_work_sync(&qp->event_work);
@@ -1047,6 +1102,7 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, void *cb, void *data, 
 	entry->callback_data = cb;
 	entry->buf = data;
 	entry->len = len;
+	entry->flags = NTB_LINK_UP;
 
 	ntb_list_add_tail(&qp->txq_lock, &entry->entry, &qp->txq);
 
