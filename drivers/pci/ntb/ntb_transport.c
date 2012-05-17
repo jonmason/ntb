@@ -80,8 +80,12 @@ struct ntb_queue_entry {
 
 struct ntb_transport_qp {
 	struct ntb_device *ndev;
-	struct workqueue_struct *qp_wq;
+	//FIXME - unless this is getting larger than a cacheline, bit fields might not be worth it
+	unsigned int client_ready:1;
+	unsigned int qp_link:1;
+	unsigned int qp_num:6;	/* Only 64 QP's are allowed.  0-63 */
 
+	void (*tx_handler)(struct ntb_transport_qp *qp);
 	struct task_struct *tx_work;
 	struct list_head txq;
 	struct list_head txc;
@@ -92,7 +96,9 @@ struct ntb_transport_qp {
 	void *tx_mw_begin;
 	void *tx_mw_end;
 	void *tx_offset;
+	unsigned int tx_ring_timeo;
 
+	void (*rx_handler)(struct ntb_transport_qp *qp);
 	struct task_struct *rx_work;
 	struct list_head rxq;
 	struct list_head rxc;
@@ -103,25 +109,17 @@ struct ntb_transport_qp {
 	void *rx_buff_begin;
 	void *rx_buff_end;
 	void *rx_offset;
+	unsigned int rx_ring_timeo;
 
-	void (*rx_handler)(struct ntb_transport_qp *qp);
-	void (*tx_handler)(struct ntb_transport_qp *qp);
 	void (*event_handler)(int status);
 	struct delayed_work event_work;
+	unsigned int event_flags;
 	struct delayed_work link_work;
-	//FIXME - unless this is getting larger than a cacheline, bit fields might not be worth it
-	unsigned int event_flags:1;
-	unsigned int client_ready:1;
-	unsigned int qp_link:1;
-	unsigned int qp_num:6;	/* Only 64 QP's are allowed.  0-63 */
 
 	struct dentry *debugfs_dir;
 	struct dentry *debugfs_stats;
 	struct dentry *debugfs_rx_to;
 	struct dentry *debugfs_tx_to;
-
-	unsigned int rx_ring_timeo;
-	unsigned int tx_ring_timeo;
 
 	/* Stats */
 	u64 rx_bytes;
@@ -146,13 +144,12 @@ struct ntb_transport {
 	unsigned int max_qps;
 	struct ntb_transport_qp *qps;
 	unsigned long qp_bitmap;
-	spinlock_t lock;
 };
 
 struct ntb_payload_header {
-	unsigned int len;
 	u64 ver;
-	u8 link:1;
+	unsigned int len;
+	unsigned int flags;
 };
 
 enum {
@@ -360,8 +357,6 @@ static int ntb_transport_init(void)
 		ntb_set_mw_addr(transport->ndev, i, transport->mw[i].dma_addr);
 	}
 
-	spin_lock_init(&transport->lock);
-
 	rc = ntb_register_event_callback(transport->ndev,
 					 ntb_transport_event_callback);
 	if (rc)
@@ -459,12 +454,6 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp, u32 tx_offset)
 		return -EIO;
 	}
 
-	if (!hdr->len) {
-		pr_err("qp %d: Rx'ed pkt of len 0\n", qp->qp_num);
-		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
-		return -EIO;
-	}
-
 	pr_debug("rx offset %p, tx offset %x, ver %Ld - %d payload received, "
 		 "buf size %d\n", qp->rx_offset, tx_offset, hdr->ver, hdr->len,
 		 entry->len);
@@ -474,13 +463,14 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp, u32 tx_offset)
 		qp->rx_err_oflow++;
 		oflow = true;
 	} else {
-		if (!hdr->link) {
+		if (hdr->flags & NTB_LINK_DOWN) {
 			pr_info("qp %d: Link Down\n", qp->qp_num);
 			qp->event_flags = NTB_LINK_DOWN;
 
 			schedule_delayed_work(&qp->event_work,
 					      msecs_to_jiffies(1000));
 			oflow = true;
+			ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
 		} else {
 			entry->len = hdr->len;
 			oflow = false;
@@ -492,11 +482,12 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp, u32 tx_offset)
 	if (offset + hdr->len >= qp->rx_buff_end)
 		offset = qp->rx_buff_begin;
 
-	BUG_ON(offset >= qp->rx_buff_end || offset < qp->rx_buff_begin);
-
-	if (!oflow)
+	if (!oflow) {
+		BUG_ON(offset + hdr->len >= qp->rx_buff_end || offset < qp->rx_buff_begin);
+		BUG_ON(entry->buf == NULL);
 		memcpy(entry->buf, offset, entry->len);
-	//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
+		//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
+	}
 
 	offset += hdr->len;
 
@@ -617,9 +608,10 @@ static int ntb_process_tx(struct ntb_transport_qp *qp,
 
 	hdr->len = entry->len;
 	hdr->ver = qp->tx_pkts;
-	hdr->link = (entry->flags == NTB_LINK_UP);
+	hdr->flags = entry->flags;
 
-	BUG_ON(offset >= qp->tx_mw_end || offset < qp->tx_mw_begin);
+	BUG_ON(offset + entry->len >= qp->tx_mw_end || offset < qp->tx_mw_begin);
+	BUG_ON(entry->buf == NULL);
 	memcpy(offset, entry->buf, entry->len);
 	offset += entry->len;
 
@@ -752,49 +744,25 @@ static void ntb_send_link_down(struct ntb_transport_qp *qp)
 
 static int ntb_transport_setup_mw(unsigned int new_qp_num)
 {
+	struct ntb_transport_qp *qp = &transport->qps[new_qp_num];
 	u8 mw_num = QP_TO_MW(new_qp_num);
-	int i, num_qps = 0;
-	unsigned long qp_bitmap = ~transport->qp_bitmap;
 	unsigned int new_size;
 
-	//determine number of mw's using the mw and who's using it
-	for (i = mw_num; i < transport->max_qps; i += NTB_NUM_MW)
-		if (qp_bitmap & (unsigned long) 1 << i) {
-			struct ntb_transport_qp *qp = &transport->qps[i];
-
-			if (new_qp_num != i) { 
-				pr_info("Shutting down qp %d while reconfiguring MW %d\n", i, mw_num);
-				ntb_send_link_down(qp);
-			}
-			num_qps++;
-		}
-
-	BUG_ON(!num_qps);
 	//FIXME - this assumes mw on both systems are the same size
-	new_size = transport->mw[mw_num].size / num_qps;
-	pr_info("orig size = %d, num qps = %d, new size = %d\n", (int) transport->mw[mw_num].size, num_qps, new_size);
+	new_size = transport->mw[mw_num].size / (transport->max_qps / NTB_NUM_MW);//FIXME - won't handle odd numbers.....
+	pr_debug("orig size = %d, num qps = %d, new size = %d\n", (int) transport->mw[mw_num].size, transport->max_qps, new_size);
 
-	for (i = mw_num; i < transport->max_qps; i += NTB_NUM_MW)
-		if (qp_bitmap & (unsigned long) 1 << i) {
-			struct ntb_transport_qp *qp = &transport->qps[i];
+	qp->rx_buff_begin = transport->mw[mw_num].virt_addr + (new_qp_num / NTB_NUM_MW * new_size);
+	qp->rx_buff_end = qp->rx_buff_begin + new_size;
+	pr_info("QP %d - RX Buff start %p end %p\n", qp->qp_num, qp->rx_buff_begin, qp->rx_buff_end);
+	qp->rx_offset = qp->rx_buff_begin;
+	ntb_transport_put_remote_offset(qp, RX_OFFSET, 0);
 
-			//resize existing partitions buffs and setup new qps buff locations
-
-			qp->rx_buff_begin = transport->mw[mw_num].virt_addr + (i / NTB_NUM_MW * new_size);
-			qp->rx_buff_end = qp->rx_buff_begin + new_size;
-			pr_info("QP %d - RX Buff start %p end %p\n", qp->qp_num, qp->rx_buff_begin, qp->rx_buff_end);
-			qp->rx_offset = qp->rx_buff_begin;
-			ntb_transport_put_remote_offset(qp, RX_OFFSET, 0);
-
-			qp->tx_mw_begin = ntb_get_mw_vbase(qp->ndev, mw_num) + (i / NTB_NUM_MW * new_size);
-			qp->tx_mw_end = qp->tx_mw_begin + new_size;
-			pr_info("QP %d - TX MW start %p end %p\n", qp->qp_num, qp->tx_mw_begin, qp->tx_mw_end);
-			qp->tx_offset = qp->tx_mw_begin;
-			ntb_transport_put_remote_offset(qp, TX_OFFSET, 0);
-
-			if (new_qp_num != i && qp->ndev->link_status) //FIXME - hw link status call?
-				schedule_delayed_work(&qp->link_work, 0);
-		}
+	qp->tx_mw_begin = ntb_get_mw_vbase(qp->ndev, mw_num) + (new_qp_num / NTB_NUM_MW * new_size);
+	qp->tx_mw_end = qp->tx_mw_begin + new_size;
+	pr_info("QP %d - TX MW start %p end %p\n", qp->qp_num, qp->tx_mw_begin, qp->tx_mw_end);
+	qp->tx_offset = qp->tx_mw_begin;
+	ntb_transport_put_remote_offset(qp, TX_OFFSET, 0);
 
 	return 0;
 }
@@ -828,8 +796,6 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 		if (rc)
 			return NULL;
 	}
-
-	spin_lock(&transport->lock);
 
 	//FIXME - need to handhake with remote side to determine matching number or some mapping between the 2
 	free_queue = ffs(transport->qp_bitmap);
@@ -926,8 +892,6 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 	if (rc)
 		goto err4;
 
-	spin_unlock(&transport->lock);
-
 	if (qp->ndev->link_status) //FIXME - hw link status call?
 		schedule_delayed_work(&qp->link_work, 0);
 
@@ -948,7 +912,6 @@ err1:
 	debugfs_remove_recursive(qp->debugfs_stats);
 	set_bit(free_queue, &transport->qp_bitmap);
 err:
-	spin_unlock(&transport->lock);
 	return NULL;
 }
 EXPORT_SYMBOL(ntb_transport_create_queue);

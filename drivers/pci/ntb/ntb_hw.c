@@ -73,6 +73,10 @@ MODULE_VERSION(NTB_VER);
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("Intel Corporation");
 
+static int max_num_cbs = 2;
+module_param(max_num_cbs, uint, 0644);
+MODULE_PARM_DESC(max_num_cbs, "Maximum number of NTB transport connections");
+
 enum {
 	NTB_CONN_CLASSIC = 0,
 	NTB_CONN_B2B,
@@ -112,7 +116,7 @@ struct ntb_device *ntbdev;
  */
 unsigned int ntb_query_max_cbs(struct ntb_device *ndev)
 {
-	return ndev->max_cbs;
+	return ndev->max_cbs > max_num_cbs ? max_num_cbs : ndev->max_cbs;
 }
 EXPORT_SYMBOL(ntb_query_max_cbs);
 
