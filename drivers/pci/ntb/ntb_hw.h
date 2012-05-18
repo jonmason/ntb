@@ -70,6 +70,8 @@
 
 #define NTB_HB_TIMEOUT		msecs_to_jiffies(1000)
 
+static struct dentry *ntb_debugfs_dir;
+
 typedef void (*db_cb_func) (int db_num);
 typedef void (*event_cb_func) (void *handle, unsigned int event);
 
@@ -81,53 +83,6 @@ struct ntb_db_cb {
 
 #define NTB_NUM_MW	2
 
-struct ntb_mw {
-	dma_addr_t phys_addr;
-	void __iomem *vbase;
-	resource_size_t bar_sz;
-};
-
-struct ntb_device {
-	struct pci_dev *pdev;
-	struct msix_entry *msix_entries;
-	void __iomem *reg_base;
-	struct ntb_mw mw[NTB_NUM_MW];
-	struct {
-		unsigned int max_compat_spads;
-		unsigned int max_spads;
-		unsigned int max_db_bits;
-		unsigned int msix_cnt;
-	} limits;
-	struct {
-		void __iomem *pdb;
-		void __iomem *pdb_mask;
-		void __iomem *sdb;
-		void __iomem *sbar2_xlat;
-		void __iomem *sbar4_xlat;
-		void __iomem *spad_write;
-		void __iomem *spad_read;
-		void __iomem *lnk_cntl;
-		void __iomem *lnk_stat;
-		void __iomem *spci_cmd;
-		void __iomem *sdevctrl;
-	} reg_ofs;
-	void *ntb_transport;
-	event_cb_func event_cb;
-	struct ntb_db_cb *db_cb;
-	//FIXME - unless this is getting larger than a cacheline, bit fields might not be worth it
-	unsigned int hw_type:1;
-	unsigned int conn_type:2;
-	unsigned int dev_type:1;
-	unsigned int num_msix:6;
-	unsigned int bits_per_vector:6;
-	unsigned int max_cbs:6;
-	unsigned int link_status:1;
-	unsigned int unused:9;
-	struct delayed_work hb_timer;
-	unsigned long last_ts;
-	struct dentry *debugfs_dir;
-};
-
 enum {
 	NTB_EVENT_SW_EVENT0	= (1 << 0),
 	NTB_EVENT_SW_EVENT1	= (1 << 1),
@@ -137,6 +92,8 @@ enum {
 	NTB_EVENT_HW_LINK_DOWN	= (1 << 5),
 };
 
+bool ntb_hw_link_status(struct ntb_device *ndev);
+struct pci_dev *ntb_query_pdev(struct ntb_device *ndev);
 unsigned int ntb_query_max_cbs(struct ntb_device *ndev);
 struct ntb_device *ntb_register_transport(void *transport);
 void ntb_unregister_transport(struct ntb_device *ndev);
