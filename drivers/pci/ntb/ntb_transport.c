@@ -146,6 +146,11 @@ struct ntb_transport {
 	unsigned long qp_bitmap;
 };
 
+enum {
+	DESC_DONE_FLAG = 1 << 0,
+	LINK_DOWN_FLAG = 1 << 1,
+};
+
 struct ntb_payload_header {
 	u64 ver;
 	unsigned int len;
@@ -153,8 +158,7 @@ struct ntb_payload_header {
 };
 
 enum {
-	TX_OFFSET = 0,
-	RX_OFFSET,
+	RX_OFFSET = 0,
 	SPADS_PER_QP,
 };
 
@@ -423,17 +427,12 @@ static bool pass_check_rx(u32 rx_orig, u32 rx_curr, u32 tx)
 		return (rx_curr < tx);
 }
 
-static int ntb_process_rxc(struct ntb_transport_qp *qp, u32 tx_offset)
+static int ntb_process_rxc(struct ntb_transport_qp *qp)
 {
 	struct ntb_payload_header *hdr;
 	struct ntb_queue_entry *entry;
 	void *offset;
 	bool oflow;
-
-	if (qp->rx_offset == (qp->rx_buff_begin + tx_offset)) {
-		qp->rx_ring_empty++;
-		return -EAGAIN;
-	}
 
 	entry = ntb_list_rm_head(&qp->rxq_lock, &qp->rxq);
 	if (!entry) {
@@ -447,15 +446,22 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp, u32 tx_offset)
 
 	hdr = offset;
 
+	if (hdr->flags != DESC_DONE_FLAG) {
+		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
+		qp->rx_ring_empty++;
+		return -EAGAIN;
+	}
+
 	if (hdr->ver != qp->rx_pkts) {
-		pr_err("qp %d: version mismatch, expected %Ld - got %Ld\n",
-		       qp->qp_num, qp->rx_pkts, hdr->ver);
+		//FIXME - add counter for this?
+		//pr_err("qp %d: version mismatch, expected %Ld - got %Ld\n",
+		 //      qp->qp_num, qp->rx_pkts, hdr->ver);
 		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
 		return -EIO;
 	}
 
-	pr_debug("rx offset %p, tx offset %x, ver %Ld - %d payload received, "
-		 "buf size %d\n", qp->rx_offset, tx_offset, hdr->ver, hdr->len,
+	pr_debug("rx offset %p, ver %Ld - %d payload received, "
+		 "buf size %d\n", qp->rx_offset, hdr->ver, hdr->len,
 		 entry->len);
 	if (hdr->len > entry->len) {
 		pr_err("RX overflow! Wanted %d got %d\n", hdr->len, entry->len);
@@ -488,12 +494,9 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp, u32 tx_offset)
 		memcpy(entry->buf, offset, entry->len);
 		//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
 	}
+	hdr->flags = 0;
 
 	offset += hdr->len;
-
-	WARN_ON(pass_check_rx(qp->rx_offset - qp->rx_buff_begin,
-			      offset - qp->rx_buff_begin, tx_offset));
-
 	qp->rx_offset = offset;
 	ntb_transport_put_remote_offset(qp, RX_OFFSET,
 					offset - qp->rx_buff_begin);
@@ -515,16 +518,10 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp, u32 tx_offset)
 static int ntb_transport_rxc(void *data)
 {
 	struct ntb_transport_qp *qp = data;
-	u32 tx_offset;
 	int rc;
 
 	while (!kthread_should_stop()) {
-		rc = ntb_transport_get_remote_offset(qp, TX_OFFSET, &tx_offset);
-		if (rc)
-			pr_err("%s: error reading from offset %d\n", __func__,
-			       TX_OFFSET);
-
-		rc = ntb_process_rxc(qp, tx_offset);
+		rc = ntb_process_rxc(qp);
 		if (!rc)
 			continue;
 
@@ -606,18 +603,21 @@ static int ntb_process_tx(struct ntb_transport_qp *qp,
 		 rx_offset, entry->len);
 	//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
 
-	hdr->len = entry->len;
-	hdr->ver = qp->tx_pkts;
-	hdr->flags = entry->flags;
-
 	BUG_ON(offset + entry->len >= qp->tx_mw_end || offset < qp->tx_mw_begin);
 	BUG_ON(entry->buf == NULL);
 	memcpy(offset, entry->buf, entry->len);
 	offset += entry->len;
 
 	qp->tx_offset = offset;
-	ntb_transport_put_remote_offset(qp, TX_OFFSET,
-					offset - qp->tx_mw_begin);
+
+	/* Zero the next hdr, so the rx side knows when to stop */
+	if (offset + sizeof(struct ntb_payload_header) >= qp->tx_mw_end)
+		offset = qp->tx_mw_begin;
+	memset(offset, 0, sizeof(struct ntb_payload_header));
+
+	hdr->len = entry->len;
+	hdr->ver = qp->tx_pkts;
+	hdr->flags = entry->flags | DESC_DONE_FLAG;
 
 	/* Ring doorbell notifying remote side of new packet */
 	rc = ntb_ring_sdb(qp->ndev, qp->qp_num);
@@ -694,7 +694,6 @@ static void ntb_transport_event_work(struct work_struct *work)
 		qp->tx_offset = qp->tx_mw_begin;
 		qp->rx_offset = qp->rx_buff_begin;
 		ntb_transport_put_remote_offset(qp, RX_OFFSET, 0);
-		ntb_transport_put_remote_offset(qp, TX_OFFSET, 0);
 
 		if (qp->ndev->link_status)//FIXME - hw link status call?
 			schedule_delayed_work(&qp->link_work, 0);
@@ -735,7 +734,7 @@ static void ntb_send_link_down(struct ntb_transport_qp *qp)
 	entry->callback_data = NULL;
 	entry->buf = NULL;
 	entry->len = 0;
-	entry->flags = NTB_LINK_DOWN;
+	entry->flags = LINK_DOWN_FLAG;
 
 	ntb_list_add_tail(&qp->txq_lock, &entry->entry, &qp->txq);
 
@@ -762,7 +761,6 @@ static int ntb_transport_setup_mw(unsigned int new_qp_num)
 	qp->tx_mw_end = qp->tx_mw_begin + new_size;
 	pr_info("QP %d - TX MW start %p end %p\n", qp->qp_num, qp->tx_mw_begin, qp->tx_mw_end);
 	qp->tx_offset = qp->tx_mw_begin;
-	ntb_transport_put_remote_offset(qp, TX_OFFSET, 0);
 
 	return 0;
 }
@@ -941,7 +939,6 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 	kthread_stop(qp->tx_work);
 
 	ntb_transport_put_remote_offset(qp, RX_OFFSET, 0);
-	ntb_transport_put_remote_offset(qp, TX_OFFSET, 0);
 
 	while ((entry = ntb_list_rm_head(&qp->rxe_lock, &qp->rxe)))
 		kfree(entry);
@@ -1067,7 +1064,7 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, void *cb, void *data, 
 	entry->callback_data = cb;
 	entry->buf = data;
 	entry->len = len;
-	entry->flags = NTB_LINK_UP;
+	entry->flags = 0;
 
 	ntb_list_add_tail(&qp->txq_lock, &entry->entry, &qp->txq);
 
