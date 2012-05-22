@@ -113,8 +113,6 @@ struct ntb_transport_qp {
 	unsigned int rx_ring_timeo;
 
 	void (*event_handler)(int status);
-	struct delayed_work event_work;
-	unsigned int event_flags;
 	struct delayed_work link_work;
 
 	struct dentry *debugfs_dir;
@@ -142,9 +140,10 @@ struct ntb_transport_mw {
 struct ntb_transport {
 	struct ntb_device *ndev;
 	struct ntb_transport_mw mw[NTB_NUM_MW];
-	unsigned int max_qps;
 	struct ntb_transport_qp *qps;
+	unsigned int max_qps;
 	unsigned long qp_bitmap;
+	struct delayed_work link_work;
 };
 
 enum {
@@ -260,51 +259,148 @@ out:
 	return entry;
 }
 
-#if 0
-static int ntb_transport_get_remote_offset(struct ntb_transport_qp *qp,
-					   u8 offset, u32 *val)
+static int ntb_transport_setup_mw(unsigned int qp_num)
 {
-	int idx;
+	struct ntb_transport_qp *qp = &transport->qps[qp_num];
+	u8 mw_num = QP_TO_MW(qp_num);
+	unsigned int size;
 
-	idx = (qp->qp_num * SPADS_PER_QP) + offset;
+	WARN_ON(transport->mw[mw_num].virt_addr == 0);
 
-	return ntb_read_remote_spad(qp->ndev, idx, val);
+	//FIXME - this assumes mw on both systems are the same size
+	size = transport->mw[mw_num].size / (transport->max_qps / NTB_NUM_MW);//FIXME - won't handle odd numbers.....
+	pr_debug("orig size = %d, num qps = %d, size = %d\n", (int) transport->mw[mw_num].size, transport->max_qps, size);
+
+	qp->rx_buff_begin = transport->mw[mw_num].virt_addr + (qp_num / NTB_NUM_MW * size);
+	qp->rx_buff_end = qp->rx_buff_begin + size;
+	pr_info("QP %d - RX Buff start %p end %p\n", qp->qp_num, qp->rx_buff_begin, qp->rx_buff_end);
+	qp->rx_offset = qp->rx_buff_begin;
+
+	qp->tx_mw_begin = ntb_get_mw_vbase(transport->ndev, mw_num) + (qp_num / NTB_NUM_MW * size);
+	qp->tx_mw_end = qp->tx_mw_begin + size;
+	pr_info("QP %d - TX MW start %p end %p\n", qp->qp_num, qp->tx_mw_begin, qp->tx_mw_end);
+	qp->tx_offset = qp->tx_mw_begin;
+	qp->tx_done_offset = qp->tx_mw_begin;
+
+	qp->rx_pkts = 0;
+	qp->tx_pkts = 0;
+
+	return 0;
 }
-#endif
+
+static void ntb_set_mw(int num_mw, unsigned int size)
+{
+	struct ntb_transport_mw *mw = &transport->mw[num_mw];
+	struct pci_dev *pdev = ntb_query_pdev(transport->ndev);
+
+	/* Alloc memory for receiving data.  Must be 4k aligned */
+	mw->size = ALIGN(size, 4096);
+
+	mw->virt_addr = dma_alloc_coherent(&pdev->dev, mw->size, &mw->dma_addr, GFP_KERNEL);
+	if (!mw->virt_addr)
+		return;
+
+	/* Notify HW the memory location of the receive buffer */
+	ntb_set_mw_addr(transport->ndev, num_mw, mw->dma_addr);
+}
+
+static int ntb_hw_link_up(void)
+{
+	u32 val;
+	int rc, i;
+
+	if (!transport)
+		return -EINVAL;
+//FIXME -handle all of theses error cases!
+	rc = ntb_read_remote_spad(transport->ndev, NUM_QPS, &val);
+	if (rc)
+		pr_err("Error reading remote spad %d\n", NUM_QPS);
+
+	pr_info("Remote max number of qps = %d\n", val);
+	if (val != transport->max_qps)
+		return -EINVAL;
+
+	rc = ntb_read_remote_spad(transport->ndev, MW0_SZ, &val);
+	if (rc)
+		pr_err("Error reading remote spad %d\n", MW0_SZ);
+
+	pr_info("Remote MW0 size = %d\n", val);
+	ntb_set_mw(0, val);
+
+	rc = ntb_read_remote_spad(transport->ndev, MW1_SZ, &val);
+	if (rc)
+		pr_err("Error reading remote spad %d\n", MW1_SZ);
+
+	pr_info("Remote MW1 size = %d\n", val);
+	ntb_set_mw(1, val);
+
+	for (i = 0; i < transport->max_qps; i++) {
+		struct ntb_transport_qp *qp = &transport->qps[i];
+
+		rc = ntb_transport_setup_mw(i);
+		if (rc)
+			return rc;
+
+		if (qp->client_ready) {
+			rc = ntb_read_local_spad(transport->ndev, QP_LINKS, &val);
+			if (rc) {
+				pr_err("Error reading spad %d\n", QP_LINKS);
+				return rc;
+			}
+
+			rc = ntb_write_remote_spad(transport->ndev, QP_LINKS, val | 1 << qp->qp_num);
+			if (rc)
+				pr_err("Error writing %x to remote spad %d\n", val | 1 << qp->qp_num, QP_LINKS);
+
+			if (ntb_hw_link_status(transport->ndev))
+				schedule_delayed_work(&qp->link_work, 0);
+		}
+	}
+
+	return 0;
+}
 
 static void ntb_transport_event_callback(void *data, unsigned int event)
 {
 	struct ntb_transport *transport = data;
-	int i;
 
-	/* Pass along the info to any clients */
-	for (i = 0; i < transport->max_qps; i++)
-		if (!test_bit(i, &transport->qp_bitmap)) {
-			struct ntb_transport_qp *qp = &transport->qps[i];
+	if (event == NTB_EVENT_HW_ERROR)
+		BUG();
 
-			pr_debug("%s: qp %d gets events %x\n", __func__, i,
-				 event);
+	if (event == NTB_EVENT_HW_LINK_UP) {
+		int rc = ntb_hw_link_up();
+		if (rc)
+			schedule_delayed_work(&transport->link_work, 0);
+	}
 
-			if (event == NTB_EVENT_HW_ERROR)
-				BUG();
+	if (event == NTB_EVENT_HW_LINK_DOWN) {
+		int i;
 
-			if (event == NTB_EVENT_HW_LINK_UP) {
-				/* If the HW link comes up, notify the remote side we're up */
-				schedule_delayed_work(&qp->link_work, 0);
-				continue;
+		/* Pass along the info to any clients */
+		for (i = 0; i < transport->max_qps; i++)
+			if (!test_bit(i, &transport->qp_bitmap)) {
+				struct ntb_transport_qp *qp = &transport->qps[i];
+
+				cancel_delayed_work_sync(&qp->link_work);
+
+				if (qp->event_handler && qp->qp_link != NTB_LINK_DOWN)
+					qp->event_handler(NTB_LINK_DOWN);
+
+				qp->qp_link = NTB_LINK_DOWN;
 			}
+	}
+}
 
-			if (event == NTB_EVENT_HW_LINK_DOWN)
-				qp->event_flags = NTB_LINK_DOWN;
-
-			schedule_delayed_work(&qp->event_work, 0);
-		}
+static void ntb_transport_link_work(struct work_struct *work)
+{
+	int rc = ntb_hw_link_up();
+	if (rc)
+		schedule_delayed_work(&transport->link_work, msecs_to_jiffies(1000));
 }
 
 static int ntb_transport_init(void)
 {
-	struct pci_dev *pdev;
-	int rc, i;
+	int rc;
 
 	if (transport)
 		return -EINVAL;
@@ -350,38 +446,24 @@ static int ntb_transport_init(void)
 	}
 
 	transport->qp_bitmap = ((u64) 1 << transport->max_qps) - 1;
-	pdev = ntb_query_pdev(transport->ndev);
 
-	for (i = 0; i < NTB_NUM_MW; i++) {
-		struct ntb_transport_mw *mw = &transport->mw[i];
-
-		/* Alloc memory for receiving data.  Must be 4k aligned */
-		mw->size = ALIGN(ntb_get_mw_size(transport->ndev, i), 4096);
-
-		mw->virt_addr = dma_alloc_coherent(&pdev->dev, mw->size,
-						   &mw->dma_addr, GFP_KERNEL);
-		if (!mw->virt_addr) {
-			rc = -ENOMEM;
-			goto err2;
-		}
-
-		/* Notify HW the memory location of the receive buffer */
-		ntb_set_mw_addr(transport->ndev, i, mw->dma_addr);
-	}
+	INIT_DELAYED_WORK(&transport->link_work, ntb_transport_link_work);
 
 	rc = ntb_register_event_callback(transport->ndev,
 					 ntb_transport_event_callback);
 	if (rc)
 		goto err2;
 
+	if (ntb_hw_link_status(transport->ndev)) {
+		rc = ntb_hw_link_up();
+		if (rc)
+			schedule_delayed_work(&transport->link_work, msecs_to_jiffies(1000));
+	}
+
 	return 0;
 
+//FIXME - ntb_hw_link_up potentially called already, need to free it in error case
 err2:
-	for (i--; i >= 0; i--)
-		dma_free_coherent(&pdev->dev,
-				  transport->mw[i].size,
-				  transport->mw[i].virt_addr,
-				  transport->mw[i].dma_addr);
 	kfree(transport->qps);
 err1:
 	ntb_unregister_transport(transport->ndev);
@@ -405,37 +487,16 @@ static void ntb_transport_free(void)
 	ntb_unregister_event_callback(transport->ndev);
 
 	for (i = 0; i < NTB_NUM_MW; i++)
-		dma_free_coherent(&pdev->dev,
-				  transport->mw[i].size,
-				  transport->mw[i].virt_addr,
-				  transport->mw[i].dma_addr);
+		if (transport->mw[i].virt_addr)
+			dma_free_coherent(&pdev->dev,
+					  transport->mw[i].size,
+					  transport->mw[i].virt_addr,
+					  transport->mw[i].dma_addr);
 
 	kfree(transport->qps);
 	ntb_unregister_transport(transport->ndev);
 	kfree(transport);
 	transport = NULL;
-}
-
-static bool pass_check(u32 tx_orig, u32 tx_curr, u32 rx)
-{
-	if (tx_orig < rx)
-		return (tx_curr >= rx);
-	else	//tx_orig >= rx
-	if (tx_curr < tx_orig)	//wrap
-		return (tx_curr >= rx);
-	else
-		return (tx_curr < rx);
-}
-
-static bool pass_check_rx(u32 rx_orig, u32 rx_curr, u32 tx)
-{
-	if (rx_orig < tx)
-		return (rx_curr > tx);
-	else	//rx_orig >= tx
-	if (rx_curr < rx_orig)	//wrap
-		return (rx_curr > tx);
-	else
-		return (rx_curr < tx);
 }
 
 static int ntb_process_rxc(struct ntb_transport_qp *qp)
@@ -481,11 +542,14 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 		oflow = true;
 	} else {
 		if (hdr->flags & NTB_LINK_DOWN) {
+			//FIXME - we should probably do this somewhere else
 			pr_info("qp %d: Link Down\n", qp->qp_num);
-			qp->event_flags = NTB_LINK_DOWN;
+			qp->qp_link = NTB_LINK_DOWN;
+			schedule_delayed_work(&qp->link_work, msecs_to_jiffies(1000));
 
-			schedule_delayed_work(&qp->event_work,
-					      msecs_to_jiffies(1000));
+			if (qp->event_handler)
+				qp->event_handler(NTB_LINK_DOWN);
+
 			oflow = true;
 			ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
 		} else {
@@ -555,14 +619,6 @@ static void ntb_transport_rxc_db(int db_num)
 
 	pr_debug("%s: doorbell %d received\n", __func__, db_num);
 
-	if (qp->qp_link == NTB_LINK_DOWN) {
-		pr_info("QP %d Link Up\n", qp->qp_num);
-		qp->event_flags = NTB_LINK_UP;
-
-		schedule_delayed_work(&qp->event_work, msecs_to_jiffies(1000));
-		return;
-	}
-
 	wake_up_process(qp->rx_work);
 }
 
@@ -606,7 +662,7 @@ static int ntb_process_tx(struct ntb_transport_qp *qp,
 
 	BUG_ON(offset + entry->len >= qp->tx_mw_end || offset < qp->tx_mw_begin);
 	BUG_ON(entry->buf == NULL);
-	memcpy(offset, entry->buf, entry->len);
+	memcpy(offset, entry->buf, entry->len);//FIXME - memcpy_toio?
 	offset += entry->len;
 
 	qp->tx_offset = offset;
@@ -614,7 +670,7 @@ static int ntb_process_tx(struct ntb_transport_qp *qp,
 	/* Zero the next hdr, so the rx side knows when to stop */
 	if (offset + sizeof(struct ntb_payload_header) >= qp->tx_mw_end)
 		offset = qp->tx_mw_begin;
-	memset(offset, 0, sizeof(struct ntb_payload_header));
+	memset(offset, 0, sizeof(struct ntb_payload_header));//FIXME - memset_io
 
 	hdr->len = entry->len;
 	hdr->ver = qp->tx_pkts;
@@ -696,48 +752,26 @@ static int ntb_transport_tx(void *data)
 	return 0;
 }
 
-static void ntb_transport_event_work(struct work_struct *work)
-{
-	struct ntb_transport_qp *qp = container_of(work, struct ntb_transport_qp,
-						   event_work.work);
-
-	if (qp->event_flags == qp->qp_link) {
-		pr_err("Erroneous link event.  Link already %s\n",
-		       (qp->qp_link == NTB_LINK_UP) ? "up" : "down");
-		return;
-	}
-
-	if (qp->qp_link == NTB_LINK_DOWN) {
-		cancel_delayed_work_sync(&qp->link_work);
-		qp->qp_link = NTB_LINK_UP;
-	} else {
-		qp->qp_link = NTB_LINK_DOWN;
-		qp->rx_pkts = 0;
-		qp->tx_pkts = 0;
-		qp->rx_offset = qp->rx_buff_begin;
-		qp->tx_offset = qp->tx_mw_begin;
-		qp->tx_done_offset = qp->tx_mw_begin;
-
-		if (ntb_hw_link_status(qp->ndev))
-			schedule_delayed_work(&qp->link_work, 0);
-	}
-
-	if (qp->event_handler)
-		qp->event_handler(qp->event_flags);
-}
-
-static void ntb_transport_link_work(struct work_struct *work)
+static void ntb_qp_link_work(struct work_struct *work)
 {
 	struct ntb_transport_qp *qp = container_of(work, struct ntb_transport_qp,
 						   link_work.work);
-	int rc;
+	int rc, val;
 
-	/* Ring doorbell notifying remote side of new packet */
-	rc = ntb_ring_sdb(qp->ndev, qp->qp_num);
+//query remote spad for qp ready bit
+	rc = ntb_read_remote_spad(transport->ndev, QP_LINKS, &val);
 	if (rc)
-		pr_err("%s: error ringing db %d\n", __func__, qp->qp_num);
+		pr_err("Error reading remote spad %d\n", QP_LINKS);
 
-	if (ntb_hw_link_status(qp->ndev))
+	pr_info("Remote QP link status = %x\n", val);
+
+	/* See if the remote side is up */
+	if (1 << qp->qp_num & val) {
+		qp->qp_link = NTB_LINK_UP;
+
+		if (qp->event_handler)
+			qp->event_handler(NTB_LINK_UP);
+	} else
 		schedule_delayed_work(&qp->link_work, msecs_to_jiffies(1000));
 }
 
@@ -762,30 +796,6 @@ static void ntb_send_link_down(struct ntb_transport_qp *qp)
 	ntb_list_add_tail(&qp->txq_lock, &entry->entry, &qp->txq);
 
 	wake_up_process(qp->tx_work);
-}
-
-static int ntb_transport_setup_mw(unsigned int new_qp_num)
-{
-	struct ntb_transport_qp *qp = &transport->qps[new_qp_num];
-	u8 mw_num = QP_TO_MW(new_qp_num);
-	unsigned int new_size;
-
-	//FIXME - this assumes mw on both systems are the same size
-	new_size = transport->mw[mw_num].size / (transport->max_qps / NTB_NUM_MW);//FIXME - won't handle odd numbers.....
-	pr_debug("orig size = %d, num qps = %d, new size = %d\n", (int) transport->mw[mw_num].size, transport->max_qps, new_size);
-
-	qp->rx_buff_begin = transport->mw[mw_num].virt_addr + (new_qp_num / NTB_NUM_MW * new_size);
-	qp->rx_buff_end = qp->rx_buff_begin + new_size;
-	pr_info("QP %d - RX Buff start %p end %p\n", qp->qp_num, qp->rx_buff_begin, qp->rx_buff_end);
-	qp->rx_offset = qp->rx_buff_begin;
-
-	qp->tx_mw_begin = ntb_get_mw_vbase(qp->ndev, mw_num) + (new_qp_num / NTB_NUM_MW * new_size);
-	qp->tx_mw_end = qp->tx_mw_begin + new_size;
-	pr_info("QP %d - TX MW start %p end %p\n", qp->qp_num, qp->tx_mw_begin, qp->tx_mw_end);
-	qp->tx_offset = qp->tx_mw_begin;
-	qp->tx_done_offset = qp->tx_mw_begin;
-
-	return 0;
 }
 
 /**
@@ -851,9 +861,7 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 	qp->tx_handler = tx_handler;
 	qp->event_handler = event_handler;
 
-	//FIXME - workqueue might be overkill, and might not need to be delayed...
-	INIT_DELAYED_WORK(&qp->event_work, ntb_transport_event_work);
-	INIT_DELAYED_WORK(&qp->link_work, ntb_transport_link_work);
+	INIT_DELAYED_WORK(&qp->link_work, ntb_qp_link_work);
 
 	spin_lock_init(&qp->rxc_lock);
 	spin_lock_init(&qp->rxq_lock);
@@ -899,22 +907,12 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 		goto err3;
 	}
 
-	qp->rx_pkts = 0;
-	qp->tx_pkts = 0;
-
-	rc = ntb_transport_setup_mw(free_queue);
-	if (rc)
-		goto err4;
-
 	//FIXME - transport->qps[free_queue].queue.hw_caps; is it even necessary for transport client to know?
 
 	rc = ntb_register_db_callback(qp->ndev, free_queue,
 				      ntb_transport_rxc_db);
 	if (rc)
 		goto err4;
-
-	if (ntb_hw_link_status(qp->ndev))
-		schedule_delayed_work(&qp->link_work, 0);
 
 	pr_info("NTB Transport QP %d created\n", qp->qp_num);
 
@@ -950,14 +948,11 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 	if (!qp)
 		return;
 
-	//ntb_send_link_down(qp);
-
-	cancel_delayed_work_sync(&qp->event_work);
 	cancel_delayed_work_sync(&qp->link_work);
 
 	debugfs_remove_recursive(qp->debugfs_dir);
-	ntb_unregister_db_callback(qp->ndev, qp->qp_num);
 
+	ntb_unregister_db_callback(qp->ndev, qp->qp_num);
 	kthread_stop(qp->rx_work);
 	kthread_stop(qp->tx_work);
 
@@ -986,8 +981,6 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 		pr_warn("Freeing item from a non-empty queue\n");
 		kfree(entry);
 	}
-
-	debugfs_remove_recursive(qp->debugfs_stats);
 
 	set_bit(qp->qp_num, &transport->qp_bitmap);
 
@@ -1178,10 +1171,27 @@ EXPORT_SYMBOL(ntb_transport_rx_dequeue);
  */
 void ntb_transport_link_up(struct ntb_transport_qp *qp)
 {
+	int rc, val;
+
 	if (!qp)
 		return;
 
 	qp->client_ready = NTB_LINK_UP;
+
+	if (qp->rx_buff_begin) {
+		rc = ntb_read_local_spad(transport->ndev, QP_LINKS, &val);
+		if (rc) {
+			pr_err("Error reading spad %d\n", QP_LINKS);
+			return;
+		}
+
+		rc = ntb_write_remote_spad(transport->ndev, QP_LINKS, val | 1 << qp->qp_num);
+		if (rc)
+			pr_err("Error writing %x to remote spad %d\n", val | 1 << qp->qp_num, QP_LINKS);
+
+		if (ntb_hw_link_status(qp->ndev))
+			schedule_delayed_work(&qp->link_work, 0);
+	}
 }
 EXPORT_SYMBOL(ntb_transport_link_up);
 
@@ -1195,10 +1205,27 @@ EXPORT_SYMBOL(ntb_transport_link_up);
  */
 void ntb_transport_link_down(struct ntb_transport_qp *qp)
 {
+	int rc, val;
+
 	if (!qp)
 		return;
 
 	qp->client_ready = NTB_LINK_DOWN;
+
+	cancel_delayed_work_sync(&qp->link_work);
+	qp->qp_link = NTB_LINK_DOWN;
+
+	rc = ntb_read_local_spad(transport->ndev, QP_LINKS, &val);
+	if (rc) {
+		pr_err("Error reading spad %d\n", QP_LINKS);
+		return;
+	}
+
+	rc = ntb_write_remote_spad(transport->ndev, QP_LINKS, val & ~(1 << qp->qp_num));
+	if (rc)
+		pr_err("Error writing %x to remote spad %d\n", val & ~(1 << qp->qp_num), QP_LINKS);
+
+	ntb_send_link_down(qp);
 }
 EXPORT_SYMBOL(ntb_transport_link_down);
 
