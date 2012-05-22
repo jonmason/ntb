@@ -144,6 +144,7 @@ struct ntb_transport {
 	unsigned int max_qps;
 	unsigned long qp_bitmap;
 	struct delayed_work link_work;
+	struct dentry *debugfs_dir;
 };
 
 enum {
@@ -460,6 +461,8 @@ static int ntb_transport_init(void)
 			schedule_delayed_work(&transport->link_work, msecs_to_jiffies(1000));
 	}
 
+	transport->debugfs_dir = debugfs_create_dir(KBUILD_MODNAME, NULL);
+
 	return 0;
 
 //FIXME - ntb_hw_link_up potentially called already, need to free it in error case
@@ -480,11 +483,13 @@ static void ntb_transport_free(void)
 	if (!transport)
 		return;
 
-	pdev = ntb_query_pdev(transport->ndev);
+	debugfs_remove(transport->debugfs_dir);
 
 	/* To be here, all of the queues were already free'd.  No need to try and clean them up */
 
 	ntb_unregister_event_callback(transport->ndev);
+
+	pdev = ntb_query_pdev(transport->ndev);
 
 	for (i = 0; i < NTB_NUM_MW; i++)
 		if (transport->mw[i].virt_addr)
@@ -758,12 +763,12 @@ static void ntb_qp_link_work(struct work_struct *work)
 						   link_work.work);
 	int rc, val;
 
-//query remote spad for qp ready bit
+	//query remote spad for qp ready bit
 	rc = ntb_read_remote_spad(transport->ndev, QP_LINKS, &val);
 	if (rc)
 		pr_err("Error reading remote spad %d\n", QP_LINKS);
 
-	pr_info("Remote QP link status = %x\n", val);
+	pr_debug("Remote QP link status = %x\n", val);
 
 	/* See if the remote side is up */
 	if (1 << qp->qp_num & val) {
@@ -846,11 +851,11 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 	qp->rx_ring_timeo = NTB_QP_DEF_RING_TIMEOUT;
 	qp->tx_ring_timeo = NTB_QP_DEF_RING_TIMEOUT;
 
-	if (ntb_debugfs_dir) {
+	if (transport->debugfs_dir) {
 		char debugfs_name[4];
 
 		snprintf(debugfs_name, 4, "qp%d", free_queue);
-		qp->debugfs_dir = debugfs_create_dir(debugfs_name, ntb_debugfs_dir);
+		qp->debugfs_dir = debugfs_create_dir(debugfs_name, transport->debugfs_dir);
 
 		qp->debugfs_stats = debugfs_create_file("stats", S_IRUSR | S_IRGRP | S_IROTH, qp->debugfs_dir, qp, &ntb_qp_debugfs_stats);
 		qp->debugfs_tx_to = debugfs_create_u32("tx_ring_timeo", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->tx_ring_timeo);

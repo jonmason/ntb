@@ -70,8 +70,6 @@
 
 #define NTB_HB_TIMEOUT		msecs_to_jiffies(1000)
 
-static struct dentry *ntb_debugfs_dir;
-
 typedef void (*db_cb_func) (int db_num);
 typedef void (*event_cb_func) (void *handle, unsigned int event);
 

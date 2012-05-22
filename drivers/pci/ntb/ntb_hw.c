@@ -1099,8 +1099,6 @@ static int __devinit ntb_pci_probe(struct pci_dev *pdev,
 	if (!ndev)
 		return -ENOMEM;
 
-	ntb_debugfs_dir = debugfs_create_dir(KBUILD_MODNAME, NULL);
-
 	ntbdev = ndev;
 	ndev->pdev = pdev;
 	ndev->link_status = NTB_LINK_DOWN;
@@ -1187,7 +1185,6 @@ err2:
 err1:
 	pci_disable_device(pdev);
 err:
-	debugfs_remove(ntb_debugfs_dir);
 	kfree(ndev);
 
 	dev_err(&pdev->dev, "Error loading module\n");
@@ -1215,7 +1212,6 @@ static void __devexit ntb_pci_remove(struct pci_dev *pdev)
 	iounmap(ndev->reg_base);
 	pci_release_selected_regions(pdev, NTB_BAR_MASK);
 	pci_disable_device(pdev);
-	debugfs_remove(ntb_debugfs_dir);
 	kfree(ndev);
 }
 
