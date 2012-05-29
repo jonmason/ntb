@@ -68,11 +68,11 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 						    handler tx_handler,
 						    ehandler event_handler);
 void ntb_transport_free_queue(struct ntb_transport_qp *qp);
-int ntb_transport_rx_enqueue(struct ntb_transport_qp *qp, void *cb, void *data, int len);
-int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, void *cb, void *data, int len);
-void *ntb_transport_tx_dequeue(struct ntb_transport_qp *qp, int *len);
-void *ntb_transport_rx_dequeue(struct ntb_transport_qp *qp, int *len);
-void *ntb_transport_rx_remove(struct ntb_transport_qp *qp, int *len);
+int ntb_transport_rx_enqueue(struct ntb_transport_qp *qp, void *cb, void *data, unsigned int len);
+int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, void *cb, void *data, unsigned int len);
+void *ntb_transport_tx_dequeue(struct ntb_transport_qp *qp, unsigned int *len);
+void *ntb_transport_rx_dequeue(struct ntb_transport_qp *qp, unsigned int *len);
+void *ntb_transport_rx_remove(struct ntb_transport_qp *qp, unsigned int *len);
 void ntb_transport_link_up(struct ntb_transport_qp *qp);
 void ntb_transport_link_down(struct ntb_transport_qp *qp);
 bool ntb_transport_link_query(struct ntb_transport_qp *qp);
