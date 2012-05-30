@@ -244,7 +244,7 @@ static int ntb_netdev_change_mtu(struct net_device *ndev, int new_mtu)
 	}
 
 	//FIXME - should sanity check the max size before the check for running, but there is no qp to check yet
-	if (new_mtu > ntb_transport_max_size(dev->qp))
+	if (new_mtu > ntb_transport_max_size(dev->qp) - ETH_HLEN)
 		return -EINVAL;
 
 	/* Bring down the link and dispose of posted rx entries */
@@ -407,7 +407,8 @@ static int __init ntb_netdev_init_module(void)
 	INIT_WORK(&dev->txto_work, ntb_netdev_txto_work);
 
 	//FIXME - magical MTU that has better perf
-	netdev->mtu = 16384;
+	netdev->mtu = 0x4000 - ETH_HLEN;
+//	netdev->mtu = 16384;
 
 	random_ether_addr(netdev->perm_addr);
 	memcpy(netdev->dev_addr, netdev->perm_addr, netdev->addr_len);

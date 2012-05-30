@@ -81,9 +81,15 @@ struct ntb_queue_entry {
 struct ntb_transport_qp {
 	struct ntb_device *ndev;
 	//FIXME - unless this is getting larger than a cacheline, bit fields might not be worth it
+#if 0
 	unsigned int client_ready:1;
 	unsigned int qp_link:1;
 	unsigned int qp_num:6;	/* Only 64 QP's are allowed.  0-63 */
+#else
+	bool client_ready;
+	bool qp_link;
+	u8 qp_num;	/* Only 64 QP's are allowed.  0-63 */
+#endif
 
 	void (*tx_handler)(struct ntb_transport_qp *qp);
 	struct task_struct *tx_work;
@@ -120,6 +126,14 @@ struct ntb_transport_qp {
 	struct dentry *debugfs_rx_to;
 	struct dentry *debugfs_tx_to;
 
+	struct dentry *debugfs_rx_hdr_dump;
+	struct dentry *debugfs_tx_hdr_dump;
+	struct dentry *debugfs_txc_hdr_dump;
+
+	u32 rx_hdr_dump;
+	u32 tx_hdr_dump;
+	u32 txc_hdr_dump;
+
 	/* Stats */
 	u64 rx_bytes;
 	u64 rx_pkts;
@@ -150,8 +164,9 @@ struct ntb_transport {
 };
 
 enum {
-	DESC_DONE_FLAG = 1 << 0,
-	LINK_DOWN_FLAG = 1 << 1,
+	TX_DONE_FLAG = 1 << 0,
+	RX_DONE_FLAG = 1 << 1,
+	LINK_DOWN_FLAG = 1 << 2,
 };
 
 struct ntb_payload_header {
@@ -306,15 +321,20 @@ static void ntb_set_mw(int num_mw, unsigned int size)
 {
 	struct ntb_transport_mw *mw = &transport->mw[num_mw];
 	struct pci_dev *pdev = ntb_query_pdev(transport->ndev);
+	void *offset;
 
 	/* Alloc memory for receiving data.  Must be 4k aligned */
 	mw->size = ALIGN(size, 4096);
 
-	pr_err("%s: dev ptr %p size %ld\n", __func__, &pdev->dev, mw->size);
-
 	mw->virt_addr = dma_alloc_coherent(&pdev->dev, mw->size, &mw->dma_addr, GFP_KERNEL);
 	if (!mw->virt_addr)
-		return;
+		return; //FIXME - return error
+
+	//setup the hdr offsets with 0's
+	for (offset = mw->virt_addr; offset + sizeof(struct ntb_payload_header) < mw->virt_addr + size; offset += 0x4000 + sizeof(struct ntb_payload_header)) {
+		pr_info("hdr offset %p\n", offset);
+		memset(offset, 0, sizeof(struct ntb_payload_header));
+	}
 
 	/* Notify HW the memory location of the receive buffer */
 	ntb_set_mw_addr(transport->ndev, num_mw, mw->dma_addr);
@@ -487,7 +507,10 @@ static int ntb_transport_init(void)
 			schedule_delayed_work(&transport->link_work, msecs_to_jiffies(1000));
 	}
 
-	transport->debugfs_dir = debugfs_create_dir(KBUILD_MODNAME, NULL);
+	if (debugfs_initialized())
+		transport->debugfs_dir = debugfs_create_dir(KBUILD_MODNAME, NULL);
+	else
+		transport->debugfs_dir = NULL;
 
 	return 0;
 
@@ -544,12 +567,12 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	}
 
 	offset = qp->rx_offset;
-	if (offset + sizeof(struct ntb_payload_header) >= qp->rx_buff_end)
-		offset = qp->rx_buff_begin;
-
 	hdr = offset;
 
-	if (hdr->flags != DESC_DONE_FLAG) {
+	if (qp->rx_hdr_dump)
+		pr_info("HDR ver %Ld, len %d, flags %x\n", hdr->ver, hdr->len, hdr->flags);
+
+	if (hdr->flags != TX_DONE_FLAG) {
 		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
 		qp->rx_ring_empty++;
 		return -EAGAIN;
@@ -589,21 +612,15 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 		}
 	}
 
-	offset += sizeof(struct ntb_payload_header);
-
-	if (offset + hdr->len >= qp->rx_buff_end)
-		offset = qp->rx_buff_begin;
-
 	if (!oflow) {
+		offset += sizeof(struct ntb_payload_header);
 		memcpy(entry->buf, offset, entry->len);
 		//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
 	}
 
-	hdr->ver = 0xdeadbeef;
-	hdr->flags = 0;
+	hdr->flags = RX_DONE_FLAG;
 
-	offset += hdr->len;
-	qp->rx_offset = offset;
+	qp->rx_offset = (qp->rx_offset + ((0x4000 + sizeof(struct ntb_payload_header)) * 2) >= qp->rx_buff_end) ? qp->rx_buff_begin : qp->rx_offset + 0x4000 + sizeof(struct ntb_payload_header);
 
 	if (oflow)
 		return 0;
@@ -653,19 +670,6 @@ static void ntb_transport_rxc_db(int db_num)
 	wake_up_process(qp->rx_work);
 }
 
-static bool pass_check(void *new_head, void *orig_head, void *tail)
-{
-	if (orig_head >= tail) {
-		if (new_head < orig_head && new_head >= tail)
-			return true;
-		else
-			return false;
-	} else if (new_head >= tail)
-			return true;
-		else
-			return false;
-}
-
 static int ntb_process_tx(struct ntb_transport_qp *qp,
 			  struct ntb_queue_entry *entry)
 {
@@ -676,41 +680,37 @@ static int ntb_process_tx(struct ntb_transport_qp *qp,
 	//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
 
 	offset = qp->tx_offset;
-	if (offset + sizeof(struct ntb_payload_header) >= qp->tx_mw_end)
-		offset = qp->tx_mw_begin;
-
 	hdr = offset;
-	offset += sizeof(struct ntb_payload_header);
 
-	/* If it can't fit into whats left of the ring, move to the beginning */
-	if (offset + entry->len >= qp->tx_mw_end)
-		offset = qp->tx_mw_begin;
+	if (qp->tx_hdr_dump)
+		pr_info("HDR ver %Ld, len %d, flags %x\n", hdr->ver, hdr->len, hdr->flags);
 
 	pr_debug("%lld - offset %p, tx %p, txc %p, entry len %d flags %x buff %p\n", qp->tx_pkts, offset, qp->tx_offset, qp->txc_offset, entry->len, entry->flags, entry->buf);
-	if (pass_check(offset + entry->len, qp->tx_offset, qp->txc_offset)) {
+	if (hdr->flags) {
 		pr_debug("TX %lld TXC %Ld - offset %p, tx %p, txc %p, entry len %d flags %x buff %p\n", qp->tx_pkts, qp->txc_pkts, offset, qp->tx_offset, qp->txc_offset, entry->len, entry->flags, entry->buf);
 		hdr = qp->txc_offset;
-		pr_info("TX %Ld, TXC %Ld, txc flags %x ver %Lx\n", qp->tx_pkts, qp->txc_pkts, hdr->flags, hdr->ver);
+		pr_debug("TX %Ld, TXC %Ld, txc flags %x ver %Lx\n", qp->tx_pkts, qp->txc_pkts, hdr->flags, hdr->ver);
 		ntb_list_add_head(&qp->txq_lock, &entry->entry, &qp->txq);
 		qp->tx_ring_full++;
 		return -EAGAIN;
 	}
 
+	if (entry->len > 0x4000) {
+		//FIXME - tossing on the floor
+		ntb_list_add_tail(&qp->txc_lock, &entry->entry, &qp->txc);
+		pr_err("Trying to send pkt size of %d\n", entry->len);
+		return 0;
+	}
+
+	offset += sizeof(struct ntb_payload_header);
 	memcpy_toio(offset, entry->buf, entry->len);
-	offset += entry->len;
-
-	qp->tx_offset = offset;
-
-	/* Zero the next hdr, so the rx side knows when to stop */
-	if (offset + sizeof(struct ntb_payload_header) >= qp->tx_mw_end)
-		offset = qp->tx_mw_begin;
-	if (!pass_check(offset + sizeof(struct ntb_payload_header), qp->tx_offset, qp->txc_offset))
-		memset_io(offset, 0, sizeof(struct ntb_payload_header));
-		//FIXME - simply clear the flags?
 
 	hdr->len = entry->len;
 	hdr->ver = qp->tx_pkts;
-	hdr->flags = entry->flags | DESC_DONE_FLAG;
+	hdr->flags = TX_DONE_FLAG;
+	//hdr->flags = entry->flags | TX_DONE_FLAG;
+
+	qp->tx_offset = (qp->tx_offset + ((0x4000 + sizeof(struct ntb_payload_header)) * 2) >= qp->tx_mw_end) ? qp->tx_mw_begin : qp->tx_offset + 0x4000 + sizeof(struct ntb_payload_header);
 
 	/* Ring doorbell notifying remote side of new packet */
 	rc = ntb_ring_sdb(qp->ndev, qp->qp_num);
@@ -739,33 +739,30 @@ static void ntb_update_tx_done(struct ntb_transport_qp *qp)
 	struct ntb_payload_header *hdr;
 	void *offset;
 
-	//while (qp->txc_pkts < qp->tx_pkts) {
-	while (qp->txc_offset != qp->tx_offset) {
+//	while (true) {
+	while (qp->txc_pkts < qp->tx_pkts) {
+//	while (qp->txc_offset != qp->tx_offset) {
 		offset = qp->txc_offset;
-
-		//offset of the next pkt
-		if (offset + sizeof(struct ntb_payload_header) >= qp->tx_mw_end)
-			offset = qp->tx_mw_begin;
 		hdr = offset;
 
-		pr_debug("TX %Ld, TXC %Ld, flags %x\n", qp->tx_pkts, qp->txc_pkts, hdr->flags);
-		if (hdr->flags & DESC_DONE_FLAG)
+		if (qp->txc_hdr_dump)
+			pr_info("HDR ver %Ld, len %d, flags %x\n", hdr->ver, hdr->len, hdr->flags);
+
+		pr_debug("TX %Ld, TXC %Ld, hdr ver %Ld flags %x\n", qp->tx_pkts, qp->txc_pkts,  hdr->ver, hdr->flags);
+		if (hdr->flags != RX_DONE_FLAG)
 			break;
 
-		if (hdr->ver != 0xdeadbeef) {
-			pr_debug("TXC ver error, txc %p tx %p\n", qp->txc_offset, qp->tx_offset);
+		if (hdr->ver != qp->txc_pkts) {
+			pr_info("TXC ver error, get %Ld, expected %Ld, txc %p tx %p\n", hdr->ver, qp->txc_pkts, qp->txc_offset, qp->tx_offset);
 			break;
 		}
 
-		offset += sizeof(struct ntb_payload_header);
-		if (offset + hdr->len >= qp->tx_mw_end)
-			offset = qp->tx_mw_begin;
-		offset += hdr->len;
+		hdr->flags = 0;
 
-		qp->txc_offset = offset;
+		qp->txc_offset = (qp->txc_offset + ((0x4000 + sizeof(struct ntb_payload_header)) * 2) >= qp->tx_mw_end) ? qp->tx_mw_begin : qp->txc_offset + 0x4000 + sizeof(struct ntb_payload_header);
 		qp->txc_pkts++;
 		if (qp->txc_pkts > qp->tx_pkts) {
-			pr_debug("TX and TXC out of sync.  Tx = %Ld TXC = %Ld\n", qp->txc_pkts, qp->tx_pkts);
+			pr_info("TX and TXC out of sync.  Tx = %Ld TXC = %Ld\n", qp->txc_pkts, qp->tx_pkts);
 			break;
 		}
 	}
@@ -893,6 +890,10 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 	qp->rx_ring_timeo = NTB_QP_DEF_RING_TIMEOUT;
 	qp->tx_ring_timeo = NTB_QP_DEF_RING_TIMEOUT;
 
+	qp->rx_hdr_dump = 0;
+	qp->tx_hdr_dump = 0;
+	qp->txc_hdr_dump = 0;
+
 	if (transport->debugfs_dir) {
 		char debugfs_name[4];
 
@@ -902,6 +903,9 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 		qp->debugfs_stats = debugfs_create_file("stats", S_IRUSR | S_IRGRP | S_IROTH, qp->debugfs_dir, qp, &ntb_qp_debugfs_stats);
 		qp->debugfs_tx_to = debugfs_create_u32("tx_ring_timeo", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->tx_ring_timeo);
 		qp->debugfs_rx_to = debugfs_create_u32("rx_ring_timeo", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->rx_ring_timeo);
+		qp->debugfs_rx_hdr_dump = debugfs_create_bool("rx_hdr_dump", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->rx_hdr_dump);
+		qp->debugfs_tx_hdr_dump = debugfs_create_bool("tx_hdr_dump", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->tx_hdr_dump);
+		qp->debugfs_txc_hdr_dump = debugfs_create_bool("txc_hdr_dump", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->txc_hdr_dump);
 	}
 
 	qp->rx_handler = rx_handler;
