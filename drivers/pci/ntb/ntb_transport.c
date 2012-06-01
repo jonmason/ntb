@@ -62,11 +62,16 @@
 #include <linux/errno.h>
 #include <linux/export.h>
 #include <linux/kthread.h>
+#include <linux/module.h>
 #include <linux/pci.h>
 #include <linux/slab.h>
 #include <linux/types.h>
 #include "ntb_hw.h"
 #include "ntb_transport.h"
+
+static int transport_mtu = 0x4014;
+module_param(transport_mtu, uint, 0644);
+MODULE_PARM_DESC(transport_mtu, "Maximum size of NTB transport packets");
 
 struct ntb_queue_entry {
 	/* ntb_queue list reference */
@@ -276,12 +281,16 @@ static int ntb_transport_setup_mw(unsigned int qp_num)
 {
 	struct ntb_transport_qp *qp = &transport->qps[qp_num];
 	u8 mw_num = QP_TO_MW(qp_num);
-	unsigned int size;
+	unsigned int size, num_qps_mw;
 
 	WARN_ON(transport->mw[mw_num].virt_addr == 0);
 
-	//FIXME - this assumes mw on both systems are the same size
-	size = transport->mw[mw_num].size / (transport->max_qps / NTB_NUM_MW);//FIXME - won't handle odd numbers.....
+	if (transport->max_qps % NTB_NUM_MW && !mw_num)
+		num_qps_mw = transport->max_qps / NTB_NUM_MW + (transport->max_qps % NTB_NUM_MW - mw_num);
+	else
+		num_qps_mw = transport->max_qps / NTB_NUM_MW;
+
+	size = transport->mw[mw_num].size / num_qps_mw;
 	pr_debug("orig size = %d, num qps = %d, size = %d\n", (int) transport->mw[mw_num].size, transport->max_qps, size);
 
 	qp->rx_buff_begin = transport->mw[mw_num].virt_addr + (qp_num / NTB_NUM_MW * size);
@@ -314,10 +323,8 @@ static void ntb_set_mw(int num_mw, unsigned int size)
 		return; //FIXME - return error
 
 	//setup the hdr offsets with 0's
-	for (offset = mw->virt_addr; offset + sizeof(struct ntb_payload_header) < mw->virt_addr + size; offset += 0x4000 + sizeof(struct ntb_payload_header)) {
-		pr_info("hdr offset %p\n", offset);
+	for (offset = mw->virt_addr; offset + sizeof(struct ntb_payload_header) < mw->virt_addr + size; offset += transport_mtu + sizeof(struct ntb_payload_header))
 		memset(offset, 0, sizeof(struct ntb_payload_header));
-	}
 
 	/* Notify HW the memory location of the receive buffer */
 	ntb_set_mw_addr(transport->ndev, num_mw, mw->dma_addr);
@@ -331,10 +338,30 @@ static int ntb_hw_link_up(void)
 	if (!transport)
 		return -EINVAL;
 //FIXME -handle all of theses error cases!
+
+	//send the local info
+	rc = ntb_write_remote_spad(transport->ndev, MW0_SZ, ntb_get_mw_size(transport->ndev, 0));
+	if (rc)
+		pr_err("Error writing %x to remote spad %d\n", (u32) ntb_get_mw_size(transport->ndev, 0), MW0_SZ);
+
+	rc = ntb_write_remote_spad(transport->ndev, MW1_SZ, ntb_get_mw_size(transport->ndev, 1));
+	if (rc)
+		pr_err("Error writing %x to remote spad %d\n", (u32) ntb_get_mw_size(transport->ndev, 1), MW1_SZ);
+
+	rc = ntb_write_remote_spad(transport->ndev, NUM_QPS, transport->max_qps);
+	if (rc)
+		pr_err("Error writing %x to remote spad %d\n", transport->max_qps, NUM_QPS);
+
+	rc = ntb_write_remote_spad(transport->ndev, QP_LINKS, 0);
+	if (rc)
+		pr_err("Error writing %x to remote spad %d\n", 0, QP_LINKS);
+
 	rc = ntb_read_remote_spad(transport->ndev, NUM_QPS, &val);
 	if (rc)
 		pr_err("Error reading remote spad %d\n", NUM_QPS);
 
+
+	//get remote info
 	pr_info("Remote max number of qps = %d\n", val);
 	if (val != transport->max_qps)
 		return -EINVAL;
@@ -385,7 +412,7 @@ static int ntb_hw_link_up(void)
 
 static void ntb_transport_event_callback(void *data, unsigned int event)
 {
-	struct ntb_transport *transport = data;
+	struct ntb_transport *nt = data;
 
 	if (event == NTB_EVENT_HW_ERROR)
 		BUG();
@@ -393,16 +420,16 @@ static void ntb_transport_event_callback(void *data, unsigned int event)
 	if (event == NTB_EVENT_HW_LINK_UP) {
 		int rc = ntb_hw_link_up();
 		if (rc)
-			schedule_delayed_work(&transport->link_work, 0);
+			schedule_delayed_work(&nt->link_work, 0);
 	}
 
 	if (event == NTB_EVENT_HW_LINK_DOWN) {
 		int i;
 
 		/* Pass along the info to any clients */
-		for (i = 0; i < transport->max_qps; i++)
-			if (!test_bit(i, &transport->qp_bitmap)) {
-				struct ntb_transport_qp *qp = &transport->qps[i];
+		for (i = 0; i < nt->max_qps; i++)
+			if (!test_bit(i, &nt->qp_bitmap)) {
+				struct ntb_transport_qp *qp = &nt->qps[i];
 
 				cancel_delayed_work_sync(&qp->link_work);
 
@@ -468,22 +495,6 @@ static int ntb_transport_init(void)
 	if (rc)
 		goto err2;
 
-	rc = ntb_write_remote_spad(transport->ndev, MW0_SZ, ntb_get_mw_size(transport->ndev, 0));
-	if (rc)
-		pr_err("Error writing %x to remote spad %d\n", (u32) ntb_get_mw_size(transport->ndev, 0), MW0_SZ);
-
-	rc = ntb_write_remote_spad(transport->ndev, MW1_SZ, ntb_get_mw_size(transport->ndev, 1));
-	if (rc)
-		pr_err("Error writing %x to remote spad %d\n", (u32) ntb_get_mw_size(transport->ndev, 1), MW1_SZ);
-
-	rc = ntb_write_remote_spad(transport->ndev, NUM_QPS, transport->max_qps);
-	if (rc)
-		pr_err("Error writing %x to remote spad %d\n", transport->max_qps, NUM_QPS);
-
-	rc = ntb_write_remote_spad(transport->ndev, QP_LINKS, 0);
-	if (rc)
-		pr_err("Error writing %x to remote spad %d\n", 0, QP_LINKS);
-
 	if (ntb_hw_link_status(transport->ndev)) {
 		rc = ntb_hw_link_up();
 		if (rc)
@@ -497,7 +508,6 @@ static int ntb_transport_init(void)
 
 	return 0;
 
-//FIXME - ntb_hw_link_up potentially called already, need to free it in error case
 err2:
 	kfree(transport->qps);
 err1:
@@ -514,6 +524,8 @@ static void ntb_transport_free(void)
 
 	if (!transport)
 		return;
+
+	cancel_delayed_work_sync(&transport->link_work);
 
 	debugfs_remove(transport->debugfs_dir);
 
@@ -587,7 +599,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 		 entry->len);
 
 	if (hdr->len <= entry->len) {
-			entry->len = hdr->len;
+		entry->len = hdr->len;
 		offset += sizeof(struct ntb_payload_header);
 		memcpy(entry->buf, offset, entry->len);
 		//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
@@ -605,7 +617,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 out:
 	hdr->flags = 0;
 
-	qp->rx_offset = (qp->rx_offset + ((0x4000 + sizeof(struct ntb_payload_header)) * 2) >= qp->rx_buff_end) ? qp->rx_buff_begin : qp->rx_offset + 0x4000 + sizeof(struct ntb_payload_header);
+	qp->rx_offset = (qp->rx_offset + ((transport_mtu + sizeof(struct ntb_payload_header)) * 2) >= qp->rx_buff_end) ? qp->rx_buff_begin : qp->rx_offset + transport_mtu + sizeof(struct ntb_payload_header);
 
 	qp->rx_bytes += hdr->len;
 	qp->rx_pkts++;
@@ -667,8 +679,8 @@ static int ntb_process_tx(struct ntb_transport_qp *qp,
 		return -EAGAIN;
 	}
 
-	if (entry->len > 0x4000) {
-		//FIXME - tossing on the floor
+	if (entry->len > transport_mtu) {
+		//FIXME - tossing on the floor, should return pkt with error
 		ntb_list_add_tail(&qp->txc_lock, &entry->entry, &qp->txc);
 		pr_err("Trying to send pkt size of %d\n", entry->len);
 		return 0;
@@ -682,7 +694,7 @@ static int ntb_process_tx(struct ntb_transport_qp *qp,
 	hdr->ver = qp->tx_pkts;
 	hdr->flags = entry->flags | DESC_DONE_FLAG;
 
-	qp->tx_offset = (qp->tx_offset + ((0x4000 + sizeof(struct ntb_payload_header)) * 2) >= qp->tx_mw_end) ? qp->tx_mw_begin : qp->tx_offset + 0x4000 + sizeof(struct ntb_payload_header);
+	qp->tx_offset = (qp->tx_offset + ((transport_mtu + sizeof(struct ntb_payload_header)) * 2) >= qp->tx_mw_end) ? qp->tx_mw_begin : qp->tx_offset + transport_mtu + sizeof(struct ntb_payload_header);
 
 	/* Ring doorbell notifying remote side of new packet */
 	rc = ntb_ring_sdb(qp->ndev, qp->qp_num);
@@ -1251,6 +1263,7 @@ EXPORT_SYMBOL(ntb_transport_qp_num);
  */
 unsigned int ntb_transport_max_size(struct ntb_transport_qp *qp)
 {
-	return (qp->tx_mw_end - qp->tx_mw_begin) - sizeof(struct ntb_payload_header);
+	return transport_mtu;
+	//return (qp->tx_mw_end - qp->tx_mw_begin) - sizeof(struct ntb_payload_header);
 }
 EXPORT_SYMBOL(ntb_transport_max_size);

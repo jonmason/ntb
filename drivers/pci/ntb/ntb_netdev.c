@@ -107,8 +107,6 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 		skb->dev = ndev;
 		skb->ip_summed = CHECKSUM_NONE;
 
-		//print_hex_dump_bytes(__func__, DUMP_PREFIX_OFFSET, skb->data, skb->len);
-
 		if (netif_rx(skb) == NET_RX_DROP) {
 			ndev->stats.rx_errors++;
 			ndev->stats.rx_dropped++;
@@ -159,8 +157,6 @@ static netdev_tx_t ntb_netdev_start_xmit(struct sk_buff *skb,
 
 	pr_debug("%s: ntb_transport_tx_enqueue\n", KBUILD_MODNAME);
 
-	//print_hex_dump_bytes(__func__, DUMP_PREFIX_OFFSET, skb->data, skb->len);
-
 	rc = ntb_transport_tx_enqueue(dev->qp, skb, skb->data, skb->len);
 	if (rc)
 		goto err;
@@ -181,25 +177,17 @@ static int ntb_netdev_open(struct net_device *ndev)
 	struct sk_buff *skb;
 	int rc, i, len;
 
-	dev->qp = ntb_transport_create_queue(ntb_netdev_rx_handler,
-					     ntb_netdev_tx_handler,
-					     ntb_netdev_event_handler);
-	if (!dev->qp) {
-		rc = -EIO;
-		goto err;
-	}
-
 	/* Add some empty rx bufs */
 	for (i = 0; i < NTB_RXQ_SIZE; i++) {
 		skb = netdev_alloc_skb(ndev, ndev->mtu + ETH_HLEN);
 		if (!skb) {
 			rc = -ENOMEM;
-			goto err1;
+			goto err;
 		}
 
 		rc = ntb_transport_rx_enqueue(dev->qp, skb, skb->data, ndev->mtu + ETH_HLEN);
 		if (rc)
-			goto err1;
+			goto err;
 	}
 
 	netif_carrier_off(ndev);
@@ -207,12 +195,9 @@ static int ntb_netdev_open(struct net_device *ndev)
 
 	return 0;
 
-err1:
+err:
 	while ((skb = ntb_transport_rx_remove(dev->qp, &len)))
 		kfree(skb);
-
-	ntb_transport_free_queue(dev->qp);
-err:
 	return rc;
 }
 
@@ -227,8 +212,6 @@ static int ntb_netdev_close(struct net_device *ndev)
 	while ((skb = ntb_transport_rx_remove(dev->qp, &len)))
 		kfree(skb);
 
-	ntb_transport_free_queue(dev->qp);
-
 	return 0;
 }
 
@@ -238,14 +221,13 @@ static int ntb_netdev_change_mtu(struct net_device *ndev, int new_mtu)
 	struct sk_buff *skb;
 	int len, rc;
 
+	if (new_mtu > ntb_transport_max_size(dev->qp) - ETH_HLEN)
+		return -EINVAL;
+
 	if (!netif_running(ndev)) {
 		ndev->mtu = new_mtu;
 		return 0;
 	}
-
-	//FIXME - should sanity check the max size before the check for running, but there is no qp to check yet
-	if (new_mtu > ntb_transport_max_size(dev->qp) - ETH_HLEN)
-		return -EINVAL;
 
 	/* Bring down the link and dispose of posted rx entries */
 	ntb_transport_link_down(dev->qp);
@@ -406,23 +388,32 @@ static int __init ntb_netdev_init_module(void)
 	netdev->watchdog_timeo = msecs_to_jiffies(NTB_TX_TIMEOUT_MS);
 	INIT_WORK(&dev->txto_work, ntb_netdev_txto_work);
 
-	//FIXME - magical MTU that has better perf
-	netdev->mtu = 0x4000 - ETH_HLEN;
-//	netdev->mtu = 16384;
-
 	random_ether_addr(netdev->perm_addr);
 	memcpy(netdev->dev_addr, netdev->perm_addr, netdev->addr_len);
 
 	netdev->netdev_ops = &ntb_netdev_ops;
 	SET_ETHTOOL_OPS(netdev, &ntb_ethtool_ops);
 
+	dev->qp = ntb_transport_create_queue(ntb_netdev_rx_handler,
+					     ntb_netdev_tx_handler,
+					     ntb_netdev_event_handler);
+	if (!dev->qp) {
+		rc = -EIO;
+		goto err;
+	}
+
+	//FIXME - magical MTU that has better perf
+	netdev->mtu = ntb_transport_max_size(dev->qp) - ETH_HLEN;
+
 	rc = register_netdev(netdev);
 	if (rc)
-		goto err;
+		goto err1;
 
 	pr_info("%s: %s created\n", KBUILD_MODNAME, netdev->name);
 	return 0;
 
+err1:
+	ntb_transport_free_queue(dev->qp);
 err:
 	free_netdev(netdev);
 	return rc;
@@ -431,7 +422,10 @@ module_init(ntb_netdev_init_module);
 
 static void __exit ntb_netdev_exit_module(void)
 {
+	struct ntb_netdev *dev = netdev_priv(netdev);
+
 	unregister_netdev(netdev);
+	ntb_transport_free_queue(dev->qp);
 	free_netdev(netdev);
 
 	pr_info("%s: Driver removed\n", KBUILD_MODNAME);
