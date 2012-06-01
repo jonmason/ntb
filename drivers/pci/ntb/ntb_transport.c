@@ -277,7 +277,7 @@ out:
 	return entry;
 }
 
-static int ntb_transport_setup_mw(unsigned int qp_num)
+static int ntb_transport_setup_qp_mw(unsigned int qp_num)
 {
 	struct ntb_transport_qp *qp = &transport->qps[qp_num];
 	u8 mw_num = QP_TO_MW(qp_num);
@@ -356,12 +356,12 @@ static int ntb_hw_link_up(void)
 	if (rc)
 		pr_err("Error writing %x to remote spad %d\n", 0, QP_LINKS);
 
+
+	//get remote info
 	rc = ntb_read_remote_spad(transport->ndev, NUM_QPS, &val);
 	if (rc)
 		pr_err("Error reading remote spad %d\n", NUM_QPS);
 
-
-	//get remote info
 	pr_info("Remote max number of qps = %d\n", val);
 	if (val != transport->max_qps)
 		return -EINVAL;
@@ -387,24 +387,12 @@ static int ntb_hw_link_up(void)
 	for (i = 0; i < transport->max_qps; i++) {
 		struct ntb_transport_qp *qp = &transport->qps[i];
 
-		rc = ntb_transport_setup_mw(i);
+		rc = ntb_transport_setup_qp_mw(i);
 		if (rc)
 			return rc;
 
-		if (qp->client_ready) {
-			rc = ntb_read_local_spad(transport->ndev, QP_LINKS, &val);
-			if (rc) {
-				pr_err("Error reading spad %d\n", QP_LINKS);
-				return rc;
-			}
-
-			rc = ntb_write_remote_spad(transport->ndev, QP_LINKS, val | 1 << qp->qp_num);
-			if (rc)
-				pr_err("Error writing %x to remote spad %d\n", val | 1 << qp->qp_num, QP_LINKS);
-
-			if (ntb_hw_link_status(transport->ndev))
-				schedule_delayed_work(&qp->link_work, 0);
-		}
+		if (qp->client_ready)
+			schedule_delayed_work(&qp->link_work, 0);
 	}
 
 	return 0;
@@ -417,14 +405,13 @@ static void ntb_transport_event_callback(void *data, unsigned int event)
 	if (event == NTB_EVENT_HW_ERROR)
 		BUG();
 
-	if (event == NTB_EVENT_HW_LINK_UP) {
-		int rc = ntb_hw_link_up();
-		if (rc)
-			schedule_delayed_work(&nt->link_work, 0);
-	}
+	if (event == NTB_EVENT_HW_LINK_UP)
+		schedule_delayed_work(&nt->link_work, 0);
 
 	if (event == NTB_EVENT_HW_LINK_DOWN) {
 		int i;
+
+		cancel_delayed_work_sync(&transport->link_work);
 
 		/* Pass along the info to any clients */
 		for (i = 0; i < nt->max_qps; i++)
@@ -495,11 +482,8 @@ static int ntb_transport_init(void)
 	if (rc)
 		goto err2;
 
-	if (ntb_hw_link_status(transport->ndev)) {
-		rc = ntb_hw_link_up();
-		if (rc)
-			schedule_delayed_work(&transport->link_work, msecs_to_jiffies(1000));
-	}
+	if (ntb_hw_link_status(transport->ndev))
+		schedule_delayed_work(&transport->link_work, 0);
 
 	if (debugfs_initialized())
 		transport->debugfs_dir = debugfs_create_dir(KBUILD_MODNAME, NULL);
@@ -749,6 +733,16 @@ static void ntb_qp_link_work(struct work_struct *work)
 	struct ntb_transport_qp *qp = container_of(work, struct ntb_transport_qp,
 						   link_work.work);
 	int rc, val;
+
+	rc = ntb_read_local_spad(transport->ndev, QP_LINKS, &val);
+	if (rc) {
+		pr_err("Error reading spad %d\n", QP_LINKS);
+		return;
+	}
+
+	rc = ntb_write_remote_spad(transport->ndev, QP_LINKS, val | 1 << qp->qp_num);
+	if (rc)
+		pr_err("Error writing %x to remote spad %d\n", val | 1 << qp->qp_num, QP_LINKS);
 
 	//query remote spad for qp ready bit
 	rc = ntb_read_remote_spad(transport->ndev, QP_LINKS, &val);
@@ -1167,27 +1161,13 @@ EXPORT_SYMBOL(ntb_transport_rx_dequeue);
  */
 void ntb_transport_link_up(struct ntb_transport_qp *qp)
 {
-	int rc, val;
-
 	if (!qp)
 		return;
 
 	qp->client_ready = NTB_LINK_UP;
 
-	if (qp->rx_buff_begin) {
-		rc = ntb_read_local_spad(transport->ndev, QP_LINKS, &val);
-		if (rc) {
-			pr_err("Error reading spad %d\n", QP_LINKS);
-			return;
-		}
-
-		rc = ntb_write_remote_spad(transport->ndev, QP_LINKS, val | 1 << qp->qp_num);
-		if (rc)
-			pr_err("Error writing %x to remote spad %d\n", val | 1 << qp->qp_num, QP_LINKS);
-
-		if (ntb_hw_link_status(qp->ndev))
-			schedule_delayed_work(&qp->link_work, 0);
-	}
+	if (ntb_hw_link_status(qp->ndev) && qp->rx_buff_begin)
+		schedule_delayed_work(&qp->link_work, 0);
 }
 EXPORT_SYMBOL(ntb_transport_link_up);
 
