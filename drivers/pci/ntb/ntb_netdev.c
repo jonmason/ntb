@@ -61,7 +61,7 @@
 #include <linux/module.h>
 #include "ntb_transport.h"
 
-#define NTB_NETDEV_VER	"0.3"
+#define NTB_NETDEV_VER	"0.4"
 
 MODULE_DESCRIPTION(KBUILD_MODNAME);
 MODULE_VERSION(NTB_NETDEV_VER);
@@ -104,7 +104,6 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 
 		skb_put(skb, len);
 		skb->protocol = eth_type_trans(skb, ndev);
-		skb->dev = ndev;
 		skb->ip_summed = CHECKSUM_NONE;
 
 		if (netif_rx(skb) == NET_RX_DROP) {
