@@ -1187,7 +1187,7 @@ err1:
 err:
 	kfree(ndev);
 
-	dev_err(&pdev->dev, "Error loading module\n");
+	dev_err(&pdev->dev, "Error loading %s module\n", KBUILD_MODNAME);
 	return rc;
 }
 

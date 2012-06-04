@@ -532,9 +532,26 @@ static void ntb_transport_free(void)
 	transport = NULL;
 }
 
+static void ntb_rx_copy_task(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry, void *offset)
+{
+	volatile struct ntb_payload_header *hdr;
+	hdr = offset;
+
+	entry->len = hdr->len;
+	offset += sizeof(struct ntb_payload_header);
+	memcpy(entry->buf, offset, entry->len);
+	//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
+
+	hdr->flags = 0;
+	ntb_list_add_tail(&qp->rxc_lock, &entry->entry, &qp->rxc);
+
+	if (qp->rx_handler && qp->client_ready)
+		qp->rx_handler(qp);
+}
+
 static int ntb_process_rxc(struct ntb_transport_qp *qp)
 {
-	struct ntb_payload_header *hdr;
+	volatile struct ntb_payload_header *hdr;
 	struct ntb_queue_entry *entry;
 	void *offset;
 
@@ -567,6 +584,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 			qp->event_handler(NTB_LINK_DOWN);
 
 		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
+		hdr->flags = 0;
 		goto out;
 	}
 
@@ -582,29 +600,20 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 		 "buf size %d\n", qp->rx_offset, hdr->ver, hdr->len,
 		 entry->len);
 
-	if (hdr->len <= entry->len) {
-		entry->len = hdr->len;
-		offset += sizeof(struct ntb_payload_header);
-		memcpy(entry->buf, offset, entry->len);
-		//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
-
-		ntb_list_add_tail(&qp->rxc_lock, &entry->entry, &qp->rxc);
-
-		if (qp->rx_handler && qp->client_ready)
-			qp->rx_handler(qp);
-	} else {
-		pr_err("RX overflow! Wanted %d got %d\n", hdr->len, entry->len);
+	if (hdr->len <= entry->len)
+		ntb_rx_copy_task(qp, entry, offset);
+	else {
 		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
+		hdr->flags = 0;
 		qp->rx_err_oflow++;
+		pr_err("RX overflow! Wanted %d got %d\n", hdr->len, entry->len);
 	}
-
-out:
-	hdr->flags = 0;
-
-	qp->rx_offset = (qp->rx_offset + ((transport_mtu + sizeof(struct ntb_payload_header)) * 2) >= qp->rx_buff_end) ? qp->rx_buff_begin : qp->rx_offset + transport_mtu + sizeof(struct ntb_payload_header);
 
 	qp->rx_bytes += hdr->len;
 	qp->rx_pkts++;
+
+out:
+	qp->rx_offset = (qp->rx_offset + ((transport_mtu + sizeof(struct ntb_payload_header)) * 2) >= qp->rx_buff_end) ? qp->rx_buff_begin : qp->rx_offset + transport_mtu + sizeof(struct ntb_payload_header);
 
 	return 0;
 }
@@ -643,12 +652,38 @@ static void ntb_transport_rxc_db(int db_num)
 	wake_up_process(qp->rx_work);
 }
 
+static void ntb_tx_copy_task(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry, volatile void *offset)
+{
+	volatile struct ntb_payload_header *hdr = offset;
+	int rc;
+
+	offset += sizeof(struct ntb_payload_header);
+	//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
+	memcpy_toio(offset, entry->buf, entry->len);
+
+	hdr->len = entry->len;
+	hdr->ver = qp->tx_pkts;
+	hdr->flags = entry->flags | DESC_DONE_FLAG;
+
+	rc = ntb_ring_sdb(qp->ndev, qp->qp_num);
+	if (rc)
+		pr_err("%s: error ringing db %d\n", __func__, qp->qp_num);
+
+	if (entry->len > 0) {
+		/* Add fully transmitted data to completion queue */
+		ntb_list_add_tail(&qp->txc_lock, &entry->entry, &qp->txc);
+
+		if (qp->tx_handler)
+			qp->tx_handler(qp);
+	} else
+		ntb_list_add_tail(&qp->txe_lock, &entry->entry, &qp->txe);
+}
+
 static int ntb_process_tx(struct ntb_transport_qp *qp,
 			  struct ntb_queue_entry *entry)
 {
-	struct ntb_payload_header *hdr;
-	void *offset;
-	int rc;
+	volatile struct ntb_payload_header *hdr;
+	volatile void *offset;
 
 	offset = qp->tx_offset;
 	hdr = offset;
@@ -670,34 +705,12 @@ static int ntb_process_tx(struct ntb_transport_qp *qp,
 		return 0;
 	}
 
-	offset += sizeof(struct ntb_payload_header);
-	//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
-	memcpy_toio(offset, entry->buf, entry->len);
-
-	hdr->len = entry->len;
-	hdr->ver = qp->tx_pkts;
-	hdr->flags = entry->flags | DESC_DONE_FLAG;
+	ntb_tx_copy_task(qp, entry, offset);
 
 	qp->tx_offset = (qp->tx_offset + ((transport_mtu + sizeof(struct ntb_payload_header)) * 2) >= qp->tx_mw_end) ? qp->tx_mw_begin : qp->tx_offset + transport_mtu + sizeof(struct ntb_payload_header);
 
-	/* Ring doorbell notifying remote side of new packet */
-	rc = ntb_ring_sdb(qp->ndev, qp->qp_num);
-	if (rc)
-		pr_err("%s: error ringing db %d\n", __func__, qp->qp_num);
-
-	if (entry->len == 0) {
-		ntb_list_add_tail(&qp->txe_lock, &entry->entry, &qp->txe);
-		return 0;
-	}
-
 	qp->tx_pkts++;
 	qp->tx_bytes += entry->len;
-
-	/* Add fully transmitted data to completion queue */
-	ntb_list_add_tail(&qp->txc_lock, &entry->entry, &qp->txc);
-
-	if (qp->tx_handler)
-		qp->tx_handler(qp);
 
 	return 0;
 }
