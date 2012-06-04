@@ -442,7 +442,7 @@ static int ntb_transport_init(void)
 	if (transport)
 		return -EINVAL;
 
-	transport = kmalloc(sizeof(struct ntb_transport), GFP_KERNEL);
+	transport = kzalloc(sizeof(struct ntb_transport), GFP_KERNEL);
 	if (!transport)
 		return -ENOMEM;
 
