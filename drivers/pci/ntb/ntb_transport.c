@@ -61,6 +61,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/errno.h>
 #include <linux/export.h>
+#include <linux/interrupt.h>
 #include <linux/kthread.h>
 #include <linux/module.h>
 #include <linux/pci.h>
@@ -91,7 +92,11 @@ struct ntb_transport_qp {
 	u8 qp_num;	/* Only 64 QP's are allowed.  0-63 */
 
 	void (*tx_handler)(struct ntb_transport_qp *qp);
+#if 1
 	struct task_struct *tx_work;
+#else
+	struct tasklet_struct tx_work;
+#endif
 	struct list_head txq;
 	struct list_head txc;
 	struct list_head txe;
@@ -104,7 +109,7 @@ struct ntb_transport_qp {
 	unsigned int tx_ring_timeo;
 
 	void (*rx_handler)(struct ntb_transport_qp *qp);
-	struct task_struct *rx_work;
+	struct tasklet_struct rx_work;
 	struct list_head rxq;
 	struct list_head rxc;
 	struct list_head rxe;
@@ -618,29 +623,14 @@ out:
 	return 0;
 }
 
-static int ntb_transport_rxc(void *data)
+static void ntb_transport_rx(unsigned long data)
 {
-	struct ntb_transport_qp *qp = data;
+	struct ntb_transport_qp *qp = (struct ntb_transport_qp *)data;
 	int rc;
 
-	while (!kthread_should_stop()) {
+	do {
 		rc = ntb_process_rxc(qp);
-		if (!rc)
-			continue;
-
-		/* Sleep for a little bit and hope some memory frees up */
-		if (rc == -ENOMEM)
-			schedule_timeout_interruptible(msecs_to_jiffies
-						       (qp->rx_ring_timeo));
-		else {
-			/* Sleep if no rx work */
-			set_current_state(TASK_INTERRUPTIBLE);
-			schedule();
-			set_current_state(TASK_RUNNING);
-		}
-	}
-
-	return 0;
+	} while (!rc);
 }
 
 static void ntb_transport_rxc_db(int db_num)
@@ -649,7 +639,7 @@ static void ntb_transport_rxc_db(int db_num)
 
 	pr_debug("%s: doorbell %d received\n", __func__, db_num);
 
-	wake_up_process(qp->rx_work);
+	tasklet_schedule(&qp->rx_work);
 }
 
 static void ntb_tx_copy_task(struct ntb_transport_qp *qp, struct ntb_queue_entry *entry, volatile void *offset)
@@ -715,6 +705,7 @@ static int ntb_process_tx(struct ntb_transport_qp *qp,
 	return 0;
 }
 
+#if 1
 static int ntb_transport_tx(void *data)
 {
 	struct ntb_transport_qp *qp = data;
@@ -740,6 +731,22 @@ static int ntb_transport_tx(void *data)
 
 	return 0;
 }
+#else
+static void ntb_transport_tx(unsigned long data)
+{
+	struct ntb_transport_qp *qp = (struct ntb_transport_qp *)data;
+	struct ntb_queue_entry *entry;
+	int rc;
+
+	do {
+		entry = ntb_list_rm_head(&qp->txq_lock, &qp->txq);
+		if (!entry)
+			break;
+
+		rc = ntb_process_tx(qp, entry);
+	} while (!rc);
+}
+#endif
 
 static void ntb_qp_link_work(struct work_struct *work)
 {
@@ -794,8 +801,11 @@ static void ntb_send_link_down(struct ntb_transport_qp *qp)
 	entry->flags = LINK_DOWN_FLAG;
 
 	ntb_list_add_tail(&qp->txq_lock, &entry->entry, &qp->txq);
-
+#if 1
 	wake_up_process(qp->tx_work);
+#else
+	tasklet_schedule(&qp->tx_work);
+#endif
 }
 
 /**
@@ -896,35 +906,32 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 		ntb_list_add_tail(&qp->txe_lock, &entry->entry, &qp->txe);
 	}
 
-	qp->rx_work = kthread_create(ntb_transport_rxc, qp, "ntb_rx%d", free_queue);
-	if (IS_ERR(qp->rx_work)) {
-		rc = PTR_ERR(qp->rx_work);
-		pr_err("Error allocing rxc kthread\n");
-		goto err2;
-	}
+	tasklet_init(&qp->rx_work, ntb_transport_rx, (unsigned long) qp);
 
+#if 1
 	qp->tx_work = kthread_create(ntb_transport_tx, qp, "ntb_tx%d", free_queue);
 	if (IS_ERR(qp->tx_work)) {
 		rc = PTR_ERR(qp->tx_work);
 		pr_err("Error allocing tx kthread\n");
-		goto err3;
+		goto err2;
 	}
+#else
+	tasklet_init(&qp->tx_work, ntb_transport_tx, (unsigned long) qp);
+#endif
 
 	//FIXME - transport->qps[free_queue].queue.hw_caps; is it even necessary for transport client to know?
 
 	rc = ntb_register_db_callback(qp->ndev, free_queue,
 				      ntb_transport_rxc_db);
 	if (rc)
-		goto err4;
+		goto err3;
 
 	pr_info("NTB Transport QP %d created\n", qp->qp_num);
 
 	return qp;
 
-err4:
-	kthread_stop(qp->tx_work);
 err3:
-	kthread_stop(qp->rx_work);
+	kthread_stop(qp->tx_work);
 err2:
 	while ((entry = ntb_list_rm_head(&qp->txe_lock, &qp->txe)))
 		kfree(entry);
@@ -956,8 +963,13 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 	debugfs_remove_recursive(qp->debugfs_dir);
 
 	ntb_unregister_db_callback(qp->ndev, qp->qp_num);
-	kthread_stop(qp->rx_work);
+	tasklet_disable(&qp->rx_work);
+
+#if 1
 	kthread_stop(qp->tx_work);
+#else
+	tasklet_disable(&qp->tx_work);
+#endif
 
 	while ((entry = ntb_list_rm_head(&qp->rxe_lock, &qp->rxe)))
 		kfree(entry);
@@ -1075,8 +1087,13 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, void *cb, void *data, 
 		return -EINVAL;
 
 	entry = ntb_list_rm_head(&qp->txe_lock, &qp->txe);
-	if (!entry)
+	if (!entry) {
+#if 0
+		//ring full, kick it
+		tasklet_schedule(&qp->tx_work);
+#endif
 		return -ENOMEM;
+	}
 
 	entry->callback_data = cb;
 	entry->buf = data;
@@ -1085,7 +1102,11 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, void *cb, void *data, 
 
 	ntb_list_add_tail(&qp->txq_lock, &entry->entry, &qp->txq);
 
+#if 1
 	wake_up_process(qp->tx_work);
+#else
+	tasklet_schedule(&qp->tx_work);
+#endif
 
 	return 0;
 }
