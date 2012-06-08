@@ -94,6 +94,8 @@ struct ntb_transport_qp {
 	void (*tx_handler)(struct ntb_transport_qp *qp);
 #if 1
 	struct task_struct *tx_work;
+	unsigned int tx_ring_timeo;
+	struct dentry *debugfs_tx_to;
 #else
 	struct tasklet_struct tx_work;
 #endif
@@ -106,7 +108,6 @@ struct ntb_transport_qp {
 	void *tx_mw_begin;
 	void *tx_mw_end;
 	void *tx_offset;
-	unsigned int tx_ring_timeo;
 
 	void (*rx_handler)(struct ntb_transport_qp *qp);
 	struct tasklet_struct rx_work;
@@ -119,15 +120,12 @@ struct ntb_transport_qp {
 	void *rx_buff_begin;
 	void *rx_buff_end;
 	void *rx_offset;
-	unsigned int rx_ring_timeo;
 
 	void (*event_handler)(int status);
 	struct delayed_work link_work;
 
 	struct dentry *debugfs_dir;
 	struct dentry *debugfs_stats;
-	struct dentry *debugfs_rx_to;
-	struct dentry *debugfs_tx_to;
 
 	struct dentry *debugfs_rx_hdr_dump;
 	struct dentry *debugfs_tx_hdr_dump;
@@ -182,7 +180,9 @@ enum {
 };
 
 #define QP_TO_MW(qp)		((qp) % NTB_NUM_MW)
+#if 1
 #define	NTB_QP_DEF_RING_TIMEOUT	100
+#endif
 #define NTB_QP_DEF_NUM_ENTRIES	1000
 
 struct ntb_transport *transport = NULL;
@@ -853,11 +853,11 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 	qp = &transport->qps[free_queue];
 	qp->qp_link = NTB_LINK_DOWN;
 
-	qp->rx_ring_timeo = NTB_QP_DEF_RING_TIMEOUT;
-	qp->tx_ring_timeo = NTB_QP_DEF_RING_TIMEOUT;
-
 	qp->rx_hdr_dump = 0;
 	qp->tx_hdr_dump = 0;
+#if 1
+	qp->tx_ring_timeo = NTB_QP_DEF_RING_TIMEOUT;
+#endif
 
 	if (transport->debugfs_dir) {
 		char debugfs_name[4];
@@ -866,10 +866,11 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 		qp->debugfs_dir = debugfs_create_dir(debugfs_name, transport->debugfs_dir);
 
 		qp->debugfs_stats = debugfs_create_file("stats", S_IRUSR | S_IRGRP | S_IROTH, qp->debugfs_dir, qp, &ntb_qp_debugfs_stats);
-		qp->debugfs_tx_to = debugfs_create_u32("tx_ring_timeo", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->tx_ring_timeo);
-		qp->debugfs_rx_to = debugfs_create_u32("rx_ring_timeo", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->rx_ring_timeo);
 		qp->debugfs_rx_hdr_dump = debugfs_create_bool("rx_hdr_dump", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->rx_hdr_dump);
 		qp->debugfs_tx_hdr_dump = debugfs_create_bool("tx_hdr_dump", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->tx_hdr_dump);
+#if 1
+		qp->debugfs_tx_to = debugfs_create_u32("tx_ring_timeo", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->tx_ring_timeo);
+#endif
 	}
 
 	qp->rx_handler = rx_handler;
