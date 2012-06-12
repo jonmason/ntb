@@ -547,6 +547,7 @@ static void ntb_rx_copy_task(struct ntb_transport_qp *qp, struct ntb_queue_entry
 	memcpy(entry->buf, offset, entry->len);
 	//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
 
+	wmb();
 	hdr->flags = 0;
 	ntb_list_add_tail(&qp->rxc_lock, &entry->entry, &qp->rxc);
 
@@ -653,6 +654,7 @@ static void ntb_tx_copy_task(struct ntb_transport_qp *qp, struct ntb_queue_entry
 
 	hdr->len = entry->len;
 	hdr->ver = qp->tx_pkts;
+	wmb();
 	hdr->flags = entry->flags | DESC_DONE_FLAG;
 
 	rc = ntb_ring_sdb(qp->ndev, qp->qp_num);
