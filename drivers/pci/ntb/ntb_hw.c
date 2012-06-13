@@ -126,20 +126,17 @@ struct ntb_device {
 	void *ntb_transport;
 	event_cb_func event_cb;
 	struct ntb_db_cb *db_cb;
-	//FIXME - unless this is getting larger than a cacheline, bit fields might not be worth it
-	unsigned int hw_type:1;
-	unsigned int conn_type:2;
-	unsigned int dev_type:1;
-	unsigned int num_msix:6;
-	unsigned int bits_per_vector:6;
-	unsigned int max_cbs:6;
-	unsigned int link_status:1;
-	unsigned int unused:9;
+	unsigned char hw_type;
+	unsigned char conn_type;
+	unsigned char dev_type;
+	unsigned char num_msix;
+	unsigned char bits_per_vector;
+	unsigned char max_cbs;
+	unsigned char link_status;
 	struct delayed_work hb_timer;
 	unsigned long last_ts;
 };
 
-//FIXME - unused
 /* Translate memory window 0,1 to BAR 2,4 */
 #define MW_TO_BAR(mw)	(mw * 2 + 2)
 
@@ -153,15 +150,28 @@ MODULE_DEVICE_TABLE(pci, ntb_pci_tbl);
 
 struct ntb_device *ntbdev;
 
-
-//FIXME - add comment
+/**
+ * ntb_hw_link_status() - return the hardware link status
+ * @ndev: pointer to ntb_device instance
+ *
+ * Returns true if the hard is connected to the remote system
+ *
+ * RETURNS: true or false based on the hardware link state
+ */
 bool ntb_hw_link_status(struct ntb_device *ndev)
 {
 	return ndev->link_status == NTB_LINK_UP;
 }
 EXPORT_SYMBOL(ntb_hw_link_status);
 
-//FIXME - add comment
+/**
+ * ntb_query_pdev() - return the pci_dev pointer
+ * @ndev: pointer to ntb_device instance
+ *
+ * Given the ntb pointer return the pci_dev pointerfor the NTB hardware device
+ *
+ * RETURNS: a pointer to the ntb pci_dev
+ */
 struct pci_dev *ntb_query_pdev(struct ntb_device *ndev)
 {
 	return ndev->pdev;

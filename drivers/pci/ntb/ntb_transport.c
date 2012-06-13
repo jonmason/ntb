@@ -198,13 +198,10 @@ static ssize_t debugfs_read(struct file *filp, char __user *ubuf,
 	                    size_t count, loff_t *offp)
 {
 	struct ntb_transport_qp *qp;
-	char *buf;
+	char buf[256];
 	ssize_t ret, out_offset, out_count;
 
-	out_count = 1024; //FIXME - magic...
-	buf = kmalloc(out_count, GFP_KERNEL);
-	if (!buf)
-	        return -ENOMEM;
+	out_count = 256;
 
 	qp = filp->private_data;
 	out_offset = 0;
@@ -219,7 +216,7 @@ static ssize_t debugfs_read(struct file *filp, char __user *ubuf,
 	out_offset += snprintf(buf + out_offset, out_count - out_offset,
 				"rx_err_no_buf - %Ld\n", qp->rx_err_no_buf);
 	out_offset += snprintf(buf + out_offset, out_count - out_offset,
-				"rx_err_oflow - %Ld\n", qp->rx_err_oflow);
+				"rx_er_oflow - %Ld\n", qp->rx_err_oflow);
 	out_offset += snprintf(buf + out_offset, out_count - out_offset,
 				"rx_err_ver - %Ld\n", qp->rx_err_ver);
 	out_offset += snprintf(buf + out_offset, out_count - out_offset,
@@ -234,7 +231,6 @@ static ssize_t debugfs_read(struct file *filp, char __user *ubuf,
 				"tx_offset - %p\n", qp->tx_offset);
 
 	ret = simple_read_from_buffer(ubuf, count, offp, buf, out_offset);
-	kfree(buf);
 	return ret;
 }
 
@@ -315,7 +311,7 @@ static int ntb_transport_setup_qp_mw(unsigned int qp_num)
 	return 0;
 }
 
-static void ntb_set_mw(int num_mw, unsigned int size)
+static int ntb_set_mw(int num_mw, unsigned int size)
 {
 	struct ntb_transport_mw *mw = &transport->mw[num_mw];
 	struct pci_dev *pdev = ntb_query_pdev(transport->ndev);
@@ -325,8 +321,10 @@ static void ntb_set_mw(int num_mw, unsigned int size)
 	mw->size = ALIGN(size, 4096);
 
 	mw->virt_addr = dma_alloc_coherent(&pdev->dev, mw->size, &mw->dma_addr, GFP_KERNEL);
-	if (!mw->virt_addr)
-		return; //FIXME - return error
+	if (!mw->virt_addr) {
+		pr_err("Unable to allocate MW buffer of size %d\n", (int) mw->size);
+		return -ENOMEM;
+	}
 
 	//setup the hdr offsets with 0's
 	for (offset = mw->virt_addr; offset + sizeof(struct ntb_payload_header) < mw->virt_addr + size; offset += transport_mtu + sizeof(struct ntb_payload_header))
@@ -334,6 +332,8 @@ static void ntb_set_mw(int num_mw, unsigned int size)
 
 	/* Notify HW the memory location of the receive buffer */
 	ntb_set_mw_addr(transport->ndev, num_mw, mw->dma_addr);
+
+	return 0;
 }
 
 static int ntb_hw_link_up(void)
@@ -341,7 +341,7 @@ static int ntb_hw_link_up(void)
 	u32 val;
 	int rc, i;
 
-//FIXME -handle all of theses error cases!
+//FIXME -handle all of these error cases!
 
 	//send the local info
 	rc = ntb_write_remote_spad(transport->ndev, MW0_SZ, ntb_get_mw_size(transport->ndev, 0));
@@ -377,7 +377,10 @@ static int ntb_hw_link_up(void)
 	pr_info("Remote MW0 size = %d\n", val);
 	if (!val)
 		return -EINVAL;
-	ntb_set_mw(0, val);
+
+	rc = ntb_set_mw(0, val);
+	if (rc)
+		return rc;
 
 	rc = ntb_read_remote_spad(transport->ndev, MW1_SZ, &val);
 	if (rc)
@@ -386,7 +389,10 @@ static int ntb_hw_link_up(void)
 	pr_info("Remote MW1 size = %d\n", val);
 	if (!val)
 		return -EINVAL;
-	ntb_set_mw(1, val);
+
+	rc = ntb_set_mw(1, val);
+	if (rc)
+		return rc;
 
 	for (i = 0; i < transport->max_qps; i++) {
 		struct ntb_transport_qp *qp = &transport->qps[i];

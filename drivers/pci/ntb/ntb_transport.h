@@ -57,7 +57,7 @@
  * Jon Mason <jon.mason@intel.com>
  */
 
-struct ntb_transport_qp;//FIXME - is this necessary
+struct ntb_transport_qp;
 
 typedef void (*handler) (struct ntb_transport_qp *qp);
 typedef void (*ehandler) (int status);
