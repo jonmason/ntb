@@ -157,6 +157,7 @@ struct ntb_transport {
 	struct ntb_transport_qp *qps;
 	unsigned int max_qps;
 	unsigned long qp_bitmap;
+	bool transport_link;
 	struct delayed_work link_work;
 	struct dentry *debugfs_dir;
 };
@@ -340,8 +341,6 @@ static int ntb_hw_link_up(void)
 	u32 val;
 	int rc, i;
 
-	if (!transport)
-		return -EINVAL;
 //FIXME -handle all of theses error cases!
 
 	//send the local info
@@ -400,6 +399,8 @@ static int ntb_hw_link_up(void)
 			schedule_delayed_work(&qp->link_work, 0);
 	}
 
+	transport->transport_link = NTB_LINK_UP;
+
 	return 0;
 }
 
@@ -416,14 +417,12 @@ static void ntb_transport_event_callback(void *data, unsigned int event)
 	if (event == NTB_EVENT_HW_LINK_DOWN) {
 		int i;
 
-		cancel_delayed_work_sync(&transport->link_work);
+		nt->transport_link = NTB_LINK_DOWN;
 
 		/* Pass along the info to any clients */
 		for (i = 0; i < nt->max_qps; i++)
 			if (!test_bit(i, &nt->qp_bitmap)) {
 				struct ntb_transport_qp *qp = &nt->qps[i];
-
-				cancel_delayed_work_sync(&qp->link_work);
 
 				if (qp->event_handler && qp->qp_link != NTB_LINK_DOWN)
 					qp->event_handler(NTB_LINK_DOWN);
@@ -435,21 +434,105 @@ static void ntb_transport_event_callback(void *data, unsigned int event)
 
 static void ntb_transport_link_work(struct work_struct *work)
 {
-	int rc = ntb_hw_link_up();
-	if (rc)
+	int rc = ntb_hw_link_up(); //why not have this code in this func?
+	if (rc && ntb_hw_link_status(transport->ndev))
 		schedule_delayed_work(&transport->link_work, msecs_to_jiffies(1000));
+}
+
+static void ntb_qp_link_work(struct work_struct *work)
+{
+	struct ntb_transport_qp *qp = container_of(work, struct ntb_transport_qp,
+						   link_work.work);
+	int rc, val;
+
+	WARN_ON(!qp->rx_buff_begin);
+	WARN_ON(!qp->tx_offset);
+
+	rc = ntb_read_local_spad(transport->ndev, QP_LINKS, &val);
+	if (rc) {
+		pr_err("Error reading spad %d\n", QP_LINKS);
+		return;
+	}
+
+	rc = ntb_write_remote_spad(transport->ndev, QP_LINKS, val | 1 << qp->qp_num);
+	if (rc)
+		pr_err("Error writing %x to remote spad %d\n", val | 1 << qp->qp_num, QP_LINKS);
+
+	//query remote spad for qp ready bit
+	rc = ntb_read_remote_spad(transport->ndev, QP_LINKS, &val);
+	if (rc)
+		pr_err("Error reading remote spad %d\n", QP_LINKS);
+
+	pr_debug("Remote QP link status = %x\n", val);
+
+	/* See if the remote side is up */
+	if (1 << qp->qp_num & val) {
+		qp->qp_link = NTB_LINK_UP;
+
+		if (qp->event_handler)
+			qp->event_handler(NTB_LINK_UP);
+	} else if (ntb_hw_link_status(transport->ndev))
+		schedule_delayed_work(&qp->link_work, msecs_to_jiffies(1000));
+}
+
+static void ntb_transport_init_queue(unsigned int qp_num)
+{
+	struct ntb_transport_qp *qp;
+
+	qp = &transport->qps[qp_num];
+	qp->qp_num = qp_num;
+	qp->ndev = transport->ndev;
+	qp->qp_link = NTB_LINK_DOWN;
+
+	qp->rx_hdr_dump = 0;
+	qp->tx_hdr_dump = 0;
+#if 1
+	qp->tx_ring_timeo = NTB_QP_DEF_RING_TIMEOUT;
+#endif
+
+	if (transport->debugfs_dir) {
+		char debugfs_name[4];
+
+		snprintf(debugfs_name, 4, "qp%d", qp_num);
+		qp->debugfs_dir = debugfs_create_dir(debugfs_name, transport->debugfs_dir);
+
+		qp->debugfs_stats = debugfs_create_file("stats", S_IRUSR | S_IRGRP | S_IROTH, qp->debugfs_dir, qp, &ntb_qp_debugfs_stats);
+		qp->debugfs_rx_hdr_dump = debugfs_create_bool("rx_hdr_dump", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->rx_hdr_dump);
+		qp->debugfs_tx_hdr_dump = debugfs_create_bool("tx_hdr_dump", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->tx_hdr_dump);
+#if 1
+		qp->debugfs_tx_to = debugfs_create_u32("tx_ring_timeo", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->tx_ring_timeo);
+#endif
+	}
+
+	INIT_DELAYED_WORK(&qp->link_work, ntb_qp_link_work);
+
+	spin_lock_init(&qp->rxc_lock);
+	spin_lock_init(&qp->rxq_lock);
+	spin_lock_init(&qp->rxe_lock);
+	spin_lock_init(&qp->txc_lock);
+	spin_lock_init(&qp->txq_lock);
+	spin_lock_init(&qp->txe_lock);
+
+	INIT_LIST_HEAD(&qp->rxq);
+	INIT_LIST_HEAD(&qp->rxc);
+	INIT_LIST_HEAD(&qp->rxe);
+	INIT_LIST_HEAD(&qp->txq);
+	INIT_LIST_HEAD(&qp->txc);
+	INIT_LIST_HEAD(&qp->txe);
 }
 
 static int ntb_transport_init(void)
 {
 	int rc, i;
 
-	if (transport)
-		return -EINVAL;
-
 	transport = kzalloc(sizeof(struct ntb_transport), GFP_KERNEL);
 	if (!transport)
 		return -ENOMEM;
+
+	if (debugfs_initialized())
+		transport->debugfs_dir = debugfs_create_dir(KBUILD_MODNAME, NULL);
+	else
+		transport->debugfs_dir = NULL;
 
 	transport->ndev = ntb_register_transport(transport);
 	if (!transport->ndev) {
@@ -471,29 +554,20 @@ static int ntb_transport_init(void)
 		goto err1;
 	}
 
-	for (i = 0; i < transport->max_qps; i++) {
-		struct ntb_transport_qp *qp = &transport->qps[i];
-
-		qp->qp_num = i;
-		qp->ndev = transport->ndev;
-	}
-
 	transport->qp_bitmap = ((u64) 1 << transport->max_qps) - 1;
 
-	INIT_DELAYED_WORK(&transport->link_work, ntb_transport_link_work);
+	for (i = 0; i < transport->max_qps; i++)
+		ntb_transport_init_queue(i);
 
 	rc = ntb_register_event_callback(transport->ndev,
 					 ntb_transport_event_callback);
 	if (rc)
 		goto err2;
 
-	if (ntb_hw_link_status(transport->ndev))
-		schedule_delayed_work(&transport->link_work, 0);
-
-	if (debugfs_initialized())
-		transport->debugfs_dir = debugfs_create_dir(KBUILD_MODNAME, NULL);
-	else
-		transport->debugfs_dir = NULL;
+	INIT_DELAYED_WORK(&transport->link_work, ntb_transport_link_work);
+	rc = ntb_hw_link_up(); //why not have this code in this func?
+	if (rc && ntb_hw_link_status(transport->ndev))
+		schedule_delayed_work(&transport->link_work, msecs_to_jiffies(1000));
 
 	return 0;
 
@@ -514,9 +588,11 @@ static void ntb_transport_free(void)
 	if (!transport)
 		return;
 
+	transport->transport_link = NTB_LINK_DOWN;
+
 	cancel_delayed_work_sync(&transport->link_work);
 
-	debugfs_remove(transport->debugfs_dir);
+	debugfs_remove_recursive(transport->debugfs_dir);
 
 	/* To be here, all of the queues were already free'd.  No need to try and clean them up */
 
@@ -563,6 +639,8 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 
 	entry = ntb_list_rm_head(&qp->rxq_lock, &qp->rxq);
 	if (!entry) {
+		hdr = qp->rx_offset;
+		pr_info("no buffer - HDR ver %Ld, len %d, flags %x\n", hdr->ver, hdr->len, hdr->flags);
 		qp->rx_err_no_buf++;
 		return -ENOMEM;
 	}
@@ -662,6 +740,8 @@ static void ntb_tx_copy_task(struct ntb_transport_qp *qp, struct ntb_queue_entry
 		pr_err("%s: error ringing db %d\n", __func__, qp->qp_num);
 
 	if (entry->len > 0) {
+		qp->tx_bytes += entry->len;
+
 		/* Add fully transmitted data to completion queue */
 		ntb_list_add_tail(&qp->txc_lock, &entry->entry, &qp->txc);
 
@@ -702,7 +782,6 @@ static int ntb_process_tx(struct ntb_transport_qp *qp,
 	qp->tx_offset = (qp->tx_offset + ((transport_mtu + sizeof(struct ntb_payload_header)) * 2) >= qp->tx_mw_end) ? qp->tx_mw_begin : qp->tx_offset + transport_mtu + sizeof(struct ntb_payload_header);
 
 	qp->tx_pkts++;
-	qp->tx_bytes += entry->len;
 
 	return 0;
 }
@@ -749,39 +828,6 @@ static void ntb_transport_tx(unsigned long data)
 	} while (!rc);
 }
 #endif
-
-static void ntb_qp_link_work(struct work_struct *work)
-{
-	struct ntb_transport_qp *qp = container_of(work, struct ntb_transport_qp,
-						   link_work.work);
-	int rc, val;
-
-	rc = ntb_read_local_spad(transport->ndev, QP_LINKS, &val);
-	if (rc) {
-		pr_err("Error reading spad %d\n", QP_LINKS);
-		return;
-	}
-
-	rc = ntb_write_remote_spad(transport->ndev, QP_LINKS, val | 1 << qp->qp_num);
-	if (rc)
-		pr_err("Error writing %x to remote spad %d\n", val | 1 << qp->qp_num, QP_LINKS);
-
-	//query remote spad for qp ready bit
-	rc = ntb_read_remote_spad(transport->ndev, QP_LINKS, &val);
-	if (rc)
-		pr_err("Error reading remote spad %d\n", QP_LINKS);
-
-	pr_debug("Remote QP link status = %x\n", val);
-
-	/* See if the remote side is up */
-	if (1 << qp->qp_num & val) {
-		qp->qp_link = NTB_LINK_UP;
-
-		if (qp->event_handler)
-			qp->event_handler(NTB_LINK_UP);
-	} else
-		schedule_delayed_work(&qp->link_work, msecs_to_jiffies(1000));
-}
 
 static void ntb_send_link_down(struct ntb_transport_qp *qp)
 {
@@ -851,47 +897,9 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 	clear_bit(free_queue, &transport->qp_bitmap);
 
 	qp = &transport->qps[free_queue];
-	qp->qp_link = NTB_LINK_DOWN;
-
-	qp->rx_hdr_dump = 0;
-	qp->tx_hdr_dump = 0;
-#if 1
-	qp->tx_ring_timeo = NTB_QP_DEF_RING_TIMEOUT;
-#endif
-
-	if (transport->debugfs_dir) {
-		char debugfs_name[4];
-
-		snprintf(debugfs_name, 4, "qp%d", free_queue);
-		qp->debugfs_dir = debugfs_create_dir(debugfs_name, transport->debugfs_dir);
-
-		qp->debugfs_stats = debugfs_create_file("stats", S_IRUSR | S_IRGRP | S_IROTH, qp->debugfs_dir, qp, &ntb_qp_debugfs_stats);
-		qp->debugfs_rx_hdr_dump = debugfs_create_bool("rx_hdr_dump", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->rx_hdr_dump);
-		qp->debugfs_tx_hdr_dump = debugfs_create_bool("tx_hdr_dump", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->tx_hdr_dump);
-#if 1
-		qp->debugfs_tx_to = debugfs_create_u32("tx_ring_timeo", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->tx_ring_timeo);
-#endif
-	}
-
 	qp->rx_handler = rx_handler;
 	qp->tx_handler = tx_handler;
 	qp->event_handler = event_handler;
-
-	INIT_DELAYED_WORK(&qp->link_work, ntb_qp_link_work);
-
-	spin_lock_init(&qp->rxc_lock);
-	spin_lock_init(&qp->rxq_lock);
-	spin_lock_init(&qp->rxe_lock);
-	spin_lock_init(&qp->txc_lock);
-	spin_lock_init(&qp->txq_lock);
-	spin_lock_init(&qp->txe_lock);
-
-	INIT_LIST_HEAD(&qp->rxq);
-	INIT_LIST_HEAD(&qp->rxc);
-	INIT_LIST_HEAD(&qp->rxe);
-	INIT_LIST_HEAD(&qp->txq);
-	INIT_LIST_HEAD(&qp->txc);
-	INIT_LIST_HEAD(&qp->txe);
 
 	for (i = 0; i < NTB_QP_DEF_NUM_ENTRIES; i++) {
 		entry = kzalloc(sizeof(struct ntb_queue_entry), GFP_ATOMIC);
@@ -941,7 +949,6 @@ err2:
 err1:
 	while ((entry = ntb_list_rm_head(&qp->rxe_lock, &qp->rxe)))
 		kfree(entry);
-	debugfs_remove_recursive(qp->debugfs_stats);
 	set_bit(free_queue, &transport->qp_bitmap);
 err:
 	return NULL;
@@ -962,8 +969,6 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 		return;
 
 	cancel_delayed_work_sync(&qp->link_work);
-
-	debugfs_remove_recursive(qp->debugfs_dir);
 
 	ntb_unregister_db_callback(qp->ndev, qp->qp_num);
 	tasklet_disable(&qp->rx_work);
@@ -1203,7 +1208,7 @@ void ntb_transport_link_up(struct ntb_transport_qp *qp)
 
 	qp->client_ready = NTB_LINK_UP;
 
-	if (ntb_hw_link_status(qp->ndev) && qp->rx_buff_begin)
+	if (transport->transport_link == NTB_LINK_UP)
 		schedule_delayed_work(&qp->link_work, 0);
 }
 EXPORT_SYMBOL(ntb_transport_link_up);
@@ -1238,7 +1243,8 @@ void ntb_transport_link_down(struct ntb_transport_qp *qp)
 	if (rc)
 		pr_err("Error writing %x to remote spad %d\n", val & ~(1 << qp->qp_num), QP_LINKS);
 
-	ntb_send_link_down(qp);
+	if (transport->transport_link == NTB_LINK_UP)//FIXME - only need to send if already connected
+		ntb_send_link_down(qp);
 }
 EXPORT_SYMBOL(ntb_transport_link_down);
 
