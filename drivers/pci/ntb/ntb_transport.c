@@ -178,6 +178,7 @@ enum {
 	MW1_SZ,
 	NUM_QPS,
 	QP_LINKS,
+	MAX_SPAD,
 };
 
 #define QP_TO_MW(qp)		((qp) % NTB_NUM_MW)
@@ -198,10 +199,10 @@ static ssize_t debugfs_read(struct file *filp, char __user *ubuf,
 	                    size_t count, loff_t *offp)
 {
 	struct ntb_transport_qp *qp;
-	char buf[256];
+	char buf[512];
 	ssize_t ret, out_offset, out_count;
 
-	out_count = 256;
+	out_count = 512;
 
 	qp = filp->private_data;
 	out_offset = 0;
@@ -435,6 +436,12 @@ static void ntb_transport_event_callback(void *data, unsigned int event)
 
 				qp->qp_link = NTB_LINK_DOWN;
 			}
+
+		/* The scratchpad registers keep the values if the remote sides goes down, blast them now */
+		for (i = 0; i < MAX_SPAD; i++) {
+			ntb_write_local_spad(transport->ndev, i, 0);
+			ntb_write_remote_spad(transport->ndev, i, 0);
+		}
 	}
 }
 
@@ -451,8 +458,7 @@ static void ntb_qp_link_work(struct work_struct *work)
 						   link_work.work);
 	int rc, val;
 
-	WARN_ON(!qp->rx_buff_begin);
-	WARN_ON(!qp->tx_offset);
+	WARN_ON(transport->transport_link != NTB_LINK_UP);
 
 	rc = ntb_read_local_spad(transport->ndev, QP_LINKS, &val);
 	if (rc) {

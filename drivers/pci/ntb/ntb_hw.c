@@ -105,7 +105,6 @@ struct ntb_device {
 	void __iomem *reg_base;
 	struct ntb_mw mw[NTB_NUM_MW];
 	struct {
-		unsigned int max_compat_spads;
 		unsigned int max_spads;
 		unsigned int max_db_bits;
 		unsigned int msix_cnt;
@@ -335,7 +334,7 @@ EXPORT_SYMBOL(ntb_unregister_transport);
  */
 int ntb_get_max_spads(struct ntb_device *ndev)
 {
-	return ndev->limits.max_compat_spads;
+	return ndev->limits.max_spads;
 }
 EXPORT_SYMBOL(ntb_get_max_spads);
 
@@ -352,7 +351,7 @@ EXPORT_SYMBOL(ntb_get_max_spads);
  */
 int ntb_write_local_spad(struct ntb_device *ndev, unsigned int idx, u32 val)
 {
-	if (idx >= ndev->limits.max_compat_spads)
+	if (idx >= ndev->limits.max_spads)
 		return -EINVAL;
 
 	dev_dbg(&ndev->pdev->dev, "Writing %x to local scratch pad index %d\n",
@@ -376,7 +375,7 @@ EXPORT_SYMBOL(ntb_write_local_spad);
  */
 int ntb_read_local_spad(struct ntb_device *ndev, unsigned int idx, u32 *val)
 {
-	if (idx >= ndev->limits.max_compat_spads)
+	if (idx >= ndev->limits.max_spads)
 		return -EINVAL;
 
 	*val = readl(ndev->reg_ofs.spad_write + idx * 4);
@@ -400,7 +399,7 @@ EXPORT_SYMBOL(ntb_read_local_spad);
  */
 int ntb_write_remote_spad(struct ntb_device *ndev, unsigned int idx, u32 val)
 {
-	if (idx >= ndev->limits.max_compat_spads)
+	if (idx >= ndev->limits.max_spads)
 		return -EINVAL;
 
 	dev_dbg(&ndev->pdev->dev, "Writing %x to remote scratch pad index %d\n",
@@ -424,7 +423,7 @@ EXPORT_SYMBOL(ntb_write_remote_spad);
  */
 int ntb_read_remote_spad(struct ntb_device *ndev, unsigned int idx, u32 *val)
 {
-	if (idx >= ndev->limits.max_compat_spads)
+	if (idx >= ndev->limits.max_spads)
 		return -EINVAL;
 
 	*val = readl(ndev->reg_ofs.spad_read + idx * 4);
@@ -655,13 +654,13 @@ static int ntb_snb_b2b_setup(struct ntb_device *ndev)
 	if (ndev->conn_type == NTB_CONN_B2B) {
 		ndev->reg_ofs.sdb = ndev->reg_base + SNB_B2B_DOORBELL_OFFSET;
 		ndev->reg_ofs.spad_write = ndev->reg_base + SNB_B2B_SPAD_OFFSET;
+		ndev->limits.max_spads = SNB_MAX_SPADS;
 	} else {
 		ndev->reg_ofs.sdb = ndev->reg_base + SNB_SDOORBELL_OFFSET;
 		ndev->reg_ofs.spad_write = ndev->reg_base + SNB_SPAD_OFFSET;
+		ndev->limits.max_spads = SNB_MAX_COMPAT_SPADS;
 	}
 
-	ndev->limits.max_compat_spads = SNB_MAX_COMPAT_SPADS;
-	ndev->limits.max_spads = SNB_MAX_SPADS;
 	ndev->limits.max_db_bits = SNB_MAX_DB_BITS;
 	ndev->limits.msix_cnt = SNB_MSIX_CNT;
 	ndev->bits_per_vector = SNB_DB_BITS_PER_VEC; 
@@ -714,13 +713,13 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	if (ndev->conn_type == NTB_CONN_B2B) {
 		ndev->reg_ofs.sdb = ndev->reg_base + BWD_B2B_DOORBELL_OFFSET;
 		ndev->reg_ofs.spad_write = ndev->reg_base + BWD_B2B_SPAD_OFFSET;
+		ndev->limits.max_spads = BWD_MAX_SPADS;
 	} else {
 		ndev->reg_ofs.sdb = ndev->reg_base + BWD_PDOORBELL_OFFSET;
 		ndev->reg_ofs.spad_write = ndev->reg_base + BWD_SPAD_OFFSET;
+		ndev->limits.max_spads = BWD_MAX_COMPAT_SPADS;
 	}
 
-	ndev->limits.max_compat_spads = BWD_MAX_COMPAT_SPADS;
-	ndev->limits.max_spads = BWD_MAX_SPADS;
 	ndev->limits.max_db_bits = BWD_MAX_DB_BITS;
 	ndev->limits.msix_cnt = BWD_MSIX_CNT;
 	ndev->bits_per_vector = BWD_DB_BITS_PER_VEC; 
@@ -1175,6 +1174,12 @@ static int __devinit ntb_pci_probe(struct pci_dev *pdev,
 	rc = ntb_setup_interrupts(ndev);
 	if (rc)
 		goto err5;
+
+	/* The scratchpad registers keep the values between rmmod/insmod, blast them now */
+	for (i = 0; i < ndev->limits.max_spads; i++) {
+		ntb_write_local_spad(ndev, i, 0);
+		ntb_write_remote_spad(ndev, i, 0);
+	}
 
 	/* Let's bring the NTB link up */
 	writel(NTB_CNTL_BAR23_SNOOP | NTB_CNTL_BAR45_SNOOP,
