@@ -1074,7 +1074,12 @@ static void __devexit ntb_free_interrupts(struct ntb_device *ndev)
 static int __devinit ntb_create_callbacks(struct ntb_device *ndev)
 {
 	int i;
-//FIXME - limits.max_db_bits, is mroe than we'll need, but we won't know until we try to get interrupts..which needs this already setup.
+
+	/* Checken-egg issue.  We won't know how many callbacks are necessary
+	 * until we see how many MSI-X vectors we get, but these pointers need
+	 * to be passed into the MSI-X register fucntion.  So, we allocate the
+	 * max, knowing that they might not all be used, to work around this.
+	 */
 	ndev->db_cb = kcalloc(ndev->limits.max_db_bits, sizeof(struct ntb_db_cb),
 			      GFP_KERNEL);
 	if (!ndev->db_cb)
