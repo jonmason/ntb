@@ -1019,6 +1019,8 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 
 	set_bit(qp->qp_num, &transport->qp_bitmap);
 
+	pr_info("NTB Transport QP %d freed\n", qp->qp_num);
+
 	if (transport->qp_bitmap == ((u64) 1 << transport->max_qps) - 1)
 		ntb_transport_free();
 }
