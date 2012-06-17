@@ -740,7 +740,6 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 
 static int __devinit ntb_device_setup(struct ntb_device *ndev)
 {
-	u16 val;
 	int rc;
 
 	switch (ndev->pdev->device) {
@@ -757,15 +756,6 @@ static int __devinit ntb_device_setup(struct ntb_device *ndev)
 
 	/* Enable Bus Master and Memory Space on the secondary side */
 	writew(PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER, ndev->reg_ofs.spci_cmd);
-
-	/* Set MPS to 256 on the secondary side */
-	val = readw(ndev->reg_base + SNB_DEVCTRL_OFFSET);
-	val &= ~PCI_EXP_DEVCTL_PAYLOAD;
-	val |= 1 << 5;
-	writew(val, ndev->reg_base + SNB_DEVCTRL_OFFSET);
-
-	/* Verify */
-	dev_info(&ndev->pdev->dev, "Secondary MPS set to %d\n", 128 << ((readw(ndev->reg_base + SNB_DEVCTRL_OFFSET) & PCI_EXP_DEVCTL_PAYLOAD) >> 5));
 
 	return rc;
 }
