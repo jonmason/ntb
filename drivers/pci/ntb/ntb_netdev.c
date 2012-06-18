@@ -142,16 +142,22 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 static void ntb_netdev_tx_handler(struct ntb_transport_qp *qp)
 {
 	struct net_device *ndev = netdev;
+	struct netdev_queue *txq;
 	struct sk_buff *skb;
 	int len;
 
 	while ((skb = ntb_transport_tx_dequeue(qp, &len))) {
-		struct netdev_queue *txq = netdev_get_tx_queue(ndev, skb->queue_mapping);
+		if (len > 0) {
+			ndev->stats.tx_packets++;
+			ndev->stats.tx_bytes += skb->len;
+		} else {
+			ndev->stats.tx_errors++;
+			ndev->stats.tx_dropped++;
+		}
 
-		ndev->stats.tx_packets++;
-		ndev->stats.tx_bytes += skb->len;
 		dev_kfree_skb(skb);
 
+		txq = netdev_get_tx_queue(ndev, skb->queue_mapping);
 		if (netif_tx_queue_stopped(txq))
 			netif_tx_wake_queue(txq);
 	}

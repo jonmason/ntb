@@ -165,6 +165,7 @@ struct ntb_transport {
 enum {
 	DESC_DONE_FLAG = 1 << 0,
 	LINK_DOWN_FLAG = 1 << 1,
+	HW_ERROR_FLAG = 1 << 2,
 };
 
 struct ntb_payload_header {
@@ -783,9 +784,14 @@ static int ntb_process_tx(struct ntb_transport_qp *qp,
 	}
 
 	if (entry->len > transport_mtu) {
-		//FIXME - tossing on the floor, should return pkt with error
-		ntb_list_add_tail(&qp->txc_lock, &entry->entry, &qp->txc);
 		pr_err("Trying to send pkt size of %d\n", entry->len);
+		entry->flags = HW_ERROR_FLAG;
+
+		ntb_list_add_tail(&qp->txc_lock, &entry->entry, &qp->txc);
+
+		if (qp->tx_handler)
+			qp->tx_handler(qp);
+
 		return 0;
 	}
 
@@ -1159,12 +1165,10 @@ void *ntb_transport_tx_dequeue(struct ntb_transport_qp *qp, unsigned int *len)
 		return NULL;
 
 	buf = entry->callback_data;
-	*len = entry->len;
-
-	//Sanity check for now
-	entry->callback_data = NULL;
-	entry->buf = NULL;
-	entry->len = 0;
+	if (entry->flags != HW_ERROR_FLAG)
+		*len = entry->len;
+	else
+		*len = -EIO;
 
 	ntb_list_add_tail(&qp->txe_lock, &entry->entry, &qp->txe);
 
@@ -1197,11 +1201,6 @@ void *ntb_transport_rx_dequeue(struct ntb_transport_qp *qp, unsigned int *len)
 
 	buf = entry->callback_data;
 	*len = entry->len;
-
-	//Sanity check for now
-	entry->callback_data = NULL;
-	entry->buf = NULL;
-	entry->len = 0;
 
 	ntb_list_add_tail(&qp->rxe_lock, &entry->entry, &qp->rxe);
 
