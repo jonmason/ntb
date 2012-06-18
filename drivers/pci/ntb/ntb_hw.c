@@ -77,6 +77,10 @@ static int max_num_cbs = 2;
 module_param(max_num_cbs, uint, 0644);
 MODULE_PARM_DESC(max_num_cbs, "Maximum number of NTB transport connections");
 
+static bool no_msix = false;
+module_param(no_msix, bool, 0644);
+MODULE_PARM_DESC(no_msix, "Do not allow MSI-X interrupts to be selected");
+
 enum {
 	NTB_CONN_CLASSIC = 0,
 	NTB_CONN_B2B,
@@ -864,27 +868,32 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 	int rc, i, pos;
 	u16 val;
 
+	if (no_msix) {
+		rc = -EINVAL;
+		goto err;
+	}
+
 	pos = pci_find_capability(pdev, PCI_CAP_ID_MSIX);
 	if (!pos) {
 		rc = -EIO;
-		goto err;
+		goto err1;
 	}
 
 	rc = pci_read_config_word(pdev, pos + PCI_MSIX_FLAGS, &val);
 	if (rc)
-		goto err;
+		goto err1;
 
 	msix_entries = msix_table_size(val);
 	if (msix_entries > ndev->limits.msix_cnt) {
 		rc = -EINVAL;
-		goto err;
+		goto err1;
 	}
 
 	ndev->msix_entries = kmalloc(sizeof(struct msix_entry) * msix_entries,
 				     GFP_KERNEL);
 	if (!ndev->msix_entries) {
 		rc = -ENOMEM;
-		goto err;
+		goto err1;
 	}
 
 	for (i = 0; i < msix_entries; i++)
@@ -892,14 +901,14 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 
 	rc = pci_enable_msix(pdev, ndev->msix_entries, msix_entries);
 	if (rc < 0)
-		goto err1;
+		goto err2;
 	if (rc > 0) {
 		/* On SNB, the link interrupt is always tied to 4th vector.  If
 		 * we can't get all 4, then we can't use MSI-X.
 		 */
 		if (ndev->hw_type != BWD_HW) {
 			rc = -EIO;
-			goto err1;
+			goto err2;
 		}
 
 		dev_warn(&pdev->dev, "Only %d MSI-X vectors.  Limiting the number of queues to that number.\n",
@@ -916,21 +925,21 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 			rc = request_irq(msix->vector, bwd_callback_msix_irq, 0,
 					 "ntb-callback-msix", &ndev->db_cb[i]);
 			if (rc)
-				goto err2;
+				goto err3;
 		} else {
 			if (i == msix_entries - 1) {
 				rc = request_irq(msix->vector,
 						 snb_event_msix_irq, 0,
 						"ntb-event-msix", ndev);
 				if (rc)
-					goto err2;
+					goto err3;
 			} else {
 				rc = request_irq(msix->vector,
 						 snb_callback_msix_irq, 0,
 						 "ntb-callback-msix",
 						 &ndev->db_cb[i]);
 				if (rc)
-					goto err2;
+					goto err3;
 			}
 		}
 	}
@@ -943,7 +952,7 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 
 	return 0;
 
-err2:
+err3:
 	while (--i >= 0) {
 		msix = &ndev->msix_entries[i];
 		if (ndev->hw_type != BWD_HW && i == ndev->num_msix - 1)
@@ -952,11 +961,12 @@ err2:
 			free_irq(msix->vector, &ndev->db_cb[i]);
 	}
 	pci_disable_msix(pdev);
-err1:
+err2:
 	kfree(ndev->msix_entries);
+err1:
+	dev_err(&pdev->dev, "Error allocating MSI-X interrupt\n");
 err:
 	ndev->num_msix = 0;
-	dev_err(&pdev->dev, "Error allocating MSI-X interrupt\n");
 	return rc;
 }
 
