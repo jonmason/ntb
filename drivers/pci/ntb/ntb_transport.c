@@ -663,7 +663,6 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	if (qp->rx_hdr_dump)
 		pr_info("HDR ver %Ld, len %d, flags %x\n", hdr->ver, hdr->len, hdr->flags);
 
-	//FIXME - do something with the other flags!
 	if (!(hdr->flags & DESC_DONE_FLAG)) {
 		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
 		qp->rx_ring_empty++;
@@ -671,7 +670,6 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	}
 
 	if (hdr->flags & NTB_LINK_DOWN) {
-		//FIXME - we should probably do this somewhere else
 		pr_info("qp %d: Link Down\n", qp->qp_num);
 		qp->qp_link = NTB_LINK_DOWN;
 		schedule_delayed_work(&qp->link_work, msecs_to_jiffies(1000));
@@ -680,6 +678,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 			qp->event_handler(NTB_LINK_DOWN);
 
 		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
+		wmb();
 		hdr->flags = 0;
 		goto out;
 	}
@@ -700,6 +699,7 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 		ntb_rx_copy_task(qp, entry, offset);
 	else {
 		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
+		wmb();
 		hdr->flags = 0;
 		qp->rx_err_oflow++;
 		pr_err("RX overflow! Wanted %d got %d\n", hdr->len, entry->len);
