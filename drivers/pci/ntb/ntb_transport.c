@@ -187,6 +187,7 @@ enum {
 #define	NTB_QP_DEF_RING_TIMEOUT	100
 #endif
 #define NTB_QP_DEF_NUM_ENTRIES	1000
+#define NTB_LINK_DOWN_TIMEOUT	1000
 
 struct ntb_transport *transport = NULL;
 
@@ -343,38 +344,48 @@ static int ntb_hw_link_up(void)
 	u32 val;
 	int rc, i;
 
-//FIXME -handle all of these error cases!
-
 	//send the local info
 	rc = ntb_write_remote_spad(transport->ndev, MW0_SZ, ntb_get_mw_size(transport->ndev, 0));
-	if (rc)
+	if (rc) {
 		pr_err("Error writing %x to remote spad %d\n", (u32) ntb_get_mw_size(transport->ndev, 0), MW0_SZ);
+		return rc;
+	}
 
 	rc = ntb_write_remote_spad(transport->ndev, MW1_SZ, ntb_get_mw_size(transport->ndev, 1));
-	if (rc)
+	if (rc) {
 		pr_err("Error writing %x to remote spad %d\n", (u32) ntb_get_mw_size(transport->ndev, 1), MW1_SZ);
+		return rc;
+	}
 
 	rc = ntb_write_remote_spad(transport->ndev, NUM_QPS, transport->max_qps);
-	if (rc)
+	if (rc) {
 		pr_err("Error writing %x to remote spad %d\n", transport->max_qps, NUM_QPS);
+		return rc;
+	}
 
 	rc = ntb_write_remote_spad(transport->ndev, QP_LINKS, 0);
-	if (rc)
+	if (rc) {
 		pr_err("Error writing %x to remote spad %d\n", 0, QP_LINKS);
 
+		return rc;
+	}
 
 	//get remote info
 	rc = ntb_read_remote_spad(transport->ndev, NUM_QPS, &val);
-	if (rc)
+	if (rc) {
 		pr_err("Error reading remote spad %d\n", NUM_QPS);
+		return rc;
+	}
 
 	pr_info("Remote max number of qps = %d\n", val);
 	if (val != transport->max_qps)
 		return -EINVAL;
 
 	rc = ntb_read_remote_spad(transport->ndev, MW0_SZ, &val);
-	if (rc)
+	if (rc) {
 		pr_err("Error reading remote spad %d\n", MW0_SZ);
+		return rc;
+	}
 
 	pr_info("Remote MW0 size = %d\n", val);
 	if (!val)
@@ -385,8 +396,10 @@ static int ntb_hw_link_up(void)
 		return rc;
 
 	rc = ntb_read_remote_spad(transport->ndev, MW1_SZ, &val);
-	if (rc)
+	if (rc) {
 		pr_err("Error reading remote spad %d\n", MW1_SZ);
+		return rc;
+	}
 
 	pr_info("Remote MW1 size = %d\n", val);
 	if (!val)
@@ -857,8 +870,7 @@ static void ntb_send_link_down(struct ntb_transport_qp *qp)
 
 	qp->qp_link = NTB_LINK_DOWN;
 
-	//FIXME - should give this an upper bound...
-	for (i = 0; i < 1000 && !(entry = ntb_list_rm_head(&qp->txe_lock, &qp->txe)); i++)
+	for (i = 0; i < NTB_LINK_DOWN_TIMEOUT && !(entry = ntb_list_rm_head(&qp->txe_lock, &qp->txe)); i++)
 		msleep(1);
 
 	entry->callback_data = NULL;
@@ -888,7 +900,6 @@ static void ntb_send_link_down(struct ntb_transport_qp *qp)
  *
  * RETURNS: pointer to newly created ntb_queue, NULL on error.
  */
-//FIXME - this might only be permissible in non-interrupt context
 struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 						    handler tx_handler,
 						    ehandler event_handler)
@@ -904,7 +915,6 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 			return NULL;
 	}
 
-	//FIXME - need to handhake with remote side to determine matching number or some mapping between the 2
 	free_queue = ffs(transport->qp_bitmap);
 	if (!free_queue)
 		goto err;
@@ -1256,7 +1266,7 @@ void ntb_transport_link_down(struct ntb_transport_qp *qp)
 	if (rc)
 		pr_err("Error writing %x to remote spad %d\n", val & ~(1 << qp->qp_num), QP_LINKS);
 
-	if (transport->transport_link == NTB_LINK_UP)//FIXME - only need to send if already connected
+	if (transport->transport_link == NTB_LINK_UP)
 		ntb_send_link_down(qp);
 }
 EXPORT_SYMBOL(ntb_transport_link_down);
