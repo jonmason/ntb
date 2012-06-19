@@ -119,15 +119,13 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 			ndev->stats.rx_bytes += len;
 		}
 
-		skb = netdev_alloc_skb(ndev, ndev->mtu + ETH_HLEN + NET_IP_ALIGN);
+		skb = netdev_alloc_skb(ndev, ndev->mtu + ETH_HLEN);
 		if (!skb) {
 			ndev->stats.rx_errors++;
 			ndev->stats.rx_frame_errors++;
 			pr_err("%s: No skb\n", __func__);
 			break;
 		}
-
-		skb_reserve(skb, NET_IP_ALIGN);
 
 		rc = ntb_transport_rx_enqueue(qp, skb, skb->data, ndev->mtu + ETH_HLEN);
 		if (rc) {
@@ -200,13 +198,11 @@ static int ntb_netdev_open(struct net_device *ndev)
 	/* Add some empty rx bufs */
 	for (qp_num = 0; qp_num < num_qps; qp_num++)
 		for (i = 0; i < NTB_RXQ_SIZE; i++) {
-			skb = netdev_alloc_skb(ndev, ndev->mtu + ETH_HLEN + NET_IP_ALIGN);
+			skb = netdev_alloc_skb(ndev, ndev->mtu + ETH_HLEN);
 			if (!skb) {
 				rc = -ENOMEM;
 				goto err;
 			}
-
-			skb_reserve(skb, NET_IP_ALIGN);
 
 			rc = ntb_transport_rx_enqueue(dev->qp[qp_num], skb, skb->data, ndev->mtu + ETH_HLEN);
 			if (rc)
@@ -269,13 +265,11 @@ static int ntb_netdev_change_mtu(struct net_device *ndev, int new_mtu)
 				kfree(skb);
 
 			for (; i; i--) {
-				skb = netdev_alloc_skb(ndev, ndev->mtu + ETH_HLEN + NET_IP_ALIGN);
+				skb = netdev_alloc_skb(ndev, ndev->mtu + ETH_HLEN);
 				if (!skb) {
 					rc = -ENOMEM;
 					goto err;
 				}
-
-				skb_reserve(skb, NET_IP_ALIGN);
 
 				rc = ntb_transport_rx_enqueue(dev->qp[qp_num], skb, skb->data, new_mtu + ETH_HLEN);
 				if (rc) {
