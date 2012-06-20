@@ -127,12 +127,6 @@ struct ntb_transport_qp {
 	struct dentry *debugfs_dir;
 	struct dentry *debugfs_stats;
 
-	struct dentry *debugfs_rx_hdr_dump;
-	struct dentry *debugfs_tx_hdr_dump;
-
-	u32 rx_hdr_dump;
-	u32 tx_hdr_dump;
-
 	/* Stats */
 	u64 rx_bytes;
 	u64 rx_pkts;
@@ -189,7 +183,7 @@ enum {
 #define NTB_QP_DEF_NUM_ENTRIES	1000
 #define NTB_LINK_DOWN_TIMEOUT	1000
 
-struct ntb_transport *transport = NULL;
+static struct ntb_transport *transport;
 
 static int debugfs_open(struct inode *inode, struct file *filp)
 {
@@ -211,25 +205,25 @@ static ssize_t debugfs_read(struct file *filp, char __user *ubuf, size_t count,
 	out_offset += snprintf(buf + out_offset, out_count - out_offset,
 			       "NTB Transport stats\n");
 	out_offset += snprintf(buf + out_offset, out_count - out_offset,
-			       "rx_bytes - %Ld\n", qp->rx_bytes);
+			       "rx_bytes - %llu\n", qp->rx_bytes);
 	out_offset += snprintf(buf + out_offset, out_count - out_offset,
-			       "rx_pkts - %Ld\n", qp->rx_pkts);
+			       "rx_pkts - %llu\n", qp->rx_pkts);
 	out_offset += snprintf(buf + out_offset, out_count - out_offset,
-			       "rx_ring_empty - %Ld\n", qp->rx_ring_empty);
+			       "rx_ring_empty - %llu\n", qp->rx_ring_empty);
 	out_offset += snprintf(buf + out_offset, out_count - out_offset,
-			       "rx_err_no_buf - %Ld\n", qp->rx_err_no_buf);
+			       "rx_err_no_buf - %llu\n", qp->rx_err_no_buf);
 	out_offset += snprintf(buf + out_offset, out_count - out_offset,
-			       "rx_er_oflow - %Ld\n", qp->rx_err_oflow);
+			       "rx_er_oflow - %llu\n", qp->rx_err_oflow);
 	out_offset += snprintf(buf + out_offset, out_count - out_offset,
-			       "rx_err_ver - %Ld\n", qp->rx_err_ver);
+			       "rx_err_ver - %llu\n", qp->rx_err_ver);
 	out_offset += snprintf(buf + out_offset, out_count - out_offset,
 			       "rx_offset - %p\n", qp->rx_offset);
 	out_offset += snprintf(buf + out_offset, out_count - out_offset,
-			       "tx_bytes - %Ld\n", qp->tx_bytes);
+			       "tx_bytes - %llu\n", qp->tx_bytes);
 	out_offset += snprintf(buf + out_offset, out_count - out_offset,
-			       "tx_pkts - %Ld\n", qp->tx_pkts);
+			       "tx_pkts - %llu\n", qp->tx_pkts);
 	out_offset += snprintf(buf + out_offset, out_count - out_offset,
-			       "tx_ring_full - %Ld\n", qp->tx_ring_full);
+			       "tx_ring_full - %llu\n", qp->tx_ring_full);
 	out_offset += snprintf(buf + out_offset, out_count - out_offset,
 			       "tx_offset - %p\n", qp->tx_offset);
 
@@ -468,7 +462,10 @@ static void ntb_transport_event_callback(void *data, unsigned int event)
 				qp->qp_link = NTB_LINK_DOWN;
 			}
 
-		/* The scratchpad registers keep the values if the remote sides goes down, blast them now */
+		/* The scratchpad registers keep the values if the remote side
+		 * goes down, blast them now to give them a sane value the next
+		 * time they are accessed
+		 */
 		for (i = 0; i < MAX_SPAD; i++) {
 			ntb_write_local_spad(transport->ndev, i, 0);
 			ntb_write_remote_spad(transport->ndev, i, 0);
@@ -486,9 +483,10 @@ static void ntb_transport_link_work(struct work_struct *work)
 
 static void ntb_qp_link_work(struct work_struct *work)
 {
-	struct ntb_transport_qp *qp = container_of(work, struct ntb_transport_qp,
-						   link_work.work);
+	struct ntb_transport_qp *qp;
 	int rc, val;
+
+	qp = container_of(work, struct ntb_transport_qp, link_work.work);
 
 	WARN_ON(transport->transport_link != NTB_LINK_UP);
 
@@ -530,8 +528,6 @@ static void ntb_transport_init_queue(unsigned int qp_num)
 	qp->ndev = transport->ndev;
 	qp->qp_link = NTB_LINK_DOWN;
 
-	qp->rx_hdr_dump = 0;
-	qp->tx_hdr_dump = 0;
 #if 1
 	qp->tx_ring_timeo = NTB_QP_DEF_RING_TIMEOUT;
 #endif
@@ -543,11 +539,14 @@ static void ntb_transport_init_queue(unsigned int qp_num)
 		qp->debugfs_dir = debugfs_create_dir(debugfs_name,
 						     transport->debugfs_dir);
 
-		qp->debugfs_stats = debugfs_create_file("stats",S_IRUSR | S_IRGRP | S_IROTH, qp->debugfs_dir, qp, &ntb_qp_debugfs_stats);
-		qp->debugfs_rx_hdr_dump = debugfs_create_bool("rx_hdr_dump", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->rx_hdr_dump);
-		qp->debugfs_tx_hdr_dump = debugfs_create_bool("tx_hdr_dump", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->tx_hdr_dump);
+		qp->debugfs_stats = debugfs_create_file("stats", S_IRUSR,
+							 qp->debugfs_dir, qp,
+							 &ntb_qp_debugfs_stats);
 #if 1
-		qp->debugfs_tx_to = debugfs_create_u32("tx_ring_timeo", S_IRUSR | S_IWUSR, qp->debugfs_dir, &qp->tx_ring_timeo);
+		qp->debugfs_tx_to = debugfs_create_u32("tx_ring_timeo",
+							S_IRUSR | S_IWUSR,
+							qp->debugfs_dir,
+							&qp->tx_ring_timeo);
 #endif
 	}
 
@@ -642,8 +641,6 @@ static void ntb_transport_free(void)
 
 	debugfs_remove_recursive(transport->debugfs_dir);
 
-	/* To be here, all of the queues were already free'd.  No need to try and clean them up */
-
 	ntb_unregister_event_callback(transport->ndev);
 
 	pdev = ntb_query_pdev(transport->ndev);
@@ -663,8 +660,7 @@ static void ntb_transport_free(void)
 static void ntb_rx_copy_task(struct ntb_transport_qp *qp,
 			     struct ntb_queue_entry *entry, void *offset)
 {
-	volatile struct ntb_payload_header *hdr;
-	hdr = offset;
+	volatile struct ntb_payload_header *hdr = offset;
 
 	entry->len = hdr->len;
 	offset += sizeof(struct ntb_payload_header);
@@ -687,18 +683,14 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	entry = ntb_list_rm_head(&qp->rxq_lock, &qp->rxq);
 	if (!entry) {
 		hdr = qp->rx_offset;
-		pr_info("no buffer - HDR ver %Ld, len %d, flags %x\n", hdr->ver,
-			hdr->len, hdr->flags);
+		pr_info("no buffer - HDR ver %llu, len %d, flags %x\n",
+			hdr->ver, hdr->len, hdr->flags);
 		qp->rx_err_no_buf++;
 		return -ENOMEM;
 	}
 
 	offset = qp->rx_offset;
 	hdr = offset;
-
-	if (qp->rx_hdr_dump)
-		pr_info("HDR ver %Ld, len %d, flags %x\n", hdr->ver, hdr->len,
-			hdr->flags);
 
 	if (!(hdr->flags & DESC_DONE_FLAG)) {
 		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
@@ -721,14 +713,14 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	}
 
 	if (hdr->ver != qp->rx_pkts) {
-		pr_debug("qp %d: version mismatch, expected %Ld - got %Ld\n",
+		pr_debug("qp %d: version mismatch, expected %llu - got %llu\n",
 			 qp->qp_num, qp->rx_pkts, hdr->ver);
 		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
 		qp->rx_err_ver++;
 		return -EIO;
 	}
 
-	pr_debug("rx offset %p, ver %Ld - %d payload received, "
+	pr_debug("rx offset %p, ver %llu - %d payload received, "
 		 "buf size %d\n", qp->rx_offset, hdr->ver, hdr->len,
 		 entry->len);
 
@@ -813,10 +805,6 @@ static int ntb_process_tx(struct ntb_transport_qp *qp,
 
 	offset = qp->tx_offset;
 	hdr = offset;
-
-	if (qp->tx_hdr_dump)
-		pr_info("HDR ver %Ld, len %d, flags %x\n", hdr->ver, hdr->len,
-			hdr->flags);
 
 	pr_debug("%lld - offset %p, tx %p, entry len %d flags %x buff %p\n",
 		 qp->tx_pkts, offset, qp->tx_offset, entry->len, entry->flags,
@@ -926,9 +914,9 @@ static void ntb_send_link_down(struct ntb_transport_qp *qp)
 
 /**
  * ntb_transport_create_queue - Create a new NTB transport layer queue
- * @rx_handler: receive callback function 
- * @tx_handler: transmit callback function 
- * @event_handler: event callback function 
+ * @rx_handler: receive callback function
+ * @tx_handler: transmit callback function
+ * @event_handler: event callback function
  *
  * Create a new NTB transport layer queue and provide the queue with a callback
  * routine for both transmit and receive.  The receive callback routine will be
@@ -1024,7 +1012,7 @@ EXPORT_SYMBOL(ntb_transport_create_queue);
  * ntb_transport_free_queue - Frees NTB transport queue
  * @qp: NTB queue to be freed
  *
- * Frees NTB transport queue 
+ * Frees NTB transport queue
  */
 void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 {
@@ -1193,7 +1181,7 @@ EXPORT_SYMBOL(ntb_transport_tx_enqueue);
  * ntb_transport_tx_dequeue - Dequeue a NTB queue entry
  * @qp: NTB transport layer queue to be dequeued from
  * @len: length of the data buffer
- * 
+ *
  * This function will dequeue a buffer from the transmit complete queue.
  * Entries will only be enqueued on this queue after having been
  * transfered to the remote side.
@@ -1229,7 +1217,7 @@ EXPORT_SYMBOL(ntb_transport_tx_dequeue);
  * ntb_transport_rx_dequeue - Dequeue a NTB queue entry
  * @qp: NTB transport layer queue to be dequeued from
  * @len: length of the data buffer
- * 
+ *
  * This function will dequeue a buffer from the receive complete queue.
  * Entries will only be enqueued on this queue after having been fully received.
  *
@@ -1316,7 +1304,7 @@ EXPORT_SYMBOL(ntb_transport_link_down);
  * ntb_transport_link_query - Query transport link state
  * @qp: NTB transport layer queue to be queried
  *
- * Query connectivity to the remote system of the NTB transport queue 
+ * Query connectivity to the remote system of the NTB transport queue
  *
  * RETURNS: true for link up or false for link down
  */

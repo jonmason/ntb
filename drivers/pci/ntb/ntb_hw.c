@@ -77,7 +77,7 @@ static int max_num_cbs = 2;
 module_param(max_num_cbs, uint, 0644);
 MODULE_PARM_DESC(max_num_cbs, "Maximum number of NTB transport connections");
 
-static bool no_msix = false;
+static bool no_msix;
 module_param(no_msix, bool, 0644);
 MODULE_PARM_DESC(no_msix, "Do not allow MSI-X interrupts to be selected");
 
@@ -149,15 +149,15 @@ struct ntb_device {
 /* Translate memory window 0,1 to BAR 2,4 */
 #define MW_TO_BAR(mw)	(mw * 2 + 2)
 
-static struct pci_device_id ntb_pci_tbl[] = {
+static DEFINE_PCI_DEVICE_TABLE(ntb_pci_tbl) = {
 	{PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_NTB_B2B_JSF)},
 	{PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_NTB_B2B_SNB)},
 	{PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_NTB_B2B_BWD)},
-	{0,}
+	{0}
 };
 MODULE_DEVICE_TABLE(pci, ntb_pci_tbl);
 
-struct ntb_device *ntbdev;
+static struct ntb_device *ntbdev;
 
 /**
  * ntb_hw_link_status() - return the hardware link status
@@ -191,7 +191,8 @@ EXPORT_SYMBOL(ntb_query_pdev);
  * ntb_query_max_cbs() - return the maximum number of callback tuples
  * @ndev: pointer to ntb_device instance
  *
- * The number of callbacks can vary depending on the platform and MSI-X/MSI enablement
+ * The number of callbacks can vary depending on the platform and MSI-X/MSI
+ * enablement
  *
  * RETURNS: the maximum number of callback tuples (3, 15, or 33)
  */
@@ -206,8 +207,8 @@ EXPORT_SYMBOL(ntb_query_max_cbs);
  * @ndev: pointer to ntb_device instance
  * @func: callback function to register
  *
- * This function registers a callback for any HW driver events such as link up/down,
- * power management notices and etc.
+ * This function registers a callback for any HW driver events such as link
+ * up/down, power management notices and etc.
  *
  * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
  */
@@ -449,7 +450,8 @@ EXPORT_SYMBOL(ntb_read_remote_spad);
  * @ndev: pointer to ntb_device instance
  * @mw: memory window number
  *
- * This function provides the base virtual address of the memory window specified.
+ * This function provides the base virtual address of the memory window
+ * specified.
  *
  * RETURNS: pointer to virtual address, or NULL on error.
  */
@@ -607,14 +609,16 @@ static int ntb_link_status(struct ntb_device *ndev)
 	return 0;
 }
 
-/* BWD doesn't have link status interrupt, so we need to poll on that platform */
+/* BWD doesn't have link status interrupt, poll on that platform */
 static void ntb_handle_heartbeat(struct work_struct *work)
 {
 	struct ntb_device *ndev = container_of(work, struct ntb_device,
 					       hb_timer.work);
 	unsigned long ts = jiffies;
 
-	/* If we haven't gotten an interrupt in a while, check the BWD link status bit */
+	/* If we haven't gotten an interrupt in a while, check the BWD link
+	 * status bit
+	 */
 	if (ts > ndev->last_ts + NTB_HB_TIMEOUT) {
 		int rc = ntb_link_status(ndev);
 		if (rc)
@@ -746,12 +750,16 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	if (rc)
 		return rc;
 
-	/* Some buggy BIOSes aren't filling out the XLAT offsets.  Check, notify, and correct the issue.  */
+	/* Some buggy BIOSes aren't filling out the XLAT offsets.
+	 * Check, notify, and correct the issue.
+	 */
 	if (ndev->dev_type == NTB_DEV_USD) {
 		if (!readq(ndev->reg_base + BWD_PBAR2XLAT_OFFSET)) {
 			dev_err(&ndev->pdev->dev,
 				"BWD_PBAR2XLAT_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
-			/* Setting eEP MBAR23XLAT, should match eEP MBAR23 on remote system */
+			/* Setting eEP MBAR23XLAT, should match eEP MBAR23 on
+			 * remote system
+			 */
 			writeq(BWD_PBAR2XLAT_USD_ADDR,
 			       ndev->reg_base + BWD_PBAR2XLAT_OFFSET);
 		}
@@ -759,7 +767,9 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 		if (!readq(ndev->reg_base + BWD_PBAR4XLAT_OFFSET)) {
 			dev_err(&ndev->pdev->dev,
 				"BWD_PBAR4XLAT_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
-			/* Setting eEP MBAR45XLAT, should match eEP MBAR23 on remote system */
+			/* Setting eEP MBAR45XLAT, should match eEP MBAR23 on
+			 * remote system
+			 */
 			writeq(BWD_PBAR4XLAT_USD_ADDR,
 			       ndev->reg_base + BWD_PBAR4XLAT_OFFSET);
 		}
@@ -767,7 +777,9 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 		if (!readq(ndev->reg_base + BWD_MBAR23_OFFSET)) {
 			dev_err(&ndev->pdev->dev,
 				"BWD_MBAR23_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
-			/* Setting eEP MBAR23, should match eEP MBAR23XLAT on remote system */
+			/* Setting eEP MBAR23, should match eEP MBAR23XLAT on
+			 * remote system
+			 */
 			writeq(BWD_MBAR23_USD_ADDR,
 			       ndev->reg_base + BWD_MBAR23_OFFSET);
 		}
@@ -775,7 +787,9 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 		if (!readq(ndev->reg_base + BWD_MBAR45_OFFSET)) {
 			dev_err(&ndev->pdev->dev,
 				"BWD_MBAR45_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
-			/* Setting eEP MBAR45, should match eEP MBAR45XLAT on remote system */
+			/* Setting eEP MBAR45, should match eEP MBAR45XLAT on
+			 * remote system
+			 */
 			writeq(BWD_MBAR45_USD_ADDR,
 			       ndev->reg_base + BWD_MBAR45_OFFSET);
 		}
@@ -783,7 +797,9 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 		if (!readq(ndev->reg_base + BWD_PBAR2XLAT_OFFSET)) {
 			dev_err(&ndev->pdev->dev,
 				"BWD_PBAR2XLAT_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
-			/* Setting eEP MBAR23XLAT, should match eEP MBAR23 on remote system */
+			/* Setting eEP MBAR23XLAT, should match eEP MBAR23 on
+			 * remote system
+			 */
 			writeq(BWD_PBAR2XLAT_DSD_ADDR,
 			       ndev->reg_base + BWD_PBAR2XLAT_OFFSET);
 		}
@@ -791,7 +807,9 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 		if (!readq(ndev->reg_base + BWD_PBAR4XLAT_OFFSET)) {
 			dev_err(&ndev->pdev->dev,
 				"BWD_PBAR4XLAT_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
-			/* Setting eEP MBAR45XLAT, should match eEP MBAR23 on remote system */
+			/* Setting eEP MBAR45XLAT, should match eEP MBAR23 on
+			 * remote system
+			 */
 			writeq(BWD_PBAR4XLAT_DSD_ADDR,
 			       ndev->reg_base + BWD_PBAR4XLAT_OFFSET);
 		}
@@ -799,7 +817,9 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 		if (!readq(ndev->reg_base + BWD_MBAR23_OFFSET)) {
 			dev_err(&ndev->pdev->dev,
 				"BWD_MBAR23_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
-			/* Setting eEP MBAR23, should match eEP MBAR23XLAT on remote system */
+			/* Setting eEP MBAR23, should match eEP MBAR23XLAT on
+			 * remote system
+			 */
 			writeq(BWD_MBAR23_DSD_ADDR,
 			       ndev->reg_base + BWD_MBAR23_OFFSET);
 		}
@@ -807,7 +827,9 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 		if (!readq(ndev->reg_base + BWD_MBAR45_OFFSET)) {
 			dev_err(&ndev->pdev->dev,
 				"BWD_MBAR45_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
-			/* Setting eEP MBAR45, should match eEP MBAR45XLAT on remote system */
+			/* Setting eEP MBAR45, should match eEP MBAR45XLAT on
+			 * remote system
+			 */
 			writeq(BWD_MBAR45_DSD_ADDR,
 			       ndev->reg_base + BWD_MBAR45_OFFSET);
 		}
@@ -1257,7 +1279,9 @@ static int __devinit ntb_pci_probe(struct pci_dev *pdev,
 	if (rc)
 		goto err5;
 
-	/* The scratchpad registers keep the values between rmmod/insmod, blast them now */
+	/* The scratchpad registers keep the values between rmmod/insmod,
+	 * blast them now
+	 */
 	for (i = 0; i < ndev->limits.max_spads; i++) {
 		ntb_write_local_spad(ndev, i, 0);
 		ntb_write_remote_spad(ndev, i, 0);
