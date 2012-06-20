@@ -329,7 +329,7 @@ static int ntb_set_mw(int num_mw, unsigned int size)
 		return -ENOMEM;
 	}
 
-	//setup the hdr offsets with 0's
+	/* setup the hdr offsets with 0's */
 	for (offset = mw->virt_addr; offset + sizeof(struct ntb_payload_header) < mw->virt_addr + size; offset += transport_mtu + sizeof(struct ntb_payload_header))
 		memset(offset, 0, sizeof(struct ntb_payload_header));
 
@@ -344,7 +344,7 @@ static int ntb_hw_link_up(void)
 	u32 val;
 	int rc, i;
 
-	//send the local info
+	/* send the local info */
 	rc = ntb_write_remote_spad(transport->ndev, MW0_SZ, ntb_get_mw_size(transport->ndev, 0));
 	if (rc) {
 		pr_err("Error writing %x to remote spad %d\n", (u32) ntb_get_mw_size(transport->ndev, 0), MW0_SZ);
@@ -370,7 +370,7 @@ static int ntb_hw_link_up(void)
 		return rc;
 	}
 
-	//get remote info
+	/* Query the remote side for its info */
 	rc = ntb_read_remote_spad(transport->ndev, NUM_QPS, &val);
 	if (rc) {
 		pr_err("Error reading remote spad %d\n", NUM_QPS);
@@ -461,7 +461,7 @@ static void ntb_transport_event_callback(void *data, unsigned int event)
 
 static void ntb_transport_link_work(struct work_struct *work)
 {
-	int rc = ntb_hw_link_up(); //why not have this code in this func?
+	int rc = ntb_hw_link_up();
 	if (rc && ntb_hw_link_status(transport->ndev))
 		schedule_delayed_work(&transport->link_work, msecs_to_jiffies(1000));
 }
@@ -484,7 +484,7 @@ static void ntb_qp_link_work(struct work_struct *work)
 	if (rc)
 		pr_err("Error writing %x to remote spad %d\n", val | 1 << qp->qp_num, QP_LINKS);
 
-	//query remote spad for qp ready bit
+	/* query remote spad for qp ready bits */
 	rc = ntb_read_remote_spad(transport->ndev, QP_LINKS, &val);
 	if (rc)
 		pr_err("Error reading remote spad %d\n", QP_LINKS);
@@ -591,7 +591,7 @@ static int ntb_transport_init(void)
 		goto err2;
 
 	INIT_DELAYED_WORK(&transport->link_work, ntb_transport_link_work);
-	rc = ntb_hw_link_up(); //why not have this code in this func?
+	rc = ntb_hw_link_up();
 	if (rc && ntb_hw_link_status(transport->ndev))
 		schedule_delayed_work(&transport->link_work, msecs_to_jiffies(1000));
 
@@ -647,7 +647,6 @@ static void ntb_rx_copy_task(struct ntb_transport_qp *qp, struct ntb_queue_entry
 	entry->len = hdr->len;
 	offset += sizeof(struct ntb_payload_header);
 	memcpy(entry->buf, offset, entry->len);
-	//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
 
 	wmb();
 	hdr->flags = 0;
@@ -753,7 +752,6 @@ static void ntb_tx_copy_task(struct ntb_transport_qp *qp, struct ntb_queue_entry
 	int rc;
 
 	offset += sizeof(struct ntb_payload_header);
-	//print_hex_dump_bytes(" ", 0, entry->buf, entry->len);
 	memcpy_toio(offset, entry->buf, entry->len);
 
 	hdr->len = entry->len;
@@ -1125,7 +1123,7 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, void *cb, void *data, 
 	entry = ntb_list_rm_head(&qp->txe_lock, &qp->txe);
 	if (!entry) {
 #if 0
-		//ring full, kick it
+		/* ring full, kick it */
 		tasklet_schedule(&qp->tx_work);
 #endif
 		return -ENOMEM;
@@ -1308,6 +1306,5 @@ EXPORT_SYMBOL(ntb_transport_qp_num);
 unsigned int ntb_transport_max_size(struct ntb_transport_qp *qp)
 {
 	return transport_mtu;
-	//return (qp->tx_mw_end - qp->tx_mw_begin) - sizeof(struct ntb_payload_header);
 }
 EXPORT_SYMBOL(ntb_transport_max_size);
