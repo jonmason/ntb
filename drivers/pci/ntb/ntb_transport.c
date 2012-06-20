@@ -958,8 +958,6 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 	tasklet_init(&qp->tx_work, ntb_transport_tx, (unsigned long) qp);
 #endif
 
-	//FIXME - transport->qps[free_queue].queue.hw_caps; is it even necessary for transport client to know?
-
 	rc = ntb_register_db_callback(qp->ndev, free_queue,
 				      ntb_transport_rxc_db);
 	if (rc)

@@ -85,13 +85,17 @@ struct net_device *netdev;
 
 static void ntb_netdev_event_handler(int status)
 {
-//FIXME - need counter to see if max, then enable
+	struct ntb_netdev *dev = netdev_priv(netdev);
+	int i;
 
 	/* Currently, only link status event is supported */
-	if (status)
-		netif_carrier_on(netdev);
-	else
-		netif_carrier_off(netdev);
+	for (i = 0; i < num_qps; i++)
+		if (!ntb_transport_link_query(dev->qp[i])) {
+			netif_carrier_off(netdev);
+			return;
+		}
+
+	netif_carrier_on(netdev);
 }
 
 static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
@@ -303,16 +307,12 @@ static void ntb_netdev_txto_work(struct work_struct *work)
 	struct net_device *ndev = dev->ndev;
 
 	if (netif_running(ndev)) {
-#if 0 
 		int rc;
 
 		ntb_netdev_close(ndev);
 		rc = ntb_netdev_open(ndev);
 		if (rc)
 			pr_err("%s: Open failed\n", __func__);
-#else
-		netif_tx_wake_all_queues(ndev);
-#endif
 	}
 }
 
@@ -407,8 +407,7 @@ static int __init ntb_netdev_init_module(void)
 
 	dev = netdev_priv(netdev);
 	dev->ndev = netdev;
-	netdev->features = NETIF_F_HIGHDMA;	//FIXME - check this against the flags returned by the ntb dev???
-	//FIXME - there is bound to be more flags supported.  NETIF_F_SG comes to mind, prolly NETIF_F_FRAGLIST, NETIF_F_NO_CSUM, 
+	netdev->features = NETIF_F_HIGHDMA;
 
 	netdev->hw_features = netdev->features;
 	netdev->watchdog_timeo = msecs_to_jiffies(NTB_TX_TIMEOUT_MS);
@@ -427,6 +426,8 @@ static int __init ntb_netdev_init_module(void)
 		goto err;
 	}
 
+	netdev->mtu = -1;
+
 	for (i = 0; i < num_qps; i++) {
 		dev->qp[i] = ntb_transport_create_queue(ntb_netdev_rx_handler,
 						     ntb_netdev_tx_handler,
@@ -437,9 +438,8 @@ static int __init ntb_netdev_init_module(void)
 			goto err1;
 		}
 
-		//FIXME - magical MTU that has better perf
-		//FIXME - should be the min size of all the qp mtus
-		netdev->mtu = ntb_transport_max_size(dev->qp[i]) - ETH_HLEN;
+		if (ntb_transport_max_size(dev->qp[i]) - ETH_HLEN < netdev->mtu)
+			netdev->mtu = ntb_transport_max_size(dev->qp[i]) - ETH_HLEN;
 	}
 
 	rc = register_netdev(netdev);
