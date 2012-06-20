@@ -103,6 +103,12 @@ struct ntb_mw {
 	resource_size_t bar_sz;
 };
 
+struct ntb_db_cb {
+	db_cb_func callback;
+	unsigned int db_num;
+	struct ntb_device *ndev;
+};
+
 struct ntb_device {
 	struct pci_dev *pdev;
 	struct msix_entry *msix_entries;

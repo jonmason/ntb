@@ -70,14 +70,10 @@
 
 #define NTB_HB_TIMEOUT		msecs_to_jiffies(1000)
 
+struct ntb_device;
+
 typedef void (*db_cb_func) (int db_num);
 typedef void (*event_cb_func) (void *handle, unsigned int event);
-
-struct ntb_db_cb {
-	db_cb_func callback;
-	unsigned int db_num;
-	struct ntb_device *ndev;
-};
 
 #define NTB_NUM_MW	2
 
