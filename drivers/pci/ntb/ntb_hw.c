@@ -531,7 +531,8 @@ int ntb_ring_sdb(struct ntb_device *ndev, unsigned int db)
 	if (ndev->hw_type == BWD_HW)
 		writeq((u64) 1 << db, ndev->reg_ofs.sdb);
 	else
-		writew(((1 << ndev->bits_per_vector) - 1) << (db * ndev->bits_per_vector), ndev->reg_ofs.sdb);
+		writew(((1 << ndev->bits_per_vector) - 1) <<
+		       (db * ndev->bits_per_vector), ndev->reg_ofs.sdb);
 
 	return 0;
 }
@@ -673,7 +674,7 @@ static int ntb_snb_b2b_setup(struct ntb_device *ndev)
 
 	ndev->limits.max_db_bits = SNB_MAX_DB_BITS;
 	ndev->limits.msix_cnt = SNB_MSIX_CNT;
-	ndev->bits_per_vector = SNB_DB_BITS_PER_VEC; 
+	ndev->bits_per_vector = SNB_DB_BITS_PER_VEC;
 
 	return 0;
 }
@@ -732,7 +733,7 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 
 	ndev->limits.max_db_bits = BWD_MAX_DB_BITS;
 	ndev->limits.msix_cnt = BWD_MSIX_CNT;
-	ndev->bits_per_vector = BWD_DB_BITS_PER_VEC; 
+	ndev->bits_per_vector = BWD_DB_BITS_PER_VEC;
 
 	/* Since bwd doesn't have a link interrupt, setup a heartbeat timer */
 	INIT_DELAYED_WORK(&ndev->hb_timer, ntb_handle_heartbeat);
@@ -748,51 +749,67 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	/* Some buggy BIOSes aren't filling out the XLAT offsets.  Check, notify, and correct the issue.  */
 	if (ndev->dev_type == NTB_DEV_USD) {
 		if (!readq(ndev->reg_base + BWD_PBAR2XLAT_OFFSET)) {
-			dev_err(&ndev->pdev->dev, "BWD_PBAR2XLAT_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
+			dev_err(&ndev->pdev->dev,
+				"BWD_PBAR2XLAT_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
 			/* Setting eEP MBAR23XLAT, should match eEP MBAR23 on remote system */
-			writeq(BWD_PBAR2XLAT_USD_ADDR, ndev->reg_base + BWD_PBAR2XLAT_OFFSET);
+			writeq(BWD_PBAR2XLAT_USD_ADDR,
+			       ndev->reg_base + BWD_PBAR2XLAT_OFFSET);
 		}
 
 		if (!readq(ndev->reg_base + BWD_PBAR4XLAT_OFFSET)) {
-			dev_err(&ndev->pdev->dev, "BWD_PBAR4XLAT_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
+			dev_err(&ndev->pdev->dev,
+				"BWD_PBAR4XLAT_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
 			/* Setting eEP MBAR45XLAT, should match eEP MBAR23 on remote system */
-			writeq(BWD_PBAR4XLAT_USD_ADDR, ndev->reg_base + BWD_PBAR4XLAT_OFFSET);
+			writeq(BWD_PBAR4XLAT_USD_ADDR,
+			       ndev->reg_base + BWD_PBAR4XLAT_OFFSET);
 		}
 
 		if (!readq(ndev->reg_base + BWD_MBAR23_OFFSET)) {
-			dev_err(&ndev->pdev->dev, "BWD_MBAR23_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
+			dev_err(&ndev->pdev->dev,
+				"BWD_MBAR23_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
 			/* Setting eEP MBAR23, should match eEP MBAR23XLAT on remote system */
-			writeq(BWD_MBAR23_USD_ADDR, ndev->reg_base + BWD_MBAR23_OFFSET);
+			writeq(BWD_MBAR23_USD_ADDR,
+			       ndev->reg_base + BWD_MBAR23_OFFSET);
 		}
 
 		if (!readq(ndev->reg_base + BWD_MBAR45_OFFSET)) {
-			dev_err(&ndev->pdev->dev, "BWD_MBAR45_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
+			dev_err(&ndev->pdev->dev,
+				"BWD_MBAR45_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
 			/* Setting eEP MBAR45, should match eEP MBAR45XLAT on remote system */
-			writeq(BWD_MBAR45_USD_ADDR, ndev->reg_base + BWD_MBAR45_OFFSET);
+			writeq(BWD_MBAR45_USD_ADDR,
+			       ndev->reg_base + BWD_MBAR45_OFFSET);
 		}
 	} else {
 		if (!readq(ndev->reg_base + BWD_PBAR2XLAT_OFFSET)) {
-			dev_err(&ndev->pdev->dev, "BWD_PBAR2XLAT_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
+			dev_err(&ndev->pdev->dev,
+				"BWD_PBAR2XLAT_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
 			/* Setting eEP MBAR23XLAT, should match eEP MBAR23 on remote system */
-			writeq(BWD_PBAR2XLAT_DSD_ADDR, ndev->reg_base + BWD_PBAR2XLAT_OFFSET);
+			writeq(BWD_PBAR2XLAT_DSD_ADDR,
+			       ndev->reg_base + BWD_PBAR2XLAT_OFFSET);
 		}
 
 		if (!readq(ndev->reg_base + BWD_PBAR4XLAT_OFFSET)) {
-			dev_err(&ndev->pdev->dev, "BWD_PBAR4XLAT_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
+			dev_err(&ndev->pdev->dev,
+				"BWD_PBAR4XLAT_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
 			/* Setting eEP MBAR45XLAT, should match eEP MBAR23 on remote system */
-			writeq(BWD_PBAR4XLAT_DSD_ADDR, ndev->reg_base + BWD_PBAR4XLAT_OFFSET);
+			writeq(BWD_PBAR4XLAT_DSD_ADDR,
+			       ndev->reg_base + BWD_PBAR4XLAT_OFFSET);
 		}
 
 		if (!readq(ndev->reg_base + BWD_MBAR23_OFFSET)) {
-			dev_err(&ndev->pdev->dev, "BWD_MBAR23_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
+			dev_err(&ndev->pdev->dev,
+				"BWD_MBAR23_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
 			/* Setting eEP MBAR23, should match eEP MBAR23XLAT on remote system */
-			writeq(BWD_MBAR23_DSD_ADDR, ndev->reg_base + BWD_MBAR23_OFFSET);
-		}	
+			writeq(BWD_MBAR23_DSD_ADDR,
+			       ndev->reg_base + BWD_MBAR23_OFFSET);
+		}
 
 		if (!readq(ndev->reg_base + BWD_MBAR45_OFFSET)) {
-			dev_err(&ndev->pdev->dev, "BWD_MBAR45_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
+			dev_err(&ndev->pdev->dev,
+				"BWD_MBAR45_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
 			/* Setting eEP MBAR45, should match eEP MBAR45XLAT on remote system */
-			writeq(BWD_MBAR45_DSD_ADDR, ndev->reg_base + BWD_MBAR45_OFFSET);
+			writeq(BWD_MBAR45_DSD_ADDR,
+			       ndev->reg_base + BWD_MBAR45_OFFSET);
 		}
 	}
 
@@ -864,7 +881,8 @@ static irqreturn_t snb_callback_msix_irq(int irq, void *data)
 	 * vectors, with the 4th having a single bit for link
 	 * interrupts.
 	 */
-	writew(((1 << ndev->bits_per_vector) - 1) << (db_cb->db_num * ndev->bits_per_vector), ndev->reg_ofs.pdb);
+	writew(((1 << ndev->bits_per_vector) - 1) <<
+	       (db_cb->db_num * ndev->bits_per_vector), ndev->reg_ofs.pdb);
 
 	return IRQ_HANDLED;
 }
@@ -968,7 +986,8 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 			goto err2;
 		}
 
-		dev_warn(&pdev->dev, "Only %d MSI-X vectors.  Limiting the number of queues to that number.\n",
+		dev_warn(&pdev->dev,
+			 "Only %d MSI-X vectors.  Limiting the number of queues to that number.\n",
 			 rc);
 		msix_entries = rc;
 	}
@@ -987,7 +1006,7 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 			if (i == msix_entries - 1) {
 				rc = request_irq(msix->vector,
 						 snb_event_msix_irq, 0,
-						"ntb-event-msix", ndev);
+						 "ntb-event-msix", ndev);
 				if (rc)
 					goto err3;
 			} else {
@@ -1137,7 +1156,8 @@ static int __devinit ntb_create_callbacks(struct ntb_device *ndev)
 	 * to be passed into the MSI-X register fucntion.  So, we allocate the
 	 * max, knowing that they might not all be used, to work around this.
 	 */
-	ndev->db_cb = kcalloc(ndev->limits.max_db_bits, sizeof(struct ntb_db_cb),
+	ndev->db_cb = kcalloc(ndev->limits.max_db_bits,
+			      sizeof(struct ntb_db_cb),
 			      GFP_KERNEL);
 	if (!ndev->db_cb)
 		return -ENOMEM;

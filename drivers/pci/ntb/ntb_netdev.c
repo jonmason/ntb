@@ -122,7 +122,8 @@ static void ntb_netdev_rx_handler(struct ntb_transport_qp *qp)
 			break;
 		}
 
-		rc = ntb_transport_rx_enqueue(qp, skb, skb->data, ndev->mtu + ETH_HLEN);
+		rc = ntb_transport_rx_enqueue(qp, skb, skb->data,
+					      ndev->mtu + ETH_HLEN);
 		if (rc) {
 			ndev->stats.rx_errors++;
 			ndev->stats.rx_fifo_errors++;
@@ -184,7 +185,8 @@ static int ntb_netdev_open(struct net_device *ndev)
 			goto err;
 		}
 
-		rc = ntb_transport_rx_enqueue(dev->qp, skb, skb->data, ndev->mtu + ETH_HLEN);
+		rc = ntb_transport_rx_enqueue(dev->qp, skb, skb->data,
+					      ndev->mtu + ETH_HLEN);
 		if (rc)
 			goto err;
 	}
@@ -237,7 +239,6 @@ static int ntb_netdev_change_mtu(struct net_device *ndev, int new_mtu)
 		for (i = 0; (skb = ntb_transport_rx_remove(dev->qp, &len)); i++)
 			kfree(skb);
 
-
 		for (; i; i--) {
 			skb = netdev_alloc_skb(ndev, new_mtu + ETH_HLEN);
 			if (!skb) {
@@ -245,7 +246,8 @@ static int ntb_netdev_change_mtu(struct net_device *ndev, int new_mtu)
 				goto err;
 			}
 
-			rc = ntb_transport_rx_enqueue(dev->qp, skb, skb->data, new_mtu + ETH_HLEN);
+			rc = ntb_transport_rx_enqueue(dev->qp, skb, skb->data,
+						      new_mtu + ETH_HLEN);
 			if (rc) {
 				kfree(skb);
 				goto err;
@@ -276,7 +278,7 @@ static void ntb_netdev_txto_work(struct work_struct *work)
 	struct net_device *ndev = dev->ndev;
 
 	if (netif_running(ndev)) {
-#if 0 
+#if 0
 		int rc;
 
 		ntb_netdev_close(ndev);
