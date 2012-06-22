@@ -343,98 +343,6 @@ static int ntb_set_mw(int num_mw, unsigned int size)
 	return 0;
 }
 
-static int ntb_hw_link_up(void)
-{
-	u32 val;
-	int rc, i;
-
-	/* send the local info */
-	rc = ntb_write_remote_spad(transport->ndev, MW0_SZ,
-				   ntb_get_mw_size(transport->ndev, 0));
-	if (rc) {
-		pr_err("Error writing %x to remote spad %d\n",
-		       (u32) ntb_get_mw_size(transport->ndev, 0), MW0_SZ);
-		return rc;
-	}
-
-	rc = ntb_write_remote_spad(transport->ndev, MW1_SZ,
-				   ntb_get_mw_size(transport->ndev, 1));
-	if (rc) {
-		pr_err("Error writing %x to remote spad %d\n",
-		       (u32) ntb_get_mw_size(transport->ndev, 1), MW1_SZ);
-		return rc;
-	}
-
-	rc = ntb_write_remote_spad(transport->ndev, NUM_QPS,
-				   transport->max_qps);
-	if (rc) {
-		pr_err("Error writing %x to remote spad %d\n",
-		       transport->max_qps, NUM_QPS);
-		return rc;
-	}
-
-	rc = ntb_write_remote_spad(transport->ndev, QP_LINKS, 0);
-	if (rc) {
-		pr_err("Error writing %x to remote spad %d\n", 0, QP_LINKS);
-
-		return rc;
-	}
-
-	/* Query the remote side for its info */
-	rc = ntb_read_remote_spad(transport->ndev, NUM_QPS, &val);
-	if (rc) {
-		pr_err("Error reading remote spad %d\n", NUM_QPS);
-		return rc;
-	}
-
-	pr_info("Remote max number of qps = %d\n", val);
-	if (val != transport->max_qps)
-		return -EINVAL;
-
-	rc = ntb_read_remote_spad(transport->ndev, MW0_SZ, &val);
-	if (rc) {
-		pr_err("Error reading remote spad %d\n", MW0_SZ);
-		return rc;
-	}
-
-	pr_info("Remote MW0 size = %d\n", val);
-	if (!val)
-		return -EINVAL;
-
-	rc = ntb_set_mw(0, val);
-	if (rc)
-		return rc;
-
-	rc = ntb_read_remote_spad(transport->ndev, MW1_SZ, &val);
-	if (rc) {
-		pr_err("Error reading remote spad %d\n", MW1_SZ);
-		return rc;
-	}
-
-	pr_info("Remote MW1 size = %d\n", val);
-	if (!val)
-		return -EINVAL;
-
-	rc = ntb_set_mw(1, val);
-	if (rc)
-		return rc;
-
-	for (i = 0; i < transport->max_qps; i++) {
-		struct ntb_transport_qp *qp = &transport->qps[i];
-
-		rc = ntb_transport_setup_qp_mw(i);
-		if (rc)
-			return rc;
-
-		if (qp->client_ready)
-			schedule_delayed_work(&qp->link_work, 0);
-	}
-
-	transport->transport_link = NTB_LINK_UP;
-
-	return 0;
-}
-
 static void ntb_transport_event_callback(void *data, unsigned int event)
 {
 	struct ntb_transport *nt = data;
@@ -475,8 +383,96 @@ static void ntb_transport_event_callback(void *data, unsigned int event)
 
 static void ntb_transport_link_work(struct work_struct *work)
 {
-	int rc = ntb_hw_link_up();
-	if (rc && ntb_hw_link_status(transport->ndev))
+	u32 val;
+	int rc, i;
+
+	/* send the local info */
+	rc = ntb_write_remote_spad(transport->ndev, MW0_SZ,
+				   ntb_get_mw_size(transport->ndev, 0));
+	if (rc) {
+		pr_err("Error writing %x to remote spad %d\n",
+		       (u32) ntb_get_mw_size(transport->ndev, 0), MW0_SZ);
+		goto out;
+	}
+
+	rc = ntb_write_remote_spad(transport->ndev, MW1_SZ,
+				   ntb_get_mw_size(transport->ndev, 1));
+	if (rc) {
+		pr_err("Error writing %x to remote spad %d\n",
+		       (u32) ntb_get_mw_size(transport->ndev, 1), MW1_SZ);
+		goto out;
+	}
+
+	rc = ntb_write_remote_spad(transport->ndev, NUM_QPS,
+				   transport->max_qps);
+	if (rc) {
+		pr_err("Error writing %x to remote spad %d\n",
+		       transport->max_qps, NUM_QPS);
+		goto out;
+	}
+
+	rc = ntb_write_remote_spad(transport->ndev, QP_LINKS, 0);
+	if (rc) {
+		pr_err("Error writing %x to remote spad %d\n", 0, QP_LINKS);
+		goto out;
+	}
+
+	/* Query the remote side for its info */
+	rc = ntb_read_remote_spad(transport->ndev, NUM_QPS, &val);
+	if (rc) {
+		pr_err("Error reading remote spad %d\n", NUM_QPS);
+		goto out;
+	}
+
+	if (val != transport->max_qps)
+		goto out;
+	pr_info("Remote max number of qps = %d\n", val);
+
+	rc = ntb_read_remote_spad(transport->ndev, MW0_SZ, &val);
+	if (rc) {
+		pr_err("Error reading remote spad %d\n", MW0_SZ);
+		goto out;
+	}
+
+	if (!val)
+		goto out;
+	pr_info("Remote MW0 size = %d\n", val);
+
+	rc = ntb_set_mw(0, val);
+	if (rc)
+		goto out;
+
+	rc = ntb_read_remote_spad(transport->ndev, MW1_SZ, &val);
+	if (rc) {
+		pr_err("Error reading remote spad %d\n", MW1_SZ);
+		goto out;
+	}
+
+	if (!val)
+		goto out;
+	pr_info("Remote MW1 size = %d\n", val);
+
+	rc = ntb_set_mw(1, val);
+	if (rc)
+		goto out;
+
+	for (i = 0; i < transport->max_qps; i++) {
+		struct ntb_transport_qp *qp = &transport->qps[i];
+
+		rc = ntb_transport_setup_qp_mw(i);
+		if (rc)
+			goto out;
+
+		if (qp->client_ready)
+			schedule_delayed_work(&qp->link_work, 0);
+	}
+
+	transport->transport_link = NTB_LINK_UP;
+
+	return;
+
+out:
+	if (ntb_hw_link_status(transport->ndev))
 		schedule_delayed_work(&transport->link_work,
 				      msecs_to_jiffies(1000));
 }
@@ -611,10 +607,9 @@ static int ntb_transport_init(void)
 		goto err2;
 
 	INIT_DELAYED_WORK(&transport->link_work, ntb_transport_link_work);
-	rc = ntb_hw_link_up();
-	if (rc && ntb_hw_link_status(transport->ndev))
-		schedule_delayed_work(&transport->link_work,
-				      msecs_to_jiffies(1000));
+
+	if (ntb_hw_link_status(transport->ndev))
+		schedule_delayed_work(&transport->link_work, 0);
 
 	return 0;
 
@@ -623,6 +618,7 @@ err2:
 err1:
 	ntb_unregister_transport(transport->ndev);
 err:
+	debugfs_remove_recursive(transport->debugfs_dir);
 	kfree(transport);
 	return rc;
 }
