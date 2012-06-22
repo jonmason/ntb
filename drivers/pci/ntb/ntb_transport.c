@@ -92,13 +92,7 @@ struct ntb_transport_qp {
 	u8 qp_num;	/* Only 64 QP's are allowed.  0-63 */
 
 	void (*tx_handler) (struct ntb_transport_qp *qp);
-#if 1
-	struct task_struct *tx_work;
-	unsigned int tx_ring_timeo;
-	struct dentry *debugfs_tx_to;
-#else
 	struct tasklet_struct tx_work;
-#endif
 	struct list_head txq;
 	struct list_head txc;
 	struct list_head txe;
@@ -177,9 +171,6 @@ enum {
 };
 
 #define QP_TO_MW(qp)		((qp) % NTB_NUM_MW)
-#if 1
-#define	NTB_QP_DEF_RING_TIMEOUT	100
-#endif
 #define NTB_QP_DEF_NUM_ENTRIES	1000
 #define NTB_LINK_DOWN_TIMEOUT	1000
 
@@ -524,10 +515,6 @@ static void ntb_transport_init_queue(unsigned int qp_num)
 	qp->ndev = transport->ndev;
 	qp->qp_link = NTB_LINK_DOWN;
 
-#if 1
-	qp->tx_ring_timeo = NTB_QP_DEF_RING_TIMEOUT;
-#endif
-
 	if (transport->debugfs_dir) {
 		char debugfs_name[4];
 
@@ -538,12 +525,6 @@ static void ntb_transport_init_queue(unsigned int qp_num)
 		qp->debugfs_stats = debugfs_create_file("stats", S_IRUSR,
 							 qp->debugfs_dir, qp,
 							 &ntb_qp_debugfs_stats);
-#if 1
-		qp->debugfs_tx_to = debugfs_create_u32("tx_ring_timeo",
-							S_IRUSR | S_IWUSR,
-							qp->debugfs_dir,
-							&qp->tx_ring_timeo);
-#endif
 	}
 
 	INIT_DELAYED_WORK(&qp->link_work, ntb_qp_link_work);
@@ -836,34 +817,6 @@ static int ntb_process_tx(struct ntb_transport_qp *qp,
 	return 0;
 }
 
-#if 1
-static int ntb_transport_tx(void *data)
-{
-	struct ntb_transport_qp *qp = data;
-	struct ntb_queue_entry *entry;
-	int rc;
-
-	while (!kthread_should_stop()) {
-		entry = ntb_list_rm_head(&qp->txq_lock, &qp->txq);
-		if (!entry) {
-			/* Sleep if no tx work */
-			set_current_state(TASK_INTERRUPTIBLE);
-			schedule();
-			set_current_state(TASK_RUNNING);
-			continue;
-		}
-
-		rc = ntb_process_tx(qp, entry);
-		if (!rc)
-			continue;
-
-		schedule_timeout_interruptible(msecs_to_jiffies
-					       (qp->tx_ring_timeo));
-	}
-
-	return 0;
-}
-#else
 static void ntb_transport_tx(unsigned long data)
 {
 	struct ntb_transport_qp *qp = (struct ntb_transport_qp *)data;
@@ -878,7 +831,6 @@ static void ntb_transport_tx(unsigned long data)
 		rc = ntb_process_tx(qp, entry);
 	} while (!rc);
 }
-#endif
 
 static void ntb_send_link_down(struct ntb_transport_qp *qp)
 {
@@ -901,11 +853,7 @@ static void ntb_send_link_down(struct ntb_transport_qp *qp)
 	entry->flags = LINK_DOWN_FLAG;
 
 	ntb_list_add_tail(&qp->txq_lock, &entry->entry, &qp->txq);
-#if 1
-	wake_up_process(qp->tx_work);
-#else
 	tasklet_schedule(&qp->tx_work);
-#endif
 }
 
 /**
@@ -968,18 +916,7 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 	}
 
 	tasklet_init(&qp->rx_work, ntb_transport_rx, (unsigned long) qp);
-
-#if 1
-	qp->tx_work = kthread_create(ntb_transport_tx, qp, "ntb_tx%d",
-				     free_queue);
-	if (IS_ERR(qp->tx_work)) {
-		rc = PTR_ERR(qp->tx_work);
-		pr_err("Error allocing tx kthread\n");
-		goto err2;
-	}
-#else
 	tasklet_init(&qp->tx_work, ntb_transport_tx, (unsigned long) qp);
-#endif
 
 	rc = ntb_register_db_callback(qp->ndev, free_queue,
 				      ntb_transport_rxc_db);
@@ -991,7 +928,6 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 	return qp;
 
 err3:
-	kthread_stop(qp->tx_work);
 err2:
 	while ((entry = ntb_list_rm_head(&qp->txe_lock, &qp->txe)))
 		kfree(entry);
@@ -1021,12 +957,7 @@ void ntb_transport_free_queue(struct ntb_transport_qp *qp)
 
 	ntb_unregister_db_callback(qp->ndev, qp->qp_num);
 	tasklet_disable(&qp->rx_work);
-
-#if 1
-	kthread_stop(qp->tx_work);
-#else
 	tasklet_disable(&qp->tx_work);
-#endif
 
 	while ((entry = ntb_list_rm_head(&qp->rxe_lock, &qp->rxe)))
 		kfree(entry);
@@ -1149,10 +1080,8 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, void *cb, void *data,
 
 	entry = ntb_list_rm_head(&qp->txe_lock, &qp->txe);
 	if (!entry) {
-#if 0
 		/* ring full, kick it */
 		tasklet_schedule(&qp->tx_work);
-#endif
 		return -ENOMEM;
 	}
 
@@ -1163,11 +1092,7 @@ int ntb_transport_tx_enqueue(struct ntb_transport_qp *qp, void *cb, void *data,
 
 	ntb_list_add_tail(&qp->txq_lock, &entry->entry, &qp->txq);
 
-#if 1
-	wake_up_process(qp->tx_work);
-#else
 	tasklet_schedule(&qp->tx_work);
-#endif
 
 	return 0;
 }
