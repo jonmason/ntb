@@ -1020,6 +1020,8 @@ void *ntb_transport_rx_remove(struct ntb_transport_qp *qp, unsigned int *len)
 	*len = entry->len;
 	kfree(entry);
 
+	ntb_list_add_tail(&qp->rxe_lock, &entry->entry, &qp->rxe);
+
 	return buf;
 }
 EXPORT_SYMBOL(ntb_transport_rx_remove);

@@ -277,18 +277,8 @@ static void ntb_netdev_txto_work(struct work_struct *work)
 					      txto_work);
 	struct net_device *ndev = dev->ndev;
 
-	if (netif_running(ndev)) {
-#if 0
-		int rc;
-
-		ntb_netdev_close(ndev);
-		rc = ntb_netdev_open(ndev);
-		if (rc)
-			pr_err("%s: Open failed\n", __func__);
-#else
+	if (netif_running(ndev))
 		netif_wake_queue(ndev);
-#endif
-	}
 }
 
 static void ntb_netdev_tx_timeout(struct net_device *ndev)
