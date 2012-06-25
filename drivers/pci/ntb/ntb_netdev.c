@@ -71,7 +71,6 @@ MODULE_AUTHOR("Intel Corporation");
 struct ntb_netdev {
 	struct net_device *ndev;
 	struct ntb_transport_qp *qp;
-	struct work_struct txto_work;
 };
 
 #define	NTB_TX_TIMEOUT_MS	1000
@@ -167,8 +166,7 @@ err:
 	ndev->stats.tx_dropped++;
 	ndev->stats.tx_errors++;
 	netif_stop_queue(ndev);
-	kfree_skb(skb);
-	return NETDEV_TX_OK;
+	return NETDEV_TX_BUSY;
 }
 
 static int ntb_netdev_open(struct net_device *ndev)
@@ -271,21 +269,10 @@ err:
 	return rc;
 }
 
-static void ntb_netdev_txto_work(struct work_struct *work)
-{
-	struct ntb_netdev *dev = container_of(work, struct ntb_netdev,
-					      txto_work);
-	struct net_device *ndev = dev->ndev;
-
-	if (netif_running(ndev))
-		netif_wake_queue(ndev);
-}
-
 static void ntb_netdev_tx_timeout(struct net_device *ndev)
 {
-	struct ntb_netdev *dev = netdev_priv(ndev);
-
-	schedule_work(&dev->txto_work);
+	if (netif_running(ndev))
+		netif_wake_queue(ndev);
 }
 
 static const struct net_device_ops ntb_netdev_ops = {
@@ -376,7 +363,6 @@ static int __init ntb_netdev_init_module(void)
 
 	netdev->hw_features = netdev->features;
 	netdev->watchdog_timeo = msecs_to_jiffies(NTB_TX_TIMEOUT_MS);
-	INIT_WORK(&dev->txto_work, ntb_netdev_txto_work);
 
 	random_ether_addr(netdev->perm_addr);
 	memcpy(netdev->dev_addr, netdev->perm_addr, netdev->addr_len);
