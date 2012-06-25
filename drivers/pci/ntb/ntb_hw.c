@@ -130,7 +130,6 @@ struct ntb_device {
 		void __iomem *lnk_cntl;
 		void __iomem *lnk_stat;
 		void __iomem *spci_cmd;
-		void __iomem *sdevctrl;
 	} reg_ofs;
 	void *ntb_transport;
 	event_cb_func event_cb;
@@ -664,7 +663,6 @@ static int ntb_snb_b2b_setup(struct ntb_device *ndev)
 	ndev->reg_ofs.lnk_stat = ndev->reg_base + SNB_LINK_STATUS_OFFSET;
 	ndev->reg_ofs.spad_read = ndev->reg_base + SNB_SPAD_OFFSET;
 	ndev->reg_ofs.spci_cmd = ndev->reg_base + SNB_PCICMD_OFFSET;
-	ndev->reg_ofs.sdevctrl = ndev->reg_base + SNB_DEVCTRL_OFFSET;
 
 	if (ndev->conn_type == NTB_CONN_B2B) {
 		ndev->reg_ofs.sdb = ndev->reg_base + SNB_B2B_DOORBELL_OFFSET;
@@ -723,7 +721,6 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	ndev->reg_ofs.lnk_stat = ndev->reg_base + BWD_LINK_STATUS_OFFSET;
 	ndev->reg_ofs.spad_read = ndev->reg_base + BWD_SPAD_OFFSET;
 	ndev->reg_ofs.spci_cmd = ndev->reg_base + BWD_PCICMD_OFFSET;
-	ndev->reg_ofs.sdevctrl = ndev->reg_base + BWD_DEVCTRL_OFFSET;
 
 	if (ndev->conn_type == NTB_CONN_B2B) {
 		ndev->reg_ofs.sdb = ndev->reg_base + BWD_B2B_DOORBELL_OFFSET;
