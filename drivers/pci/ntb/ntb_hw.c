@@ -775,7 +775,7 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 			       ndev->reg_base + BWD_PBAR4XLAT_OFFSET);
 		}
 
-		if (!readq(ndev->reg_base + BWD_MBAR23_OFFSET)) {
+		if (readq(ndev->reg_base + BWD_MBAR23_OFFSET) == 0xC) {
 			dev_err(&ndev->pdev->dev,
 				"BWD_MBAR23_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
 			/* Setting eEP MBAR23, should match eEP MBAR23XLAT on
@@ -785,7 +785,7 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 			       ndev->reg_base + BWD_MBAR23_OFFSET);
 		}
 
-		if (!readq(ndev->reg_base + BWD_MBAR45_OFFSET)) {
+		if (readq(ndev->reg_base + BWD_MBAR45_OFFSET) == 0xC) {
 			dev_err(&ndev->pdev->dev,
 				"BWD_MBAR45_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
 			/* Setting eEP MBAR45, should match eEP MBAR45XLAT on
@@ -815,7 +815,7 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 			       ndev->reg_base + BWD_PBAR4XLAT_OFFSET);
 		}
 
-		if (!readq(ndev->reg_base + BWD_MBAR23_OFFSET)) {
+		if (readq(ndev->reg_base + BWD_MBAR23_OFFSET) == 0xC) {
 			dev_err(&ndev->pdev->dev,
 				"BWD_MBAR23_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
 			/* Setting eEP MBAR23, should match eEP MBAR23XLAT on
@@ -825,7 +825,7 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 			       ndev->reg_base + BWD_MBAR23_OFFSET);
 		}
 
-		if (!readq(ndev->reg_base + BWD_MBAR45_OFFSET)) {
+		if (readq(ndev->reg_base + BWD_MBAR45_OFFSET) == 0xC) {
 			dev_err(&ndev->pdev->dev,
 				"BWD_MBAR45_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
 			/* Setting eEP MBAR45, should match eEP MBAR45XLAT on
