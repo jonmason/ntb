@@ -149,9 +149,13 @@ struct ntb_device {
 #define MW_TO_BAR(mw)	(mw * 2 + 2)
 
 static DEFINE_PCI_DEVICE_TABLE(ntb_pci_tbl) = {
-	{PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_NTB_B2B_JSF)},
-	{PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_NTB_B2B_SNB)},
 	{PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_NTB_B2B_BWD)},
+	{PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_NTB_B2B_JSF)},
+	{PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_NTB_CLASSIC_JSF)},
+	{PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_NTB_RP_JSF)},
+	{PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_NTB_RP_SNB)},
+	{PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_NTB_B2B_SNB)},
+	{PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_NTB_CLASSIC_SNB)},
 	{0}
 };
 MODULE_DEVICE_TABLE(pci, ntb_pci_tbl);
@@ -628,7 +632,7 @@ static void ntb_handle_heartbeat(struct work_struct *work)
 	schedule_delayed_work(&ndev->hb_timer, NTB_HB_TIMEOUT);
 }
 
-static int ntb_snb_b2b_setup(struct ntb_device *ndev)
+static int ntb_snb_setup(struct ntb_device *ndev)
 {
 	int rc;
 	u8 val;
@@ -840,9 +844,13 @@ static int __devinit ntb_device_setup(struct ntb_device *ndev)
 	int rc;
 
 	switch (ndev->pdev->device) {
+	case PCI_DEVICE_ID_INTEL_NTB_RP_JSF:
+	case PCI_DEVICE_ID_INTEL_NTB_RP_SNB:
+	case PCI_DEVICE_ID_INTEL_NTB_CLASSIC_JSF:
+	case PCI_DEVICE_ID_INTEL_NTB_CLASSIC_SNB:
 	case PCI_DEVICE_ID_INTEL_NTB_B2B_JSF:
 	case PCI_DEVICE_ID_INTEL_NTB_B2B_SNB:
-		rc = ntb_snb_b2b_setup(ndev);
+		rc = ntb_snb_setup(ndev);
 		break;
 	case PCI_DEVICE_ID_INTEL_NTB_B2B_BWD:
 		rc = ntb_bwd_setup(ndev);
