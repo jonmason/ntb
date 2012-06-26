@@ -141,7 +141,7 @@ static void ntb_netdev_tx_handler(struct ntb_transport_qp *qp)
 	while ((skb = ntb_transport_tx_dequeue(qp, &len))) {
 		ndev->stats.tx_packets++;
 		ndev->stats.tx_bytes += skb->len;
-		kfree_skb(skb);
+		dev_kfree_skb(skb);
 	}
 
 	if (netif_queue_stopped(ndev))
@@ -166,7 +166,8 @@ err:
 	ndev->stats.tx_dropped++;
 	ndev->stats.tx_errors++;
 	netif_stop_queue(ndev);
-	return NETDEV_TX_BUSY;
+	kfree_skb(skb);
+	return NETDEV_TX_OK;
 }
 
 static int ntb_netdev_open(struct net_device *ndev)
