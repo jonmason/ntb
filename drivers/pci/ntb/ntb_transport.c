@@ -842,10 +842,11 @@ static void ntb_send_link_down(struct ntb_transport_qp *qp)
 
 	qp->qp_link = NTB_LINK_DOWN;
 
-	for (i = 0;
-	     i < NTB_LINK_DOWN_TIMEOUT &&
-	     !(entry = ntb_list_rm_head(&qp->txe_lock, &qp->txe)); i++)
+	for (i = 0; i < NTB_LINK_DOWN_TIMEOUT; i++) {
+		if ((entry = ntb_list_rm_head(&qp->txe_lock, &qp->txe)))
+			break;
 		msleep(1);
+	}
 
 	entry->callback_data = NULL;
 	entry->buf = NULL;
@@ -928,6 +929,8 @@ struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
 	return qp;
 
 err3:
+	tasklet_disable(&qp->rx_work);
+	tasklet_disable(&qp->tx_work);
 err2:
 	while ((entry = ntb_list_rm_head(&qp->txe_lock, &qp->txe)))
 		kfree(entry);
@@ -1018,7 +1021,6 @@ void *ntb_transport_rx_remove(struct ntb_transport_qp *qp, unsigned int *len)
 
 	buf = entry->callback_data;
 	*len = entry->len;
-	kfree(entry);
 
 	ntb_list_add_tail(&qp->rxe_lock, &entry->entry, &qp->rxe);
 
