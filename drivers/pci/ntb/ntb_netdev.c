@@ -74,7 +74,7 @@ struct ntb_netdev {
 };
 
 #define	NTB_TX_TIMEOUT_MS	1000
-#define	NTB_RXQ_SIZE		1000
+#define	NTB_RXQ_SIZE		100
 
 struct net_device *netdev;
 
@@ -186,7 +186,7 @@ static int ntb_netdev_open(struct net_device *ndev)
 
 		rc = ntb_transport_rx_enqueue(dev->qp, skb, skb->data,
 					      ndev->mtu + ETH_HLEN);
-		if (rc)
+		if (rc == -EINVAL)
 			goto err;
 	}
 

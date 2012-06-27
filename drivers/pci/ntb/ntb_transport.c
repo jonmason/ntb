@@ -171,7 +171,7 @@ enum {
 };
 
 #define QP_TO_MW(qp)		((qp) % NTB_NUM_MW)
-#define NTB_QP_DEF_NUM_ENTRIES	1000
+#define NTB_QP_DEF_NUM_ENTRIES	100
 #define NTB_LINK_DOWN_TIMEOUT	1000
 
 static struct ntb_transport *transport;
@@ -465,7 +465,7 @@ static void ntb_transport_link_work(struct work_struct *work)
 out:
 	if (ntb_hw_link_status(transport->ndev))
 		schedule_delayed_work(&transport->link_work,
-				      msecs_to_jiffies(1000));
+				      msecs_to_jiffies(NTB_LINK_DOWN_TIMEOUT));
 }
 
 static void ntb_qp_link_work(struct work_struct *work)
@@ -503,7 +503,8 @@ static void ntb_qp_link_work(struct work_struct *work)
 		if (qp->event_handler)
 			qp->event_handler(NTB_LINK_UP);
 	} else if (ntb_hw_link_status(transport->ndev))
-		schedule_delayed_work(&qp->link_work, msecs_to_jiffies(1000));
+		schedule_delayed_work(&qp->link_work,
+				      msecs_to_jiffies(NTB_LINK_DOWN_TIMEOUT));
 }
 
 static void ntb_transport_init_queue(unsigned int qp_num)
@@ -678,7 +679,8 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 	if (hdr->flags & NTB_LINK_DOWN) {
 		pr_info("qp %d: Link Down\n", qp->qp_num);
 		qp->qp_link = NTB_LINK_DOWN;
-		schedule_delayed_work(&qp->link_work, msecs_to_jiffies(1000));
+		schedule_delayed_work(&qp->link_work,
+				      msecs_to_jiffies(NTB_LINK_DOWN_TIMEOUT));
 
 		if (qp->event_handler)
 			qp->event_handler(NTB_LINK_DOWN);
