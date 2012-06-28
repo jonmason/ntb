@@ -166,8 +166,7 @@ err:
 	ndev->stats.tx_dropped++;
 	ndev->stats.tx_errors++;
 	netif_stop_queue(ndev);
-	kfree_skb(skb);
-	return NETDEV_TX_OK;
+	return NETDEV_TX_BUSY;
 }
 
 static int ntb_netdev_open(struct net_device *ndev)
