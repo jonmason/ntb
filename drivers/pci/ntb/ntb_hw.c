@@ -104,7 +104,7 @@ struct ntb_mw {
 };
 
 struct ntb_db_cb {
-	db_cb_func callback;
+	void (*callback) (int db_num);
 	unsigned int db_num;
 	struct ntb_device *ndev;
 };
@@ -132,7 +132,8 @@ struct ntb_device {
 		void __iomem *spci_cmd;
 	} reg_ofs;
 	void *ntb_transport;
-	event_cb_func event_cb;
+	void (*event_cb)(void *handle, unsigned int event);
+
 	struct ntb_db_cb *db_cb;
 	unsigned char hw_type;
 	unsigned char conn_type;
@@ -166,7 +167,7 @@ static struct ntb_device *ntbdev;
  * ntb_hw_link_status() - return the hardware link status
  * @ndev: pointer to ntb_device instance
  *
- * Returns true if the hard is connected to the remote system
+ * Returns true if the hardware is connected to the remote system
  *
  * RETURNS: true or false based on the hardware link state
  */
@@ -215,7 +216,8 @@ EXPORT_SYMBOL(ntb_query_max_cbs);
  *
  * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
  */
-int ntb_register_event_callback(struct ntb_device *ndev, event_cb_func func)
+int ntb_register_event_callback(struct ntb_device *ndev,
+				void (*func)(void *handle, unsigned int event))
 {
 	if (ndev->event_cb)
 		return -EINVAL;
@@ -251,7 +253,7 @@ EXPORT_SYMBOL(ntb_unregister_event_callback);
  * RETURNS: An appropriate -ERRNO error value on error, or zero for success.
  */
 int ntb_register_db_callback(struct ntb_device *ndev, unsigned int idx,
-			     db_cb_func func)
+			     void (*func) (int db_num))
 {
 	unsigned long mask;
 
@@ -632,7 +634,7 @@ static void ntb_handle_heartbeat(struct work_struct *work)
 	schedule_delayed_work(&ndev->hb_timer, NTB_HB_TIMEOUT);
 }
 
-static int ntb_snb_setup(struct ntb_device *ndev)
+static int ntb_xeon_setup(struct ntb_device *ndev)
 {
 	int rc;
 	u8 val;
@@ -844,13 +846,14 @@ static int __devinit ntb_device_setup(struct ntb_device *ndev)
 	int rc;
 
 	switch (ndev->pdev->device) {
+	case PCI_DEVICE_ID_INTEL_NTB_2ND_SNB:
 	case PCI_DEVICE_ID_INTEL_NTB_RP_JSF:
 	case PCI_DEVICE_ID_INTEL_NTB_RP_SNB:
 	case PCI_DEVICE_ID_INTEL_NTB_CLASSIC_JSF:
 	case PCI_DEVICE_ID_INTEL_NTB_CLASSIC_SNB:
 	case PCI_DEVICE_ID_INTEL_NTB_B2B_JSF:
 	case PCI_DEVICE_ID_INTEL_NTB_B2B_SNB:
-		rc = ntb_snb_setup(ndev);
+		rc = ntb_xeon_setup(ndev);
 		break;
 	case PCI_DEVICE_ID_INTEL_NTB_B2B_BWD:
 		rc = ntb_bwd_setup(ndev);
@@ -892,7 +895,7 @@ static irqreturn_t bwd_callback_msix_irq(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static irqreturn_t snb_callback_msix_irq(int irq, void *data)
+static irqreturn_t xeon_callback_msix_irq(int irq, void *data)
 {
 	struct ntb_db_cb *db_cb = data;
 	struct ntb_device *ndev = db_cb->ndev;
@@ -915,7 +918,7 @@ static irqreturn_t snb_callback_msix_irq(int irq, void *data)
 }
 
 /* Since we do not have a HW doorbell in BWD, this is only used in JF/JT */
-static irqreturn_t snb_event_msix_irq(int irq, void *dev)
+static irqreturn_t xeon_event_msix_irq(int irq, void *dev)
 {
 	struct ntb_device *ndev = dev;
 	int rc;
@@ -935,28 +938,34 @@ static irqreturn_t snb_event_msix_irq(int irq, void *dev)
 static irqreturn_t ntb_interrupt(int irq, void *dev)
 {
 	struct ntb_device *ndev = dev;
-	int i;
+	unsigned int i = 0;
 
 	if (ndev->hw_type == BWD_HW) {
 		u64 pdb = readq(ndev->reg_ofs.pdb);
 
 		dev_dbg(&ndev->pdev->dev, "irq %d - pdb = %Lx\n", irq, pdb);
 
-		for (i = 0; i < ndev->max_cbs; i++)
-			if (pdb & ((u64) 1 << i))
-				bwd_callback_msix_irq(irq, &ndev->db_cb[i]);
+		while (pdb) {
+			i = __ffs(pdb);
+			pdb &= pdb - 1;
+			bwd_callback_msix_irq(irq, &ndev->db_cb[i]);
+		}
 	} else {
 		u16 pdb = readw(ndev->reg_ofs.pdb);
 
 		dev_dbg(&ndev->pdev->dev, "irq %d - pdb = %x sdb %x\n", irq,
 			pdb, readw(ndev->reg_ofs.sdb));
 
-		if (pdb & SNB_DB_HW_LINK)
-			snb_event_msix_irq(irq, dev);
+		if (pdb & SNB_DB_HW_LINK) {
+			xeon_event_msix_irq(irq, dev);
+			pdb &= ~SNB_DB_HW_LINK;
+		}
 
-		for (i = 0; i < ndev->max_cbs; i++)
-			if (pdb & (1 << i))
-				snb_callback_msix_irq(irq, &ndev->db_cb[i]);
+		while (pdb) {
+			i = __ffs(pdb);
+			pdb &= pdb - 1;
+			xeon_callback_msix_irq(irq, &ndev->db_cb[i]);
+		}
 	}
 
 	return IRQ_HANDLED;
@@ -1032,13 +1041,13 @@ static int ntb_setup_msix(struct ntb_device *ndev)
 		} else {
 			if (i == msix_entries - 1) {
 				rc = request_irq(msix->vector,
-						 snb_event_msix_irq, 0,
+						 xeon_event_msix_irq, 0,
 						 "ntb-event-msix", ndev);
 				if (rc)
 					goto err3;
 			} else {
 				rc = request_irq(msix->vector,
-						 snb_callback_msix_irq, 0,
+						 xeon_callback_msix_irq, 0,
 						 "ntb-callback-msix",
 						 &ndev->db_cb[i]);
 				if (rc)
@@ -1207,8 +1216,9 @@ static void ntb_free_callbacks(struct ntb_device *ndev)
 	kfree(ndev->db_cb);
 }
 
-static int __devinit ntb_pci_probe(struct pci_dev *pdev,
-				   const struct pci_device_id *id)
+static int __devinit
+ntb_pci_probe(struct pci_dev *pdev,
+	      __attribute__((unused)) const struct pci_device_id *id)
 {
 	struct ntb_device *ndev;
 	int rc, i;

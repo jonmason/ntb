@@ -172,7 +172,7 @@ enum {
 
 #define QP_TO_MW(qp)		((qp) % NTB_NUM_MW)
 #define NTB_QP_DEF_NUM_ENTRIES	100
-#define NTB_LINK_DOWN_TIMEOUT	1000
+#define NTB_LINK_DOWN_TIMEOUT	10
 
 static struct ntb_transport *transport;
 
@@ -374,52 +374,52 @@ static void ntb_transport_event_callback(void *data, unsigned int event)
 
 static void ntb_transport_link_work(struct work_struct *work)
 {
+	struct ntb_transport *nt = container_of(work, struct ntb_transport,
+						link_work.work);
+	struct ntb_device *ndev = nt->ndev;
 	u32 val;
 	int rc, i;
 
 	/* send the local info */
-	rc = ntb_write_remote_spad(transport->ndev, MW0_SZ,
-				   ntb_get_mw_size(transport->ndev, 0));
+	rc = ntb_write_remote_spad(ndev, MW0_SZ, ntb_get_mw_size(ndev, 0));
 	if (rc) {
 		pr_err("Error writing %x to remote spad %d\n",
-		       (u32) ntb_get_mw_size(transport->ndev, 0), MW0_SZ);
+		       (u32) ntb_get_mw_size(ndev, 0), MW0_SZ);
 		goto out;
 	}
 
-	rc = ntb_write_remote_spad(transport->ndev, MW1_SZ,
-				   ntb_get_mw_size(transport->ndev, 1));
+	rc = ntb_write_remote_spad(ndev, MW1_SZ, ntb_get_mw_size(ndev, 1));
 	if (rc) {
 		pr_err("Error writing %x to remote spad %d\n",
-		       (u32) ntb_get_mw_size(transport->ndev, 1), MW1_SZ);
+		       (u32) ntb_get_mw_size(ndev, 1), MW1_SZ);
 		goto out;
 	}
 
-	rc = ntb_write_remote_spad(transport->ndev, NUM_QPS,
-				   transport->max_qps);
+	rc = ntb_write_remote_spad(ndev, NUM_QPS, nt->max_qps);
 	if (rc) {
 		pr_err("Error writing %x to remote spad %d\n",
-		       transport->max_qps, NUM_QPS);
+		       nt->max_qps, NUM_QPS);
 		goto out;
 	}
 
-	rc = ntb_write_remote_spad(transport->ndev, QP_LINKS, 0);
+	rc = ntb_write_remote_spad(ndev, QP_LINKS, 0);
 	if (rc) {
 		pr_err("Error writing %x to remote spad %d\n", 0, QP_LINKS);
 		goto out;
 	}
 
 	/* Query the remote side for its info */
-	rc = ntb_read_remote_spad(transport->ndev, NUM_QPS, &val);
+	rc = ntb_read_remote_spad(ndev, NUM_QPS, &val);
 	if (rc) {
 		pr_err("Error reading remote spad %d\n", NUM_QPS);
 		goto out;
 	}
 
-	if (val != transport->max_qps)
+	if (val != nt->max_qps)
 		goto out;
 	pr_info("Remote max number of qps = %d\n", val);
 
-	rc = ntb_read_remote_spad(transport->ndev, MW0_SZ, &val);
+	rc = ntb_read_remote_spad(ndev, MW0_SZ, &val);
 	if (rc) {
 		pr_err("Error reading remote spad %d\n", MW0_SZ);
 		goto out;
@@ -433,7 +433,7 @@ static void ntb_transport_link_work(struct work_struct *work)
 	if (rc)
 		goto out;
 
-	rc = ntb_read_remote_spad(transport->ndev, MW1_SZ, &val);
+	rc = ntb_read_remote_spad(ndev, MW1_SZ, &val);
 	if (rc) {
 		pr_err("Error reading remote spad %d\n", MW1_SZ);
 		goto out;
@@ -447,8 +447,8 @@ static void ntb_transport_link_work(struct work_struct *work)
 	if (rc)
 		goto out;
 
-	for (i = 0; i < transport->max_qps; i++) {
-		struct ntb_transport_qp *qp = &transport->qps[i];
+	for (i = 0; i < nt->max_qps; i++) {
+		struct ntb_transport_qp *qp = &nt->qps[i];
 
 		rc = ntb_transport_setup_qp_mw(i);
 		if (rc)
@@ -458,13 +458,13 @@ static void ntb_transport_link_work(struct work_struct *work)
 			schedule_delayed_work(&qp->link_work, 0);
 	}
 
-	transport->transport_link = NTB_LINK_UP;
+	nt->transport_link = NTB_LINK_UP;
 
 	return;
 
 out:
-	if (ntb_hw_link_status(transport->ndev))
-		schedule_delayed_work(&transport->link_work,
+	if (ntb_hw_link_status(ndev))
+		schedule_delayed_work(&nt->link_work,
 				      msecs_to_jiffies(NTB_LINK_DOWN_TIMEOUT));
 }
 
@@ -524,8 +524,8 @@ static void ntb_transport_init_queue(unsigned int qp_num)
 						     transport->debugfs_dir);
 
 		qp->debugfs_stats = debugfs_create_file("stats", S_IRUSR,
-							 qp->debugfs_dir, qp,
-							 &ntb_qp_debugfs_stats);
+							qp->debugfs_dir, qp,
+							&ntb_qp_debugfs_stats);
 	}
 
 	INIT_DELAYED_WORK(&qp->link_work, ntb_qp_link_work);
@@ -638,12 +638,13 @@ static void ntb_transport_free(void)
 static void ntb_rx_copy_task(struct ntb_transport_qp *qp,
 			     struct ntb_queue_entry *entry, void *offset)
 {
-	volatile struct ntb_payload_header *hdr = offset;
+	struct ntb_payload_header *hdr = offset;
 
 	entry->len = hdr->len;
 	offset += sizeof(struct ntb_payload_header);
 	memcpy(entry->buf, offset, entry->len);
 
+	/* Ensure that the data is fully copied out before clearing the flag */
 	wmb();
 	hdr->flags = 0;
 	ntb_list_add_tail(&qp->rxc_lock, &entry->entry, &qp->rxc);
@@ -654,14 +655,14 @@ static void ntb_rx_copy_task(struct ntb_transport_qp *qp,
 
 static int ntb_process_rxc(struct ntb_transport_qp *qp)
 {
-	volatile struct ntb_payload_header *hdr;
+	struct ntb_payload_header *hdr;
 	struct ntb_queue_entry *entry;
 	void *offset;
 
 	entry = ntb_list_rm_head(&qp->rxq_lock, &qp->rxq);
 	if (!entry) {
 		hdr = qp->rx_offset;
-		pr_info("no buffer - HDR ver %llu, len %d, flags %x\n",
+		pr_debug("no buffer - HDR ver %llu, len %d, flags %x\n",
 			hdr->ver, hdr->len, hdr->flags);
 		qp->rx_err_no_buf++;
 		return -ENOMEM;
@@ -676,6 +677,14 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 		return -EAGAIN;
 	}
 
+	if (hdr->ver != qp->rx_pkts) {
+		pr_debug("qp %d: version mismatch, expected %llu - got %llu\n",
+			 qp->qp_num, qp->rx_pkts, hdr->ver);
+		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
+		qp->rx_err_ver++;
+		return -EIO;
+	}
+
 	if (hdr->flags & NTB_LINK_DOWN) {
 		pr_info("qp %d: Link Down\n", qp->qp_num);
 		qp->qp_link = NTB_LINK_DOWN;
@@ -686,17 +695,13 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 			qp->event_handler(NTB_LINK_DOWN);
 
 		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
+
+		/* Ensure that the data is fully copied out before clearing the
+		 * done flag
+		 */
 		wmb();
 		hdr->flags = 0;
 		goto out;
-	}
-
-	if (hdr->ver != qp->rx_pkts) {
-		pr_debug("qp %d: version mismatch, expected %llu - got %llu\n",
-			 qp->qp_num, qp->rx_pkts, hdr->ver);
-		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
-		qp->rx_err_ver++;
-		return -EIO;
 	}
 
 	pr_debug("rx offset %p, ver %llu - %d payload received, "
@@ -707,6 +712,10 @@ static int ntb_process_rxc(struct ntb_transport_qp *qp)
 		ntb_rx_copy_task(qp, entry, offset);
 	else {
 		ntb_list_add_tail(&qp->rxq_lock, &entry->entry, &qp->rxq);
+
+		/* Ensure that the data is fully copied out before clearing the
+		 * done flag
+		 */
 		wmb();
 		hdr->flags = 0;
 		qp->rx_err_oflow++;
@@ -747,9 +756,9 @@ static void ntb_transport_rxc_db(int db_num)
 
 static void ntb_tx_copy_task(struct ntb_transport_qp *qp,
 			     struct ntb_queue_entry *entry,
-			     volatile void *offset)
+			     void *offset)
 {
-	volatile struct ntb_payload_header *hdr = offset;
+	struct ntb_payload_header *hdr = offset;
 	int rc;
 
 	offset += sizeof(struct ntb_payload_header);
@@ -757,6 +766,8 @@ static void ntb_tx_copy_task(struct ntb_transport_qp *qp,
 
 	hdr->len = entry->len;
 	hdr->ver = qp->tx_pkts;
+
+	/* Ensure that the data is fully copied out before setting the flag */
 	wmb();
 	hdr->flags = entry->flags | DESC_DONE_FLAG;
 
@@ -779,8 +790,8 @@ static void ntb_tx_copy_task(struct ntb_transport_qp *qp,
 static int ntb_process_tx(struct ntb_transport_qp *qp,
 			  struct ntb_queue_entry *entry)
 {
-	volatile struct ntb_payload_header *hdr;
-	volatile void *offset;
+	struct ntb_payload_header *hdr;
+	void *offset;
 
 	offset = qp->tx_offset;
 	hdr = offset;
@@ -845,9 +856,10 @@ static void ntb_send_link_down(struct ntb_transport_qp *qp)
 	qp->qp_link = NTB_LINK_DOWN;
 
 	for (i = 0; i < NTB_LINK_DOWN_TIMEOUT; i++) {
-		if ((entry = ntb_list_rm_head(&qp->txe_lock, &qp->txe)))
+		entry = ntb_list_rm_head(&qp->txe_lock, &qp->txe);
+		if (entry)
 			break;
-		msleep(1);
+		msleep(100);
 	}
 
 	entry->callback_data = NULL;
@@ -873,9 +885,10 @@ static void ntb_send_link_down(struct ntb_transport_qp *qp)
  *
  * RETURNS: pointer to newly created ntb_queue, NULL on error.
  */
-struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
-						    handler tx_handler,
-						    ehandler event_handler)
+struct ntb_transport_qp *
+ntb_transport_create_queue(void (*rx_handler) (struct ntb_transport_qp *qp),
+			   void (*tx_handler) (struct ntb_transport_qp *qp),
+			   void (*event_handler)(int status))
 {
 	struct ntb_queue_entry *entry;
 	struct ntb_transport_qp *qp;
@@ -1263,7 +1276,8 @@ EXPORT_SYMBOL(ntb_transport_qp_num);
  *
  * RETURNS: the max payload size of a qp
  */
-unsigned int ntb_transport_max_size(struct ntb_transport_qp *qp)
+unsigned int
+ntb_transport_max_size(__attribute__((unused)) struct ntb_transport_qp *qp)
 {
 	return transport_mtu;
 }

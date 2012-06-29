@@ -59,14 +59,12 @@
 
 struct ntb_transport_qp;
 
-typedef void (*handler) (struct ntb_transport_qp *qp);
-typedef void (*ehandler) (int status);
-
 unsigned char ntb_transport_qp_num(struct ntb_transport_qp *qp);
 unsigned int ntb_transport_max_size(struct ntb_transport_qp *qp);
-struct ntb_transport_qp *ntb_transport_create_queue(handler rx_handler,
-						    handler tx_handler,
-						    ehandler event_handler);
+struct ntb_transport_qp *
+ntb_transport_create_queue(void (*rx_handler) (struct ntb_transport_qp *qp),
+			   void (*tx_handler) (struct ntb_transport_qp *qp),
+			   void (*event_handler)(int status));
 void ntb_transport_free_queue(struct ntb_transport_qp *qp);
 int ntb_transport_rx_enqueue(struct ntb_transport_qp *qp, void *cb, void *data,
 			     unsigned int len);

@@ -76,7 +76,7 @@ struct ntb_netdev {
 #define	NTB_TX_TIMEOUT_MS	1000
 #define	NTB_RXQ_SIZE		100
 
-struct net_device *netdev;
+static struct net_device *netdev;
 
 static void ntb_netdev_event_handler(int status)
 {
@@ -284,11 +284,11 @@ static const struct net_device_ops ntb_netdev_ops = {
 	.ndo_set_mac_address = eth_mac_addr,
 };
 
-static void ntb_get_drvinfo(struct net_device *dev,
+static void ntb_get_drvinfo(__attribute__((unused)) struct net_device *dev,
 			    struct ethtool_drvinfo *info)
 {
-	strcpy(info->driver, KBUILD_MODNAME);
-	strcpy(info->version, NTB_NETDEV_VER);
+	strlcpy(info->driver, KBUILD_MODNAME, sizeof(info->driver));
+	strlcpy(info->version, NTB_NETDEV_VER, sizeof(info->version));
 }
 
 static const char ntb_nic_stats[][ETH_GSTRING_LEN] = {
@@ -297,7 +297,7 @@ static const char ntb_nic_stats[][ETH_GSTRING_LEN] = {
 	"tx_packets", "tx_bytes", "tx_errors", "tx_dropped",
 };
 
-static int ntb_get_stats_count(struct net_device *dev)
+static int ntb_get_stats_count(__attribute__((unused)) struct net_device *dev)
 {
 	return ARRAY_SIZE(ntb_nic_stats);
 }
@@ -312,7 +312,8 @@ static int ntb_get_sset_count(struct net_device *dev, int sset)
 	}
 }
 
-static void ntb_get_strings(struct net_device *dev, u32 sset, u8 *data)
+static void ntb_get_strings(__attribute__((unused)) struct net_device *dev,
+			    u32 sset, u8 *data)
 {
 	switch (sset) {
 	case ETH_SS_STATS:
@@ -320,8 +321,10 @@ static void ntb_get_strings(struct net_device *dev, u32 sset, u8 *data)
 	}
 }
 
-static void ntb_get_ethtool_stats(struct net_device *dev,
-				  struct ethtool_stats *stats, u64 *data)
+static void
+ntb_get_ethtool_stats(struct net_device *dev,
+		      __attribute__((unused)) struct ethtool_stats *stats,
+		      u64 *data)
 {
 	int i = 0;
 

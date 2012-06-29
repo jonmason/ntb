@@ -57,25 +57,31 @@
  * Jon Mason <jon.mason@intel.com>
  */
 
+#define PCI_DEVICE_ID_INTEL_NTB_B2B_JSF		0x3725
+#define PCI_DEVICE_ID_INTEL_NTB_CLASSIC_JSF	0x3726
+#define PCI_DEVICE_ID_INTEL_NTB_RP_JSF		0x3727
+#define PCI_DEVICE_ID_INTEL_NTB_RP_SNB		0x3C08
+#define PCI_DEVICE_ID_INTEL_NTB_B2B_SNB		0x3C0D
+#define PCI_DEVICE_ID_INTEL_NTB_CLASSIC_SNB	0x3C0E
+#define PCI_DEVICE_ID_INTEL_NTB_2ND_SNB		0x3C0F
+#define PCI_DEVICE_ID_INTEL_NTB_B2B_BWD		0x0C4E
+
 #define msix_table_size(control)	((control & PCI_MSIX_FLAGS_QSIZE)+1)
 
 #define NTB_BAR_MMIO		0
 #define NTB_BAR_23		2
 #define NTB_BAR_45		4
-#define NTB_BAR_MASK		(1 << NTB_BAR_MMIO) | (1 << NTB_BAR_23) |\
-				(1 << NTB_BAR_45)
+#define NTB_BAR_MASK		((1 << NTB_BAR_MMIO) | (1 << NTB_BAR_23) |\
+				 (1 << NTB_BAR_45))
 
 #define NTB_LINK_DOWN		0
 #define NTB_LINK_UP		1
 
 #define NTB_HB_TIMEOUT		msecs_to_jiffies(1000)
 
+#define NTB_NUM_MW		2
+
 struct ntb_device;
-
-typedef void (*db_cb_func) (int db_num);
-typedef void (*event_cb_func) (void *handle, unsigned int event);
-
-#define NTB_NUM_MW	2
 
 enum {
 	NTB_EVENT_SW_EVENT0	= (1 << 0),
@@ -93,9 +99,11 @@ struct ntb_device *ntb_register_transport(void *transport);
 void ntb_unregister_transport(struct ntb_device *ndev);
 void ntb_set_mw_addr(struct ntb_device *ndev, unsigned int mw, u64 addr);
 int ntb_register_db_callback(struct ntb_device *ndev, unsigned int idx,
-			     db_cb_func func);
+			     void (*db_cb_func) (int db_num));
 void ntb_unregister_db_callback(struct ntb_device *ndev, unsigned int idx);
-int ntb_register_event_callback(struct ntb_device *ndev, event_cb_func func);
+int ntb_register_event_callback(struct ntb_device *ndev,
+				void (*event_cb_func) (void *handle,
+						       unsigned int event));
 void ntb_unregister_event_callback(struct ntb_device *ndev);
 int ntb_get_max_spads(struct ntb_device *ndev);
 int ntb_write_local_spad(struct ntb_device *ndev, unsigned int idx, u32 val);
