@@ -629,6 +629,98 @@ static int ntb_bwd_setup(struct ntb_device *ndev)
 	INIT_DELAYED_WORK(&ndev->hb_timer, bwd_link_poll);
 	schedule_delayed_work(&ndev->hb_timer, NTB_HB_TIMEOUT);
 
+	/* FIXME - MSI-X bug on early BWD HW, remove once internal issue is
+	 * resolved.  Mask transaction layer internal parity errors.
+	 */
+	rc = pci_write_config_dword(ndev->pdev, 0xFC, 0x4);
+	if (rc)
+		return rc;
+
+	/* Some buggy BIOSes aren't filling out the XLAT offsets.
+	 * Check, notify, and correct the issue.
+	 */
+	if (ndev->dev_type == NTB_DEV_USD) {
+		if (!readq(ndev->reg_base + BWD_PBAR2XLAT_OFFSET)) {
+			dev_err(&ndev->pdev->dev,
+				"BWD_PBAR2XLAT_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
+			/* Setting eEP MBAR23XLAT, should match eEP MBAR23 on
+			 * remote system
+			 */
+			writeq(BWD_PBAR2XLAT_USD_ADDR,
+			       ndev->reg_base + BWD_PBAR2XLAT_OFFSET);
+		}
+
+		if (!readq(ndev->reg_base + BWD_PBAR4XLAT_OFFSET)) {
+			dev_err(&ndev->pdev->dev,
+				"BWD_PBAR4XLAT_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
+			/* Setting eEP MBAR45XLAT, should match eEP MBAR23 on
+			 * remote system
+			 */
+			writeq(BWD_PBAR4XLAT_USD_ADDR,
+			       ndev->reg_base + BWD_PBAR4XLAT_OFFSET);
+		}
+
+		if (readq(ndev->reg_base + BWD_MBAR23_OFFSET) == 0xC) {
+			dev_err(&ndev->pdev->dev,
+				"BWD_MBAR23_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
+			/* Setting eEP MBAR23, should match eEP MBAR23XLAT on
+			 * remote system
+			 */
+			writeq(BWD_MBAR23_USD_ADDR,
+			       ndev->reg_base + BWD_MBAR23_OFFSET);
+		}
+
+		if (readq(ndev->reg_base + BWD_MBAR45_OFFSET) == 0xC) {
+			dev_err(&ndev->pdev->dev,
+				"BWD_MBAR45_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
+			/* Setting eEP MBAR45, should match eEP MBAR45XLAT on
+			 * remote system
+			 */
+			writeq(BWD_MBAR45_USD_ADDR,
+			       ndev->reg_base + BWD_MBAR45_OFFSET);
+		}
+	} else {
+		if (!readq(ndev->reg_base + BWD_PBAR2XLAT_OFFSET)) {
+			dev_err(&ndev->pdev->dev,
+				"BWD_PBAR2XLAT_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
+			/* Setting eEP MBAR23XLAT, should match eEP MBAR23 on
+			 * remote system
+			 */
+			writeq(BWD_PBAR2XLAT_DSD_ADDR,
+			       ndev->reg_base + BWD_PBAR2XLAT_OFFSET);
+		}
+
+		if (!readq(ndev->reg_base + BWD_PBAR4XLAT_OFFSET)) {
+			dev_err(&ndev->pdev->dev,
+				"BWD_PBAR4XLAT_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
+			/* Setting eEP MBAR45XLAT, should match eEP MBAR23 on
+			 * remote system
+			 */
+			writeq(BWD_PBAR4XLAT_DSD_ADDR,
+			       ndev->reg_base + BWD_PBAR4XLAT_OFFSET);
+		}
+
+		if (readq(ndev->reg_base + BWD_MBAR23_OFFSET) == 0xC) {
+			dev_err(&ndev->pdev->dev,
+				"BWD_MBAR23_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
+			/* Setting eEP MBAR23, should match eEP MBAR23XLAT on
+			 * remote system
+			 */
+			writeq(BWD_MBAR23_DSD_ADDR,
+			       ndev->reg_base + BWD_MBAR23_OFFSET);
+		}
+
+		if (readq(ndev->reg_base + BWD_MBAR45_OFFSET) == 0xC) {
+			dev_err(&ndev->pdev->dev,
+				"BWD_MBAR45_OFFSET not set!  Most likely caused by a BIOS bug.  Working around...\n");
+			/* Setting eEP MBAR45, should match eEP MBAR45XLAT on
+			 * remote system
+			 */
+			writeq(BWD_MBAR45_DSD_ADDR,
+			       ndev->reg_base + BWD_MBAR45_OFFSET);
+		}
+	}
+
 	return 0;
 }
 
