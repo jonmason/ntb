@@ -65,6 +65,7 @@ pktq_penq(struct pktq *pq, int prec, void *p)
 
 	ASSERT(!pktq_full(pq));
 	ASSERT(!pktq_pfull(pq, prec));
+	PKTSETLINK(p, NULL);
 
 	q = &pq->q[prec];
 
@@ -103,7 +104,7 @@ pktq_penq_head(struct pktq *pq, int prec, void *p)
 
 	ASSERT(!pktq_full(pq));
 	ASSERT(!pktq_pfull(pq, prec));
-
+	PKTSETLINK(p, NULL);
 	q = &pq->q[prec];
 
 	if (q->head == NULL)
