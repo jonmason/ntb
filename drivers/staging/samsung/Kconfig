@@ -1,0 +1,19 @@
+menu "SAMSUNG"
+
+config SAMSUNG
+	bool "Samsung Drivers"
+	default N
+	help
+	  Enable support for samsung specific drivers
+
+if SAMSUNG
+
+config SEC_SYSFS
+	bool "Samsung sysfs class device"
+	default N
+	help
+	  This option provide sysfs node which name is 'sec' for representing
+	  samsung devices through sysfs node.
+endif
+
+endmenu
