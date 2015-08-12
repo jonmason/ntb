@@ -62,9 +62,9 @@ extern void *dhd_wlan_mem_prealloc(int section, unsigned long size);
 #endif /* CONFIG_BROADCOM_WIFI_RESERVED_MEM */
 
 #define WIFI_TURNON_DELAY	200
-static struct device *wlan_dev;
 static int wlan_pwr_on = -1;
 static int wlan_host_wake_irq = 0;
+static unsigned int wlan_host_wake_up = -1;
 EXPORT_SYMBOL(wlan_host_wake_irq);
 #ifdef CONFIG_MACH_A7LTE
 extern struct device *mmc_dev_for_wlan;
@@ -191,9 +191,6 @@ dhd_wlan_init_gpio(void)
 	unsigned int wlan_host_wake_up = -1;
 	struct device_node *root_node = NULL;
 
-	wlan_dev = sec_device_create(NULL, "wlan");
-	BUG_ON(!wlan_dev);
-
 	root_node = of_find_compatible_node(NULL, NULL, wlan_node);
 	if (!root_node) {
 		WARN(1, "failed to get device node of bcm4354\n");
@@ -217,7 +214,6 @@ dhd_wlan_init_gpio(void)
 	gpio_direction_output(wlan_pwr_on, 0);
 #endif /* CONFIG_BCMDHD_PCIE */
 	gpio_export(wlan_pwr_on, 1);
-	gpio_export_link(wlan_dev, "WLAN_REG_ON", wlan_pwr_on);
 	msleep(WIFI_TURNON_DELAY);
 #ifdef EXYNOS_PCIE_RC_ONOFF
 	exynos_pcie_poweron(SAMSUNG_PCIE_CH_NUM);
@@ -227,16 +223,17 @@ dhd_wlan_init_gpio(void)
 	wlan_host_wake_up = of_get_gpio(root_node, 1);
 	if (!gpio_is_valid(wlan_host_wake_up)) {
 		WARN(1, "Invalied gpio pin : %d\n", wlan_host_wake_up);
+		gpio_free(wlan_pwr_on);
 		return -ENODEV;
 	}
 
 	if (gpio_request(wlan_host_wake_up, "WLAN_HOST_WAKE")) {
 		WARN(1, "fail to request gpio(WLAN_HOST_WAKE)\n");
+		gpio_free(wlan_pwr_on);
 		return -ENODEV;
 	}
 	gpio_direction_input(wlan_host_wake_up);
 	gpio_export(wlan_host_wake_up, 1);
-	gpio_export_link(wlan_dev, "WLAN_HOST_WAKE", wlan_host_wake_up);
 
 	wlan_host_wake_irq = gpio_to_irq(wlan_host_wake_up);
 
@@ -340,6 +337,14 @@ fail:
 	return ret;
 }
 
+void __exit dhd_wlan_exit(void)
+{
+	gpio_free(wlan_pwr_on);
+	gpio_free(wlan_host_wake_up);
+	printk(KERN_INFO "%s: exit\n", __FUNCTION__);
+}
+
+#ifndef CONFIG_ARCH_S5P6818
 #if defined(CONFIG_MACH_UNIVERSAL7420) || defined(CONFIG_SOC_EXYNOS8890)
 #if defined(CONFIG_DEFERRED_INITCALLS)
 deferred_module_init(dhd_wlan_init);
@@ -349,3 +354,4 @@ late_initcall(dhd_wlan_init);
 #else
 device_initcall(dhd_wlan_init);
 #endif /* CONFIG_MACH_UNIVERSAL7420 || CONFIG_SOC_EXYNOS8890 */
+#endif /* CONFIG_ARCH_S5P6818 */

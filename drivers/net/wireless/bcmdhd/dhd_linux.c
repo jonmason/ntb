@@ -398,7 +398,10 @@ argos_rps_ctrl argos_rps_ctrl_data;
 #define DELAY_TO_CLEAR_RPS_CPUS		300
 #endif /* ARGOS_RPS_CPU_CTL && ARGOS_CPU_SCHEDULER */
 
-
+#if defined(DHD_OF_SUPPORT)
+extern int dhd_wlan_init(void);
+extern void dhd_wlan_exit(void);
+#endif /* defined(DHD_OF_SUPPORT) */
 
 #ifdef DHD_FW_COREDUMP
 static void dhd_mem_dump(void *dhd_info, void *event_info, u8 event);
@@ -9711,6 +9714,10 @@ dhd_module_cleanup(void)
 	wl_android_exit();
 
 	dhd_wifi_platform_unregister_drv();
+
+#if defined(DHD_OF_SUPPORT)
+	dhd_wlan_exit();
+#endif /* defined(DHD_OF_SUPPORT) */
 }
 
 static void __exit
@@ -9728,6 +9735,14 @@ dhd_module_init(void)
 	int retry = POWERUP_MAX_RETRY;
 
 	DHD_ERROR(("%s in\n", __FUNCTION__));
+
+#if defined(DHD_OF_SUPPORT)
+	err = dhd_wlan_init();
+	if (err) {
+		DHD_ERROR(("%s: failed in dhd_wlan_init.", __FUNCTION__));
+		return err;
+	}
+#endif /* defined(DHD_OF_SUPPORT) */
 
 	dhd_buzzz_attach();
 
