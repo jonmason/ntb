@@ -1503,6 +1503,9 @@ wl_cfg80211_add_virtual_iface(struct wiphy *wiphy,
 #else
 	char *name,
 #endif /* WL_CFG80211_P2P_DEV_IF */
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(4, 0, 0))
+	unsigned char name_assigne_type,
+#endif
 	enum nl80211_iftype type, u32 *flags,
 	struct vif_params *params)
 {
