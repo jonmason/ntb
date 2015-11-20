@@ -63,6 +63,7 @@ static const struct dwc2_core_params params_bcm2835 = {
 	.otg_ver			= 0,	/* 1.3 */
 	.dma_enable			= 1,
 	.dma_desc_enable		= 0,
+	.dma_desc_fs_enable		= 0,
 	.speed				= 0,	/* High Speed */
 	.enable_dynamic_fifo		= 1,
 	.en_multiple_tx_fifo		= 1,
@@ -93,6 +94,7 @@ static const struct dwc2_core_params params_rk3066 = {
 	.otg_ver			= -1,
 	.dma_enable			= -1,
 	.dma_desc_enable		= 0,
+	.dma_desc_fs_enable		= 0,
 	.speed				= -1,
 	.enable_dynamic_fifo		= 1,
 	.en_multiple_tx_fifo		= -1,
@@ -398,8 +400,10 @@ static int dwc2_driver_probe(struct platform_device *dev)
 		/*
 		 * Disable descriptor dma mode by default as the HW can support
 		 * it, but does not support it for SPLIT transactions.
+		 * Disable it for FS devices as well.
 		 */
 		defparams.dma_desc_enable = 0;
+		defparams.dma_desc_fs_enable = 0;
 	}
 
 	hsotg = devm_kzalloc(&dev->dev, sizeof(*hsotg), GFP_KERNEL);
