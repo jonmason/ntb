@@ -1454,7 +1454,7 @@ static void dwc2_conn_id_status_change(struct work_struct *work)
 			if (gpio_is_valid(hsotg->ext_vbus_io))
 				gpio_set_value(hsotg->ext_vbus_io, 0);
 		}
-		dwc2_core_init(hsotg, false, -1);
+		dwc2_core_init(hsotg, false);
 		dwc2_enable_global_interrupts(hsotg);
 		spin_lock_irqsave(&hsotg->lock, flags);
 		dwc2_hsotg_core_init_disconnected(hsotg, false);
@@ -1478,7 +1478,7 @@ static void dwc2_conn_id_status_change(struct work_struct *work)
 		hsotg->host_flag = 1;
 
 		/* Initialize the Core for Host mode */
-		dwc2_core_init(hsotg, false, -1);
+		dwc2_core_init(hsotg, false);
 		dwc2_enable_global_interrupts(hsotg);
 		dwc2_hcd_start(hsotg);
 	}
@@ -2609,7 +2609,7 @@ static int _dwc2_hcd_resume(struct usb_hcd *hcd)
 	return 0;
 #endif
 
-	dwc2_core_init(hsotg, false, -1);
+	dwc2_core_init(hsotg, false);
 	dwc2_enable_global_interrupts(hsotg);
 
 	gotgctl = readl(hsotg->regs + GOTGCTL);
@@ -3314,7 +3314,7 @@ int dwc2_hcd_init(struct dwc2_hsotg *hsotg, int irq)
 	dwc2_disable_global_interrupts(hsotg);
 
 	/* Initialize the DWC_otg core, and select the Phy type */
-	retval = dwc2_core_init(hsotg, true, irq);
+	retval = dwc2_core_init(hsotg, true);
 	if (retval)
 		goto error2;
 
