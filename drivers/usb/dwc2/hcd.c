@@ -989,7 +989,8 @@ enum dwc2_transaction_type dwc2_hcd_select_transactions(
 		 */
 		qh_ptr = qh_ptr->next;
 		spin_lock_irqsave(&hsotg->channel_lock, flags);
-		list_move(&qh->qh_list_entry, &hsotg->periodic_sched_assigned);
+		list_move_tail(&qh->qh_list_entry,
+			       &hsotg->periodic_sched_assigned);
 		spin_unlock_irqrestore(&hsotg->channel_lock, flags);
 		ret_val = DWC2_TRANSACTION_PERIODIC;
 	}
@@ -1029,8 +1030,8 @@ enum dwc2_transaction_type dwc2_hcd_select_transactions(
 		 */
 		qh_ptr = qh_ptr->next;
 		spin_lock_irqsave(&hsotg->channel_lock, flags);
-		list_move(&qh->qh_list_entry,
-			  &hsotg->non_periodic_sched_active);
+		list_move_tail(&qh->qh_list_entry,
+			       &hsotg->non_periodic_sched_active);
 		spin_unlock_irqrestore(&hsotg->channel_lock, flags);
 
 		if (ret_val == DWC2_TRANSACTION_NONE)
@@ -1204,8 +1205,8 @@ static void dwc2_process_periodic_channels(struct dwc2_hsotg *hsotg)
 			 * Move the QH from the periodic assigned schedule to
 			 * the periodic queued schedule
 			 */
-			list_move(&qh->qh_list_entry,
-				  &hsotg->periodic_sched_queued);
+			list_move_tail(&qh->qh_list_entry,
+				       &hsotg->periodic_sched_queued);
 
 			/* done queuing high bandwidth */
 			hsotg->queuing_high_bandwidth = 0;
