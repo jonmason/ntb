@@ -1989,7 +1989,12 @@ static int mxt_initialize(struct mxt_data *data)
 	if (error)
 		goto err_free_object_table;
 
-	error = request_firmware_nowait(THIS_MODULE, true, MXT_CFG_NAME,
+	/* If a cfg is not provided, just skip firmware load */
+	if (data->pdata->skip_cfg_load)
+		error = mxt_configure_objects(data, NULL);
+	else
+		error = request_firmware_nowait(THIS_MODULE, true,
+					MXT_CFG_NAME,
 					&client->dev, GFP_KERNEL, data,
 					mxt_config_cb);
 	if (error) {
@@ -2445,6 +2450,9 @@ static const struct mxt_platform_data *mxt_parse_dt(struct i2c_client *client)
 
 		pdata->t19_keymap = keymap;
 	}
+
+	if (of_property_read_bool(np, "skip-cfg-load"))
+		pdata->skip_cfg_load = true;
 
 	pdata->suspend_mode = MXT_SUSPEND_DEEP_SLEEP;
 

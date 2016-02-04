@@ -22,6 +22,9 @@ Optional properties for main touchpad device:
     experiment to determine which bit corresponds to which input. Use
     KEY_RESERVED for unused padding values.
 
+- skip-cfg-load: This property can be used when no configuration file is
+    provided and want to skip the loading of the cfg.
+
 Example:
 
 	touch@4b {
