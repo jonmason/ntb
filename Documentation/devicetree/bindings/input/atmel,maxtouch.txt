@@ -25,6 +25,9 @@ Optional properties for main touchpad device:
 - skip-cfg-load: This property can be used when no configuration file is
     provided and want to skip the loading of the cfg.
 
+- switch-xy: This property can be used to switch x/y axis by S/W. This option
+    is useful when the cfg is not provided.
+
 Example:
 
 	touch@4b {

@@ -774,8 +774,13 @@ static void mxt_proc_t100_message(struct mxt_data *data, u8 *message)
 		return;
 
 	status = message[1];
-	x = get_unaligned_le16(&message[2]);
-	y = get_unaligned_le16(&message[4]);
+	if (data->pdata->switch_xy) {
+		x = get_unaligned_le16(&message[4]);
+		y = get_unaligned_le16(&message[2]);
+	} else {
+		x = get_unaligned_le16(&message[2]);
+		y = get_unaligned_le16(&message[4]);
+	}
 
 	if (status & MXT_T100_DETECT) {
 		type = (status & MXT_T100_TYPE_MASK) >> 4;
@@ -1743,7 +1748,7 @@ static int mxt_read_t100_config(struct mxt_data *data)
 	if (range_y == 0)
 		range_y = 1023;
 
-	if (cfg & MXT_T100_CFG_SWITCHXY) {
+	if (cfg & MXT_T100_CFG_SWITCHXY || data->pdata->switch_xy) {
 		data->max_x = range_y;
 		data->max_y = range_x;
 	} else {
@@ -2454,6 +2459,9 @@ static const struct mxt_platform_data *mxt_parse_dt(struct i2c_client *client)
 
 	if (of_property_read_bool(np, "skip-cfg-load"))
 		pdata->skip_cfg_load = true;
+
+	if (of_property_read_bool(np, "switch-xy"))
+		pdata->switch_xy = true;
 
 	pdata->suspend_mode = MXT_SUSPEND_DEEP_SLEEP;
 
