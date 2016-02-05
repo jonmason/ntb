@@ -187,6 +187,11 @@ enum t100_type {
 
 #define MXT_PIXELS_PER_MM	20
 
+static bool skip_bootloader_mode = true;
+module_param_named(skip_bootloader_mode, skip_bootloader_mode, bool, 0);
+MODULE_PARM_DESC(skip_bootloader_mode,
+		 "Skip entering bootloader mode during boot(default=enabled)");
+
 struct mxt_info {
 	u8 family_id;
 	u8 variant_id;
@@ -1956,6 +1961,9 @@ static int mxt_initialize(struct mxt_data *data)
 		error = mxt_get_info(data);
 		if (!error)
 			break;
+		/* do not try bootloader recovery to avoid long boot time */
+		if (error && skip_bootloader_mode)
+			return error;
 
 		/* Check bootloader state */
 		error = mxt_probe_bootloader(data, false);
