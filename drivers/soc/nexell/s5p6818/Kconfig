@@ -1,4 +1,10 @@
 menu "NEXELL s5p6818"
 
-endmenu
+config SOC_S5P6818_GPIO
+	bool "SoC s5p6818 GPIO-ALIVE device driver"
+	depends on ARCH_S5P6818
+	help
+	  This enables support for the SoC gpio/alive on the Nexell s5p6818.
+	  This driver is responsible all of controlling gpio/alive functions.
 
+endmenu

@@ -1,0 +1,8 @@
+#
+# NEXELL Pin control drivers
+#
+config PINCTRL_NEXELL
+	bool "Nexell SoC pinctrl driver"
+	select PINMUX
+	select PINCONF
+	select SOC_S5P6818_GPIO if ARCH_S5P6818

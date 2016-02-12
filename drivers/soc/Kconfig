@@ -7,6 +7,7 @@ source "drivers/soc/rockchip/Kconfig"
 source "drivers/soc/sunxi/Kconfig"
 source "drivers/soc/ti/Kconfig"
 source "drivers/soc/versatile/Kconfig"
+source "drivers/soc/nexell/Kconfig"
 
 if ARCH_S5P6818
 source "drivers/soc/nexell/Kconfig"
