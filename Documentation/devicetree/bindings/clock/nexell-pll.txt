@@ -1,0 +1,18 @@
+* Nxell s5p16818 PLL Controller
+
+The S5p6818 PLL controller within the s5p6818 SoC.
+S5p6818 support 5 PLLs (PLL0, 1, 2 ,3)
+
+
+Required Properties:
+
+- compatible: should be "nexell,s5p6818-pll".
+- ref-freuecny: Input oscillator clock Hz.
+- reg: physical base address of the controller and length of memory mapped
+  region.
+Example: An example of a clock controller node is listed below.
+
+	refclk:oscillator {
+		compatible = "nexell,s5p6818,pll";
+		ref-freuecny = <24000000>;
+	};
