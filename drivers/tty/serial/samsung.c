@@ -1538,8 +1538,35 @@ s3c24xx_serial_ports[CONFIG_SERIAL_SAMSUNG_UARTS] = {
 			.flags		= UPF_BOOT_AUTOCONF,
 			.line		= 3,
 		}
+	},
+#endif
+#if CONFIG_SERIAL_SAMSUNG_UARTS > 4
+	[4] = {
+		.port = {
+			.lock		= __PORT_LOCK_UNLOCKED(4),
+			.iotype		= UPIO_MEM,
+			.uartclk	= 0,
+			.fifosize	= 16,
+			.ops		= &s3c24xx_serial_ops,
+			.flags		= UPF_BOOT_AUTOCONF,
+			.line		= 4,
+		}
+	},
+#endif
+#if CONFIG_SERIAL_SAMSUNG_UARTS > 5
+	[5] = {
+		.port = {
+			.lock		= __PORT_LOCK_UNLOCKED(5),
+			.iotype		= UPIO_MEM,
+			.uartclk	= 0,
+			.fifosize	= 16,
+			.ops		= &s3c24xx_serial_ops,
+			.flags		= UPF_BOOT_AUTOCONF,
+			.line		= 5,
+		}
 	}
 #endif
+
 };
 #undef __PORT_LOCK_UNLOCKED
 
@@ -1829,6 +1856,23 @@ static int s3c24xx_serial_probe(struct platform_device *pdev)
 	else if (ourport->info->fifosize)
 		ourport->port.fifosize = ourport->info->fifosize;
 
+	/*
+	 * patch for s5p6818
+	 * s5p6818 uart needs reset before enabled
+	 */
+#ifdef CONFIG_RESET_CONTROLLER
+	if (ourport->info->has_reset_control) {
+		struct reset_control *rst;
+
+		rst = devm_reset_control_get(&pdev->dev, "uart-reset");
+		if (!rst) {
+			dev_err(&pdev->dev, "failed to get reset control\n");
+			return -EINVAL;
+		}
+		if (!reset_control_status(rst))
+			reset_control_reset(rst);
+	}
+#endif
 	/*
 	 * DMA transfers must be aligned at least to cache line size,
 	 * so find minimal transfer size suitable for DMA mode
@@ -2335,6 +2379,36 @@ static struct s3c24xx_serial_drv_data exynos5433_serial_drv_data = {
 #define EXYNOS5433_SERIAL_DRV_DATA (kernel_ulong_t)NULL
 #endif
 
+#if defined(CONFIG_ARCH_S5P6818)
+static struct s3c24xx_serial_drv_data nexell_serial_drv_data = {
+	.info = &(struct s3c24xx_uart_info) {
+		.name		= "Nexell UART",
+		.type		= PORT_S3C6400,
+		.has_divslot	= 1,
+		.has_reset_control = 1,
+		.rx_fifomask	= S5PV210_UFSTAT_RXMASK,
+		.rx_fifoshift	= S5PV210_UFSTAT_RXSHIFT,
+		.rx_fifofull	= S5PV210_UFSTAT_RXFULL,
+		.tx_fifofull	= S5PV210_UFSTAT_TXFULL,
+		.tx_fifomask	= S5PV210_UFSTAT_TXMASK,
+		.tx_fifoshift	= S5PV210_UFSTAT_TXSHIFT,
+		.def_clk_sel	= S3C2410_UCON_CLKSEL0,
+		.num_clks	= 1,
+		.clksel_mask	= 0,
+		.clksel_shift	= 0,
+	},
+	.def_cfg = &(struct s3c2410_uartcfg) {
+		.ucon		= S5PV210_UCON_DEFAULT,
+		.ufcon		= S5PV210_UFCON_DEFAULT,
+		.has_fracval	= 1,
+	},
+	.fifosize = { 256, 64, 16, 16, 16, 16 },
+};
+#define NEXELL_SERIAL_DRV_DATA	   ((kernel_ulong_t)&nexell_serial_drv_data)
+#else
+#define NEXELL_SERIAL_DRV_DATA	   (kernel_ulong_t)NULL
+#endif
+
 static const struct platform_device_id s3c24xx_serial_driver_ids[] = {
 	{
 		.name		= "s3c2410-uart",
@@ -2357,6 +2431,9 @@ static const struct platform_device_id s3c24xx_serial_driver_ids[] = {
 	}, {
 		.name		= "exynos5433-uart",
 		.driver_data	= EXYNOS5433_SERIAL_DRV_DATA,
+	}, {
+		.name		= "s5p6818-uart",
+		.driver_data	= NEXELL_SERIAL_DRV_DATA,
 	},
 	{ },
 };
@@ -2378,6 +2455,8 @@ static const struct of_device_id s3c24xx_uart_dt_match[] = {
 		.data = (void *)EXYNOS4210_SERIAL_DRV_DATA },
 	{ .compatible = "samsung,exynos5433-uart",
 		.data = (void *)EXYNOS5433_SERIAL_DRV_DATA },
+	{ .compatible = "nexell,s5p6818-uart",
+		.data = (void *)NEXELL_SERIAL_DRV_DATA },
 	{},
 };
 MODULE_DEVICE_TABLE(of, s3c24xx_uart_dt_match);
@@ -2497,8 +2576,11 @@ OF_EARLYCON_DECLARE(s5pv210, "samsung,s5pv210-uart",
 			s5pv210_early_console_setup);
 OF_EARLYCON_DECLARE(exynos4210, "samsung,exynos4210-uart",
 			s5pv210_early_console_setup);
+OF_EARLYCON_DECLARE(s5p6818, "nexell,s5p6818-uart",
+			s5pv210_early_console_setup);
 EARLYCON_DECLARE(s5pv210, s5pv210_early_console_setup);
 EARLYCON_DECLARE(exynos4210, s5pv210_early_console_setup);
+EARLYCON_DECLARE(s5p6818, s5pv210_early_console_setup);
 #endif
 
 MODULE_ALIAS("platform:samsung-uart");

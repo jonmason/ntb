@@ -1,0 +1,68 @@
+* Nexell's UART Controller
+
+The Nexell's UART controller is used for interfacing SoC with serial
+communicaion devices.
+
+The Nexell's UART controller is used same to Samsung Uart contoller.
+
+Required properties:
+- compatible: should be one of following:
+  - "nexell,s5p6818-uart" -  s5p6818 SoC,
+
+- reg: base physical address of the controller and length of memory mapped
+  region.
+
+- interrupts: a single interrupt signal to SoC interrupt controller,
+  according to interrupt bindings documentation [1].
+
+- clock-names: input names of clocks used by the controller:
+  - "uart" - controller bus clock,
+  - "clk_uart_baudN" - Nth baud base clock input (N = 0, 1, ...),
+    according to SoC User's Manual (only N = 0 is allowedfor SoCs without
+    internal baud clock mux).
+- clocks: phandles and specifiers for all clocks specified in "clock-names"
+  property, in the same order, according to clock bindings documentation [2].
+
+- resets : phandle to the parent reset controller.
+ - "nxp_reset" - reset-cotroller,
+ - "RESET_ID_UARTN" - Nth Reset control id (N = 0, 1, ...)
+- reset-names : input names of resets used by the controller
+
+[1] Documentation/devicetree/bindings/interrupt-controller/interrupts.txt
+[2] Documentation/devicetree/bindings/clock/clock-bindings.txts
+
+Optional properties:
+- samsung,uart-fifosize: The fifo size supported by the UART channel
+
+- soc,tieoff : phandle to the tieoff control.
+
+Note: Each Nexell UART should have an alias correctly numbered in the
+"aliases" node, according to serialN format, where N is the port number
+(non-negative decimal integer) as specified by User's Manual of respective
+SoC.
+
+Example:
+	aliases {
+		serail0 = &serial0;
+		serail1 = &serial1;
+		serail2 = &serial2;
+		serail3 = &serial3;
+		serail4 = &serial4;
+		serail5 = &serial5;
+	};
+
+Example:
+	serial0:serial@c00a1000 {
+	        compatible = "nexell,s5p6818-uart";
+	        reg = <PHYS_BASE_UART0 0x1000>;
+	        interrupts = <0 IRQ_UART0  0>;
+	        clock-names = "uart0";
+	        clocks = <&uart0>;
+	        resets  = <&nxp_reset RESET_ID_UART0>;
+	        reset-names = "uart-reset";
+	        soc,tieoff = < NX_TIEOFF_UART0_USESMC 0>,
+	                     < NX_TIEOFF_UART0_SMCTXENB 0>,
+	                     < NX_TIEOFF_UART0_SMCRXENB 0>;
+	        pinctrl-names = "default";
+	        pinctrl-0 = <&serial0_pin>;
+	};
