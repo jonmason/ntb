@@ -1,0 +1,169 @@
+/*
+ * Copyright (C) 2016  Nexell Co., Ltd.
+ * Author: Youngbok, Park <ybpark@nexell.co.kr>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include "../skeleton.dtsi"
+
+#include <dt-bindings/tieoff/s5p6818-tieoff.h>
+#include <dt-bindings/soc/s5p6818-base.h>
+#include <dt-bindings/reset/nexell,s5p6818-reset.h>
+#include <dt-bindings/interrupt-controller/s5p6818-irq.h>
+
+/ {
+	model = "nexell soc";
+	compatible = "nexell,s5p6818";
+	#address-cells = <0x1>;
+	#size-cells = <0x1>;
+
+	aliases {
+		serail0 = &serial0;
+		pinctrl0 = &pinctrl_0;
+	};
+
+
+	cpus {
+		#address-cells = <0x2>;
+		#size-cells = <0x0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0 0x0>;
+			enable-method = "s5p6818-smp";
+			cpu-release-addr = < 0x1 0xc0010230 >;
+		};
+
+		cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0 0x1>;
+			enable-method = "s5p6818-smp";
+			cpu-release-addr = < 0x1 0xc0010230 >;
+		};
+
+		cpu@2 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0 0x2>;
+			enable-method = "s5p6818-smp";
+			cpu-release-addr = < 0x1 0xc0010230 >;
+		};
+
+		cpu@3 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0 0x3>;
+			enable-method = "s5p6818-smp";
+			cpu-release-addr = < 0x1 0xc0010230 >;
+		};
+
+		cpu@4 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0 0x4>;
+			enable-method = "s5p6818-smp";
+			cpu-release-addr = < 0x1 0xc0010230 >;
+		};
+
+		cpu@5 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0 0x5>;
+			enable-method = "s5p6818-smp";
+			cpu-release-addr = < 0x1 0xc0010230 >;
+		};
+
+		cpu@6 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0 0x6>;
+			enable-method = "s5p6818-smp";
+			cpu-release-addr = < 0x1 0xc0010230 >;
+		};
+
+		cpu@7 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0 0x7>;
+			enable-method = "s5p6818-smp";
+			cpu-release-addr = < 0x1 0xc0010230 >;
+		};
+	};
+
+	refclk:oscillator {
+		compatible = "nexell,s5p6818,pll";
+		reg = <0xc0010000 0x1000>;
+		ref-freuecny = <24000000>;
+	};
+
+	soc {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0xc0000000 0x300000>;
+		interrupt-parent = <&gic>;
+		ranges;
+
+		#include "s5p6818-soc.dtsi"
+
+		gic:interrupt-controller@c0009000 {
+			compatible = "arm,gic-400";
+			interrupt-controller;
+			#interrupt-cells = <3>;
+			reg	= <0xC0009000 0x1000>, <0xC000a000 0x100>;
+		};
+
+		timer@c0017000 {
+			compatible = "nexell,s5p6818-timer";
+			reg = <PHYS_BASE_TIMER 0x1000>;
+			interrupts = <0 IRQ_TIMER1 0>;
+			clksource = <0>;
+			clkevent = <1>;
+			clocks =  <&timer0>, <&timer1>, <&pclk>;
+			clock-names = "timer0", "timer1", "pclk";
+		};
+
+		tieoff@c0011000 {
+			compatible = "nexell,tieoff";
+			reg = <PHYS_BASE_TIEOFF 0x1000>;
+		};
+
+		serial0:serial@c00a1000 {
+			compatible = "nexell,s5p6818-uart";
+			reg = <PHYS_BASE_UART0 0x1000>;
+			interrupts = <0 IRQ_UART0  0>;
+			clock-names = "uart", "clk_uart_baud0";
+			clocks = <&uart0>, <&uart0>;
+			resets  = <&nexell_reset RESET_ID_UART0>;
+			reset-names = "uart-reset";
+			soc,tieoff = <NX_TIEOFF_UART0_USESMC 0>,
+					<NX_TIEOFF_UART0_SMCTXENB 0>,
+					<NX_TIEOFF_UART0_SMCRXENB 0> ;
+			pinctrl-names = "default";
+			pinctrl-0 = <&serial0_pin>;
+			status = "disabled";
+		};
+
+		nexell_reset:reset@c0012000 {
+			#reset-cells = <1>;
+			compatible = "nexell,s5p6818-reset";
+			reg = <0xC0012000 0x3>;
+			status = "okay";
+		};
+
+	}; /*** soc ***/
+};
