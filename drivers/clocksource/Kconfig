@@ -327,4 +327,11 @@ config CLKSRC_ST_LPC
 	  Enable this option to use the Low Power controller timer
 	  as clocksource.
 
+config CLKSRC_S5P6818_TIMER
+	bool "Support for s5p6818 timer generation"
+	def_bool y if ARCH_S5P6818
+	select CLKSRC_OF if OF
+	help
+	  This is a new clocksource driver for the Nexell timer.
+
 endmenu

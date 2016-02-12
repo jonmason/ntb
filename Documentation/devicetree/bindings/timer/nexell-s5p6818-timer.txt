@@ -1,0 +1,23 @@
+Nexell s5p6818 SoCs Timer Controller
+
+Required properties:
+
+- compatible : should be inexell,s5p6818-timer"
+- reg : Specifies base physical address and size of the registers.
+- interrupts : The interrupt of the first timer
+- clocks: phandle to the source clock
+- clock-names : must include the following entries:
+  clock-names = "timerN"(N= 0,1, n) , "pclk";
+- reset-id : reset controller id.
+
+Example:
+
+timer@c0017000 {
+	compatible = "nexell,s5p6818-timer";
+	reg = <PHYS_BASE_TIMER 0x1000>;
+	interrupts = <0 IRQ_TIMER1 0>;
+	clksource = <0>;
+	clkevent = <1>;
+	clocks =  <&timer0>, <&timer1>, <&pclk>;
+	clock-names = "timer0", "timer1", "pclk";
+};
