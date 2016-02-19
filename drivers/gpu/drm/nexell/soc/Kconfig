@@ -1,0 +1,15 @@
+#
+#Video configuration
+#
+
+menu "Support Display Output"
+	depends on DRM_NX
+
+config NX_DISPLAY_LCD
+	bool "LCD support"
+	help
+	 This selects support for LCD display out.
+	 If you want to enable LCD display,
+	 you should selet this option.
+
+endmenu
