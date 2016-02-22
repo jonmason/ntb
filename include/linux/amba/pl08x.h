@@ -57,6 +57,7 @@ enum {
  * transfers, not bursts. (Bursts are default.)
  * @periph_buses: the device connected to this channel is accessible via
  * these buses (use PL08X_AHB1 | PL08X_AHB2).
+ * @wait_flush_dma : wait until flush dma buffer
  */
 struct pl08x_channel_data {
 	const char *bus_id;
@@ -67,6 +68,8 @@ struct pl08x_channel_data {
 	dma_addr_t addr;
 	bool single;
 	u8 periph_buses;
+	/* add wait_to flush dma buffer */
+	bool wait_flush_dma;
 };
 
 /**
@@ -84,6 +87,7 @@ struct pl08x_channel_data {
  * running any DMA transfer and multiplexing can be recycled
  * @lli_buses: buses which LLIs can be fetched from: PL08X_AHB1 | PL08X_AHB2
  * @mem_buses: buses which memory can be accessed from: PL08X_AHB1 | PL08X_AHB2
+ * @usr_isr : use isr instead of tasklet.
  */
 struct pl08x_platform_data {
 	const struct pl08x_channel_data *slave_channels;
@@ -93,6 +97,8 @@ struct pl08x_platform_data {
 	void (*put_xfer_signal)(const struct pl08x_channel_data *, int);
 	u8 lli_buses;
 	u8 mem_buses;
+	/* add to use isr instead of tasklet. */
+	bool use_isr;
 };
 
 #ifdef CONFIG_AMBA_PL08X

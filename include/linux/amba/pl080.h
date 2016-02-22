@@ -4,6 +4,7 @@
  * Copyright 2008 Simtec Electronics
  *      http://armlinux.simtec.co.uk/
  *      Ben Dooks <ben@simtec.co.uk>
+ * Copyright 2016 Nexell Co., Ltd.
  *
  * ARM PrimeCell PL080 DMA controller
  *
