@@ -41,7 +41,7 @@
 #include <asm/irq.h>
 
 #include <linux/platform_data/i2c-s3c2410.h>
-
+#include <linux/reset.h>
 /* see s3c2410x user guide, v1.1, section 9 (p447) for more info */
 
 #define S3C2410_IICCON			0x00
@@ -158,6 +158,8 @@ static const struct of_device_id s3c24xx_i2c_match[] = {
 	  .data = (void *)(QUIRK_S3C2440 | QUIRK_NO_GPIO) },
 	{ .compatible = "samsung,exynos5-sata-phy-i2c",
 	  .data = (void *)(QUIRK_S3C2440 | QUIRK_POLL | QUIRK_NO_GPIO) },
+	{ .compatible = "nexell,s5p6818-i2c",
+	  .data = (void *)(QUIRK_S3C2440 | QUIRK_NO_GPIO) },
 	{},
 };
 MODULE_DEVICE_TABLE(of, s3c24xx_i2c_match);
@@ -1199,6 +1201,23 @@ static int s3c24xx_i2c_probe(struct platform_device *pdev)
 	/* initialise the i2c controller */
 
 	clk_prepare_enable(i2c->clk);
+
+	/*
+	 * patch for s5p6818
+	 * s5p6818 i2c must be reset before enabled
+	 */
+#ifdef CONFIG_RESET_CONTROLLER
+	if (of_device_is_compatible(pdev->dev.of_node, "nexell,s5p6818-i2c")) {
+		struct reset_control *rst =
+			devm_reset_control_get(i2c->dev, "i2c-reset");
+		if (IS_ERR(rst)) {
+			dev_err(&pdev->dev,
+				"I2C controller failed to get reset_control\n");
+			return -EINVAL;
+		}
+		reset_control_reset(rst);
+	}
+#endif
 	ret = s3c24xx_i2c_init(i2c);
 	clk_disable(i2c->clk);
 	if (ret != 0) {

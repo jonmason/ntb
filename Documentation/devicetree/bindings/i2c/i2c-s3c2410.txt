@@ -12,6 +12,7 @@ Required properties:
 	   on EXYNOS5440 which does not need GPIO configuration.
       (e) "samsung, exynos5-sata-phy-i2c", for s3c2440-like i2c used as
 	   a host to SATA PHY controller on an internal bus.
+      (f) "nexell, s5p6818-i2c", for i2c compatible with s5p6818 i2c.
   - reg: physical base address of the controller and length of memory mapped
     region.
   - interrupts: interrupt number to the cpu.
