@@ -1,0 +1,192 @@
+/*
+ * Nexell's s5p6818 SoC pin-mux and pin-config device tree source
+ *
+ * Copyright (C) 2016  Nexell Co., Ltd.
+ *		http://www.nexell.co.kr
+ *
+ * Nexell's s5p6818 SoC pin-mux and pin-config options are listed as
+ * device tree nodes in this file.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+pinctrl@C0010000 {
+	gpio_a: gpioa {
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	gpio_b: gpiob {
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	gpio_c: gpioc {
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	gpio_d: gpiod {
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	gpio_e: gpioe {
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	alive_0: alive {
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+
+	/* NAND */
+	nand_default: nand-default {
+		nand_cle: nand-cle {
+			nexell,pins = "gpiob-11";
+			nexell,pin-function = <0>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <0>;
+		};
+
+		nand_ale: nand-ale {
+			nexell,pins = "gpiob-12";
+			nexell,pin-function = <0>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <0>;
+		};
+
+		nand_bus8: nand-bus-width8 {
+			nexell,pins = "gpiob-13", "gpiob-15", "gpiob-17",
+				      "gpiob-19", "gpiob-20", "gpiob-21",
+				      "gpiob-22", "gpiob-23";
+			nexell,pin-function = <0>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <0>;
+		};
+
+		nand_rnb: nand-rnb {
+			nexell,pins = "gpiob-14";
+			nexell,pin-function = <0>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <0>;
+		};
+
+		nand_noe: nand-noe {
+			nexell,pins = "gpiob-16";
+			nexell,pin-function = <0>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <0>;
+		};
+
+		nand_nwe: nand-nwe {
+			nexell,pins = "gpiob-18";
+			nexell,pin-function = <0>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <0>;
+		};
+	};
+
+
+	/* GMAC */
+	gmac_txd: gmac-txd {
+		nexell,pins = "gpioe-7", "gpioe-8", "gpioe-9", "gpioe-10";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <3>;
+	};
+
+	gmac_rxd: gmac-rxd {
+		nexell,pins = "gpioe-14", "gpioe-15", "gpioe-16", "gpioe-17";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <3>;
+	};
+
+	gmac_txen: gmac-txen {
+		nexell,pins = "gpioe-11";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <3>;
+	};
+
+	gmac_mdc: gmac-mdc {
+		nexell,pins = "gpioe-20";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <3>;
+	};
+
+	gmac_mdio: gmac-mdio {
+		nexell,pins = "gpioe-21";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <3>;
+	};
+
+	gmac_rxclk: gmac-rxclk {
+		nexell,pins = "gpioe-18";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <3>;
+	};
+
+	gmac_txclk: gmac-txclk {
+		nexell,pins = "gpioe-24";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <2>;
+	};
+
+
+	/* MMC0 */
+	sdmmc0_cclk: sdmmc0-cclk {
+		nexell,pins = "gpioa-29";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	sdmmc0_cmd: sdmmc0-cmd {
+		nexell,pins = "gpioa-31";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	sdmmc0_bus4: sdmmc-bus-width4 {
+		nexell,pins = "gpiob-1", "gpiob-3", "gpiob-5", "gpiob-7";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	serial0_pin:serial {
+		nexell,pins = "gpiod-14", "gpiod-18";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+};
