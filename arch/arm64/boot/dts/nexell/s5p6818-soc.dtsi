@@ -468,6 +468,225 @@ amba {
 	interrupt-parent = <&gic>;
 	ranges;
 
+	pl08xdma0:pl08xdma@c0000000 {
+		compatible = "arm,pl080", "arm,primecell";
+		reg = <PHYS_BASE_DMA0 0x1000>;
+		interrupts = <0 IRQ_DMA0 0>;
+		#dma-cells = <1>;
+
+		/* ID and bus config */
+		arm,primecell-periphid = <0x00041080>;
+		master_lli_buses = <PL08X_AHB1>;
+
+		/* memeory copy config */
+		master_mem_buses = <PL08X_AHB1>;
+		memcpy_bus_id = "memcpy";
+		memcpy_cctl = <PRIMECELL_MEMORU_CCTL>;
+
+		/* slave channels */
+		ch0 {
+			slave_bus_id = PL08X_DMA_NAME_UART1_TX;
+			slave_min_signal = <PL08X_DMA_ID_UART1_TX>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch1 {
+			slave_bus_id = PL08X_DMA_NAME_UART1_RX;
+			slave_min_signal = <PL08X_DMA_ID_UART1_RX>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch2 {
+			slave_bus_id = PL08X_DMA_NAME_UART0_TX;
+			slave_min_signal = <PL08X_DMA_ID_UART0_TX>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch3 {
+			slave_bus_id = PL08X_DMA_NAME_UART0_RX;
+			slave_min_signal = <PL08X_DMA_ID_UART0_RX>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch4 {
+			slave_bus_id = PL08X_DMA_NAME_UART2_TX;
+			slave_min_signal = <PL08X_DMA_ID_UART2_TX>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch5 {
+			slave_bus_id = PL08X_DMA_NAME_UART2_RX;
+			slave_min_signal = <PL08X_DMA_ID_UART2_RX>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch6 {
+			slave_bus_id = PL08X_DMA_NAME_SSP0_TX;
+			slave_min_signal = <PL08X_DMA_ID_SSP0_TX>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch7 {
+			slave_bus_id = PL08X_DMA_NAME_SSP0_RX;
+			slave_min_signal = <PL08X_DMA_ID_SSP0_RX>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch8 {
+			slave_bus_id = PL08X_DMA_NAME_SSP1_TX;
+			slave_min_signal = <PL08X_DMA_ID_SSP1_TX>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch9 {
+			slave_bus_id = PL08X_DMA_NAME_SSP1_RX;
+			slave_min_signal = <PL08X_DMA_ID_SSP1_RX>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch10 {
+			slave_bus_id = PL08X_DMA_NAME_SSP2_TX;
+			slave_min_signal = <PL08X_DMA_ID_SSP2_TX>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch11 {
+			slave_bus_id = PL08X_DMA_NAME_SSP2_RX;
+			slave_min_signal = <PL08X_DMA_ID_SSP2_RX>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch12 {
+			slave_bus_id = PL08X_DMA_NAME_I2S0_TX;
+			slave_min_signal = <PL08X_DMA_ID_I2S0_TX>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch13 {
+			slave_bus_id = PL08X_DMA_NAME_I2S0_RX;
+			slave_min_signal = <PL08X_DMA_ID_I2S0_RX>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch14 {
+			slave_bus_id = PL08X_DMA_NAME_I2S1_TX;
+			slave_min_signal = <PL08X_DMA_ID_I2S1_TX>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch15 {
+			slave_bus_id = PL08X_DMA_NAME_I2S1_RX;
+			slave_min_signal = <PL08X_DMA_ID_I2S1_RX>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+	};
+
+	pl08xdma1:pl08xdma@c0001000 {
+		compatible = "arm,pl080", "arm,primecell";
+		reg = <PHYS_BASE_DMA1 0x1000>;
+		interrupts = <0 IRQ_DMA1 0>;
+		#dma-cells = <1>;
+
+		/* ID and bus config */
+		arm,primecell-periphid = <0x00041080>;
+		master_lli_buses = <PL08X_AHB1>;
+		master_mem_buses = <PL08X_AHB1>;
+
+		/* memeory copy config */
+		memcpy_bus_id = "memcpy";
+		memcpy_cctl = <PRIMECELL_MEMORU_CCTL>;
+
+		/* slave channels */
+		ch0 {
+			slave_bus_id = PL08X_DMA_NAME_I2S2_TX;
+			slave_min_signal = <PL08X_DMA_ID_I2S2_TX>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch1 {
+			slave_bus_id = PL08X_DMA_NAME_I2S2_RX;
+			slave_min_signal = <PL08X_DMA_ID_I2S2_RX>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch2 {
+			slave_bus_id = PL08X_DMA_NAME_AC97_PCMOUT;
+			slave_min_signal = <PL08X_DMA_ID_AC97_PCMOUT>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch3 {
+			slave_bus_id = PL08X_DMA_NAME_AC97_PCMIN;
+			slave_min_signal = <PL08X_DMA_ID_AC97_PCMIN>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch4 {
+			slave_bus_id = PL08X_DMA_NAME_AC97_MICIN;
+			slave_min_signal = <PL08X_DMA_ID_AC97_MICIN>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch5 {
+			slave_bus_id = PL08X_DMA_NAME_SPDIFRX;
+			slave_min_signal = <PL08X_DMA_ID_SPDIFRX>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch6 {
+			slave_bus_id = PL08X_DMA_NAME_SPDIFTX;
+			slave_min_signal = <PL08X_DMA_ID_SPDIFTX>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch7 {
+			slave_bus_id = PL08X_DMA_NAME_MPEGTSI0;
+			slave_min_signal = <PL08X_DMA_ID_MPEGTSI0>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch8 {
+			slave_bus_id = PL08X_DMA_NAME_MPEGTSI1;
+			slave_min_signal = <PL08X_DMA_ID_MPEGTSI1>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch9 {
+			slave_bus_id = PL08X_DMA_NAME_MPEGTSI2;
+			slave_min_signal = <PL08X_DMA_ID_MPEGTSI2>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch10 {
+			slave_bus_id = PL08X_DMA_NAME_MPEGTSI3;
+			slave_min_signal = <PL08X_DMA_ID_MPEGTSI3>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch11 {
+			slave_bus_id = PL08X_DMA_NAME_CRYPTO_BR;
+			slave_min_signal = <PL08X_DMA_ID_CRYPTO_BR>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch12 {
+			slave_bus_id = PL08X_DMA_NAME_CRYPTO_BW;
+			slave_min_signal = <PL08X_DMA_ID_CRYPTO_BW>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch13 {
+			slave_bus_id = PL08X_DMA_NAME_CRYPTO_HR;
+			slave_min_signal = <PL08X_DMA_ID_CRYPTO_HR>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch14 {
+			slave_bus_id = PL08X_DMA_NAME_PDM;
+			slave_min_signal = <PL08X_DMA_ID_PDM>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+	};
 };
 
 
