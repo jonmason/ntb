@@ -525,6 +525,16 @@ config VEXPRESS_SYSCFG
 	  bus. System Configuration interface is one of the possible means
 	  of generating transactions on this bus.
 
+config NX_SCALER
+	bool "Enable Nexell s5pxx18 seriese memory to memory scaler"
+	default n
+	---help---
+	  This option enables support for scaling for Nexell s5pxx18 serise
+	  SoC. Scaler reads an image from the memory and writes the image to
+	  the memory after up/down scaling.
+
+	  Say Y here if you want to support, else say N.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"

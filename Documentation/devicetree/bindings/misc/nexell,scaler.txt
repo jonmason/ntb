@@ -1,0 +1,33 @@
+Scaler for Nexell s5pxx18 series SoC
+-----------------------------------------------------
+This binding defines Scaler to change image size.
+
+Required properties:
+- compatible:	should be set to "nexell,scaler"
+- reg:		Location and size of Scaler registers
+- interrupts:	external interrupt line number
+- clock-names:	tuple listing input clock names.
+- clocks:	list to input clocks.
+- reset-names:	tuple listing Scaler reset clock names.
+- resets:	list to reset clocks
+- status:	set Enable or Disable operation of Scaler
+		Enable : okay
+		Disable : disable
+
+Example for Scaler
+- Enable for Scaler
+	scaler:scaler@c0066000 {
+		status ="okay";
+	};
+
+- Configuation for Scaler
+	scaler:scaler@c0066000 {
+			compatible = "nexell,scaler";
+			reg = <PHYS_BASE_SCALER 0x1000>;
+			interrupts = <0 IRQ_SCALER 0>;
+			clock-names = "scaler-clock";
+			clocks = <&scaler_clock>;
+			reset-names = "scaler-reset";
+			resets = <&nexell_reset RESET_ID_SCALER>;
+			status = "disabled";
+		};
