@@ -54,13 +54,18 @@ Example:
 
 OHCI
 Required properties:
- - compatible: should be "samsung,exynos4210-ohci" for USB 2.0
-   OHCI companion controller in host mode.
+ - compatible: should be selected one of these for USB 2.0 OHCI controller in host mode.
+	- samsung,exynos4210-ohci : USB 2.0 OHCI controller in the Exynos Soc;
+	- nexell,nexell-ohci : USB 2.0 OHCI controller in the nexell Soc;
  - reg: physical base address of the controller and length of memory mapped
    region.
  - interrupts: interrupt number to the cpu.
  - clocks: from common clock binding: handle to usb clock.
  - clock-names: from common clock binding: Shall be "usbhost".
+ - resets : phandle to the parent reset controller.(only Nexell Soc.)
+	- "nexell_reset" - reset-controller,
+	- "RESET_ID_USB20HOST" - Nth Reset control id (N = 0, 1, ...)
+ - reset-names : input names of resets used by the controller(only Nexell Soc.)
  - port: if in the SoC there are OHCI phys, they should be listed here.
    One phy per port. Each port should have following entries:
 	- reg: port number on OHCI controller, e.g
@@ -77,6 +82,9 @@ Example:
 
 		clocks = <&clock 285>;
 		clock-names = "usbhost";
+
+		resets = <&nexell_reset RESET_ID_USB20HOST>;
+		reset-names = "usbhost-reset";
 
 		#address-cells = <1>;
 		#size-cells = <0>;
