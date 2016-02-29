@@ -23,6 +23,9 @@
 #include <linux/platform_device.h>
 #include <linux/usb.h>
 #include <linux/usb/hcd.h>
+#ifdef CONFIG_RESET_CONTROLLER
+#include <linux/reset.h>
+#endif
 
 #include "ehci.h"
 
@@ -95,6 +98,19 @@ static int exynos_ehci_phy_enable(struct device *dev)
 	struct exynos_ehci_hcd *exynos_ehci = to_exynos_ehci(hcd);
 	int i;
 	int ret = 0;
+
+	if (of_device_is_compatible(dev->of_node,
+					"nexell,nexell-ehci")) {
+#ifdef CONFIG_RESET_CONTROLLER
+		struct reset_control *rst;
+
+		rst = devm_reset_control_get(dev, "usbhost-reset");
+		if (!IS_ERR(rst)) {
+			if (reset_control_status(rst))
+				reset_control_reset(rst);
+		}
+#endif
+	}
 
 	for (i = 0; ret == 0 && i < PHY_NUMBER; i++)
 		if (!IS_ERR(exynos_ehci->phy[i]))
@@ -173,7 +189,6 @@ static int exynos_ehci_probe(struct platform_device *pdev)
 		goto fail_clk;
 
 skip_phy:
-
 	exynos_ehci->clk = devm_clk_get(&pdev->dev, "usbhost");
 
 	if (IS_ERR(exynos_ehci->clk)) {
@@ -306,6 +321,7 @@ static const struct dev_pm_ops exynos_ehci_pm_ops = {
 static const struct of_device_id exynos_ehci_match[] = {
 	{ .compatible = "samsung,exynos4210-ehci" },
 	{ .compatible = "samsung,exynos5440-ehci" },
+	{ .compatible = "nexell,nexell-ehci" },
 	{},
 };
 MODULE_DEVICE_TABLE(of, exynos_ehci_match);

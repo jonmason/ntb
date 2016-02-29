@@ -241,7 +241,7 @@ config USB_EHCI_SH
 
 config USB_EHCI_EXYNOS
        tristate "EHCI support for Samsung S5P/EXYNOS SoC Series"
-       depends on ARCH_S5PV210 || ARCH_EXYNOS
+       depends on ARCH_S5PV210 || ARCH_EXYNOS || ARCH_S5P6818
        help
 	Enable support for the Samsung Exynos SOC's on-chip EHCI controller.
 
