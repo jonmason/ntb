@@ -16,6 +16,7 @@ Required properties:
 			  Exynos4210 rev0 SoCs
     samsung,exynos4210-pwm - for 32-bit timers present on Exynos4210,
                           Exynos4x12, Exynos5250 and Exynos5420 SoCs
+    nexell,s5p6818-pwm - for 32-bit timers present on Nexell S5P6818 SoCs
 - reg: base address and size of register area
 - interrupts: list of timer interrupts (one interrupt per timer, starting at
   timer 0)

@@ -24,6 +24,7 @@
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/time.h>
+#include <linux/reset.h>
 
 /* For struct samsung_timer_variant and samsung_pwm_lock. */
 #include <clocksource/samsung_pwm.h>
@@ -454,6 +455,7 @@ static const struct of_device_id samsung_pwm_matches[] = {
 	{ .compatible = "samsung,s5p6440-pwm", .data = &s5p64x0_variant },
 	{ .compatible = "samsung,s5pc100-pwm", .data = &s5pc100_variant },
 	{ .compatible = "samsung,exynos4210-pwm", .data = &s5p64x0_variant },
+	{ .compatible = "nexell,s5p6818-pwm", .data = &s5pc100_variant },
 	{},
 };
 MODULE_DEVICE_TABLE(of, samsung_pwm_matches);
@@ -550,6 +552,24 @@ static int pwm_samsung_probe(struct platform_device *pdev)
 	/* Following clocks are optional. */
 	chip->tclk0 = devm_clk_get(&pdev->dev, "pwm-tclk0");
 	chip->tclk1 = devm_clk_get(&pdev->dev, "pwm-tclk1");
+
+	/*
+         * patch for s5p6818
+         * s5p6818 pwm must be reset before enabled
+         */
+#ifdef CONFIG_RESET_CONTROLLER
+        if (of_device_is_compatible(pdev->dev.of_node, "nexell,s5p6818-pwm")) {
+                struct reset_control *rst =
+                        devm_reset_control_get(&pdev->dev, "pwm-reset");
+                if (IS_ERR(rst)) {
+                        dev_err(&pdev->dev,
+                                "PWM failed to get reset_control\n");
+                        return -EINVAL;
+                }
+		if(!(reset_control_status(rst)))
+			reset_control_reset(rst);
+        }
+#endif
 
 	platform_set_drvdata(pdev, chip);
 
