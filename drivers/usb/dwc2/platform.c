@@ -52,6 +52,19 @@
 #include "hcd.h"
 #include "debug.h"
 
+/* FIXME : temporarily patch code for otg vbus gpio control
+ * using gpio and pmic.
+ */
+#ifdef CONFIG_GPIOLIB
+#include <linux/of_gpio.h>
+#include <linux/gpio.h>
+#include <linux/gpio/consumer.h>
+#endif
+
+#ifdef CONFIG_RESET_CONTROLLER
+#include <linux/reset.h>
+#endif
+
 static const char dwc2_driver_name[] = "dwc2";
 
 static const struct dwc2_core_params params_bcm2835 = {
@@ -115,6 +128,34 @@ static const struct dwc2_core_params params_rk3066 = {
 	.hibernation			= -1,
 };
 
+static const struct dwc2_core_params params_nexell = {
+	.otg_cap			= 0,	/* HNP/SRP capable */
+	.otg_ver			= 0,	/* 1.3 */
+	.dma_enable			= 1,
+	.dma_desc_enable		= 0,
+	.speed				= 0,	/* High Speed */
+	.enable_dynamic_fifo		= 1,
+	.en_multiple_tx_fifo		= 1,
+	.host_rx_fifo_size		= 1024,	/* 1024 DWORDs */
+	.host_nperio_tx_fifo_size	= 256,	/* 256 DWORDs */
+	.host_perio_tx_fifo_size	= 512,	/* 512 DWORDs */
+	.max_transfer_size		= 65535,
+	.max_packet_count		= 511,
+	.host_channels			= 8,
+	.phy_type			= 1,	/* UTMI */
+	.phy_utmi_width			= 16,	/* 16 bits */
+	.phy_ulpi_ddr			= 0,	/* Single */
+	.phy_ulpi_ext_vbus		= 0,
+	.i2c_enable			= 0,
+	.ulpi_fs_ls			= 0,
+	.host_support_fs_ls_low_power	= 0,
+	.host_ls_low_power_phy_clk	= 0,	/* 48 MHz */
+	.ts_dline			= 0,
+	.reload_ctl			= 0,
+	.ahbcfg				= 0x3,  /* INCR4 */
+	.uframe_sched			= 0,
+};
+
 static int __dwc2_lowlevel_hw_enable(struct dwc2_hsotg *hsotg)
 {
 	struct platform_device *pdev = to_platform_device(hsotg->dev);
@@ -129,6 +170,20 @@ static int __dwc2_lowlevel_hw_enable(struct dwc2_hsotg *hsotg)
 		ret = clk_prepare_enable(hsotg->clk);
 		if (ret)
 			return ret;
+	}
+
+	if (of_device_is_compatible(hsotg->dev->of_node,
+					    "nexell,nexell-dwc2otg")) {
+#ifdef CONFIG_RESET_CONTROLLER
+			struct reset_control *rst;
+
+			rst = devm_reset_control_get(hsotg->dev,
+						     "usbotg-reset");
+			if (!IS_ERR(rst)) {
+				if (reset_control_status(rst))
+					reset_control_reset(rst);
+			}
+#endif
 	}
 
 	if (hsotg->uphy)
@@ -311,6 +366,7 @@ static const struct of_device_id dwc2_of_match_table[] = {
 	{ .compatible = "rockchip,rk3066-usb", .data = &params_rk3066 },
 	{ .compatible = "snps,dwc2", .data = NULL },
 	{ .compatible = "samsung,s3c6400-hsotg", .data = NULL},
+	{ .compatible = "nexell,nexell-dwc2otg", .data = &params_nexell },
 	{},
 };
 MODULE_DEVICE_TABLE(of, dwc2_of_match_table);
@@ -414,6 +470,36 @@ static int dwc2_driver_probe(struct platform_device *dev)
 				  dev_name(hsotg->dev), hsotg);
 	if (retval)
 		return retval;
+
+	if (of_device_is_compatible(hsotg->dev->of_node,
+				    "nexell,nexell-dwc2otg")) {
+#ifdef CONFIG_GPIOLIB
+		/* FIXME : temporarily patch code for otg vbus gpio control
+		 * using gpio and pmic.
+		 */
+		unsigned io;
+
+		io = of_get_named_gpio(hsotg->dev->of_node, "gpios", 0);
+		if (gpio_is_valid(io)) {
+			retval = devm_gpio_request(hsotg->dev, io, "otg_vbus");
+
+			if (retval < 0) {
+				dev_err(hsotg->dev,
+					"can't request otg_vbus gpio %d\n",
+					io);
+				return 0;
+			}
+
+			retval = gpio_direction_output(io, 1);
+			if (retval < 0) {
+				dev_err(hsotg->dev,
+					"can't request output direction");
+				dev_err(hsotg->dev, "otg_vbus gpio %d\n", io);
+				return 0;
+			}
+		}
+#endif
+	}
 
 	retval = dwc2_lowlevel_hw_enable(hsotg);
 	if (retval)
