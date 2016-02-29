@@ -29,6 +29,8 @@ Optional properties:
     disabling simultaneous use of the same channel for two devices.
   - slave_periph_buses : the device connected to this channel is accessible via
     these buses (use PL08X_AHB1 | PL08X_AHB2).
+  - use_isr : use isr instead of tasklet.
+  - slave_wait_flush_dma : wait until flush slave channel dma buffer.
 
 Example:
 
