@@ -159,6 +159,16 @@ config VIDEO_SONY_BTF_MPX
 	  To compile this driver as a module, choose M here: the
 	  module will be called sony-btf-mpx.
 
+config VIDEO_SP2518
+        tristate "SP2518 2M pixel camera sensor support"
+        depends on VIDEO_V4L2 && I2C
+        ---help---
+	  This driver supports SuperPix SP2518
+	  SoC camera module.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called sp2518.
+
 comment "RDS decoders"
 
 config VIDEO_SAA6588
