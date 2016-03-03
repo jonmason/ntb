@@ -87,6 +87,7 @@ obj-$(CONFIG_MFD_MC13XXX_SPI)	+= mc13xxx-spi.o
 obj-$(CONFIG_MFD_MC13XXX_I2C)	+= mc13xxx-i2c.o
 
 obj-$(CONFIG_MFD_CORE)		+= mfd-core.o
+obj-$(CONFIG_MFD_NXE2000)	+= nxe2000.o nxe2000-irq.o
 
 obj-$(CONFIG_EZX_PCAP)		+= ezx-pcap.o
 
