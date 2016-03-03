@@ -146,6 +146,15 @@ config REGULATOR_AXP20X
 	  This driver provides support for the voltage regulators on the
 	  AXP20X PMIC.
 
+config REGULATOR_AXP228
+	tristate "X-Powers AXP228 Power regulator"
+	select MFD_AXP228
+	help
+	  This driver supports regulator driver for the X-Powers AXP228
+	  Power Management device.
+	  It delivers digitally programmable output,
+	  the voltage is programmed via I2C interface.
+
 config REGULATOR_BCM590XX
 	tristate "Broadcom BCM590xx PMU Regulators"
 	depends on MFD_BCM590XX
