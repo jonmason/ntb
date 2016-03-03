@@ -1,0 +1,161 @@
+
+X-Powers AXP228 Multi-Function Device
+
+The X-Powers AXP228 is a multi-function device which includes voltage/current
+regulators, real time clock, battery charging controller and several
+other sub-blocks. It is interfaced using an I2C interface. Each sub-block
+is addressed by the host system using different i2c slave address.
+
+AXP228 additionally contains PMIC (with DCDC/LDO regulators), charger and Fuel Gauge.
+
+
+Required properties:
+- compatible : Must be "x-powers,axp228".
+- reg : I2C slave address for the axp228 chip.
+- nx,irq : IRQ line for the chip.
+- nx,irq_base : The sub interrupt controller.
+- nx,irq_type : IRQ line status.
+
+
+Example:
+
+#include <dt-bindings/interrupt-controller/irq.h>
+
+#define PMIC_PDATA_INIT(_id, _rname, _minuv, _maxuv, _always_on, _boot_on,	\
+						_init_uv, _init_enable, _slp_slots)	\
+		regulator-name = _rname;					\
+		regulator-min-microvolt = <_minuv>;			\
+		regulator-max-microvolt = <_maxuv>;			\
+		nx,id = <_id>;								\
+		nx,always_on = <_always_on>;				\
+		nx,boot_on = <_boot_on>;					\
+		nx,init_enable = <_init_enable>;			\
+		nx,init_uV = <_init_uv>;					\
+		nx,sleep_slots = <_slp_slots>;
+
+axp228@34 {
+	compatible = "x-powers,axp228";
+	reg = <0x34>;
+	interrupt-parent = <&alive_0>;
+	interrupts = <0x4 IRQ_TYPE_EDGE_FALLING>;
+	nx,id = <0>;
+	/* vdd_arm-supply = <&VCC1P1_ARM_PMIC>; */
+	/* vdd_core-supply = <&VCC1P0_CORE_PMIC>; */
+	regulators {
+		VCC_LDO1:
+			axp22_rtcldo
+			{ PMIC_PDATA_INIT( 0,
+			"axp228_rtcldo",
+			3000000, 3000000, 0, 0, 3300000,
+			0, 0xF) };
+		VCC_LDO2:
+			axp22_aldo1
+			{ PMIC_PDATA_INIT( 1,
+			"axp228_3p3_alive",
+			700000, 3300000, 1, 1, 3300000,
+			1, 0xF) };
+		VCC_LDO3:
+			axp22_aldo2
+			{ PMIC_PDATA_INIT( 2,
+			"axp228_1p8_alive",
+			700000, 3300000, 1, 1, 1800000,
+			1, 0xF) };
+		VCC_LDO4:
+			axp22_aldo3
+			{ PMIC_PDATA_INIT( 3,
+			"axp228_1p0_alive",
+			700000, 3300000, 1, 1, 1000000,
+			1, 0xF) };
+		VCC_LDO5:
+			axp22_dldo1
+			{ PMIC_PDATA_INIT( 4,
+			"axp228_wide",
+			700000, 3300000, 1, 1, 3300000,
+			1, 0xF) };
+		VCC_LDO6:
+			axp22_dldo2
+			{ PMIC_PDATA_INIT( 5,
+			"axp228_1p8_cam",
+			700000, 3300000, 0, 0, 1800000,
+			0, 0xF) };
+		VCC_LDO7:
+			axp22_dldo3
+			{ PMIC_PDATA_INIT( 6,
+			"axp228_dldo3",
+			700000, 3300000, 0, 0,  700000,
+			0, 0xF) };
+		VCC_LDO8:
+			axp22_dldo4
+			{ PMIC_PDATA_INIT( 7,
+			"axp228_dldo4",
+			700000, 3300000, 0, 0,  700000,
+			0, 0xF) };
+		VCC_LDO9:
+			axp22_eldo1
+			{ PMIC_PDATA_INIT( 8,
+			"axp228_1p8_sys",
+			700000, 3300000, 1, 1, 1800000,
+			1, 0xF) };
+		VCC_LDO10:
+			axp22_eldo2
+			{ PMIC_PDATA_INIT( 9,
+			"axp228_3p3_wifi",
+			700000, 3300000, 1, 1, 3300000,
+			1, 0xF) };
+		VCC_LDO11:
+			axp22_eldo3
+			{ PMIC_PDATA_INIT(10,
+			"axp228_eldo3",
+			700000, 3300000, 0, 0,  700000,
+			0, 0xF) };
+		VCC_LDO12:
+			axp22_dc5ldo
+			{ PMIC_PDATA_INIT(11,
+			"axp228_1p2_cvbs",
+			700000, 1400000, 0, 0, 1200000,
+			0, 0xF) };
+		VCC_DCDC1:
+			axp22_dcdc1
+			{ PMIC_PDATA_INIT(12,
+			"axp228_3p3_sys",
+			1600000, 3400000, 1, 1, 3300000,
+			1, 0xF) };
+		VCC1P1_ARM_PMIC:
+			axp22_dcdc2
+			{ PMIC_PDATA_INIT(13,
+			"axp228_1p1_arm",
+			600000, 1540000, 1, 1, 1100000,
+			1, 0xF) };
+		VCC1P0_CORE_PMIC:
+			axp22_dcdc3
+			{ PMIC_PDATA_INIT(14,
+			"axp228_1p0_core",
+			600000, 1860000, 1, 1, 1100000,
+			1, 0xF) };
+		VCC_DCDC4:
+			axp22_dcdc4
+			{ PMIC_PDATA_INIT(15,
+			"axp228_1p5_sys",
+			600000, 1540000, 1, 1, 1500000,
+			1, 0xF) };
+		VCC_DCDC5:
+			axp22_dcdc5
+			{ PMIC_PDATA_INIT(16,
+			"axp228_1p5_ddr",
+			1000000, 2550000, 1, 1, 1500000,
+			1, 0xF) };
+		VCC_LDOIO0:
+			axp22_ldoio0
+			{ PMIC_PDATA_INIT(17,
+			"axp228_ldoio0",
+			700000, 3300000, 0, 0, 1800000,
+			0, 0xF) };
+		VCC_LDOIO1:
+			axp22_ldoio1
+			{ PMIC_PDATA_INIT(18,
+			"axp228_ldoio1",
+			700000, 3300000, 0, 0, 1000000,
+			0, 0xF) };
+	};
+};
+
