@@ -42,7 +42,7 @@ static int nx_drm_fb_create_handle(struct drm_framebuffer *fb,
 {
 	struct nx_drm_fb *nx_fb = to_nx_drm_fb(fb);
 
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	return drm_gem_handle_create(file_priv, &nx_fb->obj[0]->base, handle);
 }
@@ -67,7 +67,7 @@ void nx_drm_fb_destroy(struct drm_framebuffer *fb)
 	struct nx_drm_fb *nx_fb = to_nx_drm_fb(fb);
 	int i;
 
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	for (i = 0; MAX_FB_PLANE > i; i++) {
 		if (nx_fb->obj[i])
@@ -88,11 +88,11 @@ struct drm_framebuffer *nx_drm_fb_allocate(struct drm_device *drm,
 	struct drm_framebuffer *fb;
 	int i, ret;
 
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	nx_fb = kzalloc(sizeof(*nx_fb), GFP_KERNEL);
 	if (!nx_fb) {
-		DRM_ERROR("Failed to allocate DRM framebuffer\n");
+		DRM_ERROR("failed to allocate drm framebuffer\n");
 		return ERR_PTR(-ENOMEM);
 	}
 	fb = &nx_fb->fb;
@@ -102,13 +102,13 @@ struct drm_framebuffer *nx_drm_fb_allocate(struct drm_device *drm,
 
 	ret = drm_framebuffer_init(drm, fb, &nx_fb_funcs);
 	if (ret) {
-		DRM_ERROR("Failed to initialize framebuffer\n");
+		DRM_ERROR("failed to initialize framebuffer\n");
 		return ERR_PTR(ret);
 	}
 
 	drm_helper_mode_fill_fb_struct(fb, mode_cmd);
 
-	DRM_DEBUG_KMS("Exit, fb ID:%d\n", fb->base.id);
+	DRM_DEBUG_KMS("exit, fb ID:%d\n", fb->base.id);
 
 	return fb;
 }
@@ -126,7 +126,7 @@ static struct drm_framebuffer *nx_drm_fb_create(struct drm_device *drm,
 	int ret;
 	int i;
 
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	/* TODO: Need to use ion heaps to create frame buffer?? */
 	hsub = drm_format_horz_chroma_subsampling(mode_cmd->pixel_format);
@@ -140,7 +140,7 @@ static struct drm_framebuffer *nx_drm_fb_create(struct drm_device *drm,
 		obj = drm_gem_object_lookup(drm, file_priv,
 					    mode_cmd->handles[i]);
 		if (!obj) {
-			DRM_ERROR("Failed to lookup GEM object\n");
+			DRM_ERROR("failed to lookup GEM object\n");
 			ret = -ENXIO;
 			goto err_gem_object_unreference;
 		}
@@ -163,7 +163,7 @@ static struct drm_framebuffer *nx_drm_fb_create(struct drm_device *drm,
 		goto err_gem_object_unreference;
 	}
 
-	DRM_DEBUG_KMS("Exit.\n");
+	DRM_DEBUG_KMS("exit.\n");
 	return fb;
 
 err_gem_object_unreference:
@@ -179,12 +179,12 @@ static void nx_drm_output_poll_changed(struct drm_device *drm)
 	struct nx_drm_private *private = drm->dev_private;
 	struct drm_fb_helper *fb_helper = private->fb_helper;
 
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	if (fb_helper)
 		drm_fb_helper_hotplug_event(fb_helper);
 
-	DRM_DEBUG_DRIVER("Exit.\n");
+	DRM_DEBUG_DRIVER("exit.\n");
 }
 #endif
 
@@ -209,7 +209,7 @@ void nx_drm_mode_config_init(struct drm_device *drm)
 	drm->mode_config.max_height = MAX_FB_MODE_HEIGHT;
 	drm->mode_config.funcs = &nx_mode_config_funcs;
 
-	DRM_DEBUG_KMS("Min %d*%d, Max %d*%d\n",
+	DRM_DEBUG_KMS("min %d*%d, max %d*%d\n",
 		 drm->mode_config.min_width, drm->mode_config.min_height,
 		 drm->mode_config.max_width, drm->mode_config.max_height);
 }

@@ -496,7 +496,7 @@ static int disp_syncgen_waitsync(int module, int layer, int waitvsync)
 						       info->condition,
 						       info->wait_time);
 		if (0 == info->condition)
-			pr_err("Fail, wait vsync %d, time:%s, condition:%d\n",
+			pr_err("fail, wait vsync %d, time:%s, condition:%d\n",
 			       module, !ret ? "out" : "remain",
 			       info->condition);
 	}
@@ -811,7 +811,7 @@ static int disp_syncgen_enable(struct disp_process_dev *pdev, int enable)
 				disp_syncgen_irqenable(info->module, 1);
 				return 0;
 			}
-			pr_err("Fail, %s not set sync ...\n",
+			pr_err("fail, %s not set sync ...\n",
 				dev_to_str(pdev->dev_id));
 			return -EINVAL;
 		}
@@ -1005,7 +1005,7 @@ static inline int disp_ops_prepare_devs(struct list_head *head)
 		if (ops && ops->prepare) {
 			ret = ops->prepare(ops->dev);
 			if (ret) {
-				pr_err("Fail, display prepare [%s]...\n",
+				pr_err("fail, display prepare [%s]...\n",
 					dev_to_str(pdev->dev_id));
 				return -EINVAL;
 			}
@@ -1429,7 +1429,7 @@ int nx_soc_disp_video_set_format(int module, unsigned int fourcc,
 		format = nx_mlc_yuvfmt_yuyv;
 		break;
 	default:
-		pr_err("Fail, not support video fourcc=%c%c%c%c\n",
+		pr_err("fail, not support video fourcc=%c%c%c%c\n",
 		       (fourcc >> 0) & 0xFF, (fourcc >> 8) & 0xFF,
 		       (fourcc >> 16) & 0xFF, (fourcc >> 24) & 0xFF);
 		return -EINVAL;
@@ -1651,7 +1651,7 @@ void nx_soc_disp_video_set_priority(int module, int prior)
 		break;		/* PRIORITY-0>1>2>video */
 	default:
 		pr_err(
-			"Fail, Not support video priority num(0~3),(%d)\n",
+			"fail, Not support video priority num(0~3),(%d)\n",
 		    prior);
 		return;
 	}
@@ -1884,7 +1884,7 @@ int nx_soc_disp_device_connect_to(enum disp_dev_type device,
 							    disp_process_dev,
 							    list);
 		if (dev == pdev) {
-			pr_err("Fail, %s is already connected to %s ...\n",
+			pr_err("fail, %s is already connected to %s ...\n",
 			       dev_to_str(dev->dev_id),
 			       dev_to_str(sdev->dev_id));
 			ret = -EINVAL;
@@ -2688,7 +2688,7 @@ static int display_soc_setup(int module, struct disp_process_dev *pdev,
 	ret = request_irq(info->irqno, &disp_syncgen_irqhandler,
 			  0, DEV_NAME_DISP, info);
 	if (ret) {
-		pr_err("Fail, display.%d request interrupt %d ...\n",
+		pr_err("fail, display.%d request interrupt %d ...\n",
 		       info->module, info->irqno);
 		return ret;
 	}
@@ -2746,11 +2746,9 @@ static int display_soc_probe(struct platform_device *pldev)
 
 	size += sizeof(struct disp_sync_par);
 	info = kzalloc(size, GFP_KERNEL);
-	if (!info) {
-		pr_err("Error, allocate memory (%d) for display.%d device\n",
-		       module, size);
+	if (!info)
 		return -ENOMEM;
-	}
+
 	INIT_LIST_HEAD(&info->link);
 
 	/* set syncgen device */
@@ -2840,13 +2838,13 @@ static int __init display_soc_initcall(void)
 	/* create attribute interface */
 	kobj = kobject_create_and_add("display", &platform_bus.kobj);
 	if (!kobj) {
-		pr_err("Fail, create kobject for display\n");
+		pr_err("fail, create kobject for display\n");
 		return -ret;
 	}
 
 	ret = sysfs_create_group(kobj, &attr_group);
 	if (ret) {
-		pr_err("Fail, create sysfs group for display\n");
+		pr_err("fail, create sysfs group for display\n");
 		kobject_del(kobj);
 		return -ret;
 	}

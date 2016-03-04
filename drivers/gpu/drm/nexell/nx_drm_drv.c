@@ -79,7 +79,7 @@ static int nx_drm_load(struct drm_device *drm, unsigned long flags)
 	 */
 	ret = nx_drm_fbdev_init(drm);
 	if (ret) {
-		DRM_ERROR("Failed to initialize drm fbdev\n");
+		DRM_ERROR("failed to initialize drm fbdev\n");
 		goto err_cleanup_vblank;
 	}
 
@@ -98,7 +98,7 @@ err_mode_config_cleanup:
 
 static int nx_drm_unload(struct drm_device *drm)
 {
-	DRM_DEBUG_DRIVER("Enter\n");
+	DRM_DEBUG_DRIVER("enter\n");
 
 	nx_drm_fbdev_fini(drm);
 
@@ -216,7 +216,7 @@ static int nx_drm_probe(struct platform_device *pdev)
 	};
 	int i;
 
-	DRM_DEBUG_DRIVER("Enter, DEV:0x%p\n", &pdev->dev);
+	DRM_DEBUG_DRIVER("enter\n");
 
 	for (i = 0; i < ARRAY_SIZE(dev_names); i++) {
 		struct device *dev;
@@ -224,7 +224,7 @@ static int nx_drm_probe(struct platform_device *pdev)
 		dev = bus_find_device(&platform_bus_type, NULL,
 				      (void *)dev_names[i], match_name);
 		if (!dev) {
-			DRM_INFO("Not found device: %s.\n", dev_names[i]);
+			DRM_INFO("not found device: %s.\n", dev_names[i]);
 			continue;
 		}
 		component_match_add(&pdev->dev, &match, compare_dev, dev);

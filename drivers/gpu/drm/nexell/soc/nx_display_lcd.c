@@ -85,7 +85,7 @@ static int lcd_prepare(struct disp_process_dev *pdev)
 		sel = rsc ? 3 : 2;
 		break;
 	default:
-		pr_err("Fail, %s nuknown module %d\n", __func__, input);
+		pr_err("fail, %s nuknown module %d\n", __func__, input);
 		return -1;
 	}
 

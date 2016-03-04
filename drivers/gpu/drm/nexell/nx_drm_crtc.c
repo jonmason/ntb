@@ -63,7 +63,7 @@ static void nx_drm_crtc_dpms(struct drm_crtc *crtc, int mode)
 	struct drm_device *drm = crtc->dev;
 	struct nx_drm_crtc *nx_crtc = to_nx_crtc(crtc);
 
-	DRM_DEBUG_KMS("Enter CRTC.%d ID:%d mode:%d (%s)\n",
+	DRM_DEBUG_KMS("enter crtc.%d id:%d mode:%d (%s)\n",
 		      nx_crtc->nr, crtc->base.id, mode,
 		      mode == DRM_MODE_DPMS_ON ? "ON" :
 		      mode == DRM_MODE_DPMS_OFF ? "OFF" :
@@ -88,7 +88,7 @@ static void nx_drm_crtc_dpms(struct drm_crtc *crtc, int mode)
 		nx_crtc->dpms_mode = mode;
 		break;
 	default:
-		DRM_ERROR("Unspecified mode %d\n", mode);
+		DRM_ERROR("unspecified mode %d\n", mode);
 		break;
 	}
 
@@ -97,7 +97,7 @@ static void nx_drm_crtc_dpms(struct drm_crtc *crtc, int mode)
 
 static void nx_drm_crtc_prepare(struct drm_crtc *crtc)
 {
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 	/* drm framework doesn't check NULL. */
 }
 
@@ -151,14 +151,14 @@ static void nx_drm_crtc_commit(struct drm_crtc *crtc)
 	nx_soc_disp_rgb_set_enable(module, layer, 1);
 	nx_soc_disp_device_enable_all(module, 1);
 
-	DRM_DEBUG_KMS("Exit.\n");
+	DRM_DEBUG_KMS("exit.\n");
 }
 
 static bool nx_drm_crtc_mode_fixup(struct drm_crtc *crtc,
 				const struct drm_display_mode *mode,
 				struct drm_display_mode *adjusted_mode)
 {
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	/* drm framework doesn't check NULL */
 	return true;
@@ -170,7 +170,7 @@ static int nx_drm_crtc_mode_set(struct drm_crtc *crtc,
 				int x, int y,
 				struct drm_framebuffer *old_fb)
 {
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	/*
 	 * copy the mode data adjusted by mode_fixup() into crtc->mode
@@ -214,7 +214,7 @@ static int nx_drm_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 	if (ret)
 		return ret;
 
-	DRM_DEBUG_DRIVER("Exit.\n");
+	DRM_DEBUG_DRIVER("exit.\n");
 	return ret;
 }
 
@@ -223,7 +223,7 @@ static void nx_drm_crtc_disable(struct drm_crtc *crtc)
 	struct drm_plane *plane;
 	int ret;
 
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 	nx_drm_crtc_dpms(crtc, DRM_MODE_DPMS_OFF);
 
 	drm_for_each_plane(plane, crtc->dev) {
@@ -231,7 +231,7 @@ static void nx_drm_crtc_disable(struct drm_crtc *crtc)
 			continue;
 		ret = plane->funcs->disable_plane(plane);
 		if (ret)
-			DRM_ERROR("Failed to disable plane %d\n", ret);
+			DRM_ERROR("failed to disable plane %d\n", ret);
 	}
 }
 
@@ -256,7 +256,7 @@ static int nx_drm_crtc_page_flip(struct drm_crtc *crtc,
 	int nr = nx_crtc->nr;
 	int ret = -EINVAL;
 
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	mutex_lock(&drm->struct_mutex);
 
@@ -264,7 +264,7 @@ static int nx_drm_crtc_page_flip(struct drm_crtc *crtc,
 		event->pipe = nr;
 		ret = drm_vblank_get(drm, nr);
 		if (ret) {
-			DRM_DEBUG("Failed to acquire vblank counter\n");
+			DRM_DEBUG("failed to acquire vblank counter\n");
 			list_del(&event->base.link);
 			goto out;
 		}
@@ -279,7 +279,7 @@ static int nx_drm_crtc_page_flip(struct drm_crtc *crtc,
 		}
 	}
 
-	DRM_DEBUG_DRIVER("Exit.\n");
+	DRM_DEBUG_DRIVER("exit.\n");
 out:
 	mutex_unlock(&drm->struct_mutex);
 	return ret;
@@ -291,7 +291,7 @@ static void nx_drm_crtc_destroy(struct drm_crtc *crtc)
 	struct nx_drm_private *private = crtc->dev->dev_private;
 	int nr = nx_crtc->nr;
 
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	private->crtc[nr] = NULL;
 
@@ -301,7 +301,7 @@ static void nx_drm_crtc_destroy(struct drm_crtc *crtc)
 
 static int nx_drm_crtc_set_config(struct drm_mode_set *set)
 {
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 	return drm_crtc_helper_set_config(set);
 }
 
@@ -316,12 +316,12 @@ int nx_drm_crtc_enable_vblank(struct drm_device *drm, int crtc)
 	struct nx_drm_private *private = drm->dev_private;
 	struct nx_drm_crtc *nx_crtc = to_nx_crtc(private->crtc[crtc]);
 
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	if (nx_crtc->dpms_mode != DRM_MODE_DPMS_ON)
 		return -EPERM;
 
-	DRM_DEBUG_DRIVER("Exit.\n");
+	DRM_DEBUG_DRIVER("exit.\n");
 	return 0;
 }
 
@@ -330,7 +330,7 @@ void nx_drm_crtc_disable_vblank(struct drm_device *drm, int crtc)
 	struct nx_drm_private *private = drm->dev_private;
 	struct nx_drm_crtc *nx_crtc = to_nx_crtc(private->crtc[crtc]);
 
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	if (nx_crtc->dpms_mode != DRM_MODE_DPMS_ON)
 		return;
@@ -344,11 +344,11 @@ int nx_drm_crtc_init(struct drm_device *drm, int nr, int layer)
 	struct drm_plane *primary;
 	int ret = 0;
 
-	DRM_DEBUG_KMS("Enter CRTC.%d\n", nr);
+	DRM_DEBUG_KMS("enter crtc.%d\n", nr);
 
 	nx_crtc = kzalloc(sizeof(*nx_crtc), GFP_KERNEL);
 	if (!nx_crtc) {
-		DRM_ERROR("Failed to allocate drm crtc.\n");
+		DRM_ERROR("failed to allocate drm crtc.\n");
 		return -ENOMEM;
 	}
 
@@ -372,7 +372,7 @@ int nx_drm_crtc_init(struct drm_device *drm, int nr, int layer)
 	private->crtc[nr] = crtc;
 	drm_crtc_helper_add(crtc, &nx_crtc_helper_funcs);
 
-	DRM_DEBUG_KMS("Exit, CRTC.%d ID:%d\n", nr, crtc->base.id);
+	DRM_DEBUG_KMS("exit, crtc.%d ID:%d\n", nr, crtc->base.id);
 	return 0;
 
 err_crtc:

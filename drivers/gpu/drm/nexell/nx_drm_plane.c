@@ -57,7 +57,7 @@ int nx_drm_plane_update(struct nx_drm_plane *nx_plane,
 	int nr = nx_drm_format_num_buffers(fb->pixel_format);
 	int i;
 
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 	for (i = 0; i < nr; i++) {
 		buffer = nx_drm_fb_buffer(fb, i);
 		if (!buffer) {
@@ -96,7 +96,7 @@ int nx_drm_plane_update(struct nx_drm_plane *nx_plane,
 	nx_plane->refresh = mode->vrefresh;
 	nx_plane->scan_flag = mode->flags;
 
-	DRM_DEBUG_KMS("nx_plane : offset_x/y(%d,%d), width/height(%d,%d)",
+	DRM_DEBUG_KMS("plane : offset_x/y(%d,%d), width/height(%d,%d)",
 		      nx_plane->crtc_x, nx_plane->crtc_y,
 		      nx_plane->crtc_width, nx_plane->crtc_height);
 #endif
@@ -147,7 +147,7 @@ static int nx_drm_disable_plane(struct drm_plane *plane)
 {
 	struct nx_drm_plane *nx_plane = to_nx_plane(plane);
 
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	if (!nx_plane->enabled)
 		return 0;
@@ -167,7 +167,7 @@ static void nx_drm_plane_destroy(struct drm_plane *plane)
 {
 	struct nx_drm_plane *nx_plane = to_nx_plane(plane);
 
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	nx_drm_disable_plane(plane);
 	drm_plane_cleanup(plane);
@@ -191,13 +191,13 @@ static struct drm_plane_funcs nx_plane_funcs = {
 int nx_drm_plane_set_zpos_ioctl(struct drm_device *drm, void *data,
 				struct drm_file *file_priv)
 {
-	struct drm_nx_plane_set_zpos *zpos_req = data;
+	struct nx_drm_plane_set_zpos *zpos_req = data;
 	struct drm_mode_object *obj;
 	struct drm_plane *plane;
 	struct nx_drm_plane *nx_plane;
 	int ret = 0;
 
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	if (!drm_core_check_feature(drm, DRIVER_MODESET))
 		return -EINVAL;
@@ -214,7 +214,7 @@ int nx_drm_plane_set_zpos_ioctl(struct drm_device *drm, void *data,
 	obj = drm_mode_object_find(drm, zpos_req->plane_id,
 				   DRM_MODE_OBJECT_PLANE);
 	if (!obj) {
-		DRM_DEBUG_KMS("Unknown plane ID %d\n", zpos_req->plane_id);
+		DRM_DEBUG_KMS("unknown plane ID %d\n", zpos_req->plane_id);
 		ret = -EINVAL;
 		goto out;
 	}
@@ -242,7 +242,7 @@ struct drm_plane *nx_drm_plane_init(struct drm_device *drm,
 	};
 	int err;
 
-	DRM_DEBUG_KMS("Enter Type:%s\n",
+	DRM_DEBUG_KMS("enter Type:%s\n",
 		      ARRAY_SIZE(plane_type) >
 		      type ? plane_type[type] : "Unknown");
 
@@ -257,11 +257,11 @@ struct drm_plane *nx_drm_plane_init(struct drm_device *drm,
 				&nx_plane_funcs, formats,
 				ARRAY_SIZE(formats), type);
 	if (err) {
-		DRM_ERROR("Failed to initialize plane\n");
+		DRM_ERROR("failed to initialize plane\n");
 		kfree(nx_plane);
 		return ERR_PTR(err);
 	}
 
-	DRM_DEBUG_KMS("Exit, plane ID:%d\n", plane->base.id);
+	DRM_DEBUG_KMS("exit, plane ID:%d\n", plane->base.id);
 	return (struct drm_plane *)plane;
 }

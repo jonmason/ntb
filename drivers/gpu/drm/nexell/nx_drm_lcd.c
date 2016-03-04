@@ -55,19 +55,19 @@ struct lcd_rgb_context {
 
 static bool lcd_rgb_drm_is_connected(struct device *dev)
 {
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 	return true;
 }
 
 static int lcd_rgb_drm_check_timing(struct device *dev, void *timing)
 {
-	DRM_DEBUG_KMS("TODO\n");
+	DRM_DEBUG_KMS("todo\n");
 	return 0;
 }
 
 static int lcd_rgb_drm_display_power_on(struct device *dev, int mode)
 {
-	DRM_DEBUG_KMS("TODO\n");
+	DRM_DEBUG_KMS("todo\n");
 	return 0;
 }
 
@@ -75,7 +75,7 @@ static void lcd_rgb_drm_dpms(struct device *dev, int mode)
 {
 	struct lcd_rgb_context *lcd;
 
-	DRM_DEBUG_KMS("Enter DEV:0x%p Mode:%d\n", dev, mode);
+	DRM_DEBUG_KMS("enter mode:%d\n", mode);
 	if (!dev)
 		return;
 
@@ -92,7 +92,7 @@ static void lcd_rgb_drm_dpms(struct device *dev, int mode)
 		/* TODO. */
 		break;
 	default:
-		DRM_DEBUG_KMS("Unspecified mode %d\n", mode);
+		DRM_DEBUG_KMS("unspecified mode %d\n", mode);
 		break;
 	}
 
@@ -101,7 +101,7 @@ static void lcd_rgb_drm_dpms(struct device *dev, int mode)
 
 static void lcd_rgb_drm_apply(struct device *dev)
 {
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 }
 
 static int lcd_rgb_drm_get_modes(struct drm_connector *connector)
@@ -110,7 +110,7 @@ static int lcd_rgb_drm_get_modes(struct drm_connector *connector)
 	struct lcd_rgb_context *lcd = nx_connector->context;
 	struct drm_display_mode *mode;
 
-	DRM_DEBUG_KMS("Enter CTX:%p\n", lcd);
+	DRM_DEBUG_KMS("enter\n");
 	mode = drm_mode_create(connector->dev);
 	if (!mode) {
 		DRM_ERROR("failed to create a new display mode\n");
@@ -137,13 +137,13 @@ static int lcd_rgb_drm_get_modes(struct drm_connector *connector)
 	drm_mode_set_name(mode);
 	drm_mode_probed_add(connector, mode);
 
-	DRM_DEBUG_KMS("Exit, (%dx%d)\n", mode->hdisplay, mode->vdisplay);
+	DRM_DEBUG_KMS("exit, (%dx%d)\n", mode->hdisplay, mode->vdisplay);
 	return 1;
 }
 
 static void lcd_rgb_drm_commit(struct drm_device *drm, struct device *dev)
 {
-	DRM_DEBUG_KMS("Enter paddr=0x%x\n",
+	DRM_DEBUG_KMS("enter paddr=0x%x\n",
 		      (uint32_t) drm->mode_config.fb_base);
 }
 
@@ -165,7 +165,7 @@ static struct nx_drm_display lcd_rgb_drm_display = {
 
 static int lcd_rgb_drm_power_on(struct lcd_rgb_context *ctx, bool enable)
 {
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 	return 0;
 }
 
@@ -180,24 +180,24 @@ static int lcd_rgb_drm_bind(struct device *dev,
 	struct lcd_rgb_context *lcd = dev_get_drvdata(dev);
 	int crtc_num = (1 << private->num_crtcs) - 1;
 
-	DRM_DEBUG_KMS("Enter Drm:0x%p\n", drm);
+	DRM_DEBUG_KMS("enter\n");
 
 	encoder = nx_drm_encoder_create(drm, display, crtc_num, lcd);
 	if (!encoder) {
-		DRM_ERROR("Failed to create LCD encoder\n");
+		DRM_ERROR("failed to create LCD encoder\n");
 		return -EFAULT;
 	}
 
 	connector = nx_drm_connector_create(drm, encoder, lcd);
 	if (!connector) {
-		DRM_ERROR("Failed to create LCD connector\n");
+		DRM_ERROR("failed to create LCD connector\n");
 		encoder->funcs->destroy(encoder);
 		return -EFAULT;
 	}
 
 	lcd->encoder = encoder;
 	lcd->connector = connector;
-	DRM_DEBUG_KMS("Exit, LCD encoder:0x%p, connector:0x%p\n", encoder,
+	DRM_DEBUG_KMS("exit, LCD encoder:0x%p, connector:0x%p\n", encoder,
 		      connector);
 	return 0;
 }
@@ -209,7 +209,7 @@ static void lcd_rgb_drm_unbind(struct device *dev,
 	struct drm_encoder *encoder = lcd->encoder;
 	struct drm_connector *connector = lcd->connector;
 
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	if (encoder)
 		encoder->funcs->destroy(encoder);
@@ -229,7 +229,7 @@ static int lcd_rgb_drm_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct nx_drm_display *display = &lcd_rgb_drm_display;
 
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	lcd = kzalloc(sizeof(*lcd), GFP_KERNEL);
 	if (!lcd)
@@ -241,7 +241,7 @@ static int lcd_rgb_drm_probe(struct platform_device *pdev)
 	dev_set_drvdata(dev, lcd);
 	component_add(dev, &lcd_ops);
 
-	DRM_DEBUG_KMS("Exit, LCD:%p, DEV:0x%p\n", lcd, dev);
+	DRM_DEBUG_KMS("exit\n");
 
 	return 0;
 }

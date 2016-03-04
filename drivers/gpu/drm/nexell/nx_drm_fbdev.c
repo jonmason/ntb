@@ -41,7 +41,7 @@ uint32_t nx_drm_mode_fb_format(uint32_t bpp, uint32_t depth)
 {
 	uint32_t fmt;
 
-	DRM_DEBUG_KMS("Enter (bpp:%d, depth:%d)\n", bpp, depth);
+	DRM_DEBUG_KMS("enter (bpp:%d, depth:%d)\n", bpp, depth);
 
 	switch (bpp) {
 	case 16:
@@ -71,7 +71,7 @@ static int nx_drm_fb_helper_check_var(struct fb_var_screeninfo *var,
 	struct drm_framebuffer *fb = fb_helper->fb;
 	int depth;
 
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	if (var->pixclock != 0 || in_dbg_master())
 		return -EINVAL;
@@ -188,8 +188,8 @@ static int nx_drm_fbdev_probe(struct drm_fb_helper *helper,
 	unsigned long size;
 	int ret;
 
-	DRM_DEBUG_KMS("Enter\n");
-	DRM_DEBUG_KMS("Surface Width(%d), Height(%d) and Bpp(%d)\n",
+	DRM_DEBUG_KMS("enter\n");
+	DRM_DEBUG_KMS("surface width(%d), height(%d) and bpp(%d)\n",
 		      sizes->surface_width, sizes->surface_height,
 		      sizes->surface_bpp);
 
@@ -200,7 +200,7 @@ static int nx_drm_fbdev_probe(struct drm_fb_helper *helper,
 							  sizes->surface_depth);
 
 	size = roundup(mode_cmd.pitches[0] * mode_cmd.height, PAGE_SIZE);
-	DRM_DEBUG_KMS("Size:%lu Pitches:%d, Height:%d\n",
+	DRM_DEBUG_KMS("size:%lu pitches:%d, height:%d\n",
 		      size, mode_cmd.pitches[0], mode_cmd.height);
 
 	/* allocate frame buffer */
@@ -212,14 +212,14 @@ static int nx_drm_fbdev_probe(struct drm_fb_helper *helper,
 
 	fbi = framebuffer_alloc(0, &pdev->dev);
 	if (!fbi) {
-		DRM_ERROR("Failed to allocate framebuffer info.\n");
+		DRM_ERROR("failed to allocate framebuffer info.\n");
 		ret = -ENOMEM;
 		goto err_drm_gem_cma_free_object;
 	}
 
 	fb = nx_drm_fb_allocate(drm, &mode_cmd, &cma_obj, 1);
 	if (IS_ERR(helper->fb)) {
-		DRM_ERROR("Failed to allocate DRM framebuffer.\n");
+		DRM_ERROR("failed to allocate DRM framebuffer.\n");
 		ret = PTR_ERR(helper->fb);
 		goto err_framebuffer_release;
 	}
@@ -239,7 +239,7 @@ static int nx_drm_fbdev_probe(struct drm_fb_helper *helper,
 
 	ret = fb_alloc_cmap(&fbi->cmap, 256, 0);
 	if (ret) {
-		DRM_ERROR("Failed to allocate cmap.\n");
+		DRM_ERROR("failed to allocate cmap.\n");
 		goto err_drm_fb_destroy;
 	}
 
@@ -255,10 +255,10 @@ static int nx_drm_fbdev_probe(struct drm_fb_helper *helper,
 	fbi->screen_size = size;
 	fbi->fix.smem_len = size;
 
-	DRM_DEBUG_KMS("OBJ:0x%p, V:0x%p, P:0x%lx, Offs:0x%lx, Size:%lu\n",
-		      cma_obj, cma_obj->vaddr, (unsigned long)cma_obj->paddr,
+	DRM_DEBUG_KMS("v:0x%p, p:0x%lx, offs:0x%lx, size:%lu\n",
+		      cma_obj->vaddr, (unsigned long)cma_obj->paddr,
 		      offset, size);
-	DRM_DEBUG_KMS("Exit.\n");
+	DRM_DEBUG_KMS("exit.\n");
 
 	return 0;
 
@@ -293,7 +293,7 @@ static void nx_drm_fbdev_destroy(struct drm_device *drm,
 		info = fb_helper->fbdev;
 		ret = unregister_framebuffer(info);
 		if (0 > ret)
-			DRM_DEBUG_KMS("Failed unregister_framebuffer()\n");
+			DRM_DEBUG_KMS("failed unregister_framebuffer()\n");
 
 		if (info->cmap.len)
 			fb_dealloc_cmap(&info->cmap);
@@ -331,7 +331,7 @@ int nx_drm_fbdev_init(struct drm_device *drm)
 	unsigned int num_crtc;
 	int ret;
 
-	DRM_DEBUG_KMS("Enter CRTC num:%d, Connector num:%d\n",
+	DRM_DEBUG_KMS("enter crtc num:%d, connector num:%d\n",
 		      drm->mode_config.num_crtc,
 		      drm->mode_config.num_connector);
 
@@ -340,7 +340,7 @@ int nx_drm_fbdev_init(struct drm_device *drm)
 
 	nx_fbdev = kzalloc(sizeof(*nx_fbdev), GFP_KERNEL);
 	if (!nx_fbdev) {
-		DRM_ERROR("Failed to allocate drm fbdev.\n");
+		DRM_ERROR("failed to allocate drm fbdev.\n");
 		return -ENOMEM;
 	}
 
@@ -350,13 +350,13 @@ int nx_drm_fbdev_init(struct drm_device *drm)
 	num_crtc = drm->mode_config.num_crtc;
 	ret = drm_fb_helper_init(drm, helper, num_crtc, MAX_CONNECTOR);
 	if (0 > ret) {
-		DRM_ERROR("Failed to initialize drm fb helper.\n");
+		DRM_ERROR("failed to initialize drm fb helper.\n");
 		goto err_drm_fb_dev_free;
 	}
 
 	ret = drm_fb_helper_single_add_all_connectors(helper);
 	if (0 > ret) {
-		DRM_ERROR("Failed to register drm_fb_helper_connector.\n");
+		DRM_ERROR("failed to register drm_fb_helper_connector.\n");
 		goto err_drm_fb_helper_fini;
 
 	}
@@ -368,11 +368,11 @@ int nx_drm_fbdev_init(struct drm_device *drm)
 	/* call fb_probe */
 	ret = drm_fb_helper_initial_config(helper, PREFERRED_BPP);
 	if (0 > ret) {
-		DRM_ERROR("Failed to set up hw configuration.\n");
+		DRM_ERROR("failed to set up hw configuration.\n");
 		goto err_drm_fb_helper_fini;
 	}
 
-	DRM_DEBUG_KMS("Exit.\n");
+	DRM_DEBUG_KMS("exit.\n");
 	return 0;
 
 err_drm_fb_helper_fini:

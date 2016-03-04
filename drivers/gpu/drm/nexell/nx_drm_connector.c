@@ -29,7 +29,7 @@
 static inline void convert_to_video_timing(struct fb_videomode *timing,
 				struct drm_display_mode *mode)
 {
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	memset(timing, 0, sizeof(*timing));
 
@@ -62,20 +62,20 @@ static int nx_drm_connector_get_modes(struct drm_connector *connector)
 	struct edid *edid;
 	unsigned int count = 0;
 
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	if (!display || !display->ops)
 		return 0;
 
 	if (display->ops->get_edid) {
 		edid = NULL;
-		pr_info("[%s: EDID Unimplemented]\n", __func__);
+		pr_info("[%s: EDID unimplemented]\n", __func__);
 	} else {
 		if (display->ops->get_mode)
 			count = display->ops->get_mode(connector);
 	}
 
-	DRM_DEBUG_DRIVER("Exit, Count:%d\n", count);
+	DRM_DEBUG_DRIVER("exit, count:%d\n", count);
 	return count;
 }
 
@@ -88,7 +88,7 @@ static int nx_drm_connector_mode_valid(struct drm_connector *connector,
 	struct fb_videomode timing;
 	int ret = MODE_BAD;
 
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	convert_to_video_timing(&timing, mode);
 
@@ -107,7 +107,7 @@ struct drm_encoder *nx_drm_best_encoder(struct drm_connector *connector)
 	struct nx_drm_connector *nx_connector = to_nx_connector(connector);
 	struct drm_encoder *encoder = nx_connector->connector.encoder;
 
-	DRM_DEBUG_KMS("Enter connector ID:%d\n", connector->base.id);
+	DRM_DEBUG_KMS("enter connector ID:%d\n", connector->base.id);
 	return encoder;
 }
 
@@ -126,7 +126,7 @@ static enum drm_connector_status nx_drm_connector_detect(
 	struct nx_drm_operation *ops = display->ops;
 	enum drm_connector_status status = connector_status_disconnected;
 
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	if (ops && ops->is_connected) {
 		if (ops->is_connected(display->dev))
@@ -135,11 +135,9 @@ static enum drm_connector_status nx_drm_connector_detect(
 			status = connector_status_disconnected;
 	}
 
-	DRM_DEBUG_KMS("Exit, status:%d (%s)\n",
-		      status,
-		      status ==
-		      connector_status_connected ? "connected" :
-		      "disconnected");
+	DRM_DEBUG_KMS("exit, status:%d (%s)\n",
+	      status, status == connector_status_connected ? "connected" :
+	      "disconnected");
 
 	return status;
 }
@@ -148,7 +146,7 @@ static void nx_drm_connector_destroy(struct drm_connector *connector)
 {
 	struct nx_drm_connector *nx_connector = to_nx_connector(connector);
 
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	drm_connector_unregister(connector);
 	drm_connector_cleanup(connector);
@@ -157,7 +155,7 @@ static void nx_drm_connector_destroy(struct drm_connector *connector)
 
 static void nx_drm_connector_dpms(struct drm_connector *connector, int mode)
 {
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 	drm_helper_connector_dpms(connector, mode);
 }
 
@@ -179,11 +177,11 @@ struct drm_connector *nx_drm_connector_create(struct drm_device *drm,
 	int type;
 	int err;
 
-	DRM_DEBUG_KMS("Enter\n");
+	DRM_DEBUG_KMS("enter\n");
 
 	nx_connector = kzalloc(sizeof(*nx_connector), GFP_KERNEL);
 	if (!nx_connector) {
-		DRM_ERROR("Failed to allocate connector\n");
+		DRM_ERROR("failed to allocate connector\n");
 		return NULL;
 	}
 	connector = &nx_connector->connector;
@@ -222,11 +220,11 @@ struct drm_connector *nx_drm_connector_create(struct drm_device *drm,
 
 	err = drm_mode_connector_attach_encoder(connector, encoder);
 	if (err) {
-		DRM_ERROR("Failed to attach a connector to a encoder\n");
+		DRM_ERROR("failed to attach a connector to a encoder\n");
 		goto err_sysfs;
 	}
 
-	DRM_DEBUG_KMS("Exit, connector ID:%d\n", connector->base.id);
+	DRM_DEBUG_KMS("exit, connector ID:%d\n", connector->base.id);
 
 	return connector;
 
