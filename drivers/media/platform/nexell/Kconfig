@@ -1,0 +1,11 @@
+config VIDEO_NEXELL
+	bool "Nexell S5Pxx18 SoC series V4l2 Subsystem driver"
+	depends on VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	depends on ARCH_S5P6818 || COMPILE_TEST
+	depends on OF && COMMON_CLK
+	select VIDEOBUF2_DMA_CONTIG
+	select RESET_CONTROLLER
+	help
+	  Say Y here to enable Nexell video devices for S5Pxx18 series SoC.
+	  This subsystem includes capture devices. Nexell V4L2 drivers supports
+	  only dma_buf type.

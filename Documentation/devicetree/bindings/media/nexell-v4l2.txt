@@ -1,0 +1,15 @@
+Nexell V4L2 Device Tree bindings
+================================
+
+nx-v4l2 driver is top logical driver for all v4l2 devices of Nexell.
+
+Required properties:
+- compatible : must contain "nexell,nx-v4l2"
+- status : To enable nx-v4l2, should set to "okay"
+
+Example:
+
+nx-v4l2 {
+    compatible = "nexell,nx-v4l2";
+    status = "okay";
+};
