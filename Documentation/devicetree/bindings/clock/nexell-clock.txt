@@ -12,6 +12,8 @@ Required Properties:
 - #size-xells: should be 1.
 - #clock-cells: should be 1.
 
+Optional Properties:
+- src-force: select clock source manually.
 
 Example: An example of a clock controller node is listed below.
 

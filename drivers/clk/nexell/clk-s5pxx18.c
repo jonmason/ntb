@@ -47,6 +47,7 @@ struct clk_dev_peri {
 	int invert_1;
 	int in_extclk_1;
 	int in_extclk_2;
+	int fix_src;
 };
 
 struct clk_dev {
@@ -187,7 +188,7 @@ static long dev_round_rate(struct clk_hw *hw, unsigned long rate)
 	int step, div[2] = {
 		0,
 	};
-	int i, n, clk2 = 0;
+	int i, n, start_src = 0, max_src = 0, clk2 = 0;
 	short s1 = 0, s2 = 0, d1 = 0, d2 = 0;
 
 	step = peri->clk_step;
@@ -199,7 +200,15 @@ static long dev_round_rate(struct clk_hw *hw, unsigned long rate)
 		return clk_dev_bus_rate(peri);
 
 next:
-	for (n = 0; I_CLOCK_NUM > n; n++) {
+	if (peri->fix_src >= 0) {
+		start_src = peri->fix_src;
+		max_src = start_src + 1;
+	} else {
+		start_src = 0;
+		max_src = I_CLOCK_NUM;
+	}
+
+	for (n = start_src ; n < max_src ; n++) {
 		if (!(((mask & I_CLOCK_MASK) >> n) & 0x1))
 			continue;
 
@@ -309,17 +318,25 @@ static int clk_dev_enable(struct clk_hw *hw)
 		return 0;
 
 	for (i = 0, inv = peri->invert_0; peri->clk_step > i;
-	     i++, inv = peri->invert_1)
+		i++, inv = peri->invert_1)
 		clk_dev_inv((void *)peri->base, i, inv);
 
 	/* restore clock rate */
 	for (i = 0; peri->clk_step > i; i++) {
-		int s = (0 == i ? peri->div_src_0 : peri->div_src_1);
-		int d = (0 == i ? peri->div_val_0 : peri->div_val_1);
+		if (peri->fix_src < 0) {
+			int s = (0 == i ? peri->div_src_0 : peri->div_src_1);
+			int d = (0 == i ? peri->div_val_0 : peri->div_val_1);
 
-		if (-1 == s)
-			continue;
-		clk_dev_rate((void *)peri->base, i, s, d);
+			if (s == -1)
+				continue;
+
+			clk_dev_rate((void *)peri->base, i, s, d);
+		} else {
+			int s = peri->fix_src;
+			int d = (0 == i ? peri->div_val_0 : peri->div_val_1);
+
+			clk_dev_rate((void *)peri->base, i, s, d);
+		}
 	}
 
 	clk_dev_enb((void *)peri->base, 1);
@@ -434,6 +451,11 @@ static void __init clk_dev_parse_device_data(struct device_node *np,
 		pr_err("clock node is missing 'clk-input1'\n");
 		return;
 	}
+
+	if (!of_property_read_u32(np, "src-force", &value))
+		peri->fix_src = value;
+	else
+		peri->fix_src = -1;
 
 	if (!of_property_read_u32(np, "clk-input-ext1", &value))
 		peri->in_extclk_1 = value;
