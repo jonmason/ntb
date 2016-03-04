@@ -1,0 +1,35 @@
+Nexell V4L2 MIPI-CSI Device Tree bindings
+=========================================
+
+MIPI-CSI is connected to VIP internally.
+
+Required properties:
+- compatible	: must contain "nexell,mipi_csi"
+- reg		: physical address and length
+- clock-names	: clock specifier
+- clocks	: clock reference. must use value defined in clock dts
+- reset-names	: reset specifier
+- resets	: reset reference to mipi, mipi_csi, mipi_phy_s
+- data_lane	: camera sensor to mipi-csi data lane total number(1 ~ 4)
+- swap_clocklane	: if 1, clocklane is swapped
+- swap_datalane	: if 1, datalane is swapped
+- pllval	: 750(750MHz) or 1000(1GHz). Internally used pll value
+- status	: default is "disabled". when using, set to "okay"
+
+Example:
+
+	mipi_csi:mipi_csi@c00d0000 {
+		compatible = "nexell,mipi_csi";
+		reg = <PHYS_BASE_MIPI 0x1000>;
+		clock-names = "mipi";
+		clocks = <&mipi>;
+		reset-names = "mipi-reset", "mipi_csi-reset", "mipi_phy_s-reset";
+		resets = <&nexell_reset RESET_ID_MIPI>, <&nexell_reset RESET_ID_MIPI_CSI>, <&nexell_reset RESET_ID_PHY_S>;
+		soc,tieoff = <NX_TIEOFF_MIPI0_NX_DPSRAM_1R1W_EMAA 3>;
+		data_lane = <2>;
+		swap_clocklane = <0>;
+		swap_datalane = <0>;
+		pllval = <750>;
+		status = "disabled";
+	};
+
