@@ -26,4 +26,8 @@ config VIDEO_NEXELL_CAPTURE
 	  Two of them are parallel and support ITU-R BT.656 and CCIR-601.
 	  Other is dedicated to MIPI-CSI.
 
+if VIDEO_NEXELL_CAPTURE
+source "drivers/media/platform/nexell/capture/Kconfig"
+endif # VIDEO_NEXELL_CAPTURE
+
 endif # VIDEO_NEXELL

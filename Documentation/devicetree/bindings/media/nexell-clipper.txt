@@ -1,0 +1,70 @@
+Nexell V4L2 Clipper Device Tree bindings
+========================================
+
+Clipper clip vip input data and give data to decimator and
+save clipped data to memory.
+The DT definitions can be found in include/dt-bindings/media/nexell-vip.h
+
+Required properties:
+- compatible	: must contain "nexell,nx-clipper"
+- module	: vip module number
+- interface_type	: NX_CAPTURE_INTERFACE_PARALLEL or NX_CAPTURE_INTERFACE_MIPI
+			  parallel interface is 8bit(656/601)
+- pinctrl-names	: must contain "default"
+- pinctrl-0	: the pinctrl reference to vid
+- port		: vip input port, each vip has two input port and can use only one
+- external_sync	: if 1, this is 601, else 656
+- data_order	: YUV 422 data order from camera sensor
+- interlace	: if 1, interlace input data
+- sensor: type	: must contain NX_CAPTURE_SENSOR_I2C
+- sensor: i2c_name	: camera sensor i2c type(name)
+- sensor: i2c_adapter	: camera sensor i2c adapter number
+- sensor: addr		: camera sensor i2c address
+
+Optional properties:
+- power: enable_seq	: camera sensor power on sequence
+			  [ACTION_START_TAG][ACTION_TYPE][SEQUENCE][ACTION_END_TAG]
+			  ACTION_START_TAG : NX_ACTION_START
+			  ACTION_END_TAG : NX_ACTION_END
+			  ACTION_TYPE : NX_ACTION_TYPE_PMIC, NX_ACTION_TYPE_GPIO, NX_ACTION_TYPE_CLOCK
+			  SEQUENCE for ACTION_TYPE_GPIO: gpionum, value, delay_ms, value, delay_ms ...
+			  SEQUENCE for ACTION_TYPE_PMIC: regulator_name, value, delay_ms
+			  SEQUENCE for ACTION_TYPE_CLOCK: enable/disable, delay_ms
+- clock: pwms	: reference to pwm that gives master clock to camera sensor
+
+Example:
+	clipper {
+		compatible = "nexell,nx-clipper";
+		module = <1>;
+		interface_type = <NX_CAPTURE_INTERFACE_PARALLEL>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&vid0_data_clk &vid0_sync> ;
+		port = <0>;
+		external_sync = <0>;
+		data_order = <NX_VIN_Y0CBY1CR>;
+		interlace = <0>;
+
+		sensor {
+			type = <NX_CAPTURE_SENSOR_I2C>;
+			i2c_name = "SP2518";
+			i2c_adapter = <0>;
+			addr = <0x30>;
+		};
+
+		power {
+			enable_seq = <
+				NX_ACTION_START NX_ACTION_TYPE_PMIC 0 0 NX_ACTION_END
+				NX_ACTION_START NX_ACTION_TYPE_PMIC 1 0 NX_ACTION_END
+				NX_ACTION_START NX_ACTION_TYPE_GPIO 102 1 0 NX_ACTION_END
+				NX_ACTION_START NX_ACTION_TYPE_GPIO 103 1 0 0 1 NX_ACTION_END
+				NX_ACTION_START NX_ACTION_TYPE_GPIO 104 0 0 1 0 NX_ACTION_END
+				NX_ACTION_START NX_ACTION_TYPE_CLOCK 1 10 NX_ACTION_END
+				NX_ACTION_START NX_ACTION_TYPE_GPIO 104 0 10 NX_ACTION_END
+				NX_ACTION_START NX_ACTION_TYPE_GPIO 103 1 5 NX_ACTION_END
+				>;
+		};
+
+		clock {
+			pwms = <&pwm_device1 0 24000000 0>
+		};
+	};
