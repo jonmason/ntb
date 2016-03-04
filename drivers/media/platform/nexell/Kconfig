@@ -8,4 +8,22 @@ config VIDEO_NEXELL
 	help
 	  Say Y here to enable Nexell video devices for S5Pxx18 series SoC.
 	  This subsystem includes capture devices. Nexell V4L2 drivers supports
-	  only dma_buf type.
+	  only dmabuf type.
+
+if VIDEO_NEXELL
+
+config VIDEO_NEXELL_CAPTURE
+	bool "Nexell S5Pxx18 SoC series camera interface driver"
+	depends on I2C
+	default n
+	help
+	  This is a V4L2 driver for Nexell S5Pxx18 series SoC camera host
+	  interface. Nexell camera device has two memory interfaces, one is
+	  clipper and other is decimator. clipper can crop source region
+	  and decimator can scale down but cannot scale up.
+
+	  Camera host interface has three physical interface with sensor.
+	  Two of them are parallel and support ITU-R BT.656 and CCIR-601.
+	  Other is dedicated to MIPI-CSI.
+
+endif # VIDEO_NEXELL
