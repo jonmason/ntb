@@ -1,0 +1,33 @@
+#
+# Copyright 2016 Nexell.
+#
+# Configuration options for the Nexell Sound
+
+config SND_NX_SOC
+	tristate "Nexell SoC Audio"
+	depends on PLAT_NEXELL
+	select AMBA_PL08X
+	help
+	  Say Y or M if you want to add support for codecs attached to
+	  the AC97 and I2S interface.
+
+config SND_NX_I2S
+	tristate
+
+config SND_NX_I2S_CH0
+	bool "I2S 0"
+	depends on SND_NX_SOC
+	select SND_NX_I2S
+	default y
+
+config SND_NX_I2S_CH1
+	bool "I2S 1"
+	depends on SND_NX_SOC
+	select SND_NX_I2S
+	default n
+
+config SND_NX_I2S_CH2
+	bool "I2S 2"
+	depends on SND_NX_SOC
+	select SND_NX_I2S
+	default n

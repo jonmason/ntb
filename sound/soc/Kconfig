@@ -67,6 +67,7 @@ source "sound/soc/txx9/Kconfig"
 source "sound/soc/ux500/Kconfig"
 source "sound/soc/xtensa/Kconfig"
 source "sound/soc/zte/Kconfig"
+source "sound/soc/nexell/Kconfig"
 
 # Supported codecs
 source "sound/soc/codecs/Kconfig"

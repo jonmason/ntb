@@ -1,0 +1,58 @@
+Nexell I2S controller
+
+Required Properties:
+
+- compatible : should be one of the following.
+   - nexell,nexell-i2s: for 8/16/24bit stereo I2S.
+- reg: physical base address of the controller and length of memory mapped
+  region.
+- dmas: list of DMA controller phandle and DMA request line ordered pairs.
+- dma-names: identifier string for each DMA request line in the dmas property.
+  These strings correspond 1:1 with the ordered pairs in dmas.
+- clocks: Handle to iis clock.
+- clock-names:
+  i2s0 uses some base clks from CMU and some are from audio subsystem internal
+  clock controller. The clock names for i2s0 should be "i2s0", "i2s1" and
+  "i2s2" as shown in the example below.
+- resets : phandle to the parent reset controller.
+  - "nexell_reset" - reset-controller,
+  - "RESET_ID_I2S0" - Nth Reset control id (N = 0, 1, ...)
+- reset-names : input names of resets used by the controller
+
+Optional Properties:
+- pinctrl-0: Should specify pin control groups used for this controller.
+- pinctrl-names: Should contain only one value - "default".
+- master-mode : Select master/slave mode
+  - 0(slave mode), 1(i2s master mode).
+- mclk-in : Select mclk source internal/external.
+  - 0(internal), 1(external).
+- trans-mode : Select serial data format
+  - 0(i2s mode), 1(MSB-justified) or 2(LSB-justified).
+- frame-bit : Select frame bit. (16/24/32/48 fs)
+- sample-rate : Select sample rate. (8000~192000hz)
+- pre-supply-mclk : Select pre supply mclk support.
+  - 0(control when i2s start/stop), 1(always on)
+- LR-pol-inv : Select L/R polarity intvert option.
+
+Example:
+
+i2s0: i2s0@c0055000 {
+	compatible = "nexell,nexell-i2s";
+	reg = <PHYS_BASE_I2S0 0x1000>;
+	dmas = <&pl08xdma0 12>, <&pl08xdma0 13>;
+	dma-names = "tx", "rx";
+	clocks = <&i2s0>;;
+	clock-names = "i2s0";
+	resets = <&nexell_reset RESET_ID_I2S0>;
+	reset-names = "i2s-reset";
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2s0_bus>;
+	master_mode = <1>;
+	mclk_in = <0>;
+	trans_mode = <0>;
+	frame_bit = <32>;
+	sample_rate = <48000>;
+	pre_supply_mclk = <1>;
+	LR-pol-inv = <0>;
+	status = "okay";
+};
