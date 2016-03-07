@@ -18,20 +18,7 @@
 #ifndef _NX_DRM_H_
 #define _NX_DRM_H_
 
-/**
- * User-desired buffer creation information structure.
- *
- * @size: user-desired memory allocation size.
- *	- this size value would be page-aligned internally.
- * @flags: user request for setting memory type or cache attributes.
- * @handle: returned a handle to created gem object.
- *	- this handle will be set by gem module of kernel side.
- */
-struct drm_nx_gem_create {
-	uint64_t size;
-	unsigned int flags;
-	unsigned int handle;
-};
+#include <uapi/drm/nexell_drm.h>
 
 /**
  * A structure for getting buffer offset.
@@ -57,59 +44,23 @@ struct drm_nx_gem_map_off {
  *	of kernel side with user virtual address which is allocated
  *	by do_mmap().
  */
-struct drm_nx_gem_mmap {
+struct nx_drm_gem_mmap {
 	unsigned int handle;
 	unsigned int size;
 	uint64_t mapped;
 };
 
-/**
- * A structure for user connection request of virtual display.
- *
- * @connection: indicate whether doing connetion or not by user.
- * @extensions: if this value is 1 then the vidi driver would need additional
- *	128bytes edid data.
- * @edid: the edid data pointer from user side.
- */
-struct drm_nx_vidi_connection {
+
+struct nx_drm_lcd_connection {
 	unsigned int connection;
 	unsigned int extensions;
 	uint64_t edid;
 };
 
-struct drm_nx_lcd_connection {
-	unsigned int connection;
-	unsigned int extensions;
-	uint64_t edid;
-};
-
-struct drm_nx_plane_set_zpos {
+struct nx_drm_plane_set_zpos {
 	__u32 plane_id;
 	__s32 zpos;
 };
-
-#define DRM_NX_GEM_CREATE		0x00
-#define DRM_NX_GEM_MAP_OFFSET	0x01
-#define DRM_NX_GEM_MMAP		0x02
-#define DRM_NX_PLANE_SET_ZPOS	0x06
-#define DRM_NX_VIDI_CONNECTION	0x07
-
-#define DRM_IOCTL_NX_GEM_CREATE		DRM_IOWR(DRM_COMMAND_BASE + \
-		DRM_NX_GEM_CREATE, struct drm_nx_gem_create)
-
-#define DRM_IOCTL_NX_GEM_MAP_OFFSET	DRM_IOWR(DRM_COMMAND_BASE + \
-		DRM_NX_GEM_MAP_OFFSET, struct drm_nx_gem_map_off)
-
-#define DRM_IOCTL_NX_GEM_MMAP	DRM_IOWR(DRM_COMMAND_BASE + \
-		DRM_NX_GEM_MMAP, struct drm_nx_gem_mmap)
-
-#define DRM_IOCTL_NX_PLANE_SET_ZPOS	DRM_IOWR(DRM_COMMAND_BASE + \
-		DRM_NX_PLANE_SET_ZPOS, struct drm_nx_plane_set_zpos)
-
-#define DRM_IOCTL_NX_VIDI_CONNECTION	DRM_IOWR(DRM_COMMAND_BASE + \
-		DRM_NX_VIDI_CONNECTION, struct drm_nx_vidi_connection)
-
-#ifdef __KERNEL__
 
 /**
  * A structure for lcd panel information.
@@ -168,5 +119,4 @@ struct nx_drm_hdmi_pdata {
 	unsigned int			is_v13:1;
 };
 
-#endif
 #endif

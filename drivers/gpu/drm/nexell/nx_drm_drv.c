@@ -30,6 +30,7 @@
 #include "nx_drm_fbdev.h"
 #include "nx_drm_fb.h"
 #include "nx_drm_plane.h"
+#include "nx_drm_gem.h"
 
 static int nx_drm_load(struct drm_device *drm, unsigned long flags)
 {
@@ -112,6 +113,10 @@ static int nx_drm_unload(struct drm_device *drm)
 }
 
 static struct drm_ioctl_desc nx_drm_ioctls[] = {
+	DRM_IOCTL_DEF_DRV(NX_GEM_CREATE,
+		nx_drm_gem_create_ioctl, DRM_UNLOCKED | DRM_AUTH),
+	DRM_IOCTL_DEF_DRV(NX_GEM_GET,
+		nx_drm_gem_get_ioctl, DRM_UNLOCKED),
 };
 
 static const struct file_operations nx_drm_driver_fops = {
@@ -151,7 +156,6 @@ static struct drm_driver nx_drm_driver = {
 	.gem_free_object = drm_gem_cma_free_object,
 	.gem_vm_ops = &drm_gem_cma_vm_ops,
 
-	/* added */
 	.prime_handle_to_fd = drm_gem_prime_handle_to_fd,
 	.prime_fd_to_handle = drm_gem_prime_fd_to_handle,
 	.gem_prime_export = nx_drm_gem_prime_export,
