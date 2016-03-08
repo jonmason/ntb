@@ -31,3 +31,8 @@ config SND_NX_I2S_CH2
 	depends on SND_NX_SOC
 	select SND_NX_I2S
 	default n
+
+config SND_CODEC_ES8316
+	tristate "es8316 I2S audio codec."
+	depends on SND_NX_I2S
+	select SND_SOC_ES8316

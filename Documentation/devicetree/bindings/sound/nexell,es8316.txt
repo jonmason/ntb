@@ -1,0 +1,30 @@
+Nexell audio complex with ES8316 codec
+
+Required properties:
+- compatible     : "nexell,nexell-es8316"
+- ch             : i2s channel of the ES8316 audio codec
+- sample_rate    : sample rate of the ES8316 audio codec
+- format         : audio format of the ES8316 audio codec
+- i2s-controller : The i2s controller phandle of the ES8316 audio codec
+- audio-codec    : The phandle of the ES8316 audio codec
+
+Optional Properties:
+- hpin-support   : support GPIO for headphone jack
+- hpin-gpio      : GPIO number for headphone jack
+- hpin-level     : GPIO detect level for headphone jack
+- amp-gpio       : GPIO number for speaker amps
+
+Example:
+
+sound {
+	compatible = "nexell,nexell-es8316";
+	ch = <0>;
+	sample-rate = <48000>;
+	format = "S16";
+	i2s-controller = <&i2s_0>;
+	audio-codec = <&es8316>;
+	hpin-support = <1>;
+	hpin-gpio = <&gpio_b 27 0>;
+	hpin-level = <1>;
+	amp-gpio = <&gpio_d 19 0>;
+};
