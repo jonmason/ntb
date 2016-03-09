@@ -5,7 +5,7 @@
 
 config SND_NX_SOC
 	tristate "Nexell SoC Audio"
-	depends on PLAT_NEXELL
+	depends on ARCH_S5P6818
 	select AMBA_PL08X
 	help
 	  Say Y or M if you want to add support for codecs attached to
