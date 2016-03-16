@@ -334,7 +334,8 @@ static int clk_dev_enable(struct clk_hw *hw)
 		} else {
 			int s = peri->fix_src;
 			int d = (0 == i ? peri->div_val_0 : peri->div_val_1);
-
+			if(d == 0)
+				d = 1;
 			clk_dev_rate((void *)peri->base, i, s, d);
 		}
 	}
