@@ -1869,7 +1869,7 @@ static int s3c24xx_serial_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "failed to get reset control\n");
 			return -EINVAL;
 		}
-		if (!reset_control_status(rst))
+		if (reset_control_status(rst))
 			reset_control_reset(rst);
 	}
 #endif
