@@ -17,6 +17,7 @@
  */
 
 /dts-v1/;
+/memreserve/ 0x7ed00000 0x00100000; /* OP-TEE SHM */
 #include <dt-bindings/interrupt-controller/irq.h>
 #include "s5p6818.dtsi"
 
@@ -35,7 +36,7 @@
 
 / {
 	memory {
-		reg = <0x40000000 0x40000000>;
+		reg = <0x40000000 0x3ee00000>;
 	};
 
 	soc {
