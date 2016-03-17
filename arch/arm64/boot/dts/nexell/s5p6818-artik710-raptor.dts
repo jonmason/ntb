@@ -1,0 +1,49 @@
+/*
+ * Copyright (C) 2016  Nexell Co., Ltd.
+ * Author: Youngbok, Park <ybpark@nexell.co.kr>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/dts-v1/;
+#include <dt-bindings/interrupt-controller/irq.h>
+#include "s5p6818-artik710.dtsi"
+
+/ {
+	model = "Samsung artik710 raptor board based on s5p6818";
+	compatible = "samsung,artik710-raptor", "samsung,artik710",
+		   "nexell,s5p6818";
+
+	soc {
+		serial3:serial@c00a3000 {
+			status ="okay";
+		};
+
+		dw_mmc_0:dw_mmc@c0062000 {
+			num-slots = <1>;
+			bus-width = <4>;
+			cap-sd-highspeed;
+			clock-frequency = <200000000>;
+			card-detect-delay = <200>;
+			disable-wp;
+			cd-gpios = <&gpio_c 14 0>;
+			cd-inverted;
+			nexell,drive_dly = <0x0>;
+			nexell,drive_shift = <0x03>;
+			nexell,sample_dly = <0x00>;
+			nexell,sample_shift = <0x02>;
+			status = "okay";
+		};
+	};	/*** soc ***/
+};
