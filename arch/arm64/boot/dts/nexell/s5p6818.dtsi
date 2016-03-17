@@ -30,7 +30,12 @@
 	#size-cells = <0x1>;
 
 	aliases {
-		serail0 = &serial0;
+		serial0 = &serial0;
+		serial1 = &serial1;
+		serial2 = &serial2;
+		serial3 = &serial3;
+		serial4 = &serial4;
+		serial5 = &serial5;
 		pinctrl0 = &pinctrl_0;
 	};
 
@@ -193,12 +198,91 @@
 			status = "disabled";
 		};
 
+		serial1:serial@c00a0000 {
+			compatible = "nexell,s5p6818-uart";
+			reg = <PHYS_BASE_UART1 0x1000>;
+			interrupts = <0 IRQ_UART1  0>;
+			clock-names = "uart", "clk_uart_baud0";
+			clocks = <&uart1>, <&uart1>;
+			resets  = <&nexell_reset RESET_ID_UART1>;
+			reset-names = "uart-reset";
+			soc,tieoff = <NX_TIEOFF_UART1_USESMC 0>,
+					<NX_TIEOFF_UART1_SMCTXENB 0>,
+					<NX_TIEOFF_UART1_SMCRXENB 0> ;
+			pinctrl-names = "default";
+			pinctrl-0 = <&serial1_pin>;
+			status = "disabled";
+		};
+
+		serial2:serial@c00a2000 {
+			compatible = "nexell,s5p6818-uart";
+			reg = <PHYS_BASE_UART2 0x1000>;
+			interrupts = <0 IRQ_UART2  0>;
+			clock-names = "uart", "clk_uart_baud0";
+			clocks = <&uart2>, <&uart2>;
+			resets  = <&nexell_reset RESET_ID_UART2>;
+			reset-names = "uart-reset";
+			soc,tieoff = <NX_TIEOFF_UART2_USESMC 0>,
+					<NX_TIEOFF_UART2_SMCTXENB 0>,
+					<NX_TIEOFF_UART2_SMCRXENB 0> ;
+			pinctrl-names = "default";
+			pinctrl-0 = <&serial2_pin>;
+			status = "disabled";
+		};
+
+		serial3:serial@c00a3000 {
+			compatible = "nexell,s5p6818-uart";
+			reg = <PHYS_BASE_UART3 0x1000>;
+			interrupts = <0 IRQ_UART3  0>;
+			clock-names = "uart", "clk_uart_baud0";
+			clocks = <&uart3>, <&uart3>;
+			resets  = <&nexell_reset RESET_ID_UART3>;
+			reset-names = "uart-reset";
+			soc,tieoff = <NX_TIEOFF_UART3_USESMC 0>,
+					<NX_TIEOFF_UART3_SMCTXENB 0>,
+					<NX_TIEOFF_UART3_SMCRXENB 0> ;
+			pinctrl-names = "default";
+			pinctrl-0 = <&serial3_pin>;
+			status = "disabled";
+		};
+
+		serial4:serial@c006d000 {
+			compatible = "nexell,s5p6818-uart";
+			reg = <PHYS_BASE_UART4 0x1000>;
+			interrupts = <0 IRQ_UART4  0>;
+			clock-names = "uart", "clk_uart_baud0";
+			clocks = <&uart4>, <&uart4>;
+			resets  = <&nexell_reset RESET_ID_UART4>;
+			reset-names = "uart-reset";
+			soc,tieoff = <NX_TIEOFF_UART4_USESMC 0>,
+					<NX_TIEOFF_UART4_SMCTXENB 0>,
+					<NX_TIEOFF_UART4_SMCRXENB 0> ;
+			pinctrl-names = "default";
+			pinctrl-0 = <&serial4_pin>;
+			status = "disabled";
+		};
+
+		serial5:serial@c006f000 {
+			compatible = "nexell,s5p6818-uart";
+			reg = <PHYS_BASE_UART5 0x1000>;
+			interrupts = <0 IRQ_UART5  0>;
+			clock-names = "uart", "clk_uart_baud0";
+			clocks = <&uart5>, <&uart5>;
+			resets  = <&nexell_reset RESET_ID_UART5>;
+			reset-names = "uart-reset";
+			soc,tieoff = <NX_TIEOFF_UART5_USESMC 0>,
+					<NX_TIEOFF_UART5_SMCTXENB 0>,
+					<NX_TIEOFF_UART5_SMCRXENB 0> ;
+			pinctrl-names = "default";
+			pinctrl-0 = <&serial5_pin>;
+			status = "disabled";
+		};
+
 		nexell_reset:reset@c0012000 {
 			#reset-cells = <1>;
 			compatible = "nexell,s5p6818-reset";
 			reg = <0xC0012000 0x3>;
 			status = "okay";
 		};
-
 	}; /*** soc ***/
 };
