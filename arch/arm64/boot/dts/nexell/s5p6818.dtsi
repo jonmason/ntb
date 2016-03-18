@@ -382,5 +382,24 @@
 				status = "disabled";
 			};
 		};
+
+		dwc2otg@c0040000 {
+			compatible = "nexell,nexell-dwc2otg";
+			reg = <PHYS_BASE_HSOTG 0x11000>;
+			interrupts = <0 IRQ_USB20OTG 0>;
+			clocks = <&otg>;
+			clock-names = "otg";
+			resets = <&nexell_reset RESET_ID_USB20OTG>;
+			reset-names = "usbotg-reset";
+			phys = <&nexell_usbphy 0>;
+			phy-names = "usb2-phy";
+			dr_mode = "otg";
+			g-use-dma = <1>;
+			g-rx-fifo-size = <1064>;
+			g-np-tx-fifo-size = <512>;
+			g-tx-fifo-size = <512 512 256 256 256 256 256 256 256
+			    256 256 256 256 256 256>;
+			status = "disabled";
+		};
 	}; /*** soc ***/
 };
