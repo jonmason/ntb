@@ -268,9 +268,9 @@ static int nx_host_power_on(struct samsung_usb2_phy_instance *inst)
 	udelay(10);
 
 	reg = readl((void *)(drv->reg_phy + NX_HOST_CON0)) |
-		NX_HOST_CON0_UTMI_RESET_SYNC;
-	writel(reg & ~NX_HOST_CON0_N_HOST_HSIC_RESET_SYNC,
-	       (void *)(drv->reg_phy + NX_HOST_CON0));
+		NX_HOST_CON0_N_HOST_UTMI_RESET_SYNC |
+		NX_HOST_CON0_N_HOST_PHY_RESET_SYNC;
+	writel(reg, (void *)(drv->reg_phy + NX_HOST_CON0));
 
 	writel(readl((void *)(drv->reg_phy + NX_HOST_CON0)) |
 	       NX_HOST_CON0_AHB_RESET_SYNC,
@@ -345,7 +345,7 @@ static int nx_hsic_power_on(struct samsung_usb2_phy_instance *inst)
 	udelay(100);
 
 	reg = readl((void *)(drv->reg_phy + NX_HOST_CON0)) |
-		NX_HOST_CON0_UTMI_RESET_SYNC;
+		NX_HOST_CON0_N_HOST_HSIC_RESET_SYNC;
 	writel(reg, (void *)(drv->reg_phy + NX_HOST_CON0));
 
 	return 0;
