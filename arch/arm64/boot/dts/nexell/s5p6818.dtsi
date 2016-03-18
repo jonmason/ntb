@@ -36,6 +36,9 @@
 		serial3 = &serial3;
 		serial4 = &serial4;
 		serial5 = &serial5;
+		i2s0	= &i2s_0;
+		i2s1	= &i2s_1;
+		i2s2	= &i2s_2;
 		pinctrl0 = &pinctrl_0;
 	};
 
@@ -331,6 +334,66 @@
 			pinctrl-0 = <&sdmmc2_cclk &sdmmc2_cmd &sdmmc2_bus4>;
 			fifo-detph = <0x20>;
 			status = "disabled";
+		};
+
+		i2s_0:i2s@c0055000 {
+			  compatible = "nexell,nexell-i2s";
+			  reg = <PHYS_BASE_I2S0 0x1000>;
+			  dmas = <&pl08xdma0 12>, <&pl08xdma0 13>;
+			  dma-names = "tx", "rx";
+			  clocks = <&i2s0>;
+			  clock-names = "i2s0";
+			  resets = <&nexell_reset RESET_ID_I2S0>;
+			  reset-names = "i2s-reset";
+			  pinctrl-names = "default";
+			  pinctrl-0 = <&i2s0_bus>;
+			  master-mode = <1>;
+			  mclk-in = <0>;
+			  trans-mode = <0>;
+			  frame-bit = <32>;
+			  sample-rate = <48000>;
+			  pre-supply-mclk = <1>;
+			  status = "disabled";
+		};
+
+		i2s_1:i2s@c0056000 {
+			  compatible = "nexell,nexell-i2s";
+			  reg = <PHYS_BASE_I2S1 0x1000>;
+			  dmas = <&pl08xdma0 14>, <&pl08xdma0 15>;
+			  dma-names = "tx", "rx";
+			  clocks = <&i2s1>;
+			  clock-names = "i2s1";
+			  resets = <&nexell_reset RESET_ID_I2S1>;
+			  reset-names = "i2s-reset";
+			  pinctrl-names = "default";
+			  pinctrl-0 = <&i2s1_bus>;
+			  master-mode = <1>;
+			  mclk-in = <0>;
+			  trans-mode = <0>;
+			  frame-bit = <32>;
+			  sample-rate = <48000>;
+			  pre-supply-mclk = <1>;
+			  status = "disabled";
+		};
+
+		i2s_2:i2s@c0057000 {
+			  compatible = "nexell,nexell-i2s";
+			  reg = <PHYS_BASE_I2S2 0x1000>;
+			  dmas = <&pl08xdma1 0>, <&pl08xdma1 1>;
+			  dma-names = "tx", "rx";
+			  clocks = <&i2s2>;
+			  clock-names = "i2s2";
+			  resets = <&nexell_reset RESET_ID_I2S2>;
+			  reset-names = "i2s-reset";
+			  pinctrl-names = "default";
+			  pinctrl-0 = <&i2s2_bus>;
+			  master-mode = <1>;
+			  mclk-in = <0>;
+			  trans-mode = <0>;
+			  frame-bit = <32>;
+			  sample-rate = <48000>;
+			  pre-supply-mclk = <1>;
+			  status = "disabled";
 		};
 
 		nexell_usbphy: nexell-usbphy@c0012000 {
