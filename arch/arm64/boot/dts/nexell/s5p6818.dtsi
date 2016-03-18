@@ -364,5 +364,23 @@
 				status = "disabled";
 			};
 		};
+
+		ohci@c0020000 {
+			compatible = "nexell,nexell-ohci";
+			reg = <PHYS_BASE_OHCI 0x10000>;
+			interrupts = <0 IRQ_USB20HOST 0>;
+			clocks = <&usbhost>;
+			clock-names = "usbhost";
+			resets = <&nexell_reset RESET_ID_USB20HOST>;
+			reset-names = "usbhost-reset";
+			status = "disabled";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			port@0 {
+				reg = <0>;
+				phys = <&nexell_usbphy 1>;
+				status = "disabled";
+			};
+		};
 	}; /*** soc ***/
 };
