@@ -214,5 +214,11 @@
 			status = "okay";
 		};
 
+		ehci@c0030000 {
+			status = "okay";
+			port@0 {
+				status = "okay";
+			};
+		};
 	};	/*** soc ***/
 };
