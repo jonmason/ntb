@@ -332,5 +332,14 @@
 			fifo-detph = <0x20>;
 			status = "disabled";
 		};
+
+		nexell_usbphy: nexell-usbphy@c0012000 {
+			compatible = "nexell,nexell-usb2-phy";
+			reg = <PHYS_BASE_TIEOFF 0x100>;
+			clocks = <&usbhost>;
+			clock-names = "phy";
+			#phy-cells = <1>;
+			status = "disabled";
+		};
 	}; /*** soc ***/
 };
