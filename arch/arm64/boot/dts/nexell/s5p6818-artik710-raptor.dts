@@ -45,5 +45,9 @@
 			nexell,sample_shift = <0x02>;
 			status = "okay";
 		};
+
+		nexell_usbphy: nexell-usbphy@c0012000 {
+			status = "okay";
+		};
 	};	/*** soc ***/
 };
