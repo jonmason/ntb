@@ -771,7 +771,11 @@ static void stmmac_adjust_link(struct net_device *dev)
 	/* At this stage, it could be needed to setup the EEE or adjust some
 	 * MAC related HW registers.
 	 */
+#ifdef CONFIG_ARCH_S5P6818
+	priv->eee_enabled = false;
+#else
 	priv->eee_enabled = stmmac_eee_init(priv);
+#endif
 }
 
 /**
