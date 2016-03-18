@@ -403,16 +403,6 @@ clocks {
 		clock-output-names = "ppm";
 	};
 
-	ehci:ehci@c006b000 {
-		#clock-cells = <0>;
-		cell-id = <CLK_ID_USB2HOST>;
-		reg = <PHYS_BASE_CLK_32 0x1000>;
-		clk-step   = <2>;
-		clk-input  = <CLK_INPUT_EHCI>;
-		clk-input1 = <CLK_INPUT_EHCI_IN1>;
-		clock-output-names = "ehci";
-	};
-
 	vpu:vpu@c00c7000 {
 		#clock-cells = <0>;
 		cell-id = <CLK_ID_CODA>;
@@ -447,6 +437,16 @@ clocks {
 		reg = <PHYS_BASE_CLK_36 0x1000>;
 		clk-step  = <1>;
 		clk-input = <CLK_INPUT_PDM>;
+	};
+
+	usbhost:usbhost@c006b000 {
+		#clock-cells = <0>;
+		cell-id = <CLK_ID_USB2HOST>;
+		reg = <PHYS_BASE_CLK_32 0x1000>;
+		clk-step   = <2>;
+		clk-input  = <CLK_INPUT_EHCI>;
+		clk-input1 = <CLK_INPUT_EHCI_IN1>;
+		clock-output-names = "usbhost";
 	};
 
 	otg:otg@6c00b000 {
