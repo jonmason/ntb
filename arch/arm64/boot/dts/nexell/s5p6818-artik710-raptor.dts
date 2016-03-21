@@ -72,6 +72,28 @@
 			gpios = <&gpio_a 15 0>;
 			status = "okay";
 		};
+
+		gmac0:ethernet@c0060000 {
+			pinctrl-names = "default";
+			pinctrl-0 = <&gmac_pins>;
+
+			status = "okay";
+			#address-cells = <0x1>;
+			#size-cells = <0x0>;
+
+			snps,phy-addr = <3>;
+			snps,reset-gpio = <&gpio_a 10 0>;
+			snps,reset-active-low;
+			snps,reset-delays-us = <0 10000 10000>;
+
+			phy-handle = <&ethernet_phy>;
+
+			ethernet_phy:ethernet-phy@3 {
+				compatible = "ethernet-phy-ieee802.3-c45";
+				reg = <3>;
+				device_type = "ethernet-phy";
+			};
+		};
 	};	/*** soc ***/
 
 	usb3503_i2c:i2c@3503 {
