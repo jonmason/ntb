@@ -111,6 +111,7 @@ config ARCH_S5P6818
 	select RESET_CONTROLLER
 	select PINCTRL
 	select ARM64_ERRATUM_845719
+	select HAVE_S3C2410_I2C if I2C
 	help
 	  This enables support for the NEXELL S5P6818 Architecture
 
