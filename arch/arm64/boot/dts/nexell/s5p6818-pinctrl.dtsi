@@ -111,55 +111,58 @@ pinctrl@C0010000 {
 
 
 	/* GMAC */
-	gmac_txd: gmac-txd {
-		nexell,pins = "gpioe-7", "gpioe-8", "gpioe-9", "gpioe-10";
-		nexell,pin-function = <1>;
-		nexell,pin-pull = <2>;
-		nexell,pin-strength = <3>;
-	};
+	gmac_pins: gmac_pins {
+		gmac_txd: gmac-txd {
+			nexell,pins = "gpioe-7", "gpioe-8", "gpioe-9",
+				      "gpioe-10";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <3>;
+		};
 
-	gmac_rxd: gmac-rxd {
-		nexell,pins = "gpioe-14", "gpioe-15", "gpioe-16", "gpioe-17";
-		nexell,pin-function = <1>;
-		nexell,pin-pull = <2>;
-		nexell,pin-strength = <3>;
-	};
+		gmac_rxd: gmac-rxd {
+			nexell,pins = "gpioe-14", "gpioe-15", "gpioe-16",
+				      "gpioe-17";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <3>;
+		};
 
-	gmac_txen: gmac-txen {
-		nexell,pins = "gpioe-11";
-		nexell,pin-function = <1>;
-		nexell,pin-pull = <2>;
-		nexell,pin-strength = <3>;
-	};
+		gmac_txen: gmac-txen {
+			nexell,pins = "gpioe-11";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <3>;
+		};
 
-	gmac_mdc: gmac-mdc {
-		nexell,pins = "gpioe-20";
-		nexell,pin-function = <1>;
-		nexell,pin-pull = <2>;
-		nexell,pin-strength = <3>;
-	};
+		gmac_mdc: gmac-mdc {
+			nexell,pins = "gpioe-20";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <3>;
+		};
 
-	gmac_mdio: gmac-mdio {
-		nexell,pins = "gpioe-21";
-		nexell,pin-function = <1>;
-		nexell,pin-pull = <2>;
-		nexell,pin-strength = <3>;
-	};
+		gmac_mdio: gmac-mdio {
+			nexell,pins = "gpioe-21";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <3>;
+		};
 
-	gmac_rxclk: gmac-rxclk {
-		nexell,pins = "gpioe-18";
-		nexell,pin-function = <1>;
-		nexell,pin-pull = <2>;
-		nexell,pin-strength = <3>;
-	};
+		gmac_rxclk: gmac-rxclk {
+			nexell,pins = "gpioe-18";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <3>;
+		};
 
-	gmac_txclk: gmac-txclk {
-		nexell,pins = "gpioe-24";
-		nexell,pin-function = <1>;
-		nexell,pin-pull = <2>;
-		nexell,pin-strength = <2>;
+		gmac_txclk: gmac-txclk {
+			nexell,pins = "gpioe-24";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <2>;
+		};
 	};
-
 
 	/* MMC0 */
 	sdmmc0_cclk: sdmmc0-cclk {
