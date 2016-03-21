@@ -540,10 +540,8 @@ static struct nxe2000_platform_data *
 nxe2000_i2c_parse_dt_pdata(struct nxe2000 *pdev)
 {
 	struct device *dev = pdev->dev;
-	struct i2c_client *client = pdev->client;
 	struct nxe2000_platform_data *pd;
 	struct device_node *nxe2000_np;
-	u32 val;
 
 	pd = devm_kzalloc(dev, sizeof(*pd), GFP_KERNEL);
 	if (!pd)
