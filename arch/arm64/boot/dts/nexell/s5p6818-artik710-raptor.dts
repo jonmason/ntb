@@ -20,6 +20,20 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 #include "s5p6818-artik710.dtsi"
 
+#define PMIC_PDATA_INIT(_id, _rname, _minuv,	\
+			_maxuv, _always_on, _boot_on,		\
+			_init_uv, _init_enable, _set_init_uV, _slp_slots)\
+		regulator-name = _rname;		\
+		regulator-min-microvolt = <_minuv>;	\
+		regulator-max-microvolt = <_maxuv>;	\
+		regulator-always-on = <_always_on>;	\
+		regulator-boot-on = <_boot_on>;		\
+		nx,id = <_id>;				\
+		nx,init_enable = <_init_enable>;	\
+		nx,init_uV = <_init_uv>;		\
+		nx,set_init_uV = <_set_init_uV>;	\
+		nx,sleep_slots = <_slp_slots>;
+
 / {
 	model = "Samsung artik710 raptor board based on s5p6818";
 	compatible = "samsung,artik710-raptor", "samsung,artik710",
@@ -94,6 +108,130 @@
 				device_type = "ethernet-phy";
 			};
 		};
+
+		pmic_i2c:i2c@32 {
+			compatible = "i2c-gpio";
+			gpios = <&gpio_d 7 0 /* sda */
+				&gpio_d 6 0 /* scl */
+				>;
+			i2c-gpio,delay-us = <100>;    /* ~100 kHz */
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			nxe2000@32 {
+				compatible = "nexell,nxe2000";
+				reg = <0x32>;
+				interrupt-parent = <&alive_0>;
+				interrupts = <0x5 IRQ_TYPE_EDGE_FALLING>;
+				/* vdd_arm-supply = <&VCC_DCDC0>; */
+				/* vdd_core-supply = <&VCC_DCDC1>; */
+				regulators {
+					VCC_DCDC0:
+						dcdc1	{ PMIC_PDATA_INIT( 0,
+							"nxe2000_dcdc1",
+							900000, 1500000,
+							1, 1, 1100000,
+							1, 0, 0x4) };
+					VCC_DCDC1:
+						dcdc2	{ PMIC_PDATA_INIT( 1,
+							"nxe2000_dcdc2",
+							1000000, 1500000,
+							1, 1, 1200000,
+							1, 0, 0x4) };
+					VCC_DCDC2:
+						dcdc3	{ PMIC_PDATA_INIT( 2,
+							"nxe2000_dcdc3",
+							1000000, 3500000,
+							1, 1, 3300000,
+							1, 1, 0x0) };
+					VCC_DCDC3:
+						dcdc4	{ PMIC_PDATA_INIT( 3,
+							"nxe2000_dcdc4",
+							1000000, 2000000,
+							1, 1, 1500000,
+							1, 0, 0xF) };
+					VCC_DCDC4:
+						dcdc5	{ PMIC_PDATA_INIT( 4,
+							"nxe2000_dcdc5",
+							1000000, 2000000,
+							1, 1, 1500000,
+							1, 0, 0x4) };
+					VCC_LDO0:
+						ldo1	{ PMIC_PDATA_INIT( 5,
+							"nxe2000_ldo1",
+							1000000, 3500000,
+							0, 0, 3300000,
+							0, 1, 0x0) };
+					VCC_LDO1:
+						ldo2	{ PMIC_PDATA_INIT( 6,
+							"nxe2000_ldo2",
+							1000000, 3500000,
+							0, 0, 3300000,
+							0, 1, 0x0) };
+					VCC_LDO2:
+						ldo3	{ PMIC_PDATA_INIT( 7,
+							"nxe2000_ldo3",
+							1000000, 3500000,
+							1, 1, 1800000,
+							1, 1, 0x2) };
+					VCC_LDO3:
+						ldo4	{ PMIC_PDATA_INIT( 8,
+							"nxe2000_ldo4",
+							1000000, 3500000,
+							1, 1, 1800000,
+							1, 1, 0x2) };
+					VCC_LDO4:
+						ldo5	{ PMIC_PDATA_INIT( 9,
+							"nxe2000_ldo5",
+							1000000, 3500000,
+							0, 0, 3300000,
+							0, 1, 0x0) };
+					VCC_LDO5:
+						ldo6	{ PMIC_PDATA_INIT(10,
+							"nxe2000_ldo6",
+							1000000, 3500000,
+							1, 1, 3300000,
+							1, 1, 0xF) };
+					VCC_LDO6:
+						ldo7	{ PMIC_PDATA_INIT(11,
+							"nxe2000_ldo7",
+							1000000, 3500000,
+							1, 1, 2800000,
+							1, 1, 0x1) };
+					VCC_LDO7:
+						ldo8	{ PMIC_PDATA_INIT(12,
+							"nxe2000_ldo8",
+							1000000, 3500000,
+							0, 0, 3300000,
+							0, 1, 0x0) };
+					VCC_LDO8:
+						ldo9	{ PMIC_PDATA_INIT(13,
+							"nxe2000_ldo9",
+							1000000, 3500000,
+							0, 0, 1800000,
+							0, 1, 0x0) };
+					VCC_LDO9:
+						ldo10	{ PMIC_PDATA_INIT(14,
+							"nxe2000_ldo10",
+							1000000, 3500000,
+							1, 1, 1200000,
+							1, 1, 0x0) };
+					VCC_RTC0:
+						ldortc1	{ PMIC_PDATA_INIT(15,
+							"nxe2000_rtc1",
+							1700000, 3500000,
+							1, 1, 1800000,
+							1, 1, 0xF) };
+					VCC_RTC1:
+						ldortc2	{ PMIC_PDATA_INIT(16,
+							"nxe2000_rtc2",
+							1000000, 3500000,
+							1, 1, 1000000,
+							1, 1, 0xF) };
+				};
+			};
+		}; /* pmic_i2c */
+
 	};	/*** soc ***/
 
 	usb3503_i2c:i2c@3503 {
