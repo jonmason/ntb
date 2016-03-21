@@ -355,8 +355,8 @@ clocks {
 		clk-input  = <CLK_INPUT_GMAC>;
 		clk-input1 = <CLK_INPUT_GMAC_IN1>;
 		clock-output-names = "gmac";
+		src-force = <4>;
 	};
-
 
 	spdiftx:spdiftx@c00b8000 {
 		#clock-cells = <0>;
