@@ -499,6 +499,7 @@ static int nxe2000_regulator_dt_parse_pdata(struct platform_device *pdev,
 {
 	struct nxe2000 *iodev = dev_get_drvdata(pdev->dev.parent);
 	struct device_node *pmic_np, *regulators_np, *reg_np;
+	struct regulator_init_data *regu_initdata;
 	struct nxe2000_regulator_platform_data *rdata;
 	unsigned int i;
 	u32 val;
@@ -541,7 +542,7 @@ static int nxe2000_regulator_dt_parse_pdata(struct platform_device *pdev,
 			continue;
 		}
 		rdata->id = i;
-		rdata->initdata = of_get_regulator_init_data(
+		regu_initdata = of_get_regulator_init_data(
 		    &pdev->dev, reg_np, &nxe2000_regulators[i].desc);
 		rdata->reg_node = reg_np;
 
@@ -550,17 +551,20 @@ static int nxe2000_regulator_dt_parse_pdata(struct platform_device *pdev,
 		else
 			dev_err(&pdev->dev, "%s() Error : id\n", __func__);
 
-		if (!of_property_read_u32(reg_np, "nx,always_on", &val))
-			rdata->initdata->constraints.always_on = val;
-		else
-			dev_err(&pdev->dev, "%s() Error : always_on\n",
+		regu_initdata->consumer_supplies = devm_kzalloc(
+		    &pdev->dev, sizeof(struct regulator_consumer_supply),
+		    GFP_KERNEL);
+
+		if (of_property_read_string(
+			reg_np, "regulator-name",
+			&regu_initdata->consumer_supplies->supply))
+			dev_err(&pdev->dev,
+				"%s() Error : regulator-name\n",
 				__func__);
 
-		if (!of_property_read_u32(reg_np, "nx,boot_on", &val))
-			rdata->initdata->constraints.boot_on = val;
-		else
-			dev_err(&pdev->dev, "%s() Error : always_on\n",
-				__func__);
+		regu_initdata->num_consumer_supplies = 1;
+		regu_initdata->constraints.valid_ops_mask =
+		    REGULATOR_CHANGE_VOLTAGE | REGULATOR_CHANGE_STATUS;
 
 		if (!of_property_read_u32(reg_np, "nx,init_enable", &val))
 			rdata->init_enable = val;
@@ -586,6 +590,7 @@ static int nxe2000_regulator_dt_parse_pdata(struct platform_device *pdev,
 			dev_err(&pdev->dev, "%s() Error : sleep_slots\n",
 				__func__);
 
+		rdata->initdata = regu_initdata;
 		rdata++;
 	}
 	of_node_put(regulators_np);
@@ -656,26 +661,24 @@ static int nxe2000_regulator_probe(struct platform_device *pdev)
 		/* Register the regulators */
 		config.dev = &pdev->dev;
 		config.init_data = tps_pdata->initdata;
-		;
 		config.driver_data = nxe2000;
 		config.of_node = tps_pdata->reg_node;
 
-		nxe2000_regulators[i].rdev =
-		    regulator_register(&nxe2000->desc, &config);
+		nxe2000_regulators[i].rdev = devm_regulator_register(&pdev->dev,
+			&nxe2000->desc,
+			&config);
+
 		if (IS_ERR(nxe2000_regulators[i].rdev)) {
 			dev_err(&pdev->dev,
 				"%s() Error: regulator register failed\n",
 				__func__);
 			ret = PTR_ERR(nxe2000_regulators[i].rdev);
-			goto err;
 		}
 		tps_pdata++;
 	}
 
 	return 0;
-err:
-	while (--i >= 0)
-		regulator_unregister(nxe2000_regulators[i].rdev);
+
 err_out:
 	dev_err(&pdev->dev, "%s() Error\n", __func__);
 	return ret;
@@ -683,9 +686,6 @@ err_out:
 
 static int nxe2000_regulator_remove(struct platform_device *pdev)
 {
-	struct regulator_dev *rdev = platform_get_drvdata(pdev);
-
-	regulator_unregister(rdev);
 	return 0;
 }
 
