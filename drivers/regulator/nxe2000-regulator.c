@@ -443,7 +443,7 @@ nxe2000_regulator_preinit(struct device *parent, struct nxe2000_regulator *ri,
 {
 	int ret = 0;
 
-	if (nxe2000_pdata->init_uV > -1) {
+	if ((nxe2000_pdata->init_uV > -1) && nxe2000_pdata->set_init_uV) {
 		ret = __nxe2000_set_voltage(parent, ri, nxe2000_pdata->init_uV,
 					    nxe2000_pdata->init_uV, 0, 0);
 		if (ret < 0) {
@@ -572,6 +572,12 @@ static int nxe2000_regulator_dt_parse_pdata(struct platform_device *pdev,
 			rdata->init_uV = (int)val;
 		else
 			dev_err(&pdev->dev, "%s() Error : init_uV\n",
+				__func__);
+
+		if (!of_property_read_u32(reg_np, "nx,set_init_uV", &val))
+			rdata->set_init_uV = (int)val;
+		else
+			dev_err(&pdev->dev, "%s() Error : set_init_uV\n",
 				__func__);
 
 		if (!of_property_read_u32(reg_np, "nx,sleep_slots", &val))

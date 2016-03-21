@@ -56,6 +56,7 @@ struct nxe2000_regulator_platform_data {
 	int init_uV;
 	unsigned init_enable : 1;
 	unsigned init_apply : 1;
+	int set_init_uV;
 	int sleep_uV;
 	int sleep_slots;
 	unsigned long ext_pwr_req;
