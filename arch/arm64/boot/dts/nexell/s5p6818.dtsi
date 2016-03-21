@@ -512,5 +512,21 @@
 			    256 256 256 256 256 256>;
 			status = "disabled";
 		};
+
+		gmac0:ethernet@c0060000 {
+			compatible = "nexell,s5p6818-gmac";
+			clocks = <&pclk>, <&gmac>;
+			clock-names = "stmmaceth", "nexell_gmac_tx";
+			resets = <&nexell_reset RESET_ID_DWC_GMAC>;
+			reset-names = "stmmaceth";
+			reg = <PHYS_BASE_GMAC 0x2000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 IRQ_GMAC 0>;
+			interrupt-names = "macirq";
+			mac-address = [000000000000]; /* Filled in by U-Boot */
+			phy-mode = "rgmii";
+			status = "disable";
+		};
+
 	}; /*** soc ***/
 };
