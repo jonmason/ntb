@@ -1,0 +1,18 @@
+Zigbee power control for Samsung ARTIK Chip
+
+This binding defines zigbee power control interface to control ARTIK's
+zigbee(eq. EM3587).
+
+Required properties:
+- compatible : "samsung,artik_zb_power"
+- vdd_zb-supply : 3v Regulator supply
+- reset-gpio: nReset GPIO pin
+- bootloader-gpio: nBootloader GPIO pin
+
+Example:
+	artik_zb_power {
+		compatible = "samsung,artik_zb_power";
+		vdd_zb-supply = <&VCC_DCDC2>;
+		reset-gpio = <&gpio_c 8 0>;
+		bootloader-gpio = <&gpio_c 28 0>;
+	};

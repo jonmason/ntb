@@ -57,3 +57,4 @@ obj-$(CONFIG_ECHO)		+= echo/
 obj-$(CONFIG_VEXPRESS_SYSCFG)	+= vexpress-syscfg.o
 obj-$(CONFIG_CXL_BASE)		+= cxl/
 obj-$(CONFIG_NX_SCALER)		+= nx-scaler.o
+obj-$(CONFIG_ARTIK_ZB_POWER)	+= artik_zb_power.o
