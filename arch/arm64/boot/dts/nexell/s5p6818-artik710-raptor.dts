@@ -257,3 +257,7 @@
 		};
 	};
 };
+
+&serial0 {
+	status = "okay";
+};
