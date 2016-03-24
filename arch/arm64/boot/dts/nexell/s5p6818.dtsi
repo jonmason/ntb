@@ -528,5 +528,18 @@
 			status = "disable";
 		};
 
+		adc:adc@c0053000 {
+			compatible = "nexell,s5p6818-adc";
+			reg = <PHYS_BASE_ADC 0x1000>;
+			interrupts = <0 IRQ_ADC 0>;
+			resets = <&nexell_reset RESET_ID_ADC>;
+			reset-names = "adc-reset";
+			clocks = <&pclk>;
+			clock-names = "adc";
+			sample_rate = <200000>;
+			#io-channel-cells = <1>;
+			status = "disabled";
+		};
+
 	}; /*** soc ***/
 };
