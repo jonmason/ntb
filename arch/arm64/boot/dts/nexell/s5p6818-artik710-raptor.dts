@@ -232,6 +232,10 @@
 			};
 		}; /* pmic_i2c */
 
+		adc:adc@c0053000 {
+			status = "okay";
+		};
+
 	};	/*** soc ***/
 
 	usb3503_i2c:i2c@3503 {
