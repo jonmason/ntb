@@ -405,4 +405,11 @@ config XILINX_XADC
 	  The driver can also be build as a module. If so, the module will be called
 	  xilinx-xadc.
 
+config NX_ADC
+	bool "Nexell ADC driver support"
+	depends on ARCH_S5P6818 && OF
+	help
+	  This option enables support for Nexell s5pxx18 series
+	  of SoC for Analog Devices.
+
 endmenu
