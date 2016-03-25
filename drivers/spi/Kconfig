@@ -488,7 +488,7 @@ config SPI_S3C24XX_FIQ
 
 config SPI_S3C64XX
 	tristate "Samsung S3C64XX series type SPI"
-	depends on (PLAT_SAMSUNG || ARCH_EXYNOS)
+	depends on (PLAT_SAMSUNG || ARCH_EXYNOS || ARCH_S5P6818)
 	help
 	  SPI driver for Samsung S3C64XX and newer SoCs.
 

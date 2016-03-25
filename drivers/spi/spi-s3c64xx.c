@@ -26,6 +26,7 @@
 #include <linux/gpio.h>
 #include <linux/of.h>
 #include <linux/of_gpio.h>
+#include <linux/reset.h>
 
 #include <linux/platform_data/spi-s3c64xx.h>
 
@@ -1136,6 +1137,28 @@ static int s3c64xx_spi_probe(struct platform_device *pdev)
 		goto err0;
 	}
 
+#ifdef CONFIG_RESET_CONTROLLER
+	if (of_device_is_compatible(pdev->dev.of_node, "nexell,s5p6818-spi")) {
+		struct reset_control *rst;
+		struct reset_control *prst;
+
+		prst = devm_reset_control_get(&pdev->dev, "pre-reset");
+		if (IS_ERR(prst)) {
+			dev_err(&pdev->dev, "failed to get pre-reset control\n");
+			return -EINVAL;
+		}
+		if (reset_control_status(prst))
+			reset_control_reset(prst);
+
+		rst = devm_reset_control_get(&pdev->dev, "spi-reset");
+		if (IS_ERR(rst)) {
+			dev_err(&pdev->dev, "failed to get reset control\n");
+			return -EINVAL;
+		}
+		if (reset_control_status(rst))
+			reset_control_reset(rst);
+	};
+#endif
 	/* Setup clocks */
 	sdd->clk = devm_clk_get(&pdev->dev, "spi");
 	if (IS_ERR(sdd->clk)) {
@@ -1363,6 +1386,14 @@ static struct s3c64xx_spi_port_config exynos7_spi_port_config = {
 	.quirks		= S3C64XX_SPI_QUIRK_CS_AUTO,
 };
 
+static struct s3c64xx_spi_port_config s5p6818_spi_port_config = {
+	.fifo_lvl_mask	= { 0x1ff, 0x1ff, 0x1ff },
+	.rx_lvl_offset	= 15,
+	.tx_st_done	= 25,
+	.high_speed	= true,
+	.clk_from_cmu	= true,
+};
+
 static const struct platform_device_id s3c64xx_spi_driver_ids[] = {
 	{
 		.name		= "s3c2443-spi",
@@ -1376,6 +1407,9 @@ static const struct platform_device_id s3c64xx_spi_driver_ids[] = {
 	}, {
 		.name		= "exynos4210-spi",
 		.driver_data	= (kernel_ulong_t)&exynos4_spi_port_config,
+	}, {
+		.name		= "s5p6818-spi",
+		.driver_data	= (kernel_ulong_t)&s5p6818_spi_port_config,
 	},
 	{ },
 };
@@ -1398,6 +1432,9 @@ static const struct of_device_id s3c64xx_spi_dt_match[] = {
 	},
 	{ .compatible = "samsung,exynos7-spi",
 			.data = (void *)&exynos7_spi_port_config,
+	},
+	{ .compatible = "nexell,s5p6818-spi",
+			.data = (void *)&s5p6818_spi_port_config,
 	},
 	{ },
 };
