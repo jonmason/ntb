@@ -46,6 +46,10 @@
 			status ="okay";
 		};
 
+		serial4:serial@c006d000 {
+			status ="okay";
+		};
+
 		dw_mmc_0:dw_mmc@c0062000 {
 			num-slots = <1>;
 			bus-width = <4>;
