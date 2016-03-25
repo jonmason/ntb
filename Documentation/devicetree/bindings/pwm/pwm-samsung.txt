@@ -50,3 +50,18 @@ Example:
 		samsung,pwm-outputs = <0>, <1>;
 		#pwm-cells = <3>;
 	}
+
+Nexell, s5p6818-pwm Example:
+	pwm:pwm@c0018000 {
+		compatible = "nexell,s5p6818-pwm";
+		reg = <PHYS_BASE_PWM 0x1000>;
+		reset-names = "pwm-reset";
+		resets  = <&nexell_reset RESET_ID_PWM>;
+		clock-names = "timers", "pwm-tclk0", "pwm-tclk1";
+		clocks =  <&pclk>, <&pwm0>, <&pwm2>;
+		#pwm-cells = <3>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwm0_pin &pwm1_pin &pwm2_pin &pwm3_pin>;
+		samsung,pwm-outputs = <0>, <1>, <2>, <3>;
+		status = "disabled";
+	};

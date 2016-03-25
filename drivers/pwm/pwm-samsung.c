@@ -138,6 +138,22 @@ static void pwm_samsung_set_divisor(struct samsung_pwm_chip *pwm,
 	spin_unlock_irqrestore(&samsung_pwm_lock, flags);
 }
 
+static void pwm_samsung_set_tclk(struct samsung_pwm_chip *pwm,
+					unsigned int chan)
+{
+	u32 tclk = 5;
+	unsigned long flags;
+	u32 reg;
+
+	spin_lock_irqsave(&samsung_pwm_lock, flags);
+
+	reg = readl(pwm->base + REG_TCFG1);
+	reg |= tclk << TCFG1_SHIFT(chan);
+	writel(reg, pwm->base + REG_TCFG1);
+
+	spin_unlock_irqrestore(&samsung_pwm_lock, flags);
+}
+
 static int pwm_samsung_is_tdiv(struct samsung_pwm_chip *chip, unsigned int chan)
 {
 	struct samsung_pwm_variant *variant = &chip->variant;
@@ -166,13 +182,108 @@ static unsigned long pwm_samsung_get_tin_rate(struct samsung_pwm_chip *chip,
 	return rate / (reg + 1);
 }
 
+static unsigned long calc_base_freq(unsigned long clk_freq,
+					unsigned long req_freq)
+{
+	unsigned long pwm_freq, calc_freq;
+	unsigned long optimal_freq;
+	unsigned int pre, div, tcnt = 2;
+
+	optimal_freq = req_freq;
+
+	for (pre = 0; pre < 256; ++pre) {
+		for (div = 0; div < 4; ++div) {
+			pwm_freq = clk_freq / (pre+1) / (1<<div) / tcnt;
+			if (req_freq > pwm_freq)
+				calc_freq = req_freq - pwm_freq;
+			else
+				calc_freq = pwm_freq - req_freq;
+
+			if (calc_freq < optimal_freq) {
+				optimal_freq = calc_freq;
+				if (optimal_freq == 0)
+					goto END;
+			}
+		}
+	}
+END:
+	return optimal_freq;
+}
+
+static unsigned long calc_tclk_freq(unsigned long tclk_freq,
+					unsigned long req_freq)
+{
+	unsigned long pwm_freq, calc_freq;
+	unsigned long optimal_freq;
+	unsigned long pre, tcnt = 2;
+
+	optimal_freq = req_freq;
+
+	for (pre = 0; pre < 256; ++pre) {
+		pwm_freq = tclk_freq / (pre+1) / tcnt;
+
+		if (req_freq > pwm_freq)
+			calc_freq = req_freq - pwm_freq;
+		else
+			calc_freq = pwm_freq - req_freq;
+
+		if (calc_freq < optimal_freq) {
+			optimal_freq = calc_freq;
+
+			if (optimal_freq == 0)
+				break;
+		}
+	}
+
+	return optimal_freq;
+}
+
+static unsigned int pwm_samsung_optimal_freq(struct samsung_pwm_chip *chip,
+					unsigned int chan, unsigned long freq)
+{
+	struct clk *tclk, *clk;
+	unsigned long tclk_rate, clk_rate;
+	unsigned long optimal_freq[2];
+
+	tclk = (chan < 2) ? chip->tclk0 : chip->tclk1;
+	if (IS_ERR(tclk))
+		return 0;
+	tclk_rate = clk_get_rate(tclk);
+	if (!tclk_rate)
+		return 0;
+
+	optimal_freq[0] = calc_tclk_freq(tclk_rate, freq);
+	if (optimal_freq[0] == 0) {
+		pwm_samsung_set_tclk(chip, chan);
+		return 0;
+	}
+
+	clk = chip->base_clk;
+	clk_rate = clk_get_rate(clk);
+	optimal_freq[1] = calc_base_freq(clk_rate, freq);
+
+	if (optimal_freq[0] >= optimal_freq[1])
+		pwm_samsung_set_tclk(chip, chan);
+
+	return 0;
+}
+
 static unsigned long pwm_samsung_calc_tin(struct samsung_pwm_chip *chip,
 					  unsigned int chan, unsigned long freq)
 {
 	struct samsung_pwm_variant *variant = &chip->variant;
-	unsigned long rate;
 	struct clk *clk;
+	unsigned long rate;
 	u8 div;
+
+	/*
+	 * patch for s5p6818
+	 * according to the pwm clock request, determine use tclk.
+	 */
+	if (of_device_is_compatible(chip->chip.dev->of_node,
+				"nexell,s5p6818-pwm")) {
+		pwm_samsung_optimal_freq(chip, chan, freq);
+	}
 
 	if (!pwm_samsung_is_tdiv(chip, chan)) {
 		clk = (chan < 2) ? chip->tclk0 : chip->tclk1;
@@ -527,9 +638,10 @@ static int pwm_samsung_probe(struct platform_device *pdev)
 		memcpy(&chip->variant, pdev->dev.platform_data,
 							sizeof(chip->variant));
 	}
-
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	chip->base = devm_ioremap_resource(&pdev->dev, res);
+
+
 	if (IS_ERR(chip->base))
 		return PTR_ERR(chip->base);
 
@@ -554,21 +666,42 @@ static int pwm_samsung_probe(struct platform_device *pdev)
 	chip->tclk1 = devm_clk_get(&pdev->dev, "pwm-tclk1");
 
 	/*
+	 * patch for s5p6818
+	 * s5p6818 pwm optional tclk enable.
+	 */
+	if (of_device_is_compatible(pdev->dev.of_node,
+				"nexell,s5p6818-pwm")) {
+		if (!IS_ERR(chip->tclk0)) {
+			ret = clk_prepare_enable(chip->tclk0);
+			if (ret < 0)
+				dev_warn(&pdev->dev, "PWM tclk0 not using\n");
+		}
+
+		if (!IS_ERR(chip->tclk1)) {
+			ret = clk_prepare_enable(chip->tclk1);
+			if (ret < 0)
+				dev_warn(&pdev->dev, "PWM tclk1 not using\n");
+		}
+	}
+
+	/*
          * patch for s5p6818
          * s5p6818 pwm must be reset before enabled
          */
 #ifdef CONFIG_RESET_CONTROLLER
-        if (of_device_is_compatible(pdev->dev.of_node, "nexell,s5p6818-pwm")) {
-                struct reset_control *rst =
-                        devm_reset_control_get(&pdev->dev, "pwm-reset");
-                if (IS_ERR(rst)) {
-                        dev_err(&pdev->dev,
-                                "PWM failed to get reset_control\n");
-                        return -EINVAL;
-                }
-		if(!(reset_control_status(rst)))
+	if (of_device_is_compatible(pdev->dev.of_node,
+				"nexell,s5p6818-pwm")) {
+		struct reset_control *rst =
+			devm_reset_control_get(&pdev->dev, "pwm-reset");
+		if (IS_ERR(rst)) {
+			dev_err(&pdev->dev,
+					"PWM failed to get reset_control\n");
+			return -EINVAL;
+		}
+
+		if (reset_control_status(rst))
 			reset_control_reset(rst);
-        }
+	}
 #endif
 
 	platform_set_drvdata(pdev, chip);
