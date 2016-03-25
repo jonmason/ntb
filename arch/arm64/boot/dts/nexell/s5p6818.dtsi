@@ -39,6 +39,9 @@
 		i2s0	= &i2s_0;
 		i2s1	= &i2s_1;
 		i2s2	= &i2s_2;
+		spi0	= &spi_0;
+		spi1	= &spi_1;
+		spi2	= &spi_2;
 		pinctrl0 = &pinctrl_0;
 	};
 
@@ -541,5 +544,64 @@
 			status = "disabled";
 		};
 
+		spi_0:spi@c005b000 {
+			compatible = "nexell,s5p6818-spi";
+			reg = <PHYS_BASE_SSP0 0x100>;
+			interrupts = <0 IRQ_SSP0 0>;
+			dmas = <&pl08xdma0 6>, <&pl08xdma0 7>;
+			dma-names = "tx", "rx";
+			resets = <&nexell_reset RESET_ID_SSP0_P>,
+			       <&nexell_reset RESET_ID_SSP0>;
+			reset-names = "pre-reset","spi-reset";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			samsung,spi-src-clk = <0>;
+			num-cs = <1>;
+			clocks = <&spi0>, <&spi0>;
+			clock-names = "spi", "spi_busclk0";
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi0_bus>;
+			status ="disable";
+		};
+
+		spi_1:spi@c005c000 {
+			compatible = "nexell,s5p6818-spi";
+			reg = <PHYS_BASE_SSP1 0x100>;
+			interrupts = <0 IRQ_SSP1 0>;
+			dmas = <&pl08xdma0 8>, <&pl08xdma0 9>;
+			dma-names = "tx", "rx";
+			resets = <&nexell_reset RESET_ID_SSP1_P>,
+			       <&nexell_reset RESET_ID_SSP1>;
+			reset-names = "pre-reset","spi-reset";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			samsung,spi-src-clk = <0>;
+			num-cs = <1>;
+			clocks = <&spi1>, <&spi1>;
+			clock-names = "spi", "spi_busclk0";
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi1_bus>;
+			status ="disable";
+		};
+
+		spi_2:spi@c005f000 {
+			compatible = "nexell,s5p6818-spi";
+			reg = <PHYS_BASE_SSP2 0x100>;
+			interrupts = <0 IRQ_SSP2 0>;
+			dmas = <&pl08xdma0 10>, <&pl08xdma0 11>;
+			dma-names = "tx", "rx";
+			resets = <&nexell_reset RESET_ID_SSP2_P>,
+			       <&nexell_reset RESET_ID_SSP2>;
+			reset-names = "pre-reset","spi-reset";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			samsung,spi-src-clk = <0>;
+			num-cs = <1>;
+			clocks = <&spi2>, <&spi2>;
+			clock-names = "spi", "spi_busclk0";
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi2_bus>;
+			status ="disable";
+		};
 	}; /*** soc ***/
 };
