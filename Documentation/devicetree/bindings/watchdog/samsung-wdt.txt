@@ -9,7 +9,8 @@ Required properties:
 	(a) "samsung,s3c2410-wdt" for Exynos4 and previous SoCs
 	(b) "samsung,exynos5250-wdt" for Exynos5250
 	(c) "samsung,exynos5420-wdt" for Exynos5420
-	(c) "samsung,exynos7-wdt" for Exynos7
+	(d) "samsung,exynos7-wdt" for Exynos7
+	(e) "nexell,nexell-wdt" for Nexell SoCs
 
 - reg : base physical address of the controller and length of memory mapped
 	region.
@@ -18,6 +19,12 @@ Required properties:
 	in case of compatible being "samsung,exynos5250-wdt" or "samsung,exynos5420-wdt".
 	In case of Exynos5250 and 5420 this property points to syscon node holding the PMU
 	base address)
+- clocks : clock provider specifier
+- clock-names : shall be "watchdog"
+- resets : phandle to the parent reset controller.(only Nexell Soc.)
+	- "nexell_reset" - reset-controller,
+	- "RESET_ID_WDT", "RESET_ID_WDT_POR" - Nth Reset control id (N = 0, 1, ...)
+	- reset-names : input names of resets used by the controller(only Nexell Soc.)
 
 Optional properties:
 - timeout-sec : contains the watchdog timeout in seconds.
@@ -31,4 +38,7 @@ watchdog@101D0000 {
 	clocks = <&clock 336>;
 	clock-names = "watchdog";
 	samsung,syscon-phandle = <&pmu_syscon>;
+	resets = <&nexell_reset RESET_ID_WDT>,
+	       <&nexell_reset RESET_ID_WDT_POR>;
+	reset-names = "wdt-reset","wdt-por-reset";
 };
