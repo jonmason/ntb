@@ -42,6 +42,10 @@
 		spi0	= &spi_0;
 		spi1	= &spi_1;
 		spi2	= &spi_2;
+		i2c0	= &i2c_0;
+		i2c1	= &i2c_1;
+		i2c2	= &i2c_2;
+
 		pinctrl0 = &pinctrl_0;
 	};
 
