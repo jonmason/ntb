@@ -236,6 +236,9 @@
 			status = "okay";
 		};
 
+		watchdog@c0019000 {
+			status = "okay";
+		};
 	};	/*** soc ***/
 
 	usb3503_i2c:i2c@3503 {
