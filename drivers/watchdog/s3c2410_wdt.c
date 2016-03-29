@@ -43,10 +43,16 @@
 #include <linux/regmap.h>
 #include <linux/reboot.h>
 #include <linux/delay.h>
+#ifdef CONFIG_RESET_CONTROLLER
+#include <linux/reset.h>
+#endif
 
 #define S3C2410_WTCON		0x00
 #define S3C2410_WTDAT		0x04
 #define S3C2410_WTCNT		0x08
+#if defined(CONFIG_ARCH_S5P6818)
+#define NX_WTCLRINT		0x0c
+#endif
 
 #define S3C2410_WTCON_RSTEN	(1 << 0)
 #define S3C2410_WTCON_INTEN	(1 << 2)
@@ -61,7 +67,11 @@
 #define S3C2410_WTCON_PRESCALE_MASK	(0xff << 8)
 
 #define CONFIG_S3C2410_WATCHDOG_ATBOOT		(0)
+#if defined(CONFIG_ARCH_S5P6818)
+#define CONFIG_S3C2410_WATCHDOG_DEFAULT_TIME	(10)
+#else
 #define CONFIG_S3C2410_WATCHDOG_DEFAULT_TIME	(15)
+#endif
 
 #define EXYNOS5_RST_STAT_REG_OFFSET		0x0404
 #define EXYNOS5_WDT_DISABLE_REG_OFFSET		0x0408
@@ -167,6 +177,10 @@ static const struct s3c2410_wdt_variant drv_data_exynos7 = {
 	.quirks = QUIRK_HAS_PMU_CONFIG | QUIRK_HAS_RST_STAT,
 };
 
+static const struct s3c2410_wdt_variant drv_data_nx = {
+	.quirks = 0
+};
+
 static const struct of_device_id s3c2410_wdt_match[] = {
 	{ .compatible = "samsung,s3c2410-wdt",
 	  .data = &drv_data_s3c2410 },
@@ -176,6 +190,8 @@ static const struct of_device_id s3c2410_wdt_match[] = {
 	  .data = &drv_data_exynos5420 },
 	{ .compatible = "samsung,exynos7-wdt",
 	  .data = &drv_data_exynos7 },
+	{ .compatible = "nexell,nexell-wdt",
+	  .data = &drv_data_nx },
 	{},
 };
 MODULE_DEVICE_TABLE(of, s3c2410_wdt_match);
@@ -239,6 +255,8 @@ static int s3c2410wdt_keepalive(struct watchdog_device *wdd)
 	struct s3c2410_wdt *wdt = watchdog_get_drvdata(wdd);
 
 	spin_lock(&wdt->lock);
+	if (of_device_is_compatible(wdt->dev->of_node, "nexell,nexell-wdt"))
+		writel(0, wdt->reg_base + NX_WTCLRINT);
 	writel(wdt->count, wdt->reg_base + S3C2410_WTCNT);
 	spin_unlock(&wdt->lock);
 
@@ -252,6 +270,8 @@ static void __s3c2410wdt_stop(struct s3c2410_wdt *wdt)
 	wtcon = readl(wdt->reg_base + S3C2410_WTCON);
 	wtcon &= ~(S3C2410_WTCON_ENABLE | S3C2410_WTCON_RSTEN);
 	writel(wtcon, wdt->reg_base + S3C2410_WTCON);
+	if (of_device_is_compatible(wdt->dev->of_node, "nexell,nexell-wdt"))
+		writel(0, wdt->reg_base + NX_WTCLRINT);
 }
 
 static int s3c2410wdt_stop(struct watchdog_device *wdd)
@@ -281,7 +301,11 @@ static int s3c2410wdt_start(struct watchdog_device *wdd)
 		wtcon |= S3C2410_WTCON_INTEN;
 		wtcon &= ~S3C2410_WTCON_RSTEN;
 	} else {
-		wtcon &= ~S3C2410_WTCON_INTEN;
+		if (of_device_is_compatible(wdt->dev->of_node,
+					    "nexell,nexell-wdt"))
+			wtcon |= S3C2410_WTCON_INTEN;
+		else
+			wtcon &= ~S3C2410_WTCON_INTEN;
 		wtcon |= S3C2410_WTCON_RSTEN;
 	}
 
@@ -570,6 +594,23 @@ static int s3c2410wdt_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	if (of_device_is_compatible(dev->of_node, "nexell,nexell-wdt")) {
+#ifdef CONFIG_RESET_CONTROLLER
+		struct reset_control *rst;
+
+		rst = devm_reset_control_get(dev, "wdt-reset");
+		if (!IS_ERR(rst)) {
+			if (reset_control_status(rst))
+				reset_control_reset(rst);
+		}
+		rst = devm_reset_control_get(dev, "wdt-por-reset");
+		if (!IS_ERR(rst)) {
+			if (reset_control_status(rst))
+				reset_control_reset(rst);
+		}
+#endif
+	}
+
 	ret = s3c2410wdt_cpufreq_register(wdt);
 	if (ret < 0) {
 		dev_err(dev, "failed to register cpufreq\n");
@@ -716,6 +757,23 @@ static int s3c2410wdt_resume(struct device *dev)
 {
 	int ret;
 	struct s3c2410_wdt *wdt = dev_get_drvdata(dev);
+
+	if (of_device_is_compatible(dev->of_node, "nexell,nexell-wdt")) {
+#ifdef CONFIG_RESET_CONTROLLER
+		struct reset_control *rst;
+
+		rst = devm_reset_control_get(dev, "wdt-reset");
+		if (!IS_ERR(rst)) {
+			if (reset_control_status(rst))
+				reset_control_reset(rst);
+		}
+		rst = devm_reset_control_get(dev, "wdt-por-reset");
+		if (!IS_ERR(rst)) {
+			if (reset_control_status(rst))
+				reset_control_reset(rst);
+		}
+#endif
+	}
 
 	/* Restore watchdog state. */
 	writel(wdt->wtdat_save, wdt->reg_base + S3C2410_WTDAT);
