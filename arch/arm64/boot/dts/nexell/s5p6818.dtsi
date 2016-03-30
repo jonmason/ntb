@@ -633,5 +633,20 @@
 			clock-names = "watchdog";
 			status = "disabled";
 		};
+
+		spdiftx@c0059000 {
+			compatible = "nexell,nexell-spdif-tx";
+			reg = <PHYS_BASE_SPDIF_TX 0x1000>;
+			interrupts = <0 IRQ_SPDIFTX 0>;
+			dmas = <&pl08xdma1 6>;
+			dma-names = "tx";
+			resets = <&nexell_reset RESET_ID_SPDIFTX>;
+			reset-names = "spdiftx-reset";
+			clocks = <&spdiftx>;
+			clock-names = "spdif-tx";
+			pcm-bit = <16>;
+			sample_rate = <48000>;
+			status = "disabled";
+		};
 	}; /*** soc ***/
 };
