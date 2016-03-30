@@ -1,0 +1,48 @@
+Nexell Sony/Philips Digital Interface Format (S/PDIF) Controller
+
+The Nexell S/PDIF audio block is a stereo transceiver that allows the
+processor to receive and transmit digital audio via an coaxial cable or
+a fibre cable.
+
+Required properties:
+
+- compatible: Compatible list, must contain "nexell,nexell-spdif-tx".
+- reg: Offset and length of the register set for the device.
+- interrupts: Contains the spdif interrupt.
+- dmas: Generic dma devicetree binding as described in
+	Documentation/devicetree/bindings/dma/dma.txt.
+- dma-names: Two dmas have to be defined, "tx" and "rx".
+- clocks: Contains an entry for each entry in clock-names.
+- clock-names: spdiftx uses some base clks from CMU and some are from audio
+  subsystem internal clock controller. The clock names for i2s0 should be
+  "spdif-tx" as shown in the example below.
+- resets: phandle to the parent reset controller.
+- "nexell_reset" - reset-controller,
+  - "RESET_ID_SPDIFTX" - Nth Reset control id (N = 0, 1, ...)
+- reset-names: input names of resets used by the controller
+
+Optional Properties:
+
+- pinctrl-0: Should specify pin control groups used for this controller.
+- pinctrl-names: Should contain only one value - "default".
+- pcm-bit : Select pcm bit. (16/24 bits)
+- sample-rate : Select sample rate. (44100~96000hz)
+
+Example:
+
+spdiftx@c0059000 {
+	compatible = "nexell,nexell-spdif-tx";
+	reg = <PHYS_BASE_SPDIF_TX 0x1000>;
+	interrupts = <0 IRQ_SPDIFTX 0>;
+	dmas = <&pl08xdma1 6>;
+	dma-names = "tx";
+	resets = <&nexell_reset RESET_ID_SPDIFTX>;
+	reset-names = "spdiftx-reset";
+	clocks = <&spdiftx>;
+	clock-names = "spdif-tx";
+	pinctrl-names = "default";
+	pinctrl-0 = <&spdiftx_pin>;
+	pcm-bit = <16>;
+	sample_rate = <48000>;
+	status = "okay";
+};
