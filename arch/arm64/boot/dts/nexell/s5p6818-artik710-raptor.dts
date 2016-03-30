@@ -115,12 +115,7 @@
 			};
 		};
 
-		pmic_i2c:i2c@32 {
-			compatible = "i2c-gpio";
-			gpios = <&gpio_d 7 0 /* sda */
-				&gpio_d 6 0 /* scl */
-				>;
-			i2c-gpio,delay-us = <100>;    /* ~100 kHz */
+		i2c_2:i2c@c00a6000 {
 			#address-cells = <1>;
 			#size-cells = <0>;
 
