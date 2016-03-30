@@ -277,6 +277,12 @@
 				nexell,pin-strength = <0>;
 			};
 		};
+
+		spdiftx@c0059000 {
+			pcm-bit = <16>;
+			sample_rate = <48000>;
+			status = "okay";
+		};
 	};	/*** soc ***/
 
 	usb3503_i2c:i2c@3503 {
@@ -335,9 +341,17 @@
 			linux,code = <KEY_MENU>;
 		};
 	};
+
+	spdif_out: spdif-out {
+		compatible = "linux,spdif-dit";
+	};
+
+	spdif-transceiver {
+		compatible = "nexell,spdif-transceiver";
+		sample_rate = <48000>;
+		format = "S16";
+	};
 };
-
-
 
 &serial0 {
 	status = "okay";
