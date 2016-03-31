@@ -45,3 +45,8 @@ config SND_CODEC_ES8316
 	tristate "es8316 I2S audio codec."
 	depends on SND_NX_I2S
 	select SND_SOC_ES8316
+
+config SND_CODEC_ALC5658
+	tristate "ALC5658 I2S audio codec."
+	depends on SND_NX_I2S
+	select SND_SOC_RT5659

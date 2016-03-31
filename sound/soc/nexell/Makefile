@@ -13,6 +13,8 @@ nexell-snd-spdiftx-objs				:= nexell-spdiftx.o
 
 obj-$(CONFIG_SND_SPDIF_TRANSCEIVER)		+= nexell-snd-spdif-transceiver.o
 obj-$(CONFIG_SND_CODEC_ES8316)			+= nexell-snd-es8316.o
+obj-$(CONFIG_SND_CODEC_ALC5658)			+= nexell-snd-alc5658.o
 
 nexell-snd-spdif-transceiver-objs 		:= nexell-spdif-transceiver.o
 nexell-snd-es8316-objs 				:= nexell-es8316.o
+nexell-snd-alc5658-objs 				:= nexell-alc5658.o
