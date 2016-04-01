@@ -1,0 +1,61 @@
+* Nexell Thermal Management Unit (TMU)
+
+Nexell s5p6818 TMU is used same Samsung TMU.
+
+** Required properties:
+
+- compatible :Must be  "nexell,s5p6818-tmu"
+
+- interrupt-parent : The phandle for the interrupt controller
+- reg : Address range of the thermal registers. For soc's which has multiple
+	instances of TMU and some registers are shared across all TMU's like
+	interrupt related then 2 set of register has to supplied. First set
+	belongs	to register set of TMU instance and second set belongs to
+	registers shared with the TMU instance.
+
+
+- interrupts : Should contain interrupt for thermal system
+- clocks : The main clocks for TMU device
+	-- only use pclk clcok.
+- clock-names : Thermal system clock name
+	-- "tmu_apbif" operational clock for current TMU channel
+- vtmu-supply: This entry is optional and provides the regulator node supplying
+		voltage to TMU. If needed this entry can be placed inside
+		board/platform specific dts file.
+Following properties are mandatory (depending on SoC):
+- samsung,tmu_gain: Gain value for internal TMU operation.
+- samsung,tmu_reference_voltage: Value of TMU IP block's reference voltage
+- samsung,tmu_noise_cancel_mode: Mode for noise cancellation
+- samsung,tmu_efuse_value: Default level of temperature - it is needed when
+			   in factory fusing produced wrong value
+- samsung,tmu_min_efuse_value: Minimum temperature fused value
+- samsung,tmu_max_efuse_value: Maximum temperature fused value
+- samsung,tmu_first_point_trim: First point trimming value
+- samsung,tmu_second_point_trim: Second point trimming value
+- samsung,tmu_default_temp_offset: Default temperature offset
+- samsung,tmu_cal_type: Callibration type
+
+
+Example:
+
+	tmuctrl_0: tmuctrl@c0096000 {
+		compatible = "nexell,s5p6818-tmu";
+		reg = <PHYS_BASE_TMU0 0x100>;
+		interrupts = <0 IRQ_TMU0 0>;
+		clocks = <&pclk>;
+		clock-names = "tmu_apbif";
+		#nclude "s5p6818-tmu-sensor-conf.dtsi"
+		soc,tieoff = <NX_TIEOFF_Inst_TMU0_SENSING_START 1>;
+	};
+
+
+Note: For multi-instance tmu each instance should have an alias correctly
+numbered in "aliases" node.
+
+Example:
+
+aliases {
+	tmuctrl0 = &tmuctrl_0;
+	tmuctrl1 = &tmuctrl_1;
+	tmuctrl2 = &tmuctrl_2;
+};

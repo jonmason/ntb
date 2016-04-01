@@ -371,7 +371,7 @@ source "drivers/thermal/ti-soc-thermal/Kconfig"
 endmenu
 
 menu "Samsung thermal drivers"
-depends on ARCH_EXYNOS || COMPILE_TEST
+depends on ARCH_EXYNOS || ARCH_S5P6818 || COMPILE_TEST
 source "drivers/thermal/samsung/Kconfig"
 endmenu
 
