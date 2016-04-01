@@ -648,5 +648,27 @@
 			sample_rate = <48000>;
 			status = "disabled";
 		};
+
+		tmuctrl_0: tmuctrl@c0096000 {
+			compatible = "nexell,s5p6818-tmu";
+			reg = <PHYS_BASE_TMU0 0x100>;
+			interrupts = <0 IRQ_TMU0 0>;
+			clocks = <&pclk>;
+			clock-names = "tmu_apbif";
+			#include "s5p6818-tmu-sensor-conf.dtsi"
+			soc,tieoff = <NX_TIEOFF_Inst_TMU0_SENSING_START 1>;
+			status = "disabled";
+		};
+
+		tmuctrl_1: tmuctrl@c0097000 {
+			compatible = "nexell,s5p6818-tmu";
+			reg = <PHYS_BASE_TMU1 0x100>;
+			interrupts = <0 IRQ_TMU1 0>;
+			clocks = <&pclk>;
+			clock-names = "tmu_apbif";
+			#include "s5p6818-tmu-sensor-conf.dtsi"
+			soc,tieoff = <NX_TIEOFF_Inst_TMU1_SENSING_START 1>;
+			status = "disabled";
+		};
 	}; /*** soc ***/
 };
