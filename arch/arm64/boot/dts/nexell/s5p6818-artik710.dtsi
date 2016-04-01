@@ -91,6 +91,28 @@
 			nexell,sample_shift = <0x02>;
 		};
 
+		tmuctrl_0: tmuctrl@c0096000 {
+			status = "okay";
+		};
+		thermal-zones {
+			cpu0_thermal: cpu0-thermal {
+				thermal-sensors = <&tmuctrl_0>;
+				polling-delay-passive = <0>;
+				polling-delay = <0>;
+				trips {
+					cpu-alert-0 {
+						temperature = <90000>;
+						hysteresis = <0>;
+						type = "active";
+					};
+					cpu-crit-0 {
+						temperature = <95000>;
+						hysteresis = <0>;
+						type = "critical";
+					};
+				};
+			};
+		};
 	};	/*** soc ***/
 
 	artik_zb_power {
