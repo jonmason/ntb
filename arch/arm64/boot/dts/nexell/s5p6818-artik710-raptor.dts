@@ -118,6 +118,7 @@
 		i2c_2:i2c@c00a6000 {
 			#address-cells = <1>;
 			#size-cells = <0>;
+			status = "okay";
 
 			nxe2000@32 {
 				compatible = "nexell,nxe2000";
