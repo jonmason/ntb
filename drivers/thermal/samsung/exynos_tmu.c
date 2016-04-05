@@ -766,7 +766,7 @@ static void exynos4210_tmu_control(struct platform_device *pdev, bool on)
 		interrupt_en = 0; /* Disable all interrupts */
 	}
 
-	if (data->soc != SOC_ARCH_S5P6818)
+	if (data->soc == SOC_ARCH_S5P6818)
 		writel(interrupt_en, data->base + S5P6818_TMU_REG_INTEN);
 	else
 		writel(interrupt_en, data->base + EXYNOS_TMU_REG_INTEN);
