@@ -114,6 +114,32 @@
 				};
 			};
 		};
+
+		pinctrl@C0010000 {
+			bt_cfg_hostwake:bt_cfg_hostwake {
+				nexell,pins = "alive-4";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <2>;
+				nexell,pin-strength = <1>;
+			};
+			bt_cfg_btwake:bt_cfg_btwake {
+				nexell,pins = "gpiod-30";
+				nexell,pin-function = <1>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <1>;
+			};
+			bt_cfg_en:bt_cfg_en {
+				nexell,pins = "gpiod-29";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <1>;
+			};
+		};
+
+		serial1:serial@c00a0000 {
+			status = "okay";
+			pinctrl-0 = <&serial1_pin>, <&serial1_flow>;
+		};
 	};	/*** soc ***/
 
 	artik_zb_power {
@@ -121,6 +147,17 @@
 		vdd_zb-supply = <&VCC_DCDC2>;
 		reset-gpio = <&gpio_c 8 0>;
 		bootloader-gpio = <&gpio_c 28 0>;
+		status = "okay";
+	};
+
+	artik_bt_control {
+		compatible = "broadcom,bcm43455bt";
+		gpios = <&gpio_d 29 0	/* GPIOD29=BT_EN, output */
+			&gpio_d 30 0		/* GPIOD30=BT_WAKE, output */
+			&alive_0 4 1		/* AliveGPIO4=BT_HOST_WAKE, input */
+			>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&bt_cfg_hostwake &bt_cfg_btwake &bt_cfg_en>;
 		status = "okay";
 	};
 };
