@@ -169,6 +169,7 @@
 #define S5P6818_TMU_REG_INTEN			0xB0
 #define S5P6818_TMU_REG_INTSTAT			0xB4
 #define S5P6818_TMU_REG_INTCLEAR		0xB8
+#define S5P6818_TMU_REG_EMUL_CON		0x100
 
 #define MCELSIUS	1000
 /**
@@ -946,6 +947,8 @@ static void exynos4412_tmu_set_emulation(struct exynos_tmu_data *data,
 		emul_con = EXYNOS5433_TMU_EMUL_CON;
 	else if (data->soc == SOC_ARCH_EXYNOS7)
 		emul_con = EXYNOS7_TMU_REG_EMUL_CON;
+	else if (data->soc == SOC_ARCH_S5P6818)
+		emul_con = S5P6818_TMU_REG_EMUL_CON;
 	else
 		emul_con = EXYNOS_EMUL_CON;
 
