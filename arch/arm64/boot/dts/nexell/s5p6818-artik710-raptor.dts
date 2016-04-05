@@ -204,7 +204,7 @@
 						ldo8	{ PMIC_PDATA_INIT(12,
 							"nxe2000_ldo8",
 							1000000, 3500000,
-							0, 0, 3300000,
+							1, 0, 3300000,
 							0, 1, 0x0) };
 					VCC_LDO8:
 						ldo9	{ PMIC_PDATA_INIT(13,
