@@ -36,6 +36,9 @@
 
 #define NX_VIP_DEV_NAME		"nx-vip"
 
+/* if defined, when vip enabled, register of VIP are dumped */
+/* #define DUMP_REGISTER */
+
 struct nx_vip {
 	u32 module;
 	void *base;
@@ -275,6 +278,10 @@ int nx_vip_run(u32 module, u32 child)
 
 	NX_ATOMIC_SET_MASK(child, &me->running_bitmap);
 	hw_child_enable(me, NX_ATOMIC_READ(&me->running_bitmap));
+
+#ifdef DUMP_REGISTER
+	nx_vip_dump_register(module);
+#endif
 
 	return 0;
 }
