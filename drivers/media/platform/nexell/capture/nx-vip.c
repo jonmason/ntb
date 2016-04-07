@@ -448,7 +448,12 @@ static int nx_vip_probe(struct platform_device *pdev)
 		return -EBUSY;
 	}
 
+	_nx_vip_object[me->module] = me;
+
 	nx_vip_set_base_address(me->module, me->base);
+	INIT_LIST_HEAD(&me->irq_entry_list);
+	spin_lock_init(&me->lock);
+
 	nx_vip_clock_enable(me->module, true);
 	nx_vip_reset(me->module);
 
@@ -463,7 +468,6 @@ static int nx_vip_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, me);
-	_nx_vip_object[me->module] = me;
 
 	return 0;
 }
