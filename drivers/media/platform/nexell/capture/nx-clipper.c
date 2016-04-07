@@ -1192,6 +1192,93 @@ static int init_v4l2_subdev(struct nx_clipper *me)
 	return 0;
 }
 
+static struct camera_sensor_info {
+	int is_mipi;
+	char name[V4L2_SUBDEV_NAME_SIZE];
+} camera_sensor_info[NUMBER_OF_VIP_MODULE];
+
+static ssize_t camera_sensor_show_common(struct device *dev,
+	struct device_attribute *attr, char **buf, u32 module)
+{
+	struct attribute *at;
+
+	at = &attr->attr;
+
+	if (!strlen(camera_sensor_info[module].name))
+		return scnprintf(*buf, PAGE_SIZE, "no exist");
+	else
+		return scnprintf(*buf, PAGE_SIZE, "is_mipi:%d,name:%s",
+				 camera_sensor_info[module].is_mipi,
+				 camera_sensor_info[module].name);
+}
+
+static ssize_t camera_sensor_show0(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	return camera_sensor_show_common(dev, attr, &buf, 0);
+}
+
+static ssize_t camera_sensor_show1(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	return camera_sensor_show_common(dev, attr, &buf, 1);
+}
+
+static ssize_t camera_sensor_show2(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	return camera_sensor_show_common(dev, attr, &buf, 2);
+}
+
+static struct device_attribute camera_sensor0_attr =
+__ATTR(info, 0644, camera_sensor_show0, NULL);
+static struct device_attribute camera_sensor1_attr =
+__ATTR(info, 0644, camera_sensor_show1, NULL);
+static struct device_attribute camera_sensor2_attr =
+__ATTR(info, 0644, camera_sensor_show2, NULL);
+
+static struct attribute *camera_sensor_attrs[] = {
+	&camera_sensor0_attr.attr,
+	&camera_sensor1_attr.attr,
+	&camera_sensor2_attr.attr,
+};
+
+static int create_sysfs_for_camera_sensor(struct nx_clipper *me,
+					  struct nx_v4l2_i2c_board_info *info)
+{
+	int ret;
+	struct kobject *kobj;
+	char kobject_name[16] = {0, };
+	char sensor_name[V4L2_SUBDEV_NAME_SIZE];
+
+	memset(sensor_name, 0, V4L2_SUBDEV_NAME_SIZE);
+	sprintf(sensor_name, "%s %d-%04X",
+		info->board_info.type,
+		info->i2c_adapter_id,
+		info->board_info.addr);
+
+	strcpy(camera_sensor_info[me->module].name, sensor_name);
+	camera_sensor_info[me->module].is_mipi =
+		me->interface_type == NX_CAPTURE_INTERFACE_MIPI_CSI;
+
+	sprintf(kobject_name, "camerasensor%d", me->module);
+	kobj = kobject_create_and_add(kobject_name, &platform_bus.kobj);
+	if (!kobj) {
+		dev_err(&me->pdev->dev, "failed to kobject_create for module %d\n",
+			me->module);
+		return -EINVAL;
+	}
+
+	ret = sysfs_create_file(kobj, camera_sensor_attrs[me->module]);
+	if (ret) {
+		dev_err(&me->pdev->dev, "failed to sysfs_create_file for module %d\n",
+			me->module);
+		kobject_put(kobj);
+	}
+
+	return 0;
+}
+
 static int register_sensor_subdev(struct nx_clipper *me)
 {
 	int ret;
@@ -1219,6 +1306,10 @@ static int register_sensor_subdev(struct nx_clipper *me)
 	}
 	sensor = i2c_get_clientdata(client);
 	sensor->host_priv = info;
+
+	ret = create_sysfs_for_camera_sensor(me, info);
+	if (ret)
+		goto error;
 
 	ret  = nx_v4l2_register_subdev(sensor);
 	if (ret)
