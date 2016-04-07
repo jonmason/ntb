@@ -998,6 +998,29 @@ static int nx_clipper_s_crop(struct v4l2_subdev *sd,
 	return 0;
 }
 
+/**
+ * called by VIDIOC_SUBDEV_S_CROP
+ */
+static int nx_clipper_get_selection(struct v4l2_subdev *sd,
+				    struct v4l2_subdev_pad_config *cfg,
+				    struct v4l2_subdev_selection *sel)
+{
+	struct nx_clipper *me = v4l2_get_subdevdata(sd);
+
+	memcpy(&sel->r, &me->crop, sizeof(struct v4l2_rect));
+	return 0;
+}
+
+static int nx_clipper_set_selection(struct v4l2_subdev *sd,
+				    struct v4l2_subdev_pad_config *cfg,
+				    struct v4l2_subdev_selection *sel)
+{
+	struct nx_clipper *me = v4l2_get_subdevdata(sd);
+
+	memcpy(&me->crop, &sel->r, sizeof(struct v4l2_rect));
+	return 0;
+}
+
 static int nx_clipper_get_fmt(struct v4l2_subdev *sd,
 			      struct v4l2_subdev_pad_config *cfg,
 			      struct v4l2_subdev_format *format)
@@ -1101,6 +1124,8 @@ static const struct v4l2_subdev_video_ops nx_clipper_video_ops = {
 };
 
 static const struct v4l2_subdev_pad_ops nx_clipper_pad_ops = {
+	.get_selection = nx_clipper_get_selection,
+	.set_selection = nx_clipper_set_selection,
 	.get_fmt = nx_clipper_get_fmt,
 	.set_fmt = nx_clipper_set_fmt,
 };
