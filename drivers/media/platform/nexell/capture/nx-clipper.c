@@ -1114,7 +1114,7 @@ static int nx_clipper_set_fmt(struct v4l2_subdev *sd,
 		return -EINVAL;
 	}
 
-	return v4l2_subdev_call(remote, pad, set_fmt, NULL, format);
+	return 0;
 }
 
 static const struct v4l2_subdev_video_ops nx_clipper_video_ops = {
