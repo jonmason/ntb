@@ -59,7 +59,7 @@ EXPORT_SYMBOL_GPL(nx_v4l2_get_v4l2_device);
 void *nx_v4l2_get_alloc_ctx(void)
 {
 	if (likely(__me))
-		return &__me->alloc_ctx;
+		return __me->alloc_ctx;
 	return NULL;
 }
 EXPORT_SYMBOL_GPL(nx_v4l2_get_alloc_ctx);
