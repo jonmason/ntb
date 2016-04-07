@@ -186,7 +186,7 @@ int nx_vip_reset(u32 module)
 	}
 	me = _nx_vip_object[module];
 
-	if (!reset_control_status(me->rst))
+	if (reset_control_status(me->rst))
 		return reset_control_reset(me->rst);
 
 	return 0;
