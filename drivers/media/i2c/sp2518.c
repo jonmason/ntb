@@ -945,7 +945,7 @@ static int sp2518_set_params(struct v4l2_subdev *sd, u32 *width, u32 *height,
 		}
 	}
 	if (!priv->cfmt) {
-		dev_err(&client->dev, "Unsupported sensor format.\n");
+		dev_err(&client->dev, "Unsupported sensor format.(0x%x)\n", code);
 		return -EINVAL;
 	}
 
@@ -1146,26 +1146,12 @@ static const struct v4l2_subdev_video_ops sp2518_subdev_video_ops = {
 /**
  * pad ops
  */
-static int sp2518_get_pad_format(struct v4l2_subdev *sd,
-				 struct v4l2_subdev_pad_config *cfg,
-				 struct v4l2_subdev_format *fmt)
-{
-	struct sp2518_priv *priv = to_priv(sd);
-
-	fmt->format.code = priv->cfmt->code;
-	fmt->format.width = priv->win->width;
-	fmt->format.height = priv->win->height;
-	fmt->format.field = V4L2_FIELD_NONE;
-	fmt->format.colorspace = priv->cfmt->colorspace;
-
-	return 0;
-}
-
 static int sp2518_s_fmt(struct v4l2_subdev *sd,
 			struct v4l2_subdev_pad_config *cfg,
 			struct v4l2_subdev_format *fmt)
 {
-	return sp2518_get_pad_format(sd, cfg, fmt);
+	struct v4l2_mbus_framefmt *mf = &fmt->format;
+	return sp2518_s_mbus_fmt(sd, mf);
 }
 
 static const struct v4l2_subdev_pad_ops sp2518_subdev_pad_ops = {
