@@ -73,5 +73,6 @@ struct media_device *nx_v4l2_get_media_device(void);
 struct v4l2_device  *nx_v4l2_get_v4l2_device(void);
 void *nx_v4l2_get_alloc_ctx(void);
 int nx_v4l2_register_subdev(struct v4l2_subdev *sd);
+struct v4l2_subdev *nx_v4l2_get_subdev(char *name);
 
 #endif
