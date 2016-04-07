@@ -135,7 +135,7 @@
 #define PHYS_BASE_CLK_37 (0xC00AC000) /* SPI0        */
 #define PHYS_BASE_CLK_38 (0xC00AD000) /* SPI1        */
 #define PHYS_BASE_CLK_39 (0xC00A7000) /* SPI2        */
-#define PHYS_BASE_CLK_40 (0xC009A000)
+#define PHYS_BASE_CLK_40 (0xC009A000) /* VIP2	     */
 
 #define PHYS_BASE_DREX (0xC00E0000)
 
@@ -204,6 +204,7 @@
 #define CLK_ID_SPI_2 39
 #define CLK_ID_MAX 39
 #define CLK_ID_USBOTG 40 /* Shared with USB2HOST */
+#define CLK_ID_VIP_2 41  /* External Clock 1, 2 */
 
 #define I_PLL0_BIT (0)
 #define I_PLL1_BIT (1)
@@ -242,6 +243,7 @@
 #define CLK_INPUT_SPI (I_PLL_0_2)
 #define CLK_INPUT_VIP0 (I_PLL_0_3 | I_EXTCLK1 | I_GATE_BCLK)
 #define CLK_INPUT_VIP1 (I_PLL_0_3 | I_EXTCLK1 | I_EXTCLK2 | I_GATE_BCLK)
+#define CLK_INPUT_VIP2 (I_PLL_0_3 | I_EXTCLK1 | I_EXTCLK2 | I_GATE_BCLK)
 #define CLK_INPUT_MIPI (I_PLL_0_2)
 #define CLK_INPUT_GMAC (I_PLL_0_3 | I_EXTCLK1)
 #define CLK_INPUT_GMAC_IN1 (I_CLKnOUT)
