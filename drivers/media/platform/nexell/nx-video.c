@@ -662,6 +662,8 @@ static int nx_video_streamon(struct file *file, void *fh, enum v4l2_buf_type i)
 		return -ENODEV;
 	}
 
+	v4l2_set_subdev_hostdata(subdev, me->name);
+
 	if (me->vbq) {
 		ret = vb2_streamon(me->vbq, i);
 		if (ret < 0) {
@@ -1110,8 +1112,10 @@ void nx_video_done_buffer(struct nx_video_buffer_object *obj)
 	if (!buf)
 		return;
 
-	if (buf->cb_buf_done)
+	if (buf->cb_buf_done) {
+		buf->consumer_index++;
 		buf->cb_buf_done(buf);
+	}
 }
 EXPORT_SYMBOL_GPL(nx_video_done_buffer);
 
