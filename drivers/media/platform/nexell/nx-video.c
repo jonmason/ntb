@@ -684,18 +684,18 @@ static int nx_video_streamoff(struct file *file, void *fh, enum v4l2_buf_type i)
 	struct v4l2_subdev *subdev = get_remote_subdev(me, i, &pad);
 
 	if (!subdev) {
-		WARN_ON(1);
+		pr_err("[nx video] no subdev device linked\n");
 		return -ENODEV;
 	}
 
 	if (me->vbq) {
-		ret = vb2_streamoff(me->vbq, i);
+		ret = v4l2_subdev_call(subdev, video, s_stream, 0);
 		if (ret < 0) {
-			pr_err("[nx video] failed to vb2_streamoff() for %s\n",
+			pr_err("[nx video] failed to subdev s_stream for %s\n",
 			       me->name);
 			return ret;
 		}
-		return v4l2_subdev_call(subdev, video, s_stream, 0);
+		return vb2_streamoff(me->vbq, i);
 	}
 	return -EINVAL;
 }
@@ -803,13 +803,8 @@ static int nx_video_open(struct file *file)
 				       V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE :
 				       V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE,
 				       &pad);
-		if (sd) {
-			ret = v4l2_subdev_call(sd, core, s_power, 1);
-			if (ret < 0) {
-				pr_err("[nx video] failed to open in subdev call s_power\n");
-				return ret;
-			}
-		}
+		if (sd)
+			v4l2_subdev_call(sd, core, s_power, 1);
 	}
 
 	me->open_count++;
@@ -833,11 +828,8 @@ static int nx_video_release(struct file *file)
 				       V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE,
 				       &pad);
 		if (sd) {
-			ret = v4l2_subdev_call(sd, core, s_power, 0);
-			if (ret < 0) {
-				pr_err("[nx video] failed to close in subdev call s_power\n");
-				return ret;
-			}
+			v4l2_subdev_call(sd, video, s_stream, 0);
+			v4l2_subdev_call(sd, core, s_power, 0);
 		}
 
 		if (me->vbq)
@@ -1130,9 +1122,11 @@ void nx_video_clear_buffer(struct nx_video_buffer_object *obj)
 		while (!list_empty(&obj->buffer_list)) {
 			buf = list_entry(obj->buffer_list.next,
 					 struct nx_video_buffer, list);
-			if (buf)
+			if (buf) {
+				struct vb2_buffer *vb = buf->priv;
+				vb2_buffer_done(vb, VB2_BUF_STATE_ERROR);
 				list_del_init(&buf->list);
-			else
+			} else
 				break;
 		}
 		INIT_LIST_HEAD(&obj->buffer_list);
