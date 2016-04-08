@@ -20,6 +20,7 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/of.h>
+#include <linux/of_gpio.h>
 #include <linux/platform_device.h>
 #include <linux/io.h>
 #include <linux/atomic.h>
@@ -32,6 +33,7 @@
 #include <linux/pwm.h>
 #include <linux/delay.h>
 #include <linux/gpio.h>
+#include <linux/regulator/consumer.h>
 
 #include <media/media-device.h>
 #include <media/v4l2-device.h>
@@ -118,6 +120,7 @@ struct nx_clipper {
 	u32 interlace;
 	int regulator_nr;
 	char **regulator_names;
+	u32 *regulator_voltages;
 	struct pwm_device *pwm;
 	u32 clock_rate;
 	struct nx_capture_enable_seq enable_seq;
@@ -135,6 +138,8 @@ struct nx_clipper {
 	struct completion stop_done;
 	struct semaphore s_stream_sem;
 	bool sensor_enabled;
+	struct media_pad sensor_pad;
+
 
 	struct platform_device *pdev;
 
@@ -431,8 +436,8 @@ static int parse_capture_enable_seq(struct device_node *np,
 			return -ENOMEM;
 		}
 
-		action_nums = get_num_of_enable_action(array, count);
 		of_property_read_u32_array(np, "enable_seq", array, count);
+		action_nums = get_num_of_enable_action(array, count);
 		if (action_nums <= 0) {
 			pr_err("parse_dt v4l2 capture: no actions in enable_seq\n");
 			return -ENOENT;
@@ -484,8 +489,10 @@ static int parse_clock_dt(struct device_node *np, struct device *dev,
 			  struct nx_clipper *me)
 {
 	me->pwm = devm_pwm_get(dev, NULL);
-	if (IS_ERR(me->pwm))
-		return PTR_ERR(me->pwm);
+	if (!IS_ERR(me->pwm)) {
+		unsigned int period = pwm_get_period(me->pwm);
+		pwm_config(me->pwm, period/2, period);
+	}
 
 	return 0;
 }
@@ -507,9 +514,9 @@ static int nx_clipper_parse_dt(struct device *dev, struct nx_clipper *me)
 	}
 
 	if (me->interface_type == NX_CAPTURE_INTERFACE_MIPI_CSI) {
-		/* mpip use always same config, so ignore user config */
-		if (me->module != 1) {
-			dev_err(dev, "module of mipi-csi must be 1 but, current %d\n",
+		/* mipi use always same config, so ignore user config */
+		if (me->module != 0) {
+			dev_err(dev, "module of mipi-csi must be 0 but, current %d\n",
 				me->module);
 			return -EINVAL;
 		}
@@ -583,6 +590,43 @@ static int nx_clipper_parse_dt(struct device *dev, struct nx_clipper *me)
 		of_property_read_u32(np, "interlace", &me->interlace);
 	}
 
+	me->regulator_nr = of_property_count_strings(np, "regulator_names");
+	if (me->regulator_nr > 0) {
+		int i;
+		const char *name;
+		me->regulator_names = devm_kcalloc(dev,
+						   me->regulator_nr,
+						   sizeof(char *),
+						   GFP_KERNEL);
+		if (!me->regulator_names) {
+			WARN_ON(1);
+			return -ENOMEM;
+		}
+
+		me->regulator_voltages = devm_kcalloc(dev,
+						      me->regulator_nr,
+						      sizeof(u32),
+						      GFP_KERNEL);
+		if (!me->regulator_voltages) {
+			WARN_ON(1);
+			return -ENOMEM;
+		}
+
+
+		for (i = 0; i < me->regulator_nr; i++) {
+			if (of_property_read_string_index(np, "regulator_names",
+							  i, &name)) {
+				dev_err(&me->pdev->dev, "failed to read regulator %d name\n", i);
+				return -EINVAL;
+			}
+			me->regulator_names[i] = (char *)name;
+		}
+
+		of_property_read_u32_array(np, "regulator_voltages",
+					   me->regulator_voltages,
+					   me->regulator_nr);
+	}
+
 	child_node = of_find_node_by_name(np, "sensor");
 	if (!child_node) {
 		dev_err(dev, "failed to get sensor node\n");
@@ -601,11 +645,6 @@ static int nx_clipper_parse_dt(struct device *dev, struct nx_clipper *me)
 	if (ret)
 		return ret;
 
-	child_node = of_find_node_by_name(np, "clock");
-	if (!child_node) {
-		dev_err(dev, "failed to get clock node\n");
-		return -EINVAL;
-	}
 	ret = parse_clock_dt(child_node, dev, me);
 	if (ret)
 		return ret;
@@ -621,20 +660,32 @@ static int apply_gpio_action(struct device *dev, int gpio_num,
 {
 	int ret;
 	char label[64] = {0, };
+	struct device_node *np;
+	int gpio;
 
-	sprintf(label, "v4l2-cam #pwr gpio %d", gpio_num);
-	ret = devm_gpio_request_one(dev, gpio_num,
+	np = dev->of_node;
+	gpio = of_get_named_gpio(np, "gpios", gpio_num);
+
+	sprintf(label, "v4l2-cam #pwr gpio %d", gpio);
+	if (!gpio_is_valid(gpio)) {
+		dev_err(dev, "invalid gpio %d set to %d\n", gpio, unit->value);
+		return -EINVAL;
+	}
+
+	ret = devm_gpio_request_one(dev, gpio,
 				    unit->value ?
 				    GPIOF_OUT_INIT_HIGH : GPIOF_OUT_INIT_LOW,
 				    label);
 	if (ret < 0) {
 		dev_err(dev, "failed to gpio %d set to %d\n",
-			gpio_num, unit->value);
+			gpio, unit->value);
 		return ret;
 	}
 
 	if (unit->delay_ms > 0)
 		mdelay(unit->delay_ms);
+
+	devm_gpio_free(dev, gpio);
 
 	return 0;
 }
@@ -645,17 +696,10 @@ static int do_enable_gpio_action(struct nx_clipper *me,
 	int ret;
 	struct gpio_action_unit *unit;
 	int i;
-	struct device *dev;
-
-	dev = &me->pdev->dev;
-	unit = &action->units[0];
-	ret = apply_gpio_action(dev, action->gpio_num, unit);
-	if (ret < 0)
-		return ret;
 
 	for (i = 0; i < action->count; i++) {
 		unit = &action->units[i];
-		ret = apply_gpio_action(dev, action->gpio_num, unit);
+		ret = apply_gpio_action(&me->pdev->dev, action->gpio_num, unit);
 		if (ret < 0)
 			return ret;
 	}
@@ -666,7 +710,48 @@ static int do_enable_gpio_action(struct nx_clipper *me,
 static int do_enable_pmic_action(struct nx_clipper *me,
 				 struct nx_capture_enable_pmic_action *action)
 {
-	/* TODO */
+	int ret;
+	int i;
+	struct regulator *power;
+
+	for (i = 0; i < me->regulator_nr; i++) {
+		power = devm_regulator_get(&me->pdev->dev,
+					   me->regulator_names[i]);
+		if (IS_ERR(power)) {
+			dev_err(&me->pdev->dev, "failed to get power %s\n",
+				me->regulator_names[i]);
+			return -ENODEV;
+		}
+
+		if (regulator_can_change_voltage(power)) {
+			ret = regulator_set_voltage(power,
+						    me->regulator_voltages[i],
+						    me->regulator_voltages[i]);
+			if (ret) {
+				devm_regulator_put(power);
+				dev_err(&me->pdev->dev,
+					"can't set voltages(index: %d)\n", i);
+				return ret;
+			}
+		}
+
+		ret = 0;
+		if (action->enable && !regulator_is_enabled(power)) {
+			ret = regulator_enable(power);
+		} else if (!action->enable && regulator_is_enabled(power)) {
+			ret = regulator_disable(power);
+		}
+
+		devm_regulator_put(power);
+
+		if (ret) {
+			dev_err(&me->pdev->dev, "failed to power %s %s\n",
+				me->regulator_names[i],
+				action->enable ? "enable" : "disable");
+			return ret;
+		}
+	}
+
 	return 0;
 }
 
@@ -755,8 +840,6 @@ static irqreturn_t nx_clipper_irq_handler(void *data)
 	nx_video_done_buffer(&me->vbuf_obj);
 	if (NX_ATOMIC_READ(&me->state) & STATE_MEM_STOPPING) {
 		nx_vip_stop(me->module, VIP_CLIPPER);
-		unregister_irq_handler(me);
-		nx_video_clear_buffer(&me->vbuf_obj);
 		complete(&me->stop_done);
 	} else {
 		update_buffer(me);
@@ -954,11 +1037,11 @@ static int nx_clipper_s_stream(struct v4l2_subdev *sd, int enable)
 							 2*HZ)) {
 				pr_warn("timeout for waiting clipper stop\n");
 				nx_vip_stop(module, VIP_CLIPPER);
-				unregister_irq_handler(me);
-				nx_video_clear_buffer(&me->vbuf_obj);
-				NX_ATOMIC_CLEAR_MASK(STATE_MEM_STOPPING,
-						     &me->state);
 			}
+
+			NX_ATOMIC_CLEAR_MASK(STATE_MEM_STOPPING, &me->state);
+			unregister_irq_handler(me);
+			nx_video_clear_buffer(&me->vbuf_obj);
 			NX_ATOMIC_CLEAR_MASK(STATE_MEM_RUNNING, &me->state);
 		}
 
@@ -1304,12 +1387,28 @@ static int create_sysfs_for_camera_sensor(struct nx_clipper *me,
 	return 0;
 }
 
+static int init_sensor_media_entity(struct nx_clipper *me,
+				    struct v4l2_subdev *sd)
+{
+	if (!sd->entity.links) {
+		struct media_pad *pad = &me->sensor_pad;
+
+		pad->flags = MEDIA_PAD_FL_SOURCE;
+		sd->entity.type = MEDIA_ENT_T_V4L2_SUBDEV_SENSOR;
+		return media_entity_init(&sd->entity, 1, pad, 0);
+	}
+
+	return 0;
+}
+
 static int register_sensor_subdev(struct nx_clipper *me)
 {
 	int ret;
 	struct i2c_adapter *adapter;
 	struct v4l2_subdev *sensor;
 	struct i2c_client *client;
+	struct media_entity *input;
+	u32 pad;
 	struct nx_v4l2_i2c_board_info *info = &me->sensor_info;
 
 	adapter = i2c_get_adapter(info->i2c_adapter_id);
@@ -1336,12 +1435,49 @@ static int register_sensor_subdev(struct nx_clipper *me)
 	if (ret)
 		goto error;
 
+	ret = init_sensor_media_entity(me, sensor);
+	if (ret) {
+		dev_err(&me->pdev->dev, "failed to init sensor media entity\n");
+		goto error;
+	}
+
 	ret  = nx_v4l2_register_subdev(sensor);
-	if (ret)
+	if (ret) {
 		dev_err(&me->pdev->dev, "failed to register subdev sensor\n");
+		goto error;
+	}
+
+	if (me->interface_type == NX_CAPTURE_INTERFACE_MIPI_CSI) {
+		struct v4l2_subdev *mipi_csi;
+
+		mipi_csi = nx_v4l2_get_subdev("nx-csi");
+		if (!mipi_csi) {
+			dev_err(&me->pdev->dev, "can't get mipi_csi subdev\n");
+			goto error;
+		}
+
+		ret = media_entity_create_link(&mipi_csi->entity, 1,
+					       &me->subdev.entity, 0, 0);
+		if (ret < 0) {
+			dev_err(&me->pdev->dev,
+				"failed to create link from csi to clipper\n");
+			goto error;
+		}
+
+		input = &mipi_csi->entity;
+		pad = 0;
+	} else {
+		input = &me->subdev.entity;
+		pad = NX_CLIPPER_PAD_SINK;
+	}
+
+	ret = media_entity_create_link(&sensor->entity, 0, input, pad, 0);
+	if (ret < 0)
+		dev_err(&me->pdev->dev,
+			"failed to create link from sensor\n");
 
 error:
-	if (client && sensor == NULL)
+	if (client && ret < 0)
 		i2c_unregister_device(client);
 
 	return ret;
@@ -1411,6 +1547,7 @@ static int nx_clipper_probe(struct platform_device *pdev)
 		WARN_ON(1);
 		return -ENOMEM;
 	}
+	me->pdev = pdev;
 
 	ret = nx_clipper_parse_dt(dev, me);
 	if (ret) {
@@ -1438,7 +1575,6 @@ static int nx_clipper_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	me->pdev = pdev;
 	platform_set_drvdata(pdev, me);
 
 	return 0;
