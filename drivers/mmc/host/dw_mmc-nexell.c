@@ -41,7 +41,7 @@ static int dw_mci_nexell_priv_init(struct dw_mci *host)
 	struct dw_mci_nexell_priv_data *priv = host->priv;
 
 	if (!IS_ERR(priv->rst)) {
-		if (!reset_control_status(priv->rst))
+		if (reset_control_status(priv->rst))
 			reset_control_reset(priv->rst);
 	}
 
