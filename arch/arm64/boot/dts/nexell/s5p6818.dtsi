@@ -365,8 +365,8 @@
 			reg = <PHYS_BASE_SDMMC2 0x1000>;
 			resets  = <&nexell_reset RESET_ID_SDMMC2>;
 			reset-names = "dw_mmc-reset";
-			clock-names = "sdhc2";
-			clocks = <&sdhc2>;
+			clock-names = "biu","ciu";
+			clocks = <&sdhc2>, <&sdhc2>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&sdmmc2_cclk &sdmmc2_cmd &sdmmc2_bus4>;
 			fifo-detph = <0x20>;
@@ -381,8 +381,8 @@
 			reg = <PHYS_BASE_SDMMC1 0x1000>;
 			resets  = <&nexell_reset RESET_ID_SDMMC1>;
 			reset-names = "dw_mmc-reset";
-			clock-names = "sdhc1";
-			clocks = <&sdhc1>;
+			clock-names = "biu","ciu";
+			clocks = <&sdhc1>, <&sdhc1>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&sdmmc1_cclk &sdmmc1_cmd &sdmmc1_bus4>;
 			fifo-detph = <0x20>;
@@ -397,8 +397,8 @@
 			reg = <PHYS_BASE_SDMMC0 0x1000>;
 			resets  = <&nexell_reset RESET_ID_SDMMC0>;
 			reset-names = "dw_mmc-reset";
-			clock-names = "sdhc2";
-			clocks = <&sdhc0>;
+			clock-names = "biu", "ciu";
+			clocks = <&sdhc0>, <&sdhc0>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&sdmmc0_cclk &sdmmc0_cmd &sdmmc0_bus4>;
 			fifo-detph = <0x20>;
