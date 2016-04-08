@@ -18,23 +18,22 @@
 #ifndef _NX_DRM_CRTC_H_
 #define _NX_DRM_CRTC_H_
 
-extern int nx_drm_crtc_init(struct drm_device *dev, int nr, int layer);
-extern int nx_drm_crtc_enable_vblank(struct drm_device *dev, int crtc);
-extern void nx_drm_crtc_disable_vblank(struct drm_device *dev, int crtc);
-
-struct nx_drm_crtc_pos {
-	unsigned int fb_x;
-	unsigned int fb_y;
-	unsigned int crtc_x;
-	unsigned int crtc_y;
-	unsigned int crtc_w;
-	unsigned int crtc_h;
-};
+#include "soc/s5pxx18_drm_dp.h"
 
 struct nx_drm_crtc {
-	struct drm_crtc drm_crtc;
-	int nr;
+	struct drm_crtc crtc;
+	int pipe;		/* hw crtc index */
+	int pipe_irq;
+	struct dp_plane_top top;
+	struct drm_pending_vblank_event *event;
 	unsigned int dpms_mode;
 };
+
+#define to_nx_crtc(x)	\
+		container_of(x, struct nx_drm_crtc, crtc)
+
+int nx_drm_crtc_init(struct drm_device *dev);
+int nx_drm_crtc_enable_vblank(struct drm_device *dev, unsigned int pipe);
+void nx_drm_crtc_disable_vblank(struct drm_device *dev, unsigned int pipe);
 
 #endif

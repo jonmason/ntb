@@ -18,35 +18,14 @@
 #ifndef _NX_DRM_FB_H_
 #define _NX_DRM_FB_H_
 
-#include <drm/drm_gem.h>
+#include <drm/drm_fb_helper.h>
+#include <drm/drm_fb_cma_helper.h>
 
-struct nx_drm_fb {
-	struct drm_framebuffer fb;
-	struct drm_gem_cma_object *obj[MAX_FB_PLANE];
-	bool is_fbdev_fb;
+struct nx_framebuffer_dev {
+	struct drm_fbdev_cma *fbdev;
 };
 
-#define to_nx_drm_fb(x)	\
-			container_of(x, struct nx_drm_fb, fb)
-
-static inline int nx_drm_format_num_buffers(uint32_t format)
-{
-	DRM_DEBUG_KMS("format:0x%x\n", format);
-	return 1;
-}
-
-extern void nx_drm_mode_config_init(struct drm_device *dev);
-extern struct drm_framebuffer *nx_drm_fb_allocate(struct drm_device *dev,
-						  struct drm_mode_fb_cmd2
-						  *mode_cmd,
-						  struct drm_gem_cma_object
-						  **obj, int num_planes);
-extern void nx_drm_fb_destroy(struct drm_framebuffer *fb);
-
-extern struct nx_gem_buffer *nx_drm_fb_buffer(struct drm_framebuffer *fb,
-					      int index);
-extern struct drm_gem_cma_object *nx_drm_fb_get_gem_obj(struct drm_framebuffer
-							*fb,
-							unsigned int plane);
+int nx_drm_framebuffer_dev_init(struct drm_device *dev);
+void nx_drm_framebuffer_dev_fini(struct drm_device *dev);
 
 #endif

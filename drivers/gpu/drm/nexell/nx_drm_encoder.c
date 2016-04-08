@@ -17,129 +17,110 @@
  */
 #include <drm/drmP.h>
 #include <drm/drm_crtc_helper.h>
+#include <linux/of_address.h>
 
 #include "nx_drm_drv.h"
 #include "nx_drm_crtc.h"
 #include "nx_drm_encoder.h"
-
-static void nx_drm_display_power(struct drm_encoder *encoder, int mode)
-{
-	struct drm_device *drm = encoder->dev;
-	struct drm_connector *connector;
-	struct nx_drm_display *display = nx_drm_get_display(encoder);
-
-	list_for_each_entry(connector, &drm->mode_config.connector_list, head) {
-		if (connector->encoder == encoder) {
-			struct nx_drm_operation *ops = display->ops;
-
-			DRM_DEBUG_KMS("connector[%d] dpms[%d]\n",
-				      connector->base.id, mode);
-			if (ops && ops->power_on)
-				ops->power_on(display->dev, mode);
-		}
-	}
-}
+#include "nx_drm_connector.h"
+#include "soc/s5pxx18_drm_dp.h"
 
 static void nx_drm_encoder_dpms(struct drm_encoder *encoder, int mode)
 {
-	struct drm_device *drm = encoder->dev;
-	struct nx_drm_display *display = nx_drm_get_display(encoder);
-	struct nx_drm_operation *ops = display->ops;
-	struct nx_drm_encoder *nx_encoder = to_nx_encoder(encoder);
+	struct nx_drm_dp_dev *dp_dev = to_nx_encoder(encoder)->dp_dev;
+	struct nx_drm_dev_ops *ops = dp_dev->ops;
 
 	DRM_DEBUG_KMS("enter, encoder dpms: %d\n", mode);
 
-	if (nx_encoder->dpms == mode) {
+	if (to_nx_encoder(encoder)->dpms == mode) {
 		DRM_DEBUG_KMS("desired dpms mode is same as previous one.\n");
 		return;
 	}
 
-	mutex_lock(&drm->struct_mutex);
-
 	switch (mode) {
-	case DRM_MODE_DPMS_ON:
-		if (ops && ops->apply)
-			ops->apply(display->dev);
-		nx_drm_display_power(encoder, mode);
-		nx_encoder->dpms = mode;
-		break;
 	case DRM_MODE_DPMS_STANDBY:
 	case DRM_MODE_DPMS_SUSPEND:
-	case DRM_MODE_DPMS_OFF:
-		nx_drm_display_power(encoder, mode);
-		nx_encoder->dpms = mode;
+		if (ops && ops->dmps)
+			ops->dmps(dp_dev->dev, mode);
 		break;
+	case DRM_MODE_DPMS_ON:
+		nx_drm_dp_encoder_dpms(encoder, true);
+		if (ops && ops->dmps)
+			ops->dmps(dp_dev->dev, mode);
+		break;
+	case DRM_MODE_DPMS_OFF:
+		if (ops && ops->dmps)
+				ops->dmps(dp_dev->dev, mode);
+		nx_drm_dp_encoder_dpms(encoder, false);
+		break;
+
 	default:
-		DRM_ERROR("unspecified mode %d\n", mode);
+		DRM_ERROR("fail : unspecified mode %d\n", mode);
 		break;
 	}
-
-	mutex_unlock(&drm->struct_mutex);
+	to_nx_encoder(encoder)->dpms = mode;
 }
 
 static bool nx_drm_encoder_mode_fixup(struct drm_encoder *encoder,
-				const struct drm_display_mode *mode,
-				struct drm_display_mode *adjusted_mode)
+			const struct drm_display_mode *mode,
+			struct drm_display_mode *adjusted_mode)
 {
 	struct drm_device *drm = encoder->dev;
 	struct drm_connector *connector;
-	struct nx_drm_display *display = nx_drm_get_display(encoder);
-	struct nx_drm_operation *ops = display->ops;
+	struct nx_drm_dp_dev *dp_dev = to_nx_encoder(encoder)->dp_dev;
+	struct nx_drm_dev_ops *ops = dp_dev->ops;
 
-	DRM_DEBUG_KMS("enter\n");
+	DRM_DEBUG_KMS("enter, encoder id:%d\n", encoder->base.id);
 
 	list_for_each_entry(connector, &drm->mode_config.connector_list, head) {
-		if (connector->encoder == encoder)
+		if (connector->encoder == encoder) {
 			if (ops && ops->mode_fixup)
-				ops->mode_fixup(display->dev, connector, mode,
-						adjusted_mode);
+				return ops->mode_fixup(drm->dev,
+						connector, mode, adjusted_mode);
+		}
 	}
 
 	return true;
 }
 
 static void nx_drm_encoder_mode_set(struct drm_encoder *encoder,
-				struct drm_display_mode *mode,
-				struct drm_display_mode *adjusted_mode)
+			struct drm_display_mode *mode,
+			struct drm_display_mode *adjusted_mode)
 {
 	struct drm_device *drm = encoder->dev;
 	struct drm_connector *connector;
-	struct nx_drm_display *display = nx_drm_get_display(encoder);
-	struct nx_drm_operation *ops = display->ops;
+	struct nx_drm_dp_dev *dp_dev = to_nx_encoder(encoder)->dp_dev;
+	struct nx_drm_dev_ops *ops = dp_dev->ops;
 
 	DRM_DEBUG_KMS("enter\n");
 
 	list_for_each_entry(connector, &drm->mode_config.connector_list, head) {
 		if (connector->encoder == encoder) {
 			if (ops && ops->mode_set)
-				ops->mode_set(display->dev, adjusted_mode);
+				ops->mode_set(drm->dev, adjusted_mode);
 		}
 	}
+
+	nx_drm_dp_display_mode_to_sync(adjusted_mode, &dp_dev->ddi.sync);
 }
 
 static void nx_drm_encoder_prepare(struct drm_encoder *encoder)
 {
 	DRM_DEBUG_KMS("enter\n");
-
 	/* drm framework doesn't check NULL. */
 }
 
 static void nx_drm_encoder_commit(struct drm_encoder *encoder)
 {
-	struct drm_device *drm = encoder->dev;
-	struct nx_drm_display *display = nx_drm_get_display(encoder);
-	struct nx_drm_operation *ops = display->ops;
+	struct nx_drm_dp_dev *dp_dev = to_nx_encoder(encoder)->dp_dev;
+	struct nx_drm_dev_ops *ops = dp_dev->ops;
 
 	DRM_DEBUG_KMS("enter\n");
 
 	if (ops && ops->commit)
-		ops->commit(drm, display->dev);
-}
+		ops->commit(dp_dev->dev);
 
-static struct drm_crtc *nx_drm_encoder_get_crtc(struct drm_encoder *encoder)
-{
-	DRM_DEBUG_KMS("enter\n");
-	return encoder->crtc;
+	nx_drm_dp_encoder_commit(encoder);
 }
 
 static struct drm_encoder_helper_funcs nx_encoder_helper_funcs = {
@@ -148,302 +129,123 @@ static struct drm_encoder_helper_funcs nx_encoder_helper_funcs = {
 	.mode_set = nx_drm_encoder_mode_set,
 	.prepare = nx_drm_encoder_prepare,
 	.commit = nx_drm_encoder_commit,
-	.get_crtc = nx_drm_encoder_get_crtc,
 };
 
 static void nx_drm_encoder_destroy(struct drm_encoder *encoder)
 {
+	struct drm_device *drm = encoder->dev;
 	struct nx_drm_encoder *nx_encoder = to_nx_encoder(encoder);
+	struct nx_drm_dp_dev *dp_dev = to_nx_encoder(encoder)->dp_dev;
 
-	DRM_DEBUG_KMS("enter\n");
+	if (nx_encoder->irq_install) {
+		struct dp_device_info *ddi = &dp_dev->ddi;
 
-	nx_encoder->display->pipe = -1;
+		drm_irq_uninstall(drm);
+		nx_soc_dp_device_irq_on(ddi, false);
+	}
 
 	drm_encoder_cleanup(encoder);
-	kfree(nx_encoder);
+	devm_kfree(drm->dev, nx_encoder);
 }
 
 static struct drm_encoder_funcs nx_encoder_funcs = {
 	.destroy = nx_drm_encoder_destroy,
 };
 
-/* DRM encoder slave functions */
-#ifdef	DRM_ENCODER_SLAVE_SUPPORT
-static void nx_encoder_set_config(struct drm_encoder *encoder, void *params)
+static irqreturn_t nx_drm_irq(int irq, void *arg)
 {
-	DRM_DEBUG_KMS("enter\n");
-}
+	struct drm_device *drm = arg;
+	struct nx_drm_priv *priv;
+	int pipe;
 
-static void nx_encoder_dpms(struct drm_encoder *encoder, int mode)
-{
-	DRM_DEBUG_KMS("enter\n");
-}
+	priv = drm->dev_private;
 
-static void nx_encoder_save(struct drm_encoder *encoder)
-{
-	DRM_DEBUG_KMS("enter\n");
-}
+	for (pipe = 0; pipe < priv->num_crtcs; pipe++) {
+		struct drm_crtc *crtc = priv->crtcs[pipe];
 
-static void nx_encoder_restore(struct drm_encoder *encoder)
-{
-	DRM_DEBUG_KMS("enter\n");
-}
+		if (crtc) {
+			if (irq == to_nx_crtc(crtc)->pipe_irq) {
+				struct dp_device_info ddi = { .module = pipe };
 
-static bool nx_encoder_mode_fixup(struct drm_encoder *encoder,
-				const struct drm_display_mode *mode,
-				struct drm_display_mode *adjusted_mode)
-{
-	DRM_DEBUG_KMS("enter\n");
-	return true;
-}
+				drm_handle_vblank(drm, pipe);
 
-static int nx_encoder_mode_valid(struct drm_encoder *encoder,
-				struct drm_display_mode *mode)
-{
-	DRM_DEBUG_KMS("enter\n");
-	return MODE_OK;
-}
-
-static void nx_encoder_mode_set(struct drm_encoder *encoder,
-				struct drm_display_mode *mode,
-				struct drm_display_mode *adjusted_mode)
-{
-	DRM_DEBUG_KMS("enter\n");
-	nx_encoder_dpms(encoder, DRM_MODE_DPMS_ON);
-}
-
-static enum drm_connector_status nx_encoder_detect(struct drm_encoder *encoder,
-				struct drm_connector *connector)
-{
-	DRM_DEBUG_KMS("enter\n");
-	return connector_status_connected;
-}
-
-static int nx_encoder_get_modes(struct drm_encoder *encoder,
-				struct drm_connector *connector)
-{
-	DRM_DEBUG_KMS("enter\n");
-	return 0;
-}
-
-static int nx_encoder_create_resources(struct drm_encoder *encoder,
-				struct drm_connector *connector)
-{
-	DRM_DEBUG_KMS("enter\n");
-	return 0;
-}
-
-static int nx_encoder_set_property(struct drm_encoder *encoder,
-					struct drm_connector *connector,
-					struct drm_property *property,
-					uint64_t val)
-{
-	DRM_DEBUG_KMS("enter\n");
-	return 0;
-}
-
-static void nx_encoder_destroy(struct drm_encoder *encoder)
-{
-	DRM_DEBUG_KMS("enter\n");
-}
-
-static struct drm_encoder_slave_funcs nx_encoder_slave_funcs = {
-	.set_config = nx_encoder_set_config,
-	.destroy = nx_encoder_destroy,
-	.dpms = nx_encoder_dpms,
-	.save = nx_encoder_save,
-	.restore = nx_encoder_restore,
-	.mode_fixup = nx_encoder_mode_fixup,
-	.mode_valid = nx_encoder_mode_valid,
-	.mode_set = nx_encoder_mode_set,
-	.detect = nx_encoder_detect,
-	.get_modes = nx_encoder_get_modes,
-	.create_resources = nx_encoder_create_resources,
-	.set_property = nx_encoder_set_property,
-};
-#endif
-
-static unsigned int nx_drm_encoder_clones(struct drm_encoder *encoder)
-{
-	struct drm_encoder *clone;
-	struct drm_device *drm = encoder->dev;
-	struct nx_drm_encoder *nx_encoder = to_nx_encoder(encoder);
-	struct nx_drm_operation *ops = nx_encoder->display->ops;
-	unsigned int clone_mask = 0;
-	int cnt = 0;
-
-	list_for_each_entry(clone, &drm->mode_config.encoder_list, head) {
-		switch (ops->type) {
-		case NX_DISPLAY_TYPE_LCD:
-		case NX_DISPLAY_TYPE_HDMI:
-		case NX_DISPLAY_TYPE_VIDI:
-			clone_mask |= (1 << (cnt++));
-			break;
-		default:
-			continue;
+				/* clear hw pend */
+				nx_soc_dp_device_irq_clear(&ddi);
+				break;
+			}
 		}
 	}
-	return clone_mask;
+
+	return IRQ_HANDLED;
 }
 
-void nx_drm_encoder_setup(struct drm_device *drm)
+static int nx_drm_encoder_irq_install(struct drm_device *drm,
+			struct drm_encoder *encoder)
 {
-	struct drm_encoder *encoder;
+	struct drm_driver *drv;
+	struct nx_drm_priv *priv;
+	struct nx_drm_dp_dev *dp_dev;
+	int ret = 0;
 
-	DRM_DEBUG_KMS("enter\n");
+	drv = drm->driver;
+	priv = drm->dev_private;
+	dp_dev = to_nx_encoder(encoder)->dp_dev;
 
-	list_for_each_entry(encoder, &drm->mode_config.encoder_list, head)
-		encoder->possible_clones = nx_drm_encoder_clones(encoder);
-}
+	if (priv->num_irqs) {
+		struct nx_drm_encoder *nx_encoder = to_nx_encoder(encoder);
+		struct dp_device_info *ddi = &dp_dev->ddi;
+		int pipe = ddi->module;
+		int irq = priv->hw_irq_no[pipe];
 
-struct nx_drm_display *nx_drm_get_display(struct drm_encoder *encoder)
-{
-	return to_nx_encoder(encoder)->display;
-}
+		if (NULL == drv->irq_handler)
+			drv->irq_handler = nx_drm_irq;
 
-void nx_drm_enable_vblank(struct drm_encoder *encoder, void *data)
-{
-	struct nx_drm_display *display = to_nx_encoder(encoder)->display;
-	struct nx_drm_operation *ops = display->ops;
-	int crtc = *(int *)data;
+		ret = drm_irq_install(drm, irq);
+		if (0 > ret)
+			DRM_ERROR("fail : %d interruput %d !!!\n", pipe, irq);
 
-	if (display->pipe == -1)
-		display->pipe = crtc;
-
-	if (ops->enable_vblank)
-		ops->enable_vblank(display->dev);
-}
-
-void nx_drm_disable_vblank(struct drm_encoder *encoder, void *data)
-{
-	struct nx_drm_display *display = to_nx_encoder(encoder)->display;
-	struct nx_drm_operation *ops = display->ops;
-	int crtc = *(int *)data;
-
-	if (display->pipe == -1)
-		display->pipe = crtc;
-
-	if (ops->disable_vblank)
-		ops->disable_vblank(display->dev);
-}
-
-void nx_drm_encoder_crtc_plane_commit(struct drm_encoder *encoder, void *data)
-{
-	DRM_DEBUG_KMS("enter\n");
-}
-
-void nx_drm_encoder_crtc_commit(struct drm_encoder *encoder, void *data)
-{
-	struct nx_drm_display *display = to_nx_encoder(encoder)->display;
-	int crtc = *(int *)data;
-	int zpos = DEFAULT_ZPOS;
-
-	DRM_DEBUG_KMS("enter\n");
-
-	/*
-	 * when crtc is detached from encoder, this pipe is used
-	 * to select display operation
-	 */
-	display->pipe = crtc;
-
-	nx_drm_encoder_crtc_plane_commit(encoder, &zpos);
-}
-
-void nx_drm_encoder_dpms_from_crtc(struct drm_encoder *encoder, void *data)
-{
-	struct nx_drm_encoder *nx_encoder = to_nx_encoder(encoder);
-	int mode = *(int *)data;
-
-	DRM_DEBUG_KMS("enter\n");
-
-	nx_drm_encoder_dpms(encoder, mode);
-
-	nx_encoder->dpms = mode;
-}
-
-void nx_drm_encoder_crtc_dpms(struct drm_encoder *encoder, void *data)
-{
-	struct drm_device *drm = encoder->dev;
-	struct nx_drm_encoder *nx_encoder = to_nx_encoder(encoder);
-	struct nx_drm_display *display = nx_encoder->display;
-	struct nx_drm_operation *ops = display->ops;
-	struct drm_connector *connector;
-	int mode = *(int *)data;
-
-	DRM_DEBUG_KMS("enter\n");
-
-	if (ops && ops->dpms)
-		ops->dpms(display->dev, mode);
-
-	/*
-	 * set current dpms mode to the connector connected to
-	 * current encoder. connector->dpms would be checked
-	 * at drm_helper_connector_dpms()
-	 */
-	list_for_each_entry(connector, &drm->mode_config.connector_list, head)
-		if (connector->encoder == encoder)
-			connector->dpms = mode;
-
-	/*
-	 * if this condition is ok then it means that the crtc is already
-	 * detached from encoder and last function for detaching is properly
-	 * done, so clear pipe from display to prevent repeated call.
-	 */
-	if (mode > DRM_MODE_DPMS_ON) {
-		if (!encoder->crtc)
-			display->pipe = -1;
+		nx_encoder->irq_install = true;
+		nx_soc_dp_device_irq_on(ddi, true);
+		DRM_INFO("irq %d install for crtc.%d\n", irq, pipe);
 	}
-}
 
-void nx_drm_encoder_crtc_mode_set(struct drm_encoder *encoder, void *data)
-{
-	DRM_DEBUG_KMS("enter\n");
-}
-
-void nx_drm_encoder_crtc_disable(struct drm_encoder *encoder, void *data)
-{
-	DRM_DEBUG_KMS("enter\n");
+	return ret;
 }
 
 struct drm_encoder *nx_drm_encoder_create(struct drm_device *drm,
-					  struct nx_drm_display *display,
-					  int possible_crtcs, void *context)
+			struct nx_drm_dp_dev *dp_dev, int type,
+			int pipe, int possible_crtcs, void *context)
 {
 	struct nx_drm_encoder *nx_encoder;
 	struct drm_encoder *encoder;
 
-	DRM_DEBUG_KMS("enter, possible CRTCs:%d\n", possible_crtcs);
+	DRM_DEBUG_KMS("enter, encoder.%d, possible crtcs:%d\n",
+		pipe, possible_crtcs);
 
-	if (!display || !possible_crtcs)
-		return NULL;
+	BUG_ON(!dp_dev || 0 == possible_crtcs);
 
-	nx_encoder = kzalloc(sizeof(*nx_encoder), GFP_KERNEL);
-	if (!nx_encoder) {
-		DRM_ERROR("failed to allocate encoder\n");
-		return NULL;
-	}
+	nx_encoder =
+		devm_kzalloc(drm->dev, sizeof(*nx_encoder), GFP_KERNEL);
+	if (!nx_encoder)
+		return ERR_PTR(-ENOMEM);
 
 	nx_encoder->dpms = DRM_MODE_DPMS_OFF;
-	nx_encoder->display = display;
+	nx_encoder->pipe = pipe;
+	nx_encoder->dp_dev = dp_dev;
 	nx_encoder->context = context;
 
-#ifdef	DRM_ENCODER_SLAVE_SUPPORT
-	nx_encoder->drm_encoder.slave_funcs = &nx_encoder_slave_funcs;
-	encoder = &nx_encoder->drm_encoder.base;
-#else
-	encoder = &nx_encoder->drm_encoder;
-#endif
+	encoder = &nx_encoder->encoder;
 	encoder->possible_crtcs = possible_crtcs;
 
-	drm_encoder_init(drm, encoder, &nx_encoder_funcs,
-			 DRM_MODE_ENCODER_TMDS);
+	nx_drm_dp_encoder_init(encoder, pipe, true);
+	nx_drm_encoder_irq_install(drm, encoder);
 
+	drm_encoder_init(drm, encoder, &nx_encoder_funcs, type);
 	drm_encoder_helper_add(encoder, &nx_encoder_helper_funcs);
 
-	DRM_DEBUG_KMS("exit, encoder ID:%d\n", encoder->base.id);
+	DRM_DEBUG_KMS("exit, encoder id:%d\n", encoder->base.id);
 
 	return encoder;
 }
 EXPORT_SYMBOL(nx_drm_encoder_create);
-
 

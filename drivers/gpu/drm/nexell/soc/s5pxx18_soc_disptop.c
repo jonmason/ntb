@@ -18,7 +18,7 @@
 #include <linux/types.h>
 #include <linux/io.h>
 
-#include "nx_soc_disptop.h"
+#include "s5pxx18_soc_disptop.h"
 
 static struct {
 	struct nx_disp_top_register_set *pregister;
@@ -29,12 +29,12 @@ int nx_disp_top_initialize(void)
 	static int binit;
 	u32 i;
 
-	if (false == binit) {
+	if (0 == binit) {
 		for (i = 0; i < NUMBER_OF_DISPTOP_MODULE; i++)
 			__g_module_variables.pregister = NULL;
-		binit = true;
+		binit = 1;
 	}
-	return true;
+	return 1;
 }
 
 u32 nx_disp_top_get_number_of_module(void)
@@ -146,8 +146,8 @@ void nx_disp_top_hdmi_set_hactive_end(u32 sel)
 }
 
 void nx_disp_top_set_hdmifield(u32 enable, u32 init_val, u32 vsynctoggle,
-				 u32 hsynctoggle, u32 vsyncclr, u32 hsyncclr,
-				 u32 field_use, u32 muxsel)
+			u32 hsynctoggle, u32 vsyncclr, u32 hsyncclr,
+			u32 field_use, u32 muxsel)
 {
 	register struct nx_disp_top_register_set *pregister;
 	u32 regvalue;

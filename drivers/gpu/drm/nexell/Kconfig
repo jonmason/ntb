@@ -1,10 +1,8 @@
 config DRM_NX
 	tristate "DRM Support for NEXELL Display Controller"
 	depends on DRM && ARCH_S5P6818
-	select FB_CFB_FILLRECT
-	select FB_CFB_COPYAREA
-	select FB_CFB_IMAGEBLIT
-	select VT_HW_CONSOLE_BINDING if FRAMEBUFFER_CONSOLE
+	select DRM_KMS_HELPER
+	select DRM_KMS_CMA_HELPER
 	help
 	  Choose this option if you have a Nexell soc chipset.
 	  This driver provides kernel mode setting and buffer
@@ -14,8 +12,6 @@ config DRM_NX
 config DRM_NX_FBDEV
 	bool "Enable legacy fbdev support"
 	depends on DRM_NX
-	select DRM_KMS_HELPER
-	select DRM_KMS_CMA_HELPER
 	select DRM_KMS_FB_HELPER
 	select FB_CFB_FILLRECT
 	select FB_CFB_COPYAREA
@@ -26,4 +22,13 @@ config DRM_NX_FBDEV
 	  support, Note that this support also provide the linux console
 	  support.
 
-source "drivers/gpu/drm/nexell/soc/Kconfig"
+config DRM_NX_LCD
+	bool "LCD support"
+	depends on DRM_NX
+	select DRM_PANEL
+	select VIDEOMODE_HELPERS
+	help
+	 This selects support for LCD (RGB/LVDS) display out.
+	 If you want to enable LCD (RGB/LVDS) display,
+	 you should selet this option.
+

@@ -18,23 +18,23 @@
 #include <linux/types.h>
 #include <linux/io.h>
 
-#include "nx_soc_mlc.h"
+#include "s5pxx18_soc_mlc.h"
 
 static struct {
 	struct nx_mlc_register_set *pregister;
-} __g_module_variables[NUMBER_OF_MLC_MODULE] = { {NULL,},};
+} __g_module_variables[NUMBER_OF_MLC_MODULE] = { { NULL, },};
 
 int nx_mlc_initialize(void)
 {
 	static int binit;
 	u32 i;
 
-	if (false == binit) {
+	if (0 == binit) {
 		for (i = 0; i < NUMBER_OF_MLC_MODULE; i++)
 			__g_module_variables[i].pregister = NULL;
-		binit = true;
+		binit = 1;
 	}
-	return true;
+	return 1;
 }
 
 u32 nx_mlc_get_physical_address(u32 module_index)
@@ -156,8 +156,8 @@ int nx_mlc_get_top_power_mode(u32 module_index)
 	const u32 pixelbuffer_pwd_pos = 11;
 	const u32 pixelbuffer_pwd_mask = 1ul << pixelbuffer_pwd_pos;
 
-	return (int)((__g_module_variables[module_index].
-		      pregister->mlccontrolt & pixelbuffer_pwd_mask) >>
+	return (int)((__g_module_variables[module_index].pregister->
+		      mlccontrolt & pixelbuffer_pwd_mask) >>
 		     pixelbuffer_pwd_pos);
 }
 
@@ -183,8 +183,8 @@ int nx_mlc_get_top_sleep_mode(u32 module_index)
 	const u32 pixelbuffer_sld_pos = 11;
 	const u32 pixelbuffer_sld_mask = 1ul << pixelbuffer_sld_pos;
 
-	return (int)(((__g_module_variables[module_index].
-		       pregister->mlccontrolt & pixelbuffer_sld_mask) >>
+	return (int)(((__g_module_variables[module_index].pregister->
+		       mlccontrolt & pixelbuffer_sld_mask) >>
 		      pixelbuffer_sld_pos) ^ 0x01);
 }
 
@@ -233,8 +233,8 @@ int nx_mlc_get_mlc_enable(u32 module_index)
 	const u32 mlcenb_pos = 1;
 	const u32 mlcenb_mask = 1ul << mlcenb_pos;
 
-	return (int)((__g_module_variables[module_index].
-		      pregister->mlccontrolt & mlcenb_mask) >> mlcenb_pos);
+	return (int)((__g_module_variables[module_index].pregister->
+		      mlccontrolt & mlcenb_mask) >> mlcenb_pos);
 }
 
 void nx_mlc_set_field_enable(u32 module_index, int benb)
@@ -350,7 +350,7 @@ int nx_mlc_get_dirty_flag(u32 module_index, u32 layer)
 			      .pregister->mlcvideolayer.mlccontrol &
 			      dirtyflg_mask) >> dirtyflg_pos);
 	}
-	return false;
+	return 0;
 }
 
 void nx_mlc_set_layer_enable(u32 module_index, u32 layer, int benb)
@@ -392,7 +392,7 @@ int nx_mlc_get_layer_enable(u32 module_index, u32 layer)
 			      .pregister->mlcvideolayer.mlccontrol &
 			      layerenb_mask) >> layerenb_pos);
 	}
-	return false;
+	return 0;
 }
 
 void nx_mlc_set_lock_size(u32 module_index, u32 layer, u32 locksize)
@@ -665,7 +665,6 @@ void nx_mlc_set_position(u32 module_index, u32 layer, int32_t sx, int32_t sy,
 
 	pregister = __g_module_variables[module_index].pregister;
 	if (0 == layer || 1 == layer) {
-
 		writel((((u32) sx & 0xffful) << 16) | ((u32) ex & 0xffful),
 		       &pregister->mlcrgblayer[layer].mlcleftright);
 
@@ -678,7 +677,6 @@ void nx_mlc_set_position(u32 module_index, u32 layer, int32_t sx, int32_t sy,
 		writel((((u32) sy & 0xffful) << 16) | ((u32) ey & 0xffful),
 		       &pregister->mlcrgblayer2.mlctopbottom);
 	} else if (3 == layer) {
-
 		writel((((u32) sx & 0xffful) << 16) | ((u32) ex & 0xffful),
 		       &pregister->mlcvideolayer.mlcleftright);
 
@@ -707,8 +705,8 @@ int nx_mlc_get_dither_enable_when_using_gamma(u32 module_index)
 	const u32 ditherenb_bitpos = 0;
 	const u32 ditherenb_mask = 1 << ditherenb_bitpos;
 
-	return (int)(__g_module_variables[module_index].
-		     pregister->mlcgammacont & ditherenb_mask);
+	return (int)(__g_module_variables[module_index].pregister->
+		     mlcgammacont & ditherenb_mask);
 }
 
 void nx_mlc_set_gamma_priority(u32 module_index, int bvideolayer)
@@ -731,9 +729,8 @@ int nx_mlc_get_gamma_priority(u32 module_index)
 	const u32 alphaselect_bitpos = 5;
 	const u32 alphaselect_mask = 1 << alphaselect_bitpos;
 
-	return (int)((__g_module_variables[module_index].
-		      pregister->mlcgammacont & alphaselect_mask) >>
-		     alphaselect_bitpos);
+	return (int)((__g_module_variables[module_index].pregister->
+		      mlcgammacont & alphaselect_mask) >> alphaselect_bitpos);
 }
 
 void nx_mlc_set_rgblayer_invalid_position(u32 module_index, u32 layer,
@@ -746,7 +743,6 @@ void nx_mlc_set_rgblayer_invalid_position(u32 module_index, u32 layer,
 	pregister = __g_module_variables[module_index].pregister;
 	if (0 == layer || 1 == layer) {
 		if (0 == region) {
-
 			writel(((benb << invalidenb_pos) |
 				((sx & 0x7ff) << 16) | (ex & 0x7ff)),
 			       &pregister->mlcrgblayer[layer]
@@ -756,7 +752,6 @@ void nx_mlc_set_rgblayer_invalid_position(u32 module_index, u32 layer,
 			       &pregister->mlcrgblayer[layer]
 			       .mlcinvalidtopbottom0);
 		} else {
-
 			writel(((benb << invalidenb_pos) |
 				((sx & 0x7ff) << 16) | (ex & 0x7ff)),
 			       &pregister->mlcrgblayer[layer]
@@ -776,7 +771,6 @@ void nx_mlc_set_rgblayer_stride(u32 module_index, u32 layer, int32_t hstride,
 
 	pregister = __g_module_variables[module_index].pregister;
 	if (0 == layer || 1 == layer) {
-
 		writel(hstride, &pregister->mlcrgblayer[layer].mlchstride);
 		writel(vstride, &pregister->mlcrgblayer[layer].mlcvstride);
 	} else if (2 == layer) {
@@ -834,13 +828,13 @@ void nx_mlc_get_rgblayer_gama_table_power_mode(u32 module_index, int *pbred,
 	pregister = __g_module_variables[module_index].pregister;
 	read_value = pregister->mlcgammacont;
 	if (NULL != pbred)
-		*pbred = (read_value & rgammatable_pwd_mask) ? true : false;
+		*pbred = (read_value & rgammatable_pwd_mask) ? 1 : 0;
 
 	if (NULL != pbgreen)
-		*pbgreen = (read_value & ggammatable_pwd_mask) ? true : false;
+		*pbgreen = (read_value & ggammatable_pwd_mask) ? 1 : 0;
 
 	if (NULL != pbblue)
-		*pbblue = (read_value & bgammatable_pwd_mask) ? true : false;
+		*pbblue = (read_value & bgammatable_pwd_mask) ? 1 : 0;
 }
 
 void nx_mlc_set_rgblayer_gama_table_sleep_mode(u32 module_index, int bred,
@@ -891,13 +885,13 @@ void nx_mlc_get_rgblayer_gama_table_sleep_mode(u32 module_index, int *pbred,
 	read_value = pregister->mlcgammacont;
 
 	if (NULL != pbred)
-		*pbred = (read_value & rgammatable_sld_mask) ? false : true;
+		*pbred = (read_value & rgammatable_sld_mask) ? 0 : 1;
 
 	if (NULL != pbgreen)
-		*pbgreen = (read_value & ggammatable_sld_mask) ? false : true;
+		*pbgreen = (read_value & ggammatable_sld_mask) ? 0 : 1;
 
 	if (NULL != pbblue)
-		*pbblue = (read_value & bgammatable_sld_mask) ? false : true;
+		*pbblue = (read_value & bgammatable_sld_mask) ? 0 : 1;
 }
 
 void nx_mlc_set_rgblayer_rgamma_table(u32 module_index, u32 dwaddress,
@@ -953,9 +947,8 @@ int nx_mlc_get_rgblayer_gamma_enable(u32 module_index)
 	const u32 rgbgammaemb_bitpos = 1;
 	const u32 rgbgammaemb_mask = 1 << rgbgammaemb_bitpos;
 
-	return (int)((__g_module_variables[module_index].
-		      pregister->mlcgammacont & rgbgammaemb_mask) >>
-		     rgbgammaemb_bitpos);
+	return (int)((__g_module_variables[module_index].pregister->
+		      mlcgammacont & rgbgammaemb_mask) >> rgbgammaemb_bitpos);
 }
 
 void nx_mlc_set_video_layer_stride(u32 module_index, int32_t lu_stride,
@@ -1118,16 +1111,11 @@ void nx_mlc_set_video_layer_chroma_enhance(u32 module_index, u32 quadrant,
 	temp = (((u32) cr_b & 0xfful) << 24) | (((u32) cr_a & 0xfful) << 16) |
 	    (((u32) cb_b & 0xfful) << 8) | (((u32) cb_a & 0xfful) << 0);
 	if (0 < quadrant) {
-
 		writel(temp, &pregister->mlcvideolayer.mlcchenh[quadrant - 1]);
 	} else {
-
 		writel(temp, &pregister->mlcvideolayer.mlcchenh[0]);
-
 		writel(temp, &pregister->mlcvideolayer.mlcchenh[1]);
-
 		writel(temp, &pregister->mlcvideolayer.mlcchenh[2]);
-
 		writel(temp, &pregister->mlcvideolayer.mlcchenh[3]);
 	}
 }
@@ -1185,9 +1173,9 @@ int nx_mlc_get_video_layer_line_buffer_sleep_mode(u32 module_index)
 
 	pregister = __g_module_variables[module_index].pregister;
 	if (linebuff_slmd_mask & pregister->mlcvideolayer.mlccontrol)
-		return false;
+		return 0;
 	else
-		return true;
+		return 1;
 }
 
 void nx_mlc_set_video_layer_gama_table_power_mode(u32 module_index, int by,
@@ -1228,13 +1216,13 @@ void nx_mlc_get_video_layer_gama_table_power_mode(u32 module_index, int *pby,
 	pregister = __g_module_variables[module_index].pregister;
 	read_value = pregister->mlcgammacont;
 	if (NULL != pby)
-		*pby = (read_value & ygammatable_pwd_mask) ? true : false;
+		*pby = (read_value & ygammatable_pwd_mask) ? 1 : 0;
 
 	if (NULL != pbu)
-		*pbu = (read_value & ugammatable_pwd_mask) ? true : false;
+		*pbu = (read_value & ugammatable_pwd_mask) ? 1 : 0;
 
 	if (NULL != pbv)
-		*pbv = (read_value & vgammatable_pwd_mask) ? true : false;
+		*pbv = (read_value & vgammatable_pwd_mask) ? 1 : 0;
 }
 
 void nx_mlc_set_video_layer_gama_table_sleep_mode(u32 module_index, int by,
@@ -1285,13 +1273,13 @@ void nx_mlc_get_video_layer_gama_table_sleep_mode(u32 module_index, int *pby,
 	read_value = pregister->mlcgammacont;
 
 	if (NULL != pby)
-		*pby = (read_value & vgammatable_sld_mask) ? false : true;
+		*pby = (read_value & vgammatable_sld_mask) ? 0 : 1;
 
 	if (NULL != pbu)
-		*pbu = (read_value & ugammatable_sld_mask) ? false : true;
+		*pbu = (read_value & ugammatable_sld_mask) ? 0 : 1;
 
 	if (NULL != pbv)
-		*pbv = (read_value & ygammatable_sld_mask) ? false : true;
+		*pbv = (read_value & ygammatable_sld_mask) ? 0 : 1;
 }
 
 void nx_mlc_set_video_layer_gamma_enable(u32 module_index, int benable)
@@ -1314,9 +1302,8 @@ int nx_mlc_get_video_layer_gamma_enable(u32 module_index)
 	const u32 yuvgammaemb_bitpos = 4;
 	const u32 yuvgammaemb_mask = 1 << yuvgammaemb_bitpos;
 
-	return (int)((__g_module_variables[module_index].
-		      pregister->mlcgammacont & yuvgammaemb_mask) >>
-		     yuvgammaemb_bitpos);
+	return (int)((__g_module_variables[module_index].pregister->
+		      mlcgammacont & yuvgammaemb_mask) >> yuvgammaemb_bitpos);
 }
 
 void nx_mlc_set_gamma_table_poweroff(u32 module_index, int enb)
@@ -1325,7 +1312,7 @@ void nx_mlc_set_gamma_table_poweroff(u32 module_index, int enb)
 	u32 regvalue;
 
 	pregister = __g_module_variables[module_index].pregister;
-	if (enb == true) {
+	if (enb == 1) {
 		regvalue = pregister->mlcgammacont;
 		regvalue = regvalue & 0xf3;
 		writel(regvalue, &pregister->mlcgammacont);
@@ -1358,7 +1345,6 @@ void nx_mlc_set_rgb0layer_control_parameter(u32 module_index, int layer_enable,
 					    enum mlc_rgbfmt rbgformat,
 					    enum locksizesel lock_size_select)
 {
-
 	u32 layer_format;
 	u32 control_enb;
 	u32 alpha_argument;
@@ -1408,7 +1394,6 @@ void nx_mlc_set_rgb1layer_control_parameter(u32 module_index, int layer_enable,
 					    enum mlc_rgbfmt rbgformat,
 					    enum locksizesel lock_size_select)
 {
-
 	u32 layer_format;
 	u32 control_enb;
 	u32 alpha_argument;
@@ -1443,7 +1428,6 @@ void nx_mlc_set_rgb2layer_control_parameter(u32 module_index, int layer_enable,
 					    enum mlc_rgbfmt rbgformat,
 					    enum locksizesel lock_size_select)
 {
-
 	u32 layer_format;
 	u32 control_enb;
 	u32 alpha_argument;
@@ -1701,20 +1685,18 @@ int nx_mlc_is_under_flow(u32 module_index)
 	const u32 underflow_pend_pos = 31;
 	const u32 underflow_pend_mask = 1ul << underflow_pend_pos;
 
-	return (int)((__g_module_variables[module_index].
-		      pregister->mlccontrolt & underflow_pend_mask) >>
-		     underflow_pend_pos);
+	return (int)((__g_module_variables[module_index].pregister->
+		      mlccontrolt & underflow_pend_mask) >> underflow_pend_pos);
 }
 
 void nx_mlc_set_gamma_table(u32 module_index, int enb,
-			    struct nx_mlc_gamma_table_parameter
-			    *p_nx_mlc_gammatable)
+		struct nx_mlc_gamma_table_parameter *p_gammatable)
 {
 	register struct nx_mlc_register_set *pregister;
 	u32 i, regval = 0;
 
 	pregister = __g_module_variables[module_index].pregister;
-	if (enb == true) {
+	if (enb == 1) {
 		regval = readl(&pregister->mlcgammacont);
 
 		regval = (1 << 11) | (1 << 9) | (1 << 3);
@@ -1724,23 +1706,22 @@ void nx_mlc_set_gamma_table(u32 module_index, int enb,
 		writel(regval, &pregister->mlcgammacont);
 
 		for (i = 0; i < 256; i++) {
-			nx_mlc_set_rgblayer_rgamma_table(module_index,
-					i, p_nx_mlc_gammatable->r_table[i]);
-			nx_mlc_set_rgblayer_ggamma_table(module_index,
-					i, p_nx_mlc_gammatable->g_table[i]);
-			nx_mlc_set_rgblayer_bgamma_table(module_index,
-					i, p_nx_mlc_gammatable->b_table[i]);
+			nx_mlc_set_rgblayer_rgamma_table(
+				module_index, i, p_gammatable->r_table[i]);
+			nx_mlc_set_rgblayer_ggamma_table(
+				module_index, i, p_gammatable->g_table[i]);
+			nx_mlc_set_rgblayer_bgamma_table(
+				module_index, i, p_gammatable->b_table[i]);
 		}
 
-		regval = regval | (p_nx_mlc_gammatable->alphaselect << 5) |
-		    (p_nx_mlc_gammatable->yuvgammaenb << 4 |
-		     p_nx_mlc_gammatable->allgammaenb << 4) |
-		    (p_nx_mlc_gammatable->rgbgammaenb << 1 |
-		     p_nx_mlc_gammatable->allgammaenb << 1) |
-		    (p_nx_mlc_gammatable->ditherenb << 1);
+		regval = regval | (p_gammatable->alphaselect << 5) |
+		    (p_gammatable->yuvgammaenb << 4 |
+		     p_gammatable->allgammaenb << 4) |
+		    (p_gammatable->rgbgammaenb << 1 |
+		     p_gammatable->allgammaenb << 1) |
+		    (p_gammatable->ditherenb << 1);
 		writel(regval, &pregister->mlcgammacont);
 	} else {
-
 		regval = regval & ~(1 << 10) & ~(1 << 8) & ~(1 << 2);
 		writel(regval, &pregister->mlcgammacont);
 
@@ -1761,10 +1742,10 @@ void nx_mlc_get_rgblayer_stride(u32 module_index, u32 layer, int32_t *hstride,
 	vs = readl(&pregister->mlcrgblayer[layer].mlcvstride);
 
 	if (hstride)
-		*(int32_t *) hstride = hs;
+		*(int32_t *)hstride = hs;
 
 	if (vstride)
-		*(int32_t *) vstride = vs;
+		*(int32_t *)vstride = vs;
 }
 
 void nx_mlc_get_rgblayer_address(u32 module_index, u32 layer,
@@ -1777,7 +1758,7 @@ void nx_mlc_get_rgblayer_address(u32 module_index, u32 layer,
 	pa = readl(&pregister->mlcrgblayer[layer].mlcaddress);
 
 	if (phys_address)
-		*(u32 *) phys_address = pa;
+		*(u32 *)phys_address = pa;
 }
 
 void nx_mlc_get_position(u32 module_index, u32 layer, int *left, int *top,
@@ -1815,10 +1796,10 @@ void nx_mlc_get_video_layer_address_yuyv(u32 module_index, u32 *address,
 	s = readl(&pregister->mlcvideolayer.mlcvstride);
 
 	if (address)
-		*(u32 *) address = a;
+		*(u32 *)address = a;
 
 	if (stride)
-		*(u32 *) stride = s;
+		*(u32 *)stride = s;
 }
 
 void nx_mlc_get_video_layer_address(u32 module_index, u32 *lu_address,
@@ -1834,13 +1815,13 @@ void nx_mlc_get_video_layer_address(u32 module_index, u32 *lu_address,
 	cra = readl(&pregister->mlcvideolayer.mlcaddresscr);
 
 	if (lu_address)
-		*(u32 *) lu_address = lua;
+		*(u32 *)lu_address = lua;
 
 	if (cb_address)
-		*(u32 *) cb_address = cba;
+		*(u32 *)cb_address = cba;
 
 	if (cr_address)
-		*(u32 *) cr_address = cra;
+		*(u32 *)cr_address = cra;
 }
 
 void nx_mlc_get_video_layer_stride(u32 module_index, u32 *lu_stride,
@@ -1856,13 +1837,13 @@ void nx_mlc_get_video_layer_stride(u32 module_index, u32 *lu_stride,
 	crs = readl(&pregister->mlcvideolayer.mlcvstridecr);
 
 	if (lu_stride)
-		*(u32 *) lu_stride = lus;
+		*(u32 *)lu_stride = lus;
 
 	if (cb_stride)
-		*(u32 *) cb_stride = cbs;
+		*(u32 *)cb_stride = cbs;
 
 	if (cr_stride)
-		*(u32 *) cr_stride = crs;
+		*(u32 *)cr_stride = crs;
 }
 
 void nx_mlc_get_video_position(u32 module_index, int *left, int *top,

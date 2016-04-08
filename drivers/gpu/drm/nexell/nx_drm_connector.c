@@ -18,85 +18,40 @@
 #include <drm/drmP.h>
 #include <drm/drm_crtc_helper.h>
 
-#include <drm/nexell_drm.h>
 #include "nx_drm_drv.h"
 #include "nx_drm_connector.h"
 #include "nx_drm_encoder.h"
-
-#define MAX_EDID 256
-
-/* convert drm_display_mode to nx_video_timings */
-static inline void convert_to_video_timing(struct fb_videomode *timing,
-				struct drm_display_mode *mode)
-{
-	DRM_DEBUG_KMS("enter\n");
-
-	memset(timing, 0, sizeof(*timing));
-
-	timing->pixclock = mode->clock * 1000;
-	timing->refresh = drm_mode_vrefresh(mode);
-
-	timing->xres = mode->hdisplay;
-	timing->right_margin = mode->hsync_start - mode->hdisplay;
-	timing->hsync_len = mode->hsync_end - mode->hsync_start;
-	timing->left_margin = mode->htotal - mode->hsync_end;
-
-	timing->yres = mode->vdisplay;
-	timing->lower_margin = mode->vsync_start - mode->vdisplay;
-	timing->vsync_len = mode->vsync_end - mode->vsync_start;
-	timing->upper_margin = mode->vtotal - mode->vsync_end;
-
-	if (mode->flags & DRM_MODE_FLAG_INTERLACE)
-		timing->vmode = FB_VMODE_INTERLACED;
-	else
-		timing->vmode = FB_VMODE_NONINTERLACED;
-
-	if (mode->flags & DRM_MODE_FLAG_DBLSCAN)
-		timing->vmode |= FB_VMODE_DOUBLE;
-}
+#include "soc/s5pxx18_drm_dp.h"
 
 static int nx_drm_connector_get_modes(struct drm_connector *connector)
 {
-	struct nx_drm_connector *nx_connector = to_nx_connector(connector);
-	struct nx_drm_display *display = nx_connector->display;
-	struct edid *edid;
-	unsigned int count = 0;
+	struct nx_drm_dp_dev *dp_dev = to_nx_connector(connector)->dp_dev;
+	struct nx_drm_dev_ops *ops = dp_dev->ops;
 
 	DRM_DEBUG_KMS("enter\n");
 
-	if (!display || !display->ops)
-		return 0;
+	if (ops && ops->get_modes)
+		return ops->get_modes(dp_dev->dev, connector);
 
-	if (display->ops->get_edid) {
-		edid = NULL;
-		pr_info("[%s: EDID unimplemented]\n", __func__);
-	} else {
-		if (display->ops->get_mode)
-			count = display->ops->get_mode(connector);
-	}
-
-	DRM_DEBUG_DRIVER("exit, count:%d\n", count);
-	return count;
+	DRM_ERROR("fail : create a new display mode.\n");
+	return 0;
 }
 
 static int nx_drm_connector_mode_valid(struct drm_connector *connector,
-				struct drm_display_mode *mode)
+			struct drm_display_mode *mode)
 {
-	struct nx_drm_connector *nx_connector = to_nx_connector(connector);
-	struct nx_drm_display *display = nx_connector->display;
-	struct nx_drm_operation *ops = display->ops;
-	struct fb_videomode timing;
-	int ret = MODE_BAD;
+	struct nx_drm_dp_dev *dp_dev = to_nx_connector(connector)->dp_dev;
+	struct nx_drm_dev_ops *ops = dp_dev->ops;
 
 	DRM_DEBUG_KMS("enter\n");
+	DRM_DEBUG_KMS("bpp specified : %s, %d\n",
+		connector->cmdline_mode.bpp_specified ? "yes" : "no",
+		connector->cmdline_mode.bpp);
 
-	convert_to_video_timing(&timing, mode);
+	if (ops && ops->check_mode)
+		return ops->check_mode(dp_dev->dev, mode);
 
-	if (ops && ops->check_timing)
-		if (!ops->check_timing(display->dev, (void *)&timing))
-			ret = MODE_OK;
-
-	return ret;
+	return MODE_BAD;
 }
 
 struct drm_encoder *nx_drm_best_encoder(struct drm_connector *connector)
@@ -107,7 +62,12 @@ struct drm_encoder *nx_drm_best_encoder(struct drm_connector *connector)
 	struct nx_drm_connector *nx_connector = to_nx_connector(connector);
 	struct drm_encoder *encoder = nx_connector->connector.encoder;
 
-	DRM_DEBUG_KMS("enter connector ID:%d\n", connector->base.id);
+	if (encoder) {
+		DRM_DEBUG_KMS("encoodr id:%d (enc.%d)\n",
+			encoder->base.id, to_nx_encoder(encoder)->pipe);
+	}
+
+	DRM_DEBUG_KMS("connector id:%d\n", connector->base.id);
 	return encoder;
 }
 
@@ -117,27 +77,24 @@ static struct drm_connector_helper_funcs nx_drm_connector_helper_funcs = {
 	.best_encoder = nx_drm_best_encoder,
 };
 
-/* get detection status of display device. */
 static enum drm_connector_status nx_drm_connector_detect(
-				struct drm_connector *connector, bool force)
+			struct drm_connector *connector, bool force)
 {
 	struct nx_drm_connector *nx_connector = to_nx_connector(connector);
-	struct nx_drm_display *display = nx_connector->display;
-	struct nx_drm_operation *ops = display->ops;
+	struct nx_drm_dp_dev *dp_dev = nx_connector->dp_dev;
+	struct nx_drm_dev_ops *ops = dp_dev->ops;
 	enum drm_connector_status status = connector_status_disconnected;
 
-	DRM_DEBUG_KMS("enter\n");
-
 	if (ops && ops->is_connected) {
-		if (ops->is_connected(display->dev))
+		if (ops->is_connected(dp_dev->dev, connector))
 			status = connector_status_connected;
 		else
 			status = connector_status_disconnected;
 	}
 
-	DRM_DEBUG_KMS("exit, status:%d (%s)\n",
-	      status, status == connector_status_connected ? "connected" :
-	      "disconnected");
+	DRM_DEBUG_KMS("status: %s\n",
+		status == connector_status_connected ? "connected" :
+	    "disconnected");
 
 	return status;
 }
@@ -145,18 +102,19 @@ static enum drm_connector_status nx_drm_connector_detect(
 static void nx_drm_connector_destroy(struct drm_connector *connector)
 {
 	struct nx_drm_connector *nx_connector = to_nx_connector(connector);
+	struct drm_device *drm = connector->dev;
 
 	DRM_DEBUG_KMS("enter\n");
 
 	drm_connector_unregister(connector);
 	drm_connector_cleanup(connector);
-	kfree(nx_connector);
+	devm_kfree(drm->dev, nx_connector);
 }
 
-static void nx_drm_connector_dpms(struct drm_connector *connector, int mode)
+static int nx_drm_connector_dpms(struct drm_connector *connector, int mode)
 {
 	DRM_DEBUG_KMS("enter\n");
-	drm_helper_connector_dpms(connector, mode);
+	return drm_helper_connector_dpms(connector, mode);
 }
 
 static struct drm_connector_funcs nx_drm_connector_funcs = {
@@ -166,74 +124,123 @@ static struct drm_connector_funcs nx_drm_connector_funcs = {
 	.fill_modes = drm_helper_probe_single_connector_modes,
 };
 
-struct drm_connector *nx_drm_connector_create(struct drm_device *drm,
-				struct drm_encoder *encoder,
-				void *context)
+void nx_drm_connector_destroy_and_detach(struct drm_connector *connector)
 {
+	struct drm_encoder *encoder;
+
+	BUG_ON(!connector);
+	encoder = connector->encoder;
+
+	if (encoder)
+		encoder->funcs->destroy(encoder);
+
+	if (connector)
+		connector->funcs->destroy(connector);
+}
+EXPORT_SYMBOL(nx_drm_connector_destroy_and_detach);
+
+int nx_drm_connector_create_and_attach(struct drm_device *drm,
+			struct nx_drm_dp_dev *dp_dev, int to_encoder,
+			void *context)
+{
+	struct nx_drm_priv *priv = drm->dev_private;
 	struct nx_drm_connector *nx_connector;
-	struct nx_drm_display *display = nx_drm_get_display(encoder);
 	struct drm_connector *connector;
-	int dev_type = display->ops->type;
-	int type;
+	struct drm_encoder *encoder;
+
+	/* bitmask of potential CRTC bindings */
+	int crtc_mask = (1 << priv->num_crtcs) - 1;
+	int panel_type, con_type = 0, enc_type = 0;
+	bool interlace_allowed = false;
+	uint8_t polled = 0;
 	int err;
 
 	DRM_DEBUG_KMS("enter\n");
 
-	nx_connector = kzalloc(sizeof(*nx_connector), GFP_KERNEL);
-	if (!nx_connector) {
-		DRM_ERROR("failed to allocate connector\n");
-		return NULL;
-	}
-	connector = &nx_connector->connector;
+	BUG_ON(!dp_dev);
+	panel_type = dp_dev->ddi.panel_type;
 
-	switch (dev_type) {
-	case NX_DISPLAY_TYPE_HDMI:
-		type = DRM_MODE_CONNECTOR_HDMIA;
-		connector->interlace_allowed = true;
-		connector->polled = DRM_CONNECTOR_POLL_HPD;
+	switch (panel_type) {
+	case do_panel_type_lcd:
+		con_type = DRM_MODE_CONNECTOR_VGA;
+		enc_type = DRM_MODE_ENCODER_TMDS;
 		break;
-	case NX_DISPLAY_TYPE_VIDI:
-		type = DRM_MODE_CONNECTOR_VIRTUAL;
-		connector->polled = DRM_CONNECTOR_POLL_HPD;
+	case do_panel_type_lvds:
+		con_type = DRM_MODE_CONNECTOR_LVDS;
+		enc_type = DRM_MODE_ENCODER_LVDS;
 		break;
-	case NX_DISPLAY_TYPE_LVDS:
-		type = DRM_MODE_CONNECTOR_LVDS;
+	case do_panel_type_mipi:	/* MiPi DSI */
+		con_type = DRM_MODE_CONNECTOR_DSI;
+		enc_type = DRM_MODE_ENCODER_DSI;
 		break;
-	case NX_DISPLAY_TYPE_LCD:
-		type = DRM_MODE_CONNECTOR_DSI;
+	case do_panel_type_hdmi:
+		con_type = DRM_MODE_CONNECTOR_HDMIA;
+		interlace_allowed = true;
+		polled = DRM_CONNECTOR_POLL_HPD;
+		break;
+	case do_panel_type_vidi:
+		con_type = DRM_MODE_CONNECTOR_VIRTUAL;
+		enc_type = DRM_MODE_ENCODER_VIRTUAL;
+		polled = DRM_CONNECTOR_POLL_HPD;
 		break;
 	default:
-		type = DRM_MODE_CONNECTOR_Unknown;
-		break;
+		con_type = DRM_MODE_CONNECTOR_Unknown;
+		DRM_ERROR("fail : unknown drm connector type(%d)\n",
+			panel_type);
+		return -EINVAL;
 	}
 
-	drm_connector_init(drm, connector, &nx_drm_connector_funcs, type);
-	drm_connector_helper_add(connector, &nx_drm_connector_helper_funcs);
+	nx_connector =
+		devm_kzalloc(drm->dev, sizeof(*nx_connector), GFP_KERNEL);
+	if (IS_ERR(nx_connector))
+		return -ENOMEM;
 
+	connector = &nx_connector->connector;
+	connector->polled = polled;
+	connector->interlace_allowed = interlace_allowed;
+
+	/* create encoder */
+	encoder = nx_drm_encoder_create(drm, dp_dev, enc_type,
+					to_encoder, crtc_mask, context);
+	if (IS_ERR(encoder))
+		goto err_alloc;
+
+	/* create connector and attach */
+	drm_connector_helper_add(connector, &nx_drm_connector_helper_funcs);
+	drm_connector_init(drm, connector, &nx_drm_connector_funcs, con_type);
 	err = drm_connector_register(connector);
 	if (err)
-		goto err_connector;
+		goto err_encoder;
 
-	nx_connector->display = display;
-	nx_connector->context = context;
 	connector->encoder = encoder;
-
 	err = drm_mode_connector_attach_encoder(connector, encoder);
 	if (err) {
-		DRM_ERROR("failed to attach a connector to a encoder\n");
-		goto err_sysfs;
+		DRM_ERROR("fail : attach a connector to a encoder\n");
+		goto err_connector;
 	}
 
-	DRM_DEBUG_KMS("exit, connector ID:%d\n", connector->base.id);
+	nx_connector->dp_dev = dp_dev;
+	nx_connector->context = context;
 
-	return connector;
+	/* inititalize dpms status */
+	connector->dpms = nx_drm_dp_encoder_get_dpms(encoder);
 
-err_sysfs:
-	drm_connector_unregister(connector);
+	DRM_DEBUG_KMS("done, encoder id:%d , connector id:%d, dpms %s\n",
+		encoder->base.id, connector->base.id,
+		connector->dpms == DRM_MODE_DPMS_ON ? "on" : "off");
+
+	return 0;
+
 err_connector:
+	drm_connector_unregister(connector);
+err_encoder:
 	drm_connector_cleanup(connector);
-	kfree(nx_connector);
+	if (encoder)
+		encoder->funcs->destroy(encoder);
+err_alloc:
+	devm_kfree(drm->dev, nx_connector);
 
-	return NULL;
+	return -EINVAL;
 }
-EXPORT_SYMBOL(nx_drm_connector_create);
+EXPORT_SYMBOL(nx_drm_connector_create_and_attach);
+

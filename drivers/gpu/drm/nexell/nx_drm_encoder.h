@@ -18,50 +18,22 @@
 #ifndef _NX_DRM_ENCODER_H_
 #define _NX_DRM_ENCODER_H_
 
-#include <drm/drm_encoder_slave.h>
-
-/*
-#define       DRM_ENCODER_SLAVE_SUPPORT
-*/
-struct nx_drm_display;
+#include "soc/s5pxx18_drm_dp.h"
 
 struct nx_drm_encoder {
-#ifdef	DRM_ENCODER_SLAVE_SUPPORT
-	struct drm_encoder_slave drm_encoder;
-#else
-	struct drm_encoder drm_encoder;
-#endif
-	struct nx_drm_display *display;
+	struct drm_encoder encoder;
+	int pipe;
+	struct nx_drm_dp_dev *dp_dev;
 	int dpms;
+	bool irq_install;
 	void *context;		/* device context */
 };
 
-#ifdef	DRM_ENCODER_SLAVE_SUPPORT
 #define to_nx_encoder(e)	\
-		container_of(to_encoder_slave(e), \
-		struct nx_drm_encoder, drm_encoder)
-#else
-#define to_nx_encoder(e)	\
-		container_of(e, struct nx_drm_encoder, drm_encoder)
-#endif
+		container_of(e, struct nx_drm_encoder, encoder)
 
-extern void nx_drm_encoder_setup(struct drm_device *dev);
-extern struct drm_encoder *nx_drm_encoder_create(struct drm_device *drm,
-					  struct nx_drm_display *mgr,
-					  int possible_crtcs, void *context);
-extern struct nx_drm_display *nx_drm_get_display(struct drm_encoder *encoder);
-
-extern void nx_drm_enable_vblank(struct drm_encoder *encoder, void *data);
-extern void nx_drm_disable_vblank(struct drm_encoder *encoder, void *data);
-extern void nx_drm_encoder_crtc_plane_commit(
-				struct drm_encoder *encoder, void *data);
-extern void nx_drm_encoder_crtc_commit(struct drm_encoder *encoder, void *data);
-extern void nx_drm_encoder_dpms_from_crtc(
-				struct drm_encoder *encoder, void *data);
-extern void nx_drm_encoder_crtc_dpms(struct drm_encoder *encoder, void *data);
-extern void nx_drm_encoder_crtc_mode_set(
-				struct drm_encoder *encoder, void *data);
-extern void nx_drm_encoder_crtc_disable(
-				struct drm_encoder *encoder, void *data);
+struct drm_encoder *nx_drm_encoder_create(struct drm_device *drm,
+			struct nx_drm_dp_dev *dp_dev, int type,
+			int pipe, int possible_crtcs, void *context);
 
 #endif

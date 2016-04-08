@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <drm/drmP.h>
-#include <drm/drm_gem_cma_helper.h>
 #include <drm/drm_vma_manager.h>
 
 #include <linux/shmem_fs.h>
@@ -24,8 +23,33 @@
 
 #include "nx_drm_gem.h"
 
+struct sg_table *nx_drm_gem_prime_get_sg_table(struct drm_gem_object *obj)
+{
+	struct drm_gem_cma_object *cma_obj = to_drm_gem_cma_obj(obj);
+	struct sg_table *sgt;
+	dma_addr_t paddr = cma_obj->paddr;
+	size_t size = obj->size;
+	int ret;
+
+	sgt = kzalloc(sizeof(*sgt), GFP_KERNEL);
+	if (!sgt)
+		return NULL;
+
+	ret = sg_alloc_table(sgt, 1, GFP_KERNEL);
+	if (unlikely(ret))
+		goto out;
+
+	sg_set_page(sgt->sgl, phys_to_page(paddr), PAGE_ALIGN(size), 0);
+
+	return sgt;
+
+out:
+	kfree(sgt);
+	return NULL;
+}
+
 int nx_drm_gem_get_ioctl(struct drm_device *dev, void *data,
-				struct drm_file *file_priv)
+			struct drm_file *file_priv)
 {
 	struct nx_drm_gem_info *args = data;
 	struct drm_gem_cma_object *cma_obj;
@@ -37,7 +61,7 @@ int nx_drm_gem_get_ioctl(struct drm_device *dev, void *data,
 
 	gem_obj = drm_gem_object_lookup(dev, file_priv, args->handle);
 	if (!gem_obj) {
-		DRM_ERROR("failed to lookup gem object.\n");
+		DRM_ERROR("fail : lookup gem object.\n");
 		mutex_unlock(&dev->struct_mutex);
 		return -EINVAL;
 	}
@@ -49,13 +73,13 @@ int nx_drm_gem_get_ioctl(struct drm_device *dev, void *data,
 	mutex_unlock(&dev->struct_mutex);
 
 	DRM_DEBUG_DRIVER("get dma p:0x%x, v:%p\n",
-		(unsigned int)cma_obj->paddr, cma_obj->vaddr);
+			(unsigned int)cma_obj->paddr, cma_obj->vaddr);
 
 	return 0;
 }
 
 int nx_drm_gem_create_ioctl(struct drm_device *drm, void *data,
-				struct drm_file *file_priv)
+			struct drm_file *file_priv)
 {
 	struct nx_drm_gem_create *args = data;
 	struct drm_gem_cma_object *cma_obj;
@@ -81,8 +105,9 @@ int nx_drm_gem_create_ioctl(struct drm_device *drm, void *data,
 	/* drop reference from allocate - handle holds it now. */
 	drm_gem_object_unreference_unlocked(gem_obj);
 
-	DRM_DEBUG_DRIVER("alloc dma p:0x%x, v:%p\n",
-		(unsigned int)cma_obj->paddr, cma_obj->vaddr);
+	DRM_DEBUG_DRIVER("alloc dma p:0x%x, v:%p s:%d\n",
+		(unsigned int)cma_obj->paddr,
+		cma_obj->vaddr, (int)gem_obj->size);
 
 	return 0;
 
@@ -91,3 +116,4 @@ err_handle_create:
 
 	return PTR_ERR(ERR_PTR(ret));
 }
+

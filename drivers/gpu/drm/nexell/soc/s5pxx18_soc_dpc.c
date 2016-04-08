@@ -18,7 +18,7 @@
 #include <linux/types.h>
 #include <linux/io.h>
 
-#include "nx_soc_dpc.h"
+#include "s5pxx18_soc_dpc.h"
 
 static struct {
 	struct nx_dpc_register_set *pregister;
@@ -29,12 +29,12 @@ int nx_dpc_initialize(void)
 	static int binit;
 	u32 i;
 
-	if (false == binit) {
+	if (0 == binit) {
 		for (i = 0; i < NUMBER_OF_DPC_MODULE; i++)
 			__g_module_variables[i].pregister = NULL;
-		binit = true;
+		binit = 1;
 	}
-	return true;
+	return 1;
 }
 
 u32 nx_dpc_get_number_of_module(void)
@@ -344,7 +344,7 @@ void nx_dpc_set_clock_out_select(u32 module_index, u32 index, int bbypass)
 	pregister = __g_module_variables[module_index].pregister;
 	read_value = pregister->dpcclkgen[index][0];
 	read_value &= ~outclksel_mask;
-	if (false == bbypass)
+	if (0 == bbypass)
 		read_value |= outclksel_mask;
 
 	writel(read_value, &pregister->dpcclkgen[index][0]);
@@ -357,9 +357,9 @@ int nx_dpc_get_clock_out_select(u32 module_index, u32 index)
 
 	if (__g_module_variables[module_index].pregister->dpcclkgen[index][0] &
 	    outclksel_mask) {
-		return false;
+		return 0;
 	} else {
-		return true;
+		return 1;
 	}
 }
 
@@ -373,7 +373,7 @@ void nx_dpc_set_clock_polarity(u32 module_index, int bpolarity)
 	pregister = __g_module_variables[module_index].pregister;
 	read_value = pregister->dpcctrl1;
 	read_value &= ~clkpol_mask;
-	if (true == bpolarity)
+	if (1 == bpolarity)
 		read_value |= clkpol_mask;
 
 	writel(read_value, &pregister->dpcctrl1);
@@ -386,9 +386,9 @@ int nx_dpc_get_clock_polarity(u32 module_index)
 
 	if (__g_module_variables[module_index].pregister->dpcctrl1 &
 	    clkpol_mask) {
-		return true;
+		return 1;
 	} else {
-		return false;
+		return 0;
 	}
 }
 
@@ -403,7 +403,7 @@ void nx_dpc_set_clock_out_enb(u32 module_index, u32 index, int out_clk_enb)
 	read_value = pregister->dpcclkgen[index][0];
 	read_value &= ~outclkenb_mask;
 
-	if (true == out_clk_enb)
+	if (1 == out_clk_enb)
 		read_value |= outclkenb_mask;
 
 	writel(read_value, &pregister->dpcclkgen[index][0]);
@@ -416,9 +416,9 @@ int nx_dpc_get_clock_out_enb(u32 module_index, u32 index)
 
 	if (__g_module_variables[module_index].pregister->dpcclkgen[index][0] &
 	    outclkenb_mask) {
-		return true;
+		return 1;
 	} else {
-		return false;
+		return 0;
 	}
 }
 
@@ -439,11 +439,13 @@ void nx_dpc_set_clock_out_delay(u32 module_index, u32 index, u32 delay)
 
 u32 nx_dpc_get_clock_out_delay(u32 module_index, u32 index)
 {
+	register struct nx_dpc_register_set *pregister;
 	const u32 outclkdelay_pos = 0;
 	const u32 outclkdelay_mask = 0x1f << outclkdelay_pos;
 
-	return ((__g_module_variables[module_index].
-		 pregister->dpcclkgen[index][1] & outclkdelay_mask) >>
+	pregister = __g_module_variables[module_index].pregister;
+
+	return (u32)((pregister->dpcclkgen[index][1] & outclkdelay_mask) >>
 		outclkdelay_pos);
 }
 
@@ -523,7 +525,7 @@ void nx_dpc_set_delay(u32 module_index, u32 delay_rgb_pvd, u32 delay_hs_cp1,
 }
 
 void nx_dpc_get_delay(u32 module_index, u32 *pdelayrgb_pvd, u32 *pdelayhs_cp1,
-		      u32 *pdelayvs_fram, u32 *pdelayde_cp2)
+			u32 *pdelayvs_fram, u32 *pdelayde_cp2)
 {
 	const u32 delayrgb_pos = 4;
 	const u32 delayrgb_mask = 0xfu << delayrgb_pos;
@@ -549,7 +551,8 @@ void nx_dpc_get_delay(u32 module_index, u32 *pdelayrgb_pvd, u32 *pdelayhs_cp1,
 }
 
 void nx_dpc_set_dither(u32 module_index, enum nx_dpc_dither dither_r,
-		       enum nx_dpc_dither dither_g, enum nx_dpc_dither dither_b)
+			enum nx_dpc_dither dither_g,
+			enum nx_dpc_dither dither_b)
 {
 	const u32 dither_mask = 0x3fu;
 	const u32 rdither_pos = 0;
@@ -569,8 +572,8 @@ void nx_dpc_set_dither(u32 module_index, enum nx_dpc_dither dither_r,
 }
 
 void nx_dpc_get_dither(u32 module_index, enum nx_dpc_dither *pditherr,
-		       enum nx_dpc_dither *pditherg,
-		       enum nx_dpc_dither *pditherb)
+			enum nx_dpc_dither *pditherg,
+			enum nx_dpc_dither *pditherb)
 {
 	const u32 rdither_pos = 0;
 	const u32 rdither_mask = 0x3u << rdither_pos;
@@ -593,12 +596,11 @@ void nx_dpc_get_dither(u32 module_index, enum nx_dpc_dither *pditherr,
 }
 
 void nx_dpc_set_mode(u32 module_index, enum nx_dpc_format format,
-		     int binterlace, int binvertfield, int brgbmode,
-		     int bswaprb, enum nx_dpc_ycorder ycorder, int bclipyc,
-		     int bembeddedsync, enum nx_dpc_padclk clock,
-		     int binvertclock, int bdualview)
+			int binterlace, int binvertfield, int brgbmode,
+			int bswaprb, enum nx_dpc_ycorder ycorder, int bclipyc,
+			int bembeddedsync, enum nx_dpc_padclk clock,
+			int binvertclock, int bdualview)
 {
-
 	const u32 polfield_pos = 2;
 	const u32 seavenb_pos = 8;
 	const u32 scanmode_pos = 9;
@@ -673,13 +675,12 @@ void nx_dpc_set_mode(u32 module_index, enum nx_dpc_format format,
 }
 
 void nx_dpc_get_mode(u32 module_index, enum nx_dpc_format *pformat,
-		     int *pbinterlace, int *pbinvertfield, int *pbrgbmode,
-		     int *pbswaprb, enum nx_dpc_ycorder *pycorder,
-		     int *pbclipyc, int *pbembeddedsync,
-		     enum nx_dpc_padclk *pclock, int *pbinvertclock,
-		     int *pbdualview)
+			int *pbinterlace, int *pbinvertfield, int *pbrgbmode,
+			int *pbswaprb, enum nx_dpc_ycorder *pycorder,
+			int *pbclipyc, int *pbembeddedsync,
+			enum nx_dpc_padclk *pclock, int *pbinvertclock,
+			int *pbdualview)
 {
-
 	const u32 polfield = 1u << 2;
 	const u32 seavenb = 1u << 8;
 	const u32 scanmode = 1u << 9;
@@ -700,16 +701,16 @@ void nx_dpc_get_mode(u32 module_index, enum nx_dpc_format *pformat,
 
 	temp = __g_module_variables[module_index].pregister->dpcctrl0;
 	if (NULL != pbinterlace)
-		*pbinterlace = (temp & scanmode) ? true : false;
+		*pbinterlace = (temp & scanmode) ? 1 : 0;
 
 	if (NULL != pbinvertfield)
-		*pbinvertfield = (temp & polfield) ? true : false;
+		*pbinvertfield = (temp & polfield) ? 1 : 0;
 
 	if (NULL != pbrgbmode)
-		*pbrgbmode = (temp & rgbmode) ? true : false;
+		*pbrgbmode = (temp & rgbmode) ? 1 : 0;
 
 	if (NULL != pbembeddedsync)
-		*pbembeddedsync = (temp & seavenb) ? true : false;
+		*pbembeddedsync = (temp & seavenb) ? 1 : 0;
 
 	temp = __g_module_variables[module_index].pregister->dpcctrl1;
 
@@ -721,9 +722,9 @@ void nx_dpc_get_mode(u32 module_index, enum nx_dpc_format *pformat,
 		*pformat =
 		    (enum nx_dpc_format)((temp & format_mask) >> format_pos);
 	if (NULL != pbclipyc)
-		*pbclipyc = (temp & ycrange) ? false : true;
+		*pbclipyc = (temp & ycrange) ? 0 : 1;
 	if (NULL != pbswaprb)
-		*pbswaprb = (temp & swaprb) ? true : false;
+		*pbswaprb = (temp & swaprb) ? 1 : 0;
 
 	temp = __g_module_variables[module_index].pregister->dpcctrl2;
 
@@ -734,14 +735,14 @@ void nx_dpc_get_mode(u32 module_index, enum nx_dpc_format *pformat,
 
 	if (NULL != pbdualview)
 		*pbdualview = (2 == ((temp & lcdtype_mask) >> lcdtype_pos))
-		    ? true : false;
+		    ? 1 : 0;
 
 	if (NULL != pbinvertclock)
 		*pbinvertclock = nx_dpc_get_clock_out_inv(module_index, 1);
 }
 
 void nx_dpc_set_hsync(u32 module_index, u32 avwidth, u32 hsw, u32 hfp, u32 hbp,
-		      int binvhsync)
+			int binvhsync)
 {
 	const u32 intpend = 1u << 10;
 	const u32 polhsync = 1u << 0;
@@ -768,7 +769,7 @@ void nx_dpc_set_hsync(u32 module_index, u32 avwidth, u32 hsw, u32 hfp, u32 hbp,
 }
 
 void nx_dpc_get_hsync(u32 module_index, u32 *pavwidth, u32 *phsw, u32 *phfp,
-		      u32 *phbp, int *pbinvhsync)
+			u32 *phbp, int *pbinvhsync)
 {
 	const u32 polhsync = 1u << 0;
 	u32 htotal, hsw, hab, hae;
@@ -792,7 +793,7 @@ void nx_dpc_get_hsync(u32 module_index, u32 *pavwidth, u32 *phsw, u32 *phfp,
 	if (NULL != phbp)
 		*phbp = hbp;
 	if (NULL != pbinvhsync)
-		*pbinvhsync = (pregister->dpcctrl0 & polhsync) ? true : false;
+		*pbinvhsync = (pregister->dpcctrl0 & polhsync) ? 1 : 0;
 }
 
 void nx_dpc_set_vsync(u32 module_index, u32 avheight, u32 vsw, u32 vfp, u32 vbp,
@@ -873,7 +874,7 @@ void nx_dpc_get_vsync(u32 module_index, u32 *pavheight, u32 *pvsw, u32 *pvfp,
 	if (NULL != pevbp)
 		*pevbp = vbp;
 	if (NULL != pbinvvsync)
-		*pbinvvsync = (pregister->dpcctrl0 & polvsync) ? true : false;
+		*pbinvvsync = (pregister->dpcctrl0 & polvsync) ? 1 : 0;
 }
 
 void nx_dpc_set_vsync_offset(u32 module_index, u32 vssoffset, u32 vseoffset,
@@ -1229,7 +1230,7 @@ u32 nx_dpc_get_field_flag(u32 module_index)
 	pregister = __g_module_variables[module_index].pregister;
 	regvalue = readl(&pregister->dpcrgbshift);
 
-	return ((regvalue >> 5) & 0x01);
+	return (u32)((regvalue >> 5) & 0x01);
 }
 
 void nx_dpc_set_enable_with_interlace(u32 module_index, int enable, int rgbmode,
@@ -1317,7 +1318,6 @@ void nx_dpc_set_encoder_dacpower_enable(u32 module_index, u8 dacpd)
 
 void nx_dpc_set_ycorder(u32 module_index, enum nx_dpc_ycorder ycorder)
 {
-
 	const u16 ycorder_pos = 6;
 	register struct nx_dpc_register_set *pregister;
 	u32 temp;
@@ -1361,7 +1361,7 @@ int nx_dpc_get_encenable(u32 module_index)
 	register struct nx_dpc_register_set *pregister;
 
 	pregister = __g_module_variables[module_index].pregister;
-	return (readl(&pregister->dpcctrl0) & encrst) ? true : false;
+	return (readl(&pregister->dpcctrl0) & encrst) ? 1 : 0;
 }
 
 void nx_dpc_set_video_encoder_power_down(u32 module_index, int benb)
@@ -1387,7 +1387,7 @@ int nx_dpc_get_video_encoder_power_down(u32 module_index)
 	register struct nx_dpc_register_set *pregister;
 
 	pregister = __g_module_variables[module_index].pregister;
-	return (readl(&pregister->ntsc_ecmda) & pwdenc) ? true : false;
+	return (readl(&pregister->ntsc_ecmda) & pwdenc) ? 1 : 0;
 }
 
 void nx_dpc_set_video_encoder_mode(u32 module_index, enum nx_dpc_vbs vbs,
@@ -1452,7 +1452,7 @@ int nx_dpc_get_video_encoder_schlock_control(u32 module_index)
 	register struct nx_dpc_register_set *pregister;
 
 	pregister = __g_module_variables[module_index].pregister;
-	return (readl(&pregister->ntsc_ecmda) & fdrst) ? true : false;
+	return (readl(&pregister->ntsc_ecmda) & fdrst) ? 1 : 0;
 }
 
 void nx_dpc_set_video_encoder_bandwidth(u32 module_index,

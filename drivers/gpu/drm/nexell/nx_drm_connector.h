@@ -18,18 +18,21 @@
 #ifndef _NX_DRM_CONNECTOR_H_
 #define _NX_DRM_CONNECTOR_H_
 
+#include "soc/s5pxx18_drm_dp.h"
+
 struct nx_drm_connector {
 	struct drm_connector connector;
-	struct nx_drm_display *display;
-	uint32_t encoder_id;
+	struct nx_drm_dp_dev *dp_dev;
 	void *context;		/* device context */
 };
 
 #define to_nx_connector(c)		\
 		container_of(c, struct nx_drm_connector, connector)
 
-extern struct drm_connector *nx_drm_connector_create(struct drm_device *drm,
-						     struct drm_encoder
-						     *encoder, void *context);
+int nx_drm_connector_create_and_attach(struct drm_device *drm,
+			struct nx_drm_dp_dev *dp_dev,
+			int to_encoder, void *context);
+
+void nx_drm_connector_destroy_and_detach(struct drm_connector *connector);
 
 #endif

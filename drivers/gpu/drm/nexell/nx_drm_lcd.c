@@ -17,9 +17,13 @@
  */
 #include <drm/drmP.h>
 #include <drm/drm_crtc_helper.h>
+#include <drm/drm_panel.h>
 
-#include <linux/of_platform.h>
 #include <linux/component.h>
+#include <linux/of_platform.h>
+#include <linux/of_graph.h>
+#include <video/of_display_timing.h>
+
 #include <drm/nexell_drm.h>
 
 #include "nx_drm_drv.h"
@@ -27,268 +31,323 @@
 #include "nx_drm_crtc.h"
 #include "nx_drm_encoder.h"
 #include "nx_drm_connector.h"
+#include "soc/s5pxx18_drm_dp.h"
 
-/* lcd has totally three virtual windows. */
-#define WINDOWS_NR		3
-
-struct lcd_rgb_context {
+struct lcd_context {
 	struct drm_connector *connector;
 	struct drm_encoder *encoder;
-	struct drm_crtc *crtc;
-
-	unsigned int clkdiv;
-	unsigned int default_win;
-	unsigned long irq_flags;
-	unsigned int connected;
-	bool vblank_on;
-	bool suspended;
-	struct work_struct work;
+	struct nx_drm_dp_dev *dp_dev;
+	int encoder_port;
+	int panel_mpu_lcd;
 	struct mutex lock;
-	int bit_per_pixel;
 };
 
-#define lcd_connector(c)		\
-			container_of(c, struct lcd_rgb_context, connector)
+#define lcd_connector(c)	\
+		container_of(c, struct lcd_context, connector)
 
-#define	LCD_BYTE_PER_PIXEL			4
-#define	LCD_FRAMEBUFFER_FORMAT		MLC_RGBFMT_X8R8G8B8
-
-static bool lcd_rgb_drm_is_connected(struct device *dev)
+static bool panel_lcd_is_connected(struct device *dev,
+			struct drm_connector *connector)
 {
-	DRM_DEBUG_KMS("enter\n");
+	struct lcd_context *ctx = dev_get_drvdata(dev);
+	struct nx_drm_panel *dpp = &ctx->dp_dev->dpp;
+	struct device_node *panel_node = dpp->panel_node;
+
+	if (panel_node) {
+		struct drm_panel *panel = of_drm_find_panel(panel_node);
+
+		if (panel) {
+			dpp->panel = panel;
+			drm_panel_attach(panel, connector);
+		}
+	}
+
+	/*
+	 * if not attached panel,
+	 * set with DT's timing node.
+	 */
 	return true;
 }
 
-static int lcd_rgb_drm_check_timing(struct device *dev, void *timing)
+static int panel_lcd_get_modes(struct device *dev,
+			struct drm_connector *connector)
 {
-	DRM_DEBUG_KMS("todo\n");
-	return 0;
-}
-
-static int lcd_rgb_drm_display_power_on(struct device *dev, int mode)
-{
-	DRM_DEBUG_KMS("todo\n");
-	return 0;
-}
-
-static void lcd_rgb_drm_dpms(struct device *dev, int mode)
-{
-	struct lcd_rgb_context *lcd;
-
-	DRM_DEBUG_KMS("enter mode:%d\n", mode);
-	if (!dev)
-		return;
-
-	lcd = dev_get_drvdata(dev);
-	mutex_lock(&lcd->lock);
-
-	switch (mode) {
-	case DRM_MODE_DPMS_ON:
-		/* TODO. */
-		break;
-	case DRM_MODE_DPMS_STANDBY:
-	case DRM_MODE_DPMS_SUSPEND:
-	case DRM_MODE_DPMS_OFF:
-		/* TODO. */
-		break;
-	default:
-		DRM_DEBUG_KMS("unspecified mode %d\n", mode);
-		break;
-	}
-
-	mutex_unlock(&lcd->lock);
-}
-
-static void lcd_rgb_drm_apply(struct device *dev)
-{
-	DRM_DEBUG_KMS("enter\n");
-}
-
-static int lcd_rgb_drm_get_modes(struct drm_connector *connector)
-{
-	struct nx_drm_connector *nx_connector = to_nx_connector(connector);
-	struct lcd_rgb_context *lcd = nx_connector->context;
 	struct drm_display_mode *mode;
+	struct lcd_context *ctx = dev_get_drvdata(dev);
+	struct nx_drm_dp_dev *dp_dev = ctx->dp_dev;
+	struct nx_drm_panel *dpp = &dp_dev->dpp;
 
-	DRM_DEBUG_KMS("enter\n");
+	DRM_DEBUG_KMS("enter panel %s\n",
+		dpp->panel ? "attached" : "detached");
+
+	if (dpp->panel)
+		return drm_panel_get_modes(dpp->panel);
+
 	mode = drm_mode_create(connector->dev);
 	if (!mode) {
-		DRM_ERROR("failed to create a new display mode\n");
+		DRM_ERROR("fail : create a new display mode !!!\n");
 		return 0;
 	}
 
-	/* set BPP */
-	connector->cmdline_mode.bpp_specified = true;
-	connector->cmdline_mode.bpp = (LCD_BYTE_PER_PIXEL * 8);
-
-	mode->vrefresh = 60;
-	mode->clock = 75000;
-	mode->hdisplay = 1024;
-	mode->hsync_start = 1500;
-	mode->hsync_end = 1540;
-	mode->htotal = 1650;
-	mode->vdisplay = 600;
-	mode->vsync_start = 740;
-	mode->vsync_end = 745;
-	mode->vtotal = 750;
-	mode->type = 0x40;
-	mode->flags = 0xa;
+	drm_display_mode_from_videomode(&dpp->vm, mode);
+	mode->width_mm = dpp->width_mm;
+	mode->height_mm = dpp->height_mm;
+	connector->display_info.width_mm = mode->width_mm;
+	connector->display_info.height_mm = mode->height_mm;
 
 	drm_mode_set_name(mode);
 	drm_mode_probed_add(connector, mode);
 
-	DRM_DEBUG_KMS("exit, (%dx%d)\n", mode->hdisplay, mode->vdisplay);
+	DRM_DEBUG_KMS("exit, (%dx%d, flags=0x%x)\n",
+		mode->hdisplay, mode->vdisplay, mode->flags);
 	return 1;
 }
 
-static void lcd_rgb_drm_commit(struct drm_device *drm, struct device *dev)
+static int panel_lcd_check_mode(struct device *dev,
+			struct drm_display_mode *mode)
 {
-	DRM_DEBUG_KMS("enter paddr=0x%x\n",
-		      (uint32_t) drm->mode_config.fb_base);
+	struct lcd_context *ctx = dev_get_drvdata(dev);
+	struct nx_drm_dp_dev *dp_dev = ctx->dp_dev;
+	struct nx_drm_panel *dpp = &dp_dev->dpp;
+
+	drm_display_mode_to_videomode(mode, &dpp->vm);
+
+	DRM_DEBUG_KMS("SYNC -> LCD %d x %d mm\n",
+		dpp->width_mm, dpp->height_mm);
+	DRM_DEBUG_KMS("ha:%d, hs:%d, hb:%d, hf:%d\n",
+		dpp->vm.hactive, dpp->vm.hsync_len,
+		dpp->vm.hback_porch, dpp->vm.hfront_porch);
+	DRM_DEBUG_KMS("va:%d, vs:%d, vb:%d, vf:%d\n",
+		dpp->vm.vactive, dpp->vm.vsync_len,
+		dpp->vm.vback_porch, dpp->vm.vfront_porch);
+	DRM_DEBUG_KMS("flags:0x%x\n", dpp->vm.flags);
+
+	return MODE_OK;
 }
 
-static struct nx_drm_operation lcd_rgb_drm_ops = {
-	.type = NX_DISPLAY_TYPE_LCD,
-	.is_connected = lcd_rgb_drm_is_connected,
-	.check_timing = lcd_rgb_drm_check_timing,
-	.power_on = lcd_rgb_drm_display_power_on,
-	.dpms = lcd_rgb_drm_dpms,
-	.apply = lcd_rgb_drm_apply,
-	.get_mode = lcd_rgb_drm_get_modes,
-	.commit = lcd_rgb_drm_commit,
-};
-
-static struct nx_drm_display lcd_rgb_drm_display = {
-	.pipe = -1,
-	.ops = &lcd_rgb_drm_ops,
-};
-
-static int lcd_rgb_drm_power_on(struct lcd_rgb_context *ctx, bool enable)
+static void panel_lcd_commit(struct device *dev)
 {
+	struct lcd_context *ctx = dev_get_drvdata(dev);
+	struct nx_drm_dp_dev *dp_dev = ctx->dp_dev;
+
+	dp_dev->ddi.panel_mpu_lcd =
+		ctx->panel_mpu_lcd ? true : false;
+
 	DRM_DEBUG_KMS("enter\n");
-	return 0;
+	nx_soc_dp_device_top_mux(&dp_dev->ddi);
 }
 
-static int lcd_rgb_drm_bind(struct device *dev,
-				struct device *master, void *data)
+static void panel_lcd_dmps(struct device *dev, int mode)
 {
-	struct drm_encoder *encoder;
-	struct drm_connector *connector;
+	struct lcd_context *ctx = dev_get_drvdata(dev);
+	struct nx_drm_dp_dev *dp_dev = ctx->dp_dev;
+	struct drm_panel *panel = dp_dev->dpp.panel;
+
+	DRM_DEBUG_KMS("dpms.%d\n", mode);
+	switch (mode) {
+	case DRM_MODE_DPMS_STANDBY:
+		drm_panel_prepare(panel);
+		break;
+	case DRM_MODE_DPMS_SUSPEND:
+		drm_panel_unprepare(panel);
+		break;
+	case DRM_MODE_DPMS_ON:
+		drm_panel_enable(panel);
+		break;
+	case DRM_MODE_DPMS_OFF:
+		drm_panel_disable(panel);
+		break;
+	default:
+		DRM_ERROR("fail : unspecified mode %d\n", mode);
+		break;
+	}
+}
+
+static struct nx_drm_dev_ops panel_lcd_ops = {
+	.is_connected = panel_lcd_is_connected,
+	.get_modes = panel_lcd_get_modes,
+	.check_mode = panel_lcd_check_mode,
+	.commit = panel_lcd_commit,
+	.dmps = panel_lcd_dmps,
+};
+
+static struct nx_drm_dp_dev lcd_display = {
+	.ops = &panel_lcd_ops,
+};
+
+static int panel_lcd_bind(struct device *dev,
+			struct device *master, void *data)
+{
 	struct drm_device *drm = data;
-	struct nx_drm_private *private = drm->dev_private;
-	struct nx_drm_display *display = &lcd_rgb_drm_display;
-	struct lcd_rgb_context *lcd = dev_get_drvdata(dev);
-	int crtc_num = (1 << private->num_crtcs) - 1;
+	struct lcd_context *ctx = dev_get_drvdata(dev);
+	struct nx_drm_dp_dev *dp_dev = ctx->dp_dev;
+	int to_enc = ctx->encoder_port;
+	int ret;
 
-	DRM_DEBUG_KMS("enter\n");
-
-	encoder = nx_drm_encoder_create(drm, display, crtc_num, lcd);
-	if (!encoder) {
-		DRM_ERROR("failed to create LCD encoder\n");
+	ret = nx_drm_connector_create_and_attach(drm, dp_dev, to_enc, ctx);
+	if (0 > ret) {
+		DRM_ERROR("fail : create for LCD connector !!!\n");
 		return -EFAULT;
 	}
-
-	connector = nx_drm_connector_create(drm, encoder, lcd);
-	if (!connector) {
-		DRM_ERROR("failed to create LCD connector\n");
-		encoder->funcs->destroy(encoder);
-		return -EFAULT;
-	}
-
-	lcd->encoder = encoder;
-	lcd->connector = connector;
-	DRM_DEBUG_KMS("exit, LCD encoder:0x%p, connector:0x%p\n", encoder,
-		      connector);
 	return 0;
 }
 
-static void lcd_rgb_drm_unbind(struct device *dev,
-				struct device *master, void *data)
+static void panel_lcd_unbind(struct device *dev,
+			struct device *master, void *data)
 {
-	struct lcd_rgb_context *lcd = dev_get_drvdata(dev);
-	struct drm_encoder *encoder = lcd->encoder;
-	struct drm_connector *connector = lcd->connector;
+	struct lcd_context *ctx = dev_get_drvdata(dev);
 
-	DRM_DEBUG_KMS("enter\n");
-
-	if (encoder)
-		encoder->funcs->destroy(encoder);
-
-	if (connector)
-		connector->funcs->destroy(connector);
+	nx_drm_connector_destroy_and_detach(ctx->connector);
 }
 
-static const struct component_ops lcd_ops = {
-	.bind = lcd_rgb_drm_bind,
-	.unbind = lcd_rgb_drm_unbind,
+static const struct component_ops panel_comp_ops = {
+	.bind = panel_lcd_bind,
+	.unbind = panel_lcd_unbind,
 };
 
-static int lcd_rgb_drm_probe(struct platform_device *pdev)
+#define parse_read_prop(n, s, v)	{ \
+	u32 _v;	\
+	if (!of_property_read_u32(n, s, &_v))	\
+		v = _v;	\
+	}
+
+static int panel_lcd_parse_dt(struct platform_device *pdev,
+			struct lcd_context *ctx)
 {
-	struct lcd_rgb_context *lcd;
 	struct device *dev = &pdev->dev;
-	struct nx_drm_display *display = &lcd_rgb_drm_display;
+	struct nx_drm_dp_dev *dp_dev = ctx->dp_dev;
+	struct nx_drm_panel *dpp = &dp_dev->dpp;
+	struct device_node *node = dev->of_node;
+	struct device_node *np;
+	struct display_timing timing;
+	int ret;
+
+	np = of_graph_get_remote_port_parent(node);
+	if (!np)
+		return 0;
+
+	dpp->panel_node = np;
+
+	/*
+	 * parse panel info
+	 */
+	parse_read_prop(np, "width-mm", dpp->width_mm);
+	parse_read_prop(np, "height-mm", dpp->height_mm);
+
+	/*
+	 * parse display timing (sync)
+	 * refer to "drivers/video/of_display_timing.c"
+	 * -> of_parse_display_timing
+	 */
+	ret = of_get_display_timing(np, "panel-timing", &timing);
+	if (0 > ret)
+		return 0;
+
+	videomode_from_timing(&timing, &dpp->vm);
+
+	/*
+	 * parse display panel info
+	 */
+	np = of_find_node_by_name(np, "port");
+	if (!np)
+		return 0;
+
+	parse_read_prop(np, "encoder-port", ctx->encoder_port);
+	parse_read_prop(np, "panel-mpu", ctx->panel_mpu_lcd);
+
+	ret = nx_drm_dp_parse_dt_panel(np, &dp_dev->ddi);
+	if (0 > ret)
+		return ret;
+
+	/*
+	 * parse display control config
+	 */
+	np = of_find_node_by_name(np, "dp-control");
+	if (!np)
+		return 0;
+
+	nx_drm_dp_parse_dt_ctrl(np, &dp_dev->ddi);
+	nx_drm_dp_parse_dp_dump(dp_dev);
+
+	return 0;
+}
+
+static int panel_lcd_probe(struct platform_device *pdev)
+{
+	struct lcd_context *ctx;
+	int ret;
 
 	DRM_DEBUG_KMS("enter\n");
 
-	lcd = kzalloc(sizeof(*lcd), GFP_KERNEL);
-	if (!lcd)
+	ctx = devm_kzalloc(&pdev->dev, sizeof(*ctx), GFP_KERNEL);
+	if (!ctx)
 		return -ENOMEM;
 
-	DRM_INIT_DISPLAY_DEV(display, dev);
-	mutex_init(&lcd->lock);
+	ctx->dp_dev = &lcd_display;
+	ctx->dp_dev->dev = &pdev->dev;
+	mutex_init(&ctx->lock);
 
-	dev_set_drvdata(dev, lcd);
-	component_add(dev, &lcd_ops);
+	ret = panel_lcd_parse_dt(pdev, ctx);
+	if (0 > ret)
+		goto err_parse;
 
-	DRM_DEBUG_KMS("exit\n");
+	dev_set_drvdata(&pdev->dev, ctx);
+	component_add(&pdev->dev, &panel_comp_ops);
 
-	return 0;
+	DRM_DEBUG_KMS("done\n");
+	return ret;
+
+err_parse:
+	if (ctx)
+		devm_kfree(&pdev->dev, ctx);
+
+	return ret;
 }
 
-static int lcd_rgb_drm_remove(struct platform_device *pdev)
+static int panel_lcd_remove(struct platform_device *pdev)
 {
-	kfree(dev_get_drvdata(&pdev->dev));
+	struct lcd_context *ctx = dev_get_drvdata(&pdev->dev);
+
+	if (ctx)
+		devm_kfree(&pdev->dev, ctx);
+
 	return 0;
 }
 
 #ifdef CONFIG_PM_SLEEP
-static int lcd_rgb_drm_suspend(struct device *dev)
+static int panel_lcd_suspend(struct device *dev)
 {
-	struct lcd_rgb_context *lcd = dev_get_drvdata(dev);
-
-	return lcd_rgb_drm_power_on(lcd, false);
+	return 0;
 }
 
-static int lcd_rgb_drm_resume(struct device *dev)
+static int panel_lcd_resume(struct device *dev)
 {
-	struct lcd_rgb_context *lcd = dev_get_drvdata(dev);
-
-	return lcd_rgb_drm_power_on(lcd, true);
+	return 0;
 }
 #endif
 
-static const struct dev_pm_ops lcd_rgb_drm_pm = {
-	SET_SYSTEM_SLEEP_PM_OPS(lcd_rgb_drm_suspend, lcd_rgb_drm_resume)
+static const struct dev_pm_ops panel_lcd_pm = {
+	SET_SYSTEM_SLEEP_PM_OPS(
+		panel_lcd_suspend, panel_lcd_resume
+	)
 };
 
-static const struct of_device_id lcd_rgb_drm_of_match[] = {
-	{.compatible = "nexell,drm-s5p6818-lcd"},
+static const struct of_device_id panel_lcd_of_match[] = {
+	{.compatible = "nexell,s5p6818-lcd-panel"},
 	{}
 };
-MODULE_DEVICE_TABLE(of, lcd_rgb_drm_of_match);
+MODULE_DEVICE_TABLE(of, panel_lcd_of_match);
 
-struct platform_driver lcd_rgb_drm_driver = {
-	.probe = lcd_rgb_drm_probe,
-	.remove = lcd_rgb_drm_remove,
+struct platform_driver panel_lcd_driver = {
+	.probe = panel_lcd_probe,
+	.remove = panel_lcd_remove,
 	.driver = {
-		   .name = "nexell-drm-lcd",
-		   .owner = THIS_MODULE,
-		   .of_match_table = lcd_rgb_drm_of_match,
-		   .pm = &lcd_rgb_drm_pm,
+		.name = "nexell,lcd_panel",
+		.owner = THIS_MODULE,
+		.of_match_table = panel_lcd_of_match,
+		.pm = &panel_lcd_pm,
 	},
 };
-module_platform_driver(lcd_rgb_drm_driver);
+module_platform_driver(panel_lcd_driver);
 
 MODULE_AUTHOR("jhkim <jhkim@nexell.co.kr>");
 MODULE_DESCRIPTION("Nexell LCD DRM Driver");

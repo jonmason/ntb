@@ -15,10 +15,21 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef _NX_DRM_FBDEV_H_
-#define _NX_DRM_FBDEV_H_
+#ifndef _S5PXX18_SOC_DISP_H_
+#define _S5PXX18_SOC_DISP_H_
 
-extern int nx_drm_fbdev_init(struct drm_device *dev);
-extern void nx_drm_fbdev_fini(struct drm_device *dev);
+/*
+ *	Display Clock Control types
+ */
+enum nx_pclkmode {
+	nx_pclkmode_dynamic = 0UL,
+	nx_pclkmode_always	= 1UL
+};
+
+enum nx_bclkmode {
+	nx_bclkmode_disable	= 0UL,
+	nx_bclkmode_dynamic	= 2UL,
+	nx_bclkmode_always	= 3UL
+};
 
 #endif

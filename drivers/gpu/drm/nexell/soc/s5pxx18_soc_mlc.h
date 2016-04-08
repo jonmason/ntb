@@ -15,10 +15,17 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef _NX_SOC_MLC_H_
-#define _NX_SOC_MLC_H_
+#ifndef _S5PXX18_SOC_MLC_H_
+#define _S5PXX18_SOC_MLC_H_
 
-#include "nx_soc_disp.h"
+#include "s5pxx18_soc_disp.h"
+
+#define NUMBER_OF_MLC_MODULE 2
+#define PHY_BASEADDR_MLC0	0xC0102000
+#define PHY_BASEADDR_MLC1	0xC0102400
+
+#define	PHY_BASEADDR_MLC_LIST	\
+		{ PHY_BASEADDR_MLC0, PHY_BASEADDR_MLC1 }
 
 struct nx_mlc_register_set {
 	u32 mlccontrolt;
@@ -135,128 +142,128 @@ enum nx_mlc_yuvfmt {
 #pragma diag_default 66
 #endif
 
-extern int nx_mlc_initialize(void);
-extern u32 nx_mlc_get_number_of_module(void);
-extern u32 nx_mlc_get_physical_address(u32 module_index);
-extern u32 nx_mlc_get_size_of_register_set(void);
-extern void nx_mlc_set_base_address(u32 module_index, void *base_address);
-extern void *nx_mlc_get_base_address(u32 module_index);
-extern int nx_mlc_open_module(u32 module_index);
-extern int nx_mlc_close_module(u32 module_index);
-extern int nx_mlc_check_busy(u32 module_index);
-extern int nx_mlc_can_power_down(u32 module_index);
-extern void nx_mlc_set_clock_pclk_mode(u32 module_index, enum nx_pclkmode mode);
-extern enum nx_pclkmode nx_mlc_get_clock_pclk_mode(u32 module_index);
-extern void nx_mlc_set_clock_bclk_mode(u32 module_index, enum nx_bclkmode mode);
-extern enum nx_bclkmode nx_mlc_get_clock_bclk_mode(u32 module_index);
+int nx_mlc_initialize(void);
+u32 nx_mlc_get_number_of_module(void);
+u32 nx_mlc_get_physical_address(u32 module_index);
+u32 nx_mlc_get_size_of_register_set(void);
+void nx_mlc_set_base_address(u32 module_index, void *base_address);
+void *nx_mlc_get_base_address(u32 module_index);
+int nx_mlc_open_module(u32 module_index);
+int nx_mlc_close_module(u32 module_index);
+int nx_mlc_check_busy(u32 module_index);
+int nx_mlc_can_power_down(u32 module_index);
+void nx_mlc_set_clock_pclk_mode(u32 module_index, enum nx_pclkmode mode);
+enum nx_pclkmode nx_mlc_get_clock_pclk_mode(u32 module_index);
+void nx_mlc_set_clock_bclk_mode(u32 module_index, enum nx_bclkmode mode);
+enum nx_bclkmode nx_mlc_get_clock_bclk_mode(u32 module_index);
 
-extern void nx_mlc_set_top_power_mode(u32 module_index, int bpower);
-extern int nx_mlc_get_top_power_mode(u32 module_index);
-extern void nx_mlc_set_top_sleep_mode(u32 module_index, int bsleep);
-extern int nx_mlc_get_top_sleep_mode(u32 module_index);
-extern void nx_mlc_set_top_dirty_flag(u32 module_index);
-extern int nx_mlc_get_top_dirty_flag(u32 module_index);
-extern void nx_mlc_set_mlc_enable(u32 module_index, int benb);
-extern int nx_mlc_get_mlc_enable(u32 module_index);
-extern void nx_mlc_set_field_enable(u32 module_index, int benb);
-extern int nx_mlc_get_field_enable(u32 module_index);
-extern void nx_mlc_set_layer_priority(u32 module_index,
+void nx_mlc_set_top_power_mode(u32 module_index, int bpower);
+int nx_mlc_get_top_power_mode(u32 module_index);
+void nx_mlc_set_top_sleep_mode(u32 module_index, int bsleep);
+int nx_mlc_get_top_sleep_mode(u32 module_index);
+void nx_mlc_set_top_dirty_flag(u32 module_index);
+int nx_mlc_get_top_dirty_flag(u32 module_index);
+void nx_mlc_set_mlc_enable(u32 module_index, int benb);
+int nx_mlc_get_mlc_enable(u32 module_index);
+void nx_mlc_set_field_enable(u32 module_index, int benb);
+int nx_mlc_get_field_enable(u32 module_index);
+void nx_mlc_set_layer_priority(u32 module_index,
 				      enum nx_mlc_priority priority);
-extern void nx_mlc_set_screen_size(u32 module_index, u32 width, u32 height);
-extern void nx_mlc_get_screen_size(u32 module_index, u32 *pwidth,
+void nx_mlc_set_screen_size(u32 module_index, u32 width, u32 height);
+void nx_mlc_get_screen_size(u32 module_index, u32 *pwidth,
 				   u32 *pheight);
-extern void nx_mlc_set_background(u32 module_index, u32 color);
+void nx_mlc_set_background(u32 module_index, u32 color);
 
-extern void nx_mlc_set_dirty_flag(u32 module_index, u32 layer);
-extern int nx_mlc_get_dirty_flag(u32 module_index, u32 layer);
-extern void nx_mlc_set_layer_enable(u32 module_index, u32 layer, int benb);
-extern int nx_mlc_get_layer_enable(u32 module_index, u32 layer);
-extern void nx_mlc_set_lock_size(u32 module_index, u32 layer, u32 locksize);
-extern void nx_mlc_set_alpha_blending(u32 module_index, u32 layer, int benb,
+void nx_mlc_set_dirty_flag(u32 module_index, u32 layer);
+int nx_mlc_get_dirty_flag(u32 module_index, u32 layer);
+void nx_mlc_set_layer_enable(u32 module_index, u32 layer, int benb);
+int nx_mlc_get_layer_enable(u32 module_index, u32 layer);
+void nx_mlc_set_lock_size(u32 module_index, u32 layer, u32 locksize);
+void nx_mlc_set_alpha_blending(u32 module_index, u32 layer, int benb,
 				      u32 alpha);
-extern void nx_mlc_set_transparency(u32 module_index, u32 layer, int benb,
+void nx_mlc_set_transparency(u32 module_index, u32 layer, int benb,
 				    u32 color);
-extern void nx_mlc_set_color_inversion(u32 module_index, u32 layer, int benb,
+void nx_mlc_set_color_inversion(u32 module_index, u32 layer, int benb,
 				       u32 color);
-extern u32 nx_mlc_get_extended_color(u32 module_index, u32 color,
+u32 nx_mlc_get_extended_color(u32 module_index, u32 color,
 				     enum nx_mlc_rgbfmt format);
-extern void nx_mlc_set_format_rgb(u32 module_index, u32 layer,
+void nx_mlc_set_format_rgb(u32 module_index, u32 layer,
 				  enum nx_mlc_rgbfmt format);
-extern void nx_mlc_set_format_yuv(u32 module_index, enum nx_mlc_yuvfmt format);
-extern void nx_mlc_set_position(u32 module_index, u32 layer, int32_t sx,
+void nx_mlc_set_format_yuv(u32 module_index, enum nx_mlc_yuvfmt format);
+void nx_mlc_set_position(u32 module_index, u32 layer, int32_t sx,
 				int32_t sy, int32_t ex, int32_t ey);
-extern void nx_mlc_set_dither_enable_when_using_gamma(u32 module_index,
+void nx_mlc_set_dither_enable_when_using_gamma(u32 module_index,
 						      int benable);
-extern int nx_mlc_get_dither_enable_when_using_gamma(u32 module_index);
-extern void nx_mlc_set_gamma_priority(u32 module_index, int bvideolayer);
-extern int nx_mlc_get_gamma_priority(u32 module_index);
+int nx_mlc_get_dither_enable_when_using_gamma(u32 module_index);
+void nx_mlc_set_gamma_priority(u32 module_index, int bvideolayer);
+int nx_mlc_get_gamma_priority(u32 module_index);
 
-extern void nx_mlc_set_rgblayer_invalid_position(u32 module_index, u32 layer,
+void nx_mlc_set_rgblayer_invalid_position(u32 module_index, u32 layer,
 						 u32 region, int32_t sx,
 						 int32_t sy, int32_t ex,
 						 int32_t ey, int benb);
-extern void nx_mlc_set_rgblayer_stride(u32 module_index, u32 layer,
+void nx_mlc_set_rgblayer_stride(u32 module_index, u32 layer,
 				       int32_t hstride, int32_t vstride);
-extern void nx_mlc_set_rgblayer_address(u32 module_index, u32 layer, u32 addr);
-extern void nx_mlc_set_rgblayer_gama_table_power_mode(u32 module_index,
+void nx_mlc_set_rgblayer_address(u32 module_index, u32 layer, u32 addr);
+void nx_mlc_set_rgblayer_gama_table_power_mode(u32 module_index,
 						      int bred, int bgreen,
 						      int bblue);
-extern void nx_mlc_get_rgblayer_gama_table_power_mode(u32 module_index,
+void nx_mlc_get_rgblayer_gama_table_power_mode(u32 module_index,
 						      int *pbred, int *pbgreen,
 						      int *pbblue);
-extern void nx_mlc_set_rgblayer_gama_table_sleep_mode(u32 module_index,
+void nx_mlc_set_rgblayer_gama_table_sleep_mode(u32 module_index,
 						      int bred, int bgreen,
 						      int bblue);
-extern void nx_mlc_get_rgblayer_gama_table_sleep_mode(u32 module_index,
+void nx_mlc_get_rgblayer_gama_table_sleep_mode(u32 module_index,
 						      int *pbred, int *pbgreen,
 						      int *pbblue);
-extern void nx_mlc_set_rgblayer_rgamma_table(u32 module_index, u32 dwaddress,
+void nx_mlc_set_rgblayer_rgamma_table(u32 module_index, u32 dwaddress,
 					     u32 dwdata);
-extern void nx_mlc_set_rgblayer_ggamma_table(u32 module_index, u32 dwaddress,
+void nx_mlc_set_rgblayer_ggamma_table(u32 module_index, u32 dwaddress,
 					     u32 dwdata);
-extern void nx_mlc_set_rgblayer_bgamma_table(u32 module_index, u32 dwaddress,
+void nx_mlc_set_rgblayer_bgamma_table(u32 module_index, u32 dwaddress,
 					     u32 dwdata);
-extern void nx_mlc_set_rgblayer_gamma_enable(u32 module_index, int benable);
-extern int nx_mlc_get_rgblayer_gamma_enable(u32 module_index);
+void nx_mlc_set_rgblayer_gamma_enable(u32 module_index, int benable);
+int nx_mlc_get_rgblayer_gamma_enable(u32 module_index);
 
-extern void nx_mlc_set_video_layer_stride(u32 module_index, int32_t lu_stride,
+void nx_mlc_set_video_layer_stride(u32 module_index, int32_t lu_stride,
 					  int32_t cb_stride, int32_t cr_stride);
-extern void nx_mlc_set_video_layer_address(u32 module_index, u32 lu_addr,
+void nx_mlc_set_video_layer_address(u32 module_index, u32 lu_addr,
 					   u32 cb_addr, u32 cr_addr);
-extern void nx_mlc_set_video_layer_address_yuyv(u32 module_index, u32 addr,
+void nx_mlc_set_video_layer_address_yuyv(u32 module_index, u32 addr,
 						int32_t stride);
-extern void nx_mlc_set_video_layer_scale_factor(u32 module_index, u32 hscale,
+void nx_mlc_set_video_layer_scale_factor(u32 module_index, u32 hscale,
 						u32 vscale, int bhlumaenb,
 						int bhchromaenb, int bvlumaenb,
 						int bvchromaenb);
-extern void nx_mlc_set_video_layer_scale_filter(u32 module_index, int bhlumaenb,
+void nx_mlc_set_video_layer_scale_filter(u32 module_index, int bhlumaenb,
 						int bhchromaenb, int bvlumaenb,
 						int bvchromaenb);
-extern void nx_mlc_get_video_layer_scale_filter(u32 module_index,
+void nx_mlc_get_video_layer_scale_filter(u32 module_index,
 						int *bhlumaenb,
 						int *bhchromaenb,
 						int *bvlumaenb,
 						int *bvchromaenb);
-extern void nx_mlc_set_video_layer_scale(u32 module_index, u32 sw, u32 sh,
+void nx_mlc_set_video_layer_scale(u32 module_index, u32 sw, u32 sh,
 					 u32 dw, u32 dh, int bhlumaenb,
 					 int bhchromaenb, int bvlumaenb,
 					 int bvchromaenb);
-extern void nx_mlc_set_video_layer_luma_enhance(u32 module_index, u32 contrast,
+void nx_mlc_set_video_layer_luma_enhance(u32 module_index, u32 contrast,
 						int32_t brightness);
-extern void nx_mlc_set_video_layer_chroma_enhance(u32 module_index,
+void nx_mlc_set_video_layer_chroma_enhance(u32 module_index,
 						  u32 quadrant, int32_t cb_a,
 						  int32_t cb_b, int32_t cr_a,
 						  int32_t cr_b);
-extern void nx_mlc_set_video_layer_line_buffer_power_mode(u32 module_index,
+void nx_mlc_set_video_layer_line_buffer_power_mode(u32 module_index,
 							  int benable);
-extern int nx_mlc_get_video_layer_line_buffer_power_mode(u32 module_index);
-extern void nx_mlc_set_video_layer_line_buffer_sleep_mode(u32 module_index,
+int nx_mlc_get_video_layer_line_buffer_power_mode(u32 module_index);
+void nx_mlc_set_video_layer_line_buffer_sleep_mode(u32 module_index,
 							  int benable);
-extern int nx_mlc_get_video_layer_line_buffer_sleep_mode(u32 module_index);
-extern void nx_mlc_set_video_layer_gamma_enable(u32 module_index, int benable);
-extern int nx_mlc_get_video_layer_gamma_enable(u32 module_index);
+int nx_mlc_get_video_layer_line_buffer_sleep_mode(u32 module_index);
+void nx_mlc_set_video_layer_gamma_enable(u32 module_index, int benable);
+int nx_mlc_get_video_layer_gamma_enable(u32 module_index);
 
-extern void nx_mlc_set_gamma_table_poweroff(u32 module_index, int enb);
+void nx_mlc_set_gamma_table_poweroff(u32 module_index, int enb);
 
 enum mlc_rgbfmt {
 	rgbfmt_r5g6b5 = 0,
@@ -316,12 +323,12 @@ enum g3daddrchangeallowed {
 	primandsecon = 3
 };
 
-extern void nx_mlc_set_mlctop_control_parameter(u32 module_index,
+void nx_mlc_set_mlctop_control_parameter(u32 module_index,
 						int field_enable, int mlcenable,
 						u8 priority,
 						enum g3daddrchangeallowed
 						g3daddr_change_allowed);
-extern void nx_mlc_set_rgb0layer_control_parameter(u32 module_index,
+void nx_mlc_set_rgb0layer_control_parameter(u32 module_index,
 						   int layer_enable,
 						   int grp3denable,
 						   int tp_enable,
@@ -334,8 +341,8 @@ extern void nx_mlc_set_rgb0layer_control_parameter(u32 module_index,
 						   enum locksizesel
 						   lock_size_select);
 
-extern u32 nx_mlc_get_rgbformat(enum mlc_rgbfmt rbgformat);
-extern void nx_mlc_set_rgb1layer_control_parameter(u32 module_index,
+u32 nx_mlc_get_rgbformat(enum mlc_rgbfmt rbgformat);
+void nx_mlc_set_rgb1layer_control_parameter(u32 module_index,
 						   int layer_enable,
 						   int grp3denable,
 						   int tp_enable,
@@ -348,7 +355,7 @@ extern void nx_mlc_set_rgb1layer_control_parameter(u32 module_index,
 						   enum locksizesel
 						   lock_size_select);
 
-extern void nx_mlc_set_rgb2layer_control_parameter(u32 module_index,
+void nx_mlc_set_rgb2layer_control_parameter(u32 module_index,
 						   int layer_enable,
 						   int grp3denable,
 						   int tp_enable,
@@ -361,7 +368,7 @@ extern void nx_mlc_set_rgb2layer_control_parameter(u32 module_index,
 						   enum locksizesel
 						   lock_size_select);
 
-extern void nx_mlc_set_video_layer_control_parameter(u32 module_index,
+void nx_mlc_set_video_layer_control_parameter(u32 module_index,
 						     int layer_enable,
 						     int tp_enable,
 						     u32 transparency_color,
@@ -372,13 +379,13 @@ extern void nx_mlc_set_video_layer_control_parameter(u32 module_index,
 						     enum nx_mlc_yuvfmt
 						     yuvformat);
 
-extern void nx_mlc_set_srammode(u32 module_index, enum latyername layer_name,
+void nx_mlc_set_srammode(u32 module_index, enum latyername layer_name,
 				enum srammode sram_mode);
 
-extern void nx_mlc_set_layer_reg_finish(u32 module_index,
+void nx_mlc_set_layer_reg_finish(u32 module_index,
 					enum latyername layer_name);
 
-extern void nx_mlc_set_video_layer_coordinate(u32 module_index,
+void nx_mlc_set_video_layer_coordinate(u32 module_index,
 					      int vfilterenable,
 					      int hfilterenable,
 					      int vfilterenable_c,
@@ -388,16 +395,16 @@ extern void nx_mlc_set_video_layer_coordinate(u32 module_index,
 					      int16_t left, int16_t right,
 					      int16_t top, int16_t bottom);
 
-extern void nx_mlc_set_video_layer_filter_scale(u32 module_index, u32 hscale,
+void nx_mlc_set_video_layer_filter_scale(u32 module_index, u32 hscale,
 						u32 vscale);
-extern void nx_mlcsetgammasrammode(u32 module_index, enum srammode sram_mode);
-extern void nx_mlc_set_gamma_control_parameter(u32 module_index,
+void nx_mlcsetgammasrammode(u32 module_index, enum srammode sram_mode);
+void nx_mlc_set_gamma_control_parameter(u32 module_index,
 					       int rgbgammaenb, int yuvgammaenb,
 					       int yuvalphaarray,
 					       int dither_enb);
 
-extern void nx_mlc_set_layer_alpha256(u32 module_index, u32 layer, u32 alpha);
-extern int nx_mlc_is_under_flow(u32 module_index);
+void nx_mlc_set_layer_alpha256(u32 module_index, u32 layer, u32 alpha);
+int nx_mlc_is_under_flow(u32 module_index);
 
 struct nx_mlc_gamma_table_parameter {
 	u32 r_table[256];
@@ -410,23 +417,23 @@ struct nx_mlc_gamma_table_parameter {
 	u32 allgammaenb;
 };
 
-extern void nx_mlc_set_gamma_table(u32 module_index, int enb,
-		struct nx_mlc_gamma_table_parameter *p_nx_mlc_gammatable);
-extern void nx_mlc_get_rgblayer_stride(u32 module_index, u32 layer,
+void nx_mlc_set_gamma_table(u32 module_index, int enb,
+		struct nx_mlc_gamma_table_parameter *p_gammatable);
+void nx_mlc_get_rgblayer_stride(u32 module_index, u32 layer,
 				       int32_t *hstride, int32_t *vstride);
-extern void nx_mlc_get_rgblayer_address(u32 module_index, u32 layer,
+void nx_mlc_get_rgblayer_address(u32 module_index, u32 layer,
 					u32 *phys_address);
-extern void nx_mlc_get_position(u32 module_index, u32 layer, int *left,
+void nx_mlc_get_position(u32 module_index, u32 layer, int *left,
 				int *top, int *right, int *bottom);
-extern void nx_mlc_get_video_layer_address_yuyv(u32 module_index, u32 *address,
+void nx_mlc_get_video_layer_address_yuyv(u32 module_index, u32 *address,
 						u32 *stride);
-extern void nx_mlc_get_video_layer_address(u32 module_index, u32 *lu_address,
+void nx_mlc_get_video_layer_address(u32 module_index, u32 *lu_address,
 					   u32 *cb_address, u32 *cr_address);
-extern void nx_mlc_get_video_layer_stride(u32 module_index, u32 *lu_stride,
+void nx_mlc_get_video_layer_stride(u32 module_index, u32 *lu_stride,
 					  u32 *cb_stride, u32 *cr_stride);
-extern void nx_mlc_get_video_layer_stride(u32 module_index, u32 *lu_stride,
+void nx_mlc_get_video_layer_stride(u32 module_index, u32 *lu_stride,
 					  u32 *cb_stride, u32 *cr_stride);
-extern void nx_mlc_get_video_position(u32 module_index, int *left, int *top,
+void nx_mlc_get_video_position(u32 module_index, int *left, int *top,
 				      int *right, int *bottom);
 
 #endif
