@@ -22,6 +22,7 @@
 #include <dt-bindings/soc/s5p6818-base.h>
 #include <dt-bindings/reset/nexell,s5p6818-reset.h>
 #include <dt-bindings/interrupt-controller/s5p6818-irq.h>
+#include <dt-bindings/media/nexell-vip.h>
 
 / {
 	model = "nexell soc";
@@ -158,6 +159,11 @@
 		compatible = "nexell,s5p6818,pll";
 		reg = <0xc0010000 0x1000>;
 		ref-freuecny = <24000000>;
+	};
+
+	nx-v4l2 {
+		compatible = "nexell,nx-v4l2";
+		status = "disabled";
 	};
 
 	soc {
@@ -668,6 +674,77 @@
 			clock-names = "tmu_apbif";
 			#include "s5p6818-tmu-sensor-conf.dtsi"
 			soc,tieoff = <NX_TIEOFF_Inst_TMU1_SENSING_START 1>;
+			status = "disabled";
+		};
+
+		mipi_csi:mipi_csi@c00d0000 {
+			compatible = "nexell,mipi_csi";
+			reg = <PHYS_BASE_MIPI 0x1000>;
+			clock-names = "mipi";
+			clocks = <&mipi>;
+			reset-names = "mipi-reset", "mipi_csi-reset", "mipi_phy_s-reset";
+			resets = <&nexell_reset RESET_ID_MIPI>,
+				 <&nexell_reset RESET_ID_MIPI_CSI>,
+				 <&nexell_reset RESET_ID_MIPI_PHY_S>;
+			soc,tieoff = <NX_TIEOFF_MIPI0_NX_DPSRAM_1R1W_EMAA 3>;
+			data_lane = <2>;
+			swap_clocklane = <0>;
+			swap_datalane = <0>;
+			pllval = <750>;
+			status = "disabled";
+		};
+
+		vip_0:vip@c0063000 {
+			compatible = "nexell,vip";
+			reg = <PHYS_BASE_VIP0 0x1000>;
+			interrupts = <0 IRQ_VIP0 0>;
+			clock-names = "vip0";
+			clocks = <&vip0>;
+			reset-names = "vip0-reset";
+			resets = <&nexell_reset RESET_ID_VIP0>;
+			module = <0>;
+			status = "disabled";
+		};
+
+		vip_1:vip@c0064000 {
+			compatible = "nexell,vip";
+			reg = <PHYS_BASE_VIP1 0x1000>;
+			interrupts = <0 IRQ_VIP1 0>;
+			clock-names = "vip1";
+			clocks = <&vip1>;
+			reset-names = "vip1-reset";
+			resets = <&nexell_reset RESET_ID_VIP1>;
+			module = <1>;
+			status = "disabled";
+		};
+
+		vip_2:vip@c0099000 {
+			compatible = "nexell,vip";
+			reg = <PHYS_BASE_VIP2 0x1000>;
+			interrupts = <0 IRQ_VIP2 0>;
+			clock-names = "vip2";
+			clocks = <&vip2>;
+			reset-names = "vip2-reset";
+			resets = <&nexell_reset RESET_ID_VIP2>;
+			module = <2>;
+			status = "disabled";
+		};
+
+		clipper_0:clipper0@c0063000 {
+			compatible = "nexell,nx-clipper";
+			module = <0>;
+			status = "disabled";
+		};
+
+		clipper_1:clipper1@c0064000 {
+			compatible = "nexell,nx-clipper";
+			module = <1>;
+			status = "disabled";
+		};
+
+		clipper_2:clipper2@c0064000 {
+			compatible = "nexell,nx-clipper";
+			module = <2>;
 			status = "disabled";
 		};
 	}; /*** soc ***/
