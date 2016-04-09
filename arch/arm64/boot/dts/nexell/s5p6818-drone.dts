@@ -40,6 +40,10 @@
 		reg = <0x40000000 0x7ee00000>;
 	};
 
+	nx-v4l2 {
+		status = "okay";
+	};
+
 	soc {
 		#include "s5p6818-pinctrl.dtsi"
 
@@ -50,6 +54,9 @@
 			uart3:uart@c00ab000 { clock-frequency = <147500000>; };
 			uart4:uart@c006e000 { clock-frequency = <147500000>; };
 			uart5:uart@c0084000 { clock-frequency = <147500000>; };
+			pwm0:pwm0@c00ba000 { clock-frequency = <100000000>; };
+			i2c0:i2c@c00ae000  { clock-frequency = <200000000>; };
+			vip1:vip@c00c2000 { src-force = <4>; };
 		};
 
 		serial0:serial@c00a1000 {
@@ -232,6 +239,56 @@
 		dwc2otg@c0040000 {
 			gpios = <&gpio_d 21 0>;
 			status = "okay";
+		};
+
+		i2c_0:i2c@c00a4000 {
+			status = "okay";
+		};
+
+		pwm:pwm@c0018000 {
+			status = "okay";
+		};
+
+		vip_1:vip@c0064000 {
+			status = "okay";
+		};
+
+		clipper_1:clipper1@c0064000 {
+			status = "okay";
+			pwms = <&pwm 1 41 0>; /* 1000000000/41 */
+			interface_type = <NX_CAPTURE_INTERFACE_PARALLEL>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&vid1_data_clk &vid1_sync> ;
+			port = <0>;
+			external_sync = <0>;
+			data_order = <NX_VIN_Y0CBY1CR>;
+			interlace = <0>;
+			regulator_names = "axp22_dldo2";
+			regulator_voltages = <1800000>;
+
+			gpios = <&gpio_c 4 0
+				 &gpio_c 5 0
+			         &gpio_c 6 0>;
+
+			sensor {
+				type = <NX_CAPTURE_SENSOR_I2C>;
+				i2c_name = "SP2518";
+				i2c_adapter = <0>;
+				addr = <0x30>;
+			};
+
+			power {
+				enable_seq = <
+				NX_ACTION_START NX_ACTION_TYPE_GPIO 2 1 0 NX_ACTION_END
+				NX_ACTION_START NX_ACTION_TYPE_PMIC 0 0 NX_ACTION_END
+				NX_ACTION_START NX_ACTION_TYPE_PMIC 1 0 NX_ACTION_END
+				NX_ACTION_START NX_ACTION_TYPE_GPIO 0 0 0 1 0 NX_ACTION_END
+				NX_ACTION_START NX_ACTION_TYPE_CLOCK 1 10 NX_ACTION_END
+				NX_ACTION_START NX_ACTION_TYPE_GPIO 0 0 0 NX_ACTION_END
+				NX_ACTION_START NX_ACTION_TYPE_GPIO 1 1 0 0 1 NX_ACTION_END
+				NX_ACTION_START NX_ACTION_TYPE_GPIO 1 1 100 NX_ACTION_END
+				>;
+			};
 		};
 	};	/*** soc ***/
 };
