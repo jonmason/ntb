@@ -389,12 +389,7 @@ static int nexell_soc_write_pin(unsigned int io,
 		nx_soc_gpio_set_out_value(io, data);
 		break;
 	case PINCFG_TYPE_PULL:
-		if (data == PIN_PULL_DN)
-			nx_soc_gpio_set_io_pull_sel(io, 0);
-		else if (data == PIN_PULL_UP)
-			nx_soc_gpio_set_io_pull_sel(io, 1);
-		else if (data == PIN_PULL_OFF)
-			nx_soc_gpio_set_io_pull_enb(io, 0);
+		nx_soc_gpio_set_io_pull(io, data);
 		break;
 	case PINCFG_TYPE_DRV:
 		nx_soc_gpio_set_io_drv(io, data);
@@ -424,7 +419,7 @@ static int nexell_soc_read_pin(unsigned int io,
 		*data = nx_soc_gpio_get_in_value(io);
 		break;
 	case PINCFG_TYPE_PULL:
-		*data = nx_soc_gpio_get_io_pull_sel(io);
+		*data = nx_soc_gpio_get_io_pull(io);
 		break;
 	case PINCFG_TYPE_DRV:
 		*data = nx_soc_gpio_get_io_drv(io);

@@ -1191,12 +1191,12 @@ int nx_soc_gpio_get_io_dir(unsigned int io)
 	return dir;
 }
 
-void nx_soc_gpio_set_io_pull_enb(unsigned int io, int on)
+void nx_soc_gpio_set_io_pull(unsigned int io, int val)
 {
 	unsigned int grp = PAD_GET_GROUP(io);
 	unsigned int bit = PAD_GET_BITNO(io);
 
-	pr_debug("%s (%d.%02d) on:%d\n", __func__, grp, bit, on);
+	pr_debug("%s (%d.%02d) sel:%d\n", __func__, grp, bit, val);
 
 	switch (io & ~(32 - 1)) {
 	case PAD_GPIO_A:
@@ -1205,72 +1205,25 @@ void nx_soc_gpio_set_io_pull_enb(unsigned int io, int on)
 	case PAD_GPIO_D:
 	case PAD_GPIO_E:
 		IO_LOCK(grp);
-		nx_gpio_set_pull_enable(grp, bit, on ? true : false);
-		IO_UNLOCK(grp);
-		break;
-	default:
-		pr_err("fail, soc gpio io:%d, group:%d (%s)\n", io, grp,
-		       __func__);
-		break;
-	};
-}
-
-int nx_soc_gpio_get_io_pull_enb(unsigned int io)
-{
-	unsigned int grp = PAD_GET_GROUP(io);
-	unsigned int bit = PAD_GET_BITNO(io);
-	int enb = -1;
-
-	pr_debug("%s (%d.%02d)\n", __func__, grp, bit);
-
-	switch (io & ~(32 - 1)) {
-	case PAD_GPIO_A:
-	case PAD_GPIO_B:
-	case PAD_GPIO_C:
-	case PAD_GPIO_D:
-	case PAD_GPIO_E:
-		IO_LOCK(grp);
-		enb = nx_gpio_get_pull_enable(grp, bit) ? 1 : 0;
-		IO_UNLOCK(grp);
-		break;
-	default:
-		pr_err("fail, soc gpio io:%d, group:%d (%s)\n", io, grp,
-		       __func__);
-		break;
-	};
-	return enb;
-}
-
-void nx_soc_gpio_set_io_pull_sel(unsigned int io, int up)
-{
-	unsigned int grp = PAD_GET_GROUP(io);
-	unsigned int bit = PAD_GET_BITNO(io);
-
-	pr_debug("%s (%d.%02d) sel:%d\n", __func__, grp, bit, up);
-
-	switch (io & ~(32 - 1)) {
-	case PAD_GPIO_A:
-	case PAD_GPIO_B:
-	case PAD_GPIO_C:
-	case PAD_GPIO_D:
-	case PAD_GPIO_E:
-		IO_LOCK(grp);
-		nx_gpio_set_pull_enable(grp, bit, up);
+		nx_gpio_set_pull_enable(grp, bit, val);
 		IO_UNLOCK(grp);
 		break;
 	case PAD_GPIO_ALV:
 		IO_LOCK(grp);
-		nx_alive_set_pullup_enable(bit, up ? true : false);
+		if (val == 0)
+			nx_alive_set_pullup_enable(bit, false);
+		else if (val == 1)
+			nx_alive_set_pullup_enable(bit, true);
 		IO_UNLOCK(grp);
 		break;
 	default:
 		pr_err("fail, soc gpio io:%d, group:%d (%s)\n", io, grp,
-		       __func__);
+				__func__);
 		break;
 	};
 }
 
-int nx_soc_gpio_get_io_pull_sel(unsigned int io)
+int nx_soc_gpio_get_io_pull(unsigned int io)
 {
 	unsigned int grp = PAD_GET_GROUP(io);
 	unsigned int bit = PAD_GET_BITNO(io);
@@ -1295,9 +1248,10 @@ int nx_soc_gpio_get_io_pull_sel(unsigned int io)
 		break;
 	default:
 		pr_err("fail, soc gpio io:%d, group:%d (%s)\n", io, grp,
-		       __func__);
+				__func__);
 		break;
 	};
+
 	return up;
 }
 
