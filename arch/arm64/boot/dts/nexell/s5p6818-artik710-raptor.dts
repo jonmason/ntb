@@ -40,6 +40,10 @@
 	compatible = "samsung,artik710-raptor", "samsung,artik710",
 		   "nexell,s5p6818";
 
+	aliases {
+		i2c3 = &i2c_gpio3;
+	};
+
 	soc {
 
 		serial3:serial@c00a3000 {
@@ -277,6 +281,13 @@
 				nexell,pin-pull = <1>;
 				nexell,pin-strength = <0>;
 			};
+
+			touchpanel_irq: touchpanel-irq {
+				nexell,pins = "gpiob-22";
+				nexell,pin-function = <1>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
 		};
 
 		spdiftx@c0059000 {
@@ -351,6 +362,26 @@
 		compatible = "nexell,spdif-transceiver";
 		sample_rate = <48000>;
 		format = "S16";
+	};
+
+	i2c_gpio3: i2c@3 {
+		compatible = "i2c-gpio";
+		gpios = <&gpio_c 16 0	/* sda */
+			&gpio_c 15 0	/* scl */
+			>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		touchscreen@4a {
+			compatible = "atmel,maxtouch";
+			reg = <0x4a>;
+			interrupt-parent = <&gpio_b>;
+			interrupts = <22 IRQ_TYPE_EDGE_FALLING>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&touchpanel_irq>;
+			skip-cfg-load;
+			switch-xy;
+		};
 	};
 };
 
