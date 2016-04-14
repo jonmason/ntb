@@ -419,3 +419,9 @@
 &i2c_1 {
 	status = "okay";
 };
+
+&pwm {
+	status = "okay";
+	pinctrl-0 = <&pwm0_pin &pwm1_pin &pwm2_pin>;
+	samsung,pwm-outputs = <0>, <1>, <2>;
+};
