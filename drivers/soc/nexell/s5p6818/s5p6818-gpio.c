@@ -1210,10 +1210,10 @@ void nx_soc_gpio_set_io_pull(unsigned int io, int val)
 		break;
 	case PAD_GPIO_ALV:
 		IO_LOCK(grp);
-		if (val == 0)
-			nx_alive_set_pullup_enable(bit, false);
-		else if (val == 1)
+		if (val & 1)	/* up */
 			nx_alive_set_pullup_enable(bit, true);
+		else	/* down, off */
+			nx_alive_set_pullup_enable(bit, false);
 		IO_UNLOCK(grp);
 		break;
 	default:
