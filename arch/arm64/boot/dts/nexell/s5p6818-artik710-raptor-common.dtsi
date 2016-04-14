@@ -60,7 +60,7 @@
 			clock-frequency = <100000000>;
 			card-detect-delay = <200>;
 			disable-wp;
-			cd-gpios = <&gpio_c 14 0>;
+			cd-gpios = <&gpio_b 16 0>;
 			cd-inverted;
 			nexell,drive_dly = <0x0>;
 			nexell,drive_shift = <0x02>;

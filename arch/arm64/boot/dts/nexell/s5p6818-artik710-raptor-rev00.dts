@@ -18,3 +18,7 @@
 
 /dts-v1/;
 #include "s5p6818-artik710-raptor-common.dtsi"
+
+&dw_mmc_0 {
+	cd-gpios = <&gpio_c 14 0>;
+};
