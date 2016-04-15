@@ -765,5 +765,10 @@
 				port@1 { };
 			};
 		};
+
+		lcd_panel: dp_lcd_panel {
+			compatible = "nexell,s5p6818-lcd-panel";
+		};
+
 	}; /*** soc ***/
 };
