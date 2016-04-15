@@ -592,9 +592,11 @@ int nx_drm_dp_device_reset(struct drm_device *drm,
 		struct reset_control *rsc = priv->reset_ctrl[i];
 
 		if (rsc) {
-				if (!reset_control_status(rsc))
-					reset_control_reset(rsc);
-			}
+			bool reset = reset_control_status(rsc);
+
+			if (reset)
+				reset_control_reset(rsc);
+		}
 	}
 
 	DRM_DEBUG_KMS("done\n");
