@@ -169,42 +169,42 @@ pinctrl@C0010000 {
 		nexell,pins = "gpioa-29";
 		nexell,pin-function = <1>;
 		nexell,pin-pull = <2>;
-		nexell,pin-strength = <0>;
+		nexell,pin-strength = <2>;
 	};
 
 	sdmmc0_cmd: sdmmc0-cmd {
 		nexell,pins = "gpioa-31";
 		nexell,pin-function = <1>;
 		nexell,pin-pull = <2>;
-		nexell,pin-strength = <0>;
+		nexell,pin-strength = <1>;
 	};
 
 	sdmmc0_bus4: sdmmc0-bus-width4 {
 		nexell,pins = "gpiob-1", "gpiob-3", "gpiob-5", "gpiob-7";
 		nexell,pin-function = <1>;
 		nexell,pin-pull = <2>;
-		nexell,pin-strength = <0>;
+		nexell,pin-strength = <1>;
 	};
 	/* MMC1 */
 	sdmmc1_cclk: sdmmc1-cclk {
 		nexell,pins = "gpiod-22";
 		nexell,pin-function = <1>;
 		nexell,pin-pull = <2>;
-		nexell,pin-strength = <0>;
+		nexell,pin-strength = <2>;
 	};
 
 	sdmmc1_cmd: sdmmc1-cmd {
 		nexell,pins = "gpiod-23";
 		nexell,pin-function = <1>;
 		nexell,pin-pull = <2>;
-		nexell,pin-strength = <0>;
+		nexell,pin-strength = <1>;
 	};
 
 	sdmmc1_bus4: sdmmc1-bus-width4 {
 		nexell,pins = "gpiod-24", "gpiod-25", "gpiod-26", "gpiod-27";
 		nexell,pin-function = <1>;
 		nexell,pin-pull = <2>;
-		nexell,pin-strength = <0>;
+		nexell,pin-strength = <1>;
 	};
 
 	/* MMC2 */
@@ -212,28 +212,28 @@ pinctrl@C0010000 {
 		nexell,pins = "gpioc-18";
 		nexell,pin-function = <2>;
 		nexell,pin-pull = <2>;
-		nexell,pin-strength = <0>;
+		nexell,pin-strength = <2>;
 	};
 
 	sdmmc2_cmd: sdmmc2-cmd {
 		nexell,pins = "gpioc-19";
 		nexell,pin-function = <2>;
 		nexell,pin-pull = <2>;
-		nexell,pin-strength = <0>;
+		nexell,pin-strength = <1>;
 	};
 
 	sdmmc2_bus4: sdmmc2-bus-width4 {
 		nexell,pins = "gpioc-20", "gpioc-21", "gpioc-22", "gpioc-23";
 		nexell,pin-function = <2>;
 		nexell,pin-pull = <2>;
-		nexell,pin-strength = <0>;
+		nexell,pin-strength = <1>;
 	};
 
 	sdmmc2_bus8: sdmmc2-bus-width8 {
 		nexell,pins = "gpioe-21", "gpioe-22", "gpioe-23", "gpioe-24";
 		nexell,pin-function = <2>;
 		nexell,pin-pull = <2>;
-		nexell,pin-strength = <0>;
+		nexell,pin-strength = <1>;
 	};
 
 	/* serial */
