@@ -22,6 +22,7 @@
 #include <linux/component.h>
 #include <linux/of_platform.h>
 #include <linux/of_graph.h>
+#include <linux/of_gpio.h>
 #include <video/of_display_timing.h>
 
 #include <drm/nexell_drm.h>
@@ -37,6 +38,7 @@ struct lcd_context {
 	struct drm_connector *connector;
 	struct drm_encoder *encoder;
 	struct nx_drm_dp_dev *dp_dev;
+	struct gpio_desc *enable_gpio;
 	int encoder_port;
 	int panel_mpu_lcd;
 	struct mutex lock;
@@ -152,9 +154,13 @@ static void panel_lcd_dmps(struct device *dev, int mode)
 		break;
 	case DRM_MODE_DPMS_ON:
 		drm_panel_enable(panel);
+		if (!panel && ctx->enable_gpio)
+			gpiod_set_value_cansleep(ctx->enable_gpio, 1);
 		break;
 	case DRM_MODE_DPMS_OFF:
 		drm_panel_disable(panel);
+		if (!panel && ctx->enable_gpio)
+			gpiod_set_value_cansleep(ctx->enable_gpio, 0);
 		break;
 	default:
 		DRM_ERROR("fail : unspecified mode %d\n", mode);
@@ -230,6 +236,8 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 	/*
 	 * parse panel info
 	 */
+	ctx->enable_gpio =
+			devm_gpiod_get_optional(dev, "enable", GPIOD_OUT_LOW);
 	parse_read_prop(np, "width-mm", dpp->width_mm);
 	parse_read_prop(np, "height-mm", dpp->height_mm);
 
