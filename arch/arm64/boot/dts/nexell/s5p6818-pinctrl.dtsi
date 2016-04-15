@@ -437,4 +437,56 @@ pinctrl@C0010000 {
 		nexell,pin-pull = <2>;
 		nexell,pin-strength = <0>;
 	};
+
+	dp_rgb_vclk: dp-rgb-vclk {
+		nexell,pins = "gpioa-0";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	dp_rgb_vsync: dp-rgb-vsync {
+		nexell,pins = "gpioa-25";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	dp_rgb_hsync: dp-rgb-hsync {
+		nexell,pins = "gpioa-26";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	dp_rgb_de: dp-rgb-de {
+		nexell,pins = "gpioa-27";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	dp_rgb_B: dp-rgb-B {
+		nexell,pins = "gpioa-1", "gpioa-2", "gpioa-3", "gpioa-4",
+			      "gpioa-5", "gpioa-6", "gpioa-7", "gpioa-8";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	dp_rgb_G: dp-rgb-G {
+		nexell,pins = "gpioa-9", "gpioa-10", "gpioa-11", "gpioa-12",
+			      "gpioa-13", "gpioa-14", "gpioa-15", "gpioa-16";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	dp_rgb_R: dp-rgb-R {
+		nexell,pins = "gpioa-17", "gpioa-18", "gpioa-19", "gpioa-20",
+			      "gpioa-21", "gpioa-22", "gpioa-23", "gpioa-24";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
 };
