@@ -203,7 +203,7 @@
 						ldo7	{ PMIC_PDATA_INIT(11,
 							"nxe2000_ldo7",
 							1000000, 3500000,
-							1, 1, 2800000,
+							1, 1, 3300000,
 							1, 1, 0x1) };
 					VCC_LDO7:
 						ldo8	{ PMIC_PDATA_INIT(12,
@@ -300,7 +300,42 @@
 		video-codec@c0080000 {
 			status = "okay";
 		};
+
+		i2s_0:i2s@c0055000 {
+			master-mode = <1>;
+			mclk-in = <0>;
+			trans-mode = <0>;
+			frame-bit = <32>;
+			sample-rate = <48000>;
+			pre-supply-mclk = <1>;
+			status = "okay";
+		};
 	};	/*** soc ***/
+
+	sound_i2c:i2c@0 {
+		compatible = "i2c-gpio";
+		gpios = <&gpio_a 5 0 /* sda */
+			&gpio_a 4 0 /* scl */
+			>;
+		i2c-gpio,delay-us = <10>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		alc5658: alc5658@1a {
+			compatible = "realtek,rt5658";
+			reg = <0x1a>;
+		};
+	};
+
+	sound {
+		compatible = "nexell,nexell-alc5658";
+		ch = <0>;
+		sample-rate = <48000>;
+		format = "S16";
+		hpin-support = <0>;
+		nexell,i2s-controller = <&i2s_0>;
+		audio-codec = <&alc5658>;
+	};
 
 	i2c_gpio4: i2c@4 {
 		compatible = "i2c-gpio";
