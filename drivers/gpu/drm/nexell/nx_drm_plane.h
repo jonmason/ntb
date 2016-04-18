@@ -20,10 +20,30 @@
 
 #include "soc/s5pxx18_drm_dp.h"
 
+/* properties */
+union color_property {
+	struct {
+		unsigned int transcolor;
+		unsigned int alphablend;
+		struct {
+			struct drm_property *transcolor;
+			struct drm_property *alphablend;
+		} rgb;
+	};
+	struct {
+		unsigned int colorkey;
+		struct {
+			struct drm_property *colorkey;
+		} yuv;
+	};
+};
+
 struct nx_drm_plane {
 	struct drm_plane plane;
 	struct dp_plane_layer layer;
 	bool enabled;
+	union color_property color;
+	bool is_yuv_plane;
 };
 
 #define to_nx_plane(x)	\

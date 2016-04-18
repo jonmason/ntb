@@ -309,21 +309,26 @@ void nx_soc_dp_rgb_set_color(struct dp_plane_layer *layer,
 	int module = layer->module;
 	int num = layer->num;
 
-	pr_debug("%s: %s, type:%d color:0x%x, %s\n",
-		__func__, layer->name, type, color, on ? "on" : "off");
+	pr_debug("%s: %s, type:%d color:0x%x, pixel %d, %s\n",
+		__func__, layer->name, type, color, layer->pixelbyte,
+		on ? "on" : "off");
 
 	switch (type) {
-	case COLOR_RGB_ALPHA:
+	case dp_color_alpha:
 		if (color <= 0)
 			color = 0;
 		if (color >= 15)
 			color = 15;
+
 		layer->color.alpha = (on ? color : 15);
+
 		nx_mlc_set_alpha_blending(module, num,
-				(on ? 1 : 0), (u32)color);
+			 (on ? 1 : 0), (u32)color);
+
 		soc_dp_plane_adjust(module, num, adjust);
 		break;
-	case COLOR_RGB_TRANSP:
+
+	case dp_color_transp:
 		if (1 == layer->pixelbyte) {
 			color = R8G8B8toR3G3B2((unsigned int)color);
 			color = R3G3B2toR8G8B8((u8) color);
@@ -335,11 +340,14 @@ void nx_soc_dp_rgb_set_color(struct dp_plane_layer *layer,
 		}
 
 		layer->color.transcolor = (on ? color : 0);
+
 		nx_mlc_set_transparency(module, num,
 			(on ? 1 : 0), (u32)(color & 0x00FFFFFF));
+
 		soc_dp_plane_adjust(module, num, adjust);
 		break;
-	case COLOR_RGB_INVERT:
+
+	case dp_color_invert:
 		if (1 == layer->pixelbyte) {
 			color = R8G8B8toR3G3B2((unsigned int)color);
 			color = R3G3B2toR8G8B8((u8) color);
@@ -349,10 +357,13 @@ void nx_soc_dp_rgb_set_color(struct dp_plane_layer *layer,
 			color = R8G8B8toR5G6B5((unsigned int)color);
 			color = R5G6B5toR8G8B8((u_short) color);
 		}
+
 		layer->color.invertcolor = (on ? color : 0);
+
 		nx_mlc_set_color_inversion(module, num,
 			(on ? 1 : 0),
 			(u32)(color & 0x00FFFFFF));
+
 		soc_dp_plane_adjust(module, num, adjust);
 		break;
 	default:

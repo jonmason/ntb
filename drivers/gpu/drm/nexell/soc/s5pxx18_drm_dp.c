@@ -346,6 +346,10 @@ void nx_drm_dp_crtc_commit(struct drm_crtc *crtc)
 	DRM_DEBUG_KMS("crtc[%d x %d] addr:0x%x\n",
 			width, height, (unsigned int)paddr);
 
+	/* set video color key */
+	nx_soc_dp_rgb_set_color(layer,
+		dp_color_transp, top->color_key, true, false);
+
 	nx_soc_dp_rgb_set_address(layer, paddr, pixel, hstride, false);
 	nx_soc_dp_rgb_set_enable(layer, true, true);
 }
@@ -361,6 +365,29 @@ void nx_drm_dp_crtc_init(struct drm_device *drm,
 	INIT_LIST_HEAD(&top->plane_list);
 
 	nx_soc_dp_plane_top_setup(top);
+}
+
+void nx_drm_dp_plane_set_color(struct drm_plane *plane,
+			enum dp_color_type type, unsigned int color)
+{
+	struct nx_drm_plane *nx_plane = to_nx_plane(plane);
+	struct dp_plane_layer *layer = &nx_plane->layer;
+	int i = 0;
+
+	if (dp_color_colorkey == type) {
+		struct dp_plane_top *top = layer->plane_top;
+
+		list_for_each_entry(layer, &top->plane_list, list) {
+			if (i == top->primary_plane)
+				break;
+			i++;
+		}
+		nx_soc_dp_rgb_set_color(layer,
+			dp_color_transp, color, true, true);
+	} else {
+		if (dp_plane_video != layer->type)
+			nx_soc_dp_rgb_set_color(layer, type, color, true, true);
+	}
 }
 
 int nx_drm_dp_plane_update(struct drm_plane *plane,
@@ -486,6 +513,7 @@ void nx_drm_dp_plane_init(struct drm_device *drm,
 				dp_plane_video : dp_plane_rgb;
 
 	layer->dev = drm->dev;
+	layer->plane_top = top;
 	layer->module = top->module;
 	layer->num = plane_num;
 	layer->type = type;
@@ -500,16 +528,10 @@ void nx_drm_dp_plane_init(struct drm_device *drm,
 		layer->color.satura = 0;
 	}
 
+	list_add_tail(&layer->list, &top->plane_list);
+
 	DRM_DEBUG_KMS("crtc.%d plane.%d (%s)\n",
 		layer->module, layer->num, layer->name);
-
-	/* set video color key */
-	if (dp_plane_rgb == type)
-		nx_soc_dp_rgb_set_color(layer,
-			COLOR_RGB_TRANSP, top->color_key, true, true);
-
-	/* add to top plane */
-	list_add_tail(&layer->list, &top->plane_list);
 }
 
 void nx_drm_dp_display_mode_to_sync(struct drm_display_mode *mode,

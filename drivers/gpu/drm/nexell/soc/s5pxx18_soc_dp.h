@@ -145,6 +145,7 @@ struct dp_plane_top {
 	int module;
 	int width;
 	int height;
+	int primary_plane;
 	int video_prior;	/* 0: video>RGBn, 1: RGB0>video>RGB1,
 				   2: RGB0 > RGB1 > vidoe .. */
 	int num_planes;
@@ -189,19 +190,21 @@ enum dp_plane_type {
 #define	PLANE_VIDEO_NUM			(3) /* Planes = 0,1 (RGB), 3 (VIDEO) */
 
 /* for prototype layer index */
-#define	COLOR_VID_ALPHA			(1)
-#define	COLOR_VID_BRIGHT		(2)
-#define	COLOR_VID_HUE			(3)
-#define	COLOR_VID_CONTRAST		(4)
-#define	COLOR_VID_SATURATION		(5)
-#define	COLOR_VID_GAMMA			(6)
-
-#define	COLOR_RGB_ALPHA			(1)
-#define	COLOR_RGB_TRANSP		(2)
-#define	COLOR_RGB_INVERT		(3)
+enum dp_color_type {
+	dp_color_colorkey,
+	dp_color_alpha,
+	dp_color_bright,
+	dp_color_hue,
+	dp_color_contrast,
+	dp_color_saturation,
+	dp_color_gamma,
+	dp_color_transp,
+	dp_color_invert,
+};
 
 struct dp_plane_layer {
 	struct device *dev;
+	struct dp_plane_top *plane_top;
 	struct list_head list;
 	char name[16];
 	int module, num;

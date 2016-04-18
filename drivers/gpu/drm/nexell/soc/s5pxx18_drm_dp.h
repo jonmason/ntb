@@ -77,6 +77,8 @@ int nx_drm_dp_plane_update(struct drm_plane *plane,
 			uint32_t src_x, uint32_t src_y,
 			uint32_t src_w, uint32_t src_h);
 void nx_drm_dp_plane_disable(struct drm_plane *plane);
+void nx_drm_dp_plane_set_color(struct drm_plane *plane,
+			enum dp_color_type type, unsigned int color);
 
 void nx_drm_dp_display_mode_to_sync(struct drm_display_mode *mode,
 			struct dp_sync_info *sync);

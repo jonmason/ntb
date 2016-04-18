@@ -100,9 +100,32 @@ static void nx_drm_plane_destroy(struct drm_plane *plane)
 	devm_kfree(drm->dev, nx_plane);
 }
 
-static int nx_plane_set_property(struct drm_plane *plane,
+static int nx_drm_plane_set_property(struct drm_plane *plane,
 			struct drm_property *property, uint64_t val)
 {
+	struct nx_drm_plane *nx_plane = to_nx_plane(plane);
+	union color_property *color = &nx_plane->color;
+
+	DRM_DEBUG_KMS("enter %s:0x%llx\n", property->name, val);
+
+	if (nx_plane->is_yuv_plane) {
+		if (property == color->yuv.colorkey) {
+			color->colorkey = val;
+			nx_drm_dp_plane_set_color(
+				plane, dp_color_colorkey, val);
+		}
+	} else {
+		if (property == color->rgb.transcolor) {
+			color->transcolor = val;
+			nx_drm_dp_plane_set_color(plane, dp_color_transp, val);
+		}
+
+		if (property == color->rgb.alphablend) {
+			color->alphablend = val;
+			nx_drm_dp_plane_set_color(plane, dp_color_alpha, val);
+		}
+	}
+
 	return 0;
 }
 
@@ -110,8 +133,37 @@ static struct drm_plane_funcs nx_plane_funcs = {
 	.update_plane = nx_drm_update_plane,
 	.disable_plane = nx_drm_plane_disable,
 	.destroy = nx_drm_plane_destroy,
-	.set_property = nx_plane_set_property,
+	.set_property = nx_drm_plane_set_property,
 };
+
+static void	nx_drm_plane_create_proeprties(struct drm_device *drm,
+			struct drm_plane *plane)
+{
+	struct nx_drm_plane *nx_plane = to_nx_plane(plane);
+	union color_property *color = &nx_plane->color;
+
+	if (nx_plane->is_yuv_plane) {
+		/* YUV color for video plane */
+		color->yuv.colorkey = drm_property_create_range(
+					drm, 0, "colorkey", 0, 0xffffffff);
+		color->colorkey = 0x0;
+		drm_object_attach_property(&plane->base,
+				   color->yuv.colorkey, color->colorkey);
+	} else {
+		/* RGB color for RGB plane */
+		color->rgb.transcolor = drm_property_create_range(
+					drm, 0, "transcolor", 0, 0xffffffff);
+		color->transcolor = 0;
+		drm_object_attach_property(&plane->base,
+				   color->rgb.transcolor, color->transcolor);
+
+		color->rgb.alphablend = drm_property_create_range(
+					drm, 0, "alphablend", 0, 0xffffffff);
+		color->alphablend = 0;
+		drm_object_attach_property(&plane->base,
+				   color->rgb.alphablend, color->alphablend);
+	}
+}
 
 struct drm_plane *nx_drm_plane_init(struct drm_device *drm,
 			struct drm_crtc *crtc,
@@ -136,7 +188,9 @@ struct drm_plane *nx_drm_plane_init(struct drm_device *drm,
 	if (IS_ERR(nx_plane))
 		return ERR_PTR(-ENOMEM);
 
+	nx_plane->is_yuv_plane = video;
 	plane = &nx_plane->plane;
+
 	nx_drm_dp_plane_init(drm, crtc, plane, plane_num);
 
 	err = drm_universal_plane_init(drm, plane, possible_crtcs,
@@ -146,6 +200,8 @@ struct drm_plane *nx_drm_plane_init(struct drm_device *drm,
 		devm_kfree(drm->dev, nx_plane);
 		return ERR_PTR(err);
 	}
+
+	nx_drm_plane_create_proeprties(drm, plane);
 
 	DRM_DEBUG_KMS("done plane id:%d\n", plane->base.id);
 

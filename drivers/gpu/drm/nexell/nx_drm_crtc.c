@@ -406,6 +406,7 @@ static int nx_drm_crtc_create_planes(struct drm_device *drm,
 		}
 
 		if (DRM_PLANE_TYPE_PRIMARY == plane_type) {
+			top->primary_plane = i;
 			ret = drm_crtc_init_with_planes(drm,
 					crtc, plane, NULL, &nx_crtc_funcs);
 			if (0 > ret)
