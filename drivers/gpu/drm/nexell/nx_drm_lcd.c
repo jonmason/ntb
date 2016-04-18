@@ -54,6 +54,9 @@ static bool panel_lcd_is_connected(struct device *dev,
 	struct nx_drm_panel *dpp = &ctx->dp_dev->dpp;
 	struct device_node *panel_node = dpp->panel_node;
 
+	DRM_DEBUG_KMS("enter panel node %s\n",
+		panel_node ? "exist" : "not exist");
+
 	if (panel_node) {
 		struct drm_panel *panel = of_drm_find_panel(panel_node);
 
@@ -225,13 +228,16 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 	struct nx_drm_dp_dev *dp_dev = ctx->dp_dev;
 	struct nx_drm_panel *dpp = &dp_dev->dpp;
 	struct device_node *node = dev->of_node;
-	struct device_node *np;
+	struct device_node *np, *tmp;
 	struct display_timing timing;
 	int ret;
 
 	np = of_graph_get_remote_port_parent(node);
-	if (!np)
-		return 0;
+	if (!np) {
+		DRM_ERROR("fail : not find panel node (%s:%s) !!!\n",
+			node->name, node->full_name);
+		return -EINVAL;
+	}
 
 	dpp->panel_node = np;
 
@@ -253,11 +259,22 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 		videomode_from_timing(&timing, &dpp->vm);
 
 	/*
+	 * if not exist dp-control at remote endpoint,
+	 * get from lcd_panel node.
+	 */
+	tmp = of_find_node_by_name(np, "dp-control");
+	if (!tmp)
+		np = node;
+
+	/*
 	 * parse display panel info
 	 */
-	np = of_find_node_by_name(np, "port");
-	if (!np)
-		return 0;
+	np = of_find_node_by_name(node, "port");
+	if (!np) {
+		DRM_ERROR("fail : not find panel's port node (%s:%s) !!!\n",
+			node->name, node->full_name);
+		return -EINVAL;
+	}
 
 	parse_read_prop(np, "encoder-port", ctx->encoder_port);
 	parse_read_prop(np, "panel-mpu", ctx->panel_mpu_lcd);
@@ -270,8 +287,11 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 	 * parse display control config
 	 */
 	np = of_find_node_by_name(np, "dp-control");
-	if (!np)
-		return 0;
+	if (!np) {
+		DRM_ERROR("fail : not find panel's control node (%s:%s) !!!\n",
+			node->name, node->full_name);
+		return -EINVAL;
+	}
 
 	nx_drm_dp_parse_dt_ctrl(np, &dp_dev->ddi);
 	nx_drm_dp_parse_dp_dump(dp_dev);
