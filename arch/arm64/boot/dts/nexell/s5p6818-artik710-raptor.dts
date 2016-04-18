@@ -295,6 +295,10 @@
 			sample_rate = <48000>;
 			status = "okay";
 		};
+
+		video-codec@c0080000 {
+			status = "okay";
+		};
 	};	/*** soc ***/
 
 	usb3503_i2c:i2c@3503 {
