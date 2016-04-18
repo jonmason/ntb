@@ -770,5 +770,17 @@
 			compatible = "nexell,s5p6818-lcd-panel";
 		};
 
+		video-codec@c0080000 {
+			compatible = "nexell, nx-vpu";
+			reg = <0xc0080000 0x4000>;
+			interrupts = <0 IRQ_CODA960_HOST 0>;
+			resets = <&nexell_reset RESET_ID_CODA_A>,
+				<&nexell_reset RESET_ID_CODA_P>,
+				<&nexell_reset RESET_ID_CODA_C>;
+			reset-names = "vpu-a-reset", "vpu-p-reset",
+				"vpu-c-reset";
+			clocks = <&pclk>, <&bclk>;
+			status = "disabled";
+		};
 	}; /*** soc ***/
 };
