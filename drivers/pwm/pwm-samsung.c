@@ -657,10 +657,6 @@ static int pwm_samsung_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	for (chan = 0; chan < SAMSUNG_PWM_NUM; ++chan)
-		if (chip->variant.output_mask & BIT(chan))
-			pwm_samsung_set_invert(chip, chan, true);
-
 	/* Following clocks are optional. */
 	chip->tclk0 = devm_clk_get(&pdev->dev, "pwm-tclk0");
 	chip->tclk1 = devm_clk_get(&pdev->dev, "pwm-tclk1");
@@ -703,6 +699,14 @@ static int pwm_samsung_probe(struct platform_device *pdev)
 			reset_control_reset(rst);
 	}
 #endif
+	/*
+         * move for s5p6818
+	 * TCON register value faded away by reset controller
+	 * So, invert setup moved after reset
+	 */
+	for (chan = 0; chan < SAMSUNG_PWM_NUM; ++chan)
+		if (chip->variant.output_mask & BIT(chan))
+			pwm_samsung_set_invert(chip, chan, true);
 
 	platform_set_drvdata(pdev, chip);
 
