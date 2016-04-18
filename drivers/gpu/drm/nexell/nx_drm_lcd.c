@@ -153,12 +153,14 @@ static void panel_lcd_dmps(struct device *dev, int mode)
 		drm_panel_unprepare(panel);
 		break;
 	case DRM_MODE_DPMS_ON:
+		drm_panel_prepare(panel);
 		drm_panel_enable(panel);
 		if (!panel && ctx->enable_gpio)
 			gpiod_set_value_cansleep(ctx->enable_gpio, 1);
 		break;
 	case DRM_MODE_DPMS_OFF:
 		drm_panel_disable(panel);
+		drm_panel_unprepare(panel);
 		if (!panel && ctx->enable_gpio)
 			gpiod_set_value_cansleep(ctx->enable_gpio, 0);
 		break;
@@ -247,10 +249,8 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 	 * -> of_parse_display_timing
 	 */
 	ret = of_get_display_timing(np, "panel-timing", &timing);
-	if (0 > ret)
-		return 0;
-
-	videomode_from_timing(&timing, &dpp->vm);
+	if (0 == ret)
+		videomode_from_timing(&timing, &dpp->vm);
 
 	/*
 	 * parse display panel info
