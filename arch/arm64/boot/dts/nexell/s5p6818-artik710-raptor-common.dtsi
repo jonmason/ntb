@@ -41,6 +41,7 @@
 
 	aliases {
 		i2c3 = &i2c_gpio3;
+		i2c4 = &i2c_gpio4;
 	};
 
 	soc {
@@ -300,7 +301,7 @@
 		};
 	};	/*** soc ***/
 
-	usb3503_i2c:i2c@3503 {
+	i2c_gpio4: i2c@4 {
 		compatible = "i2c-gpio";
 		gpios = <&gpio_b 30 0 /* sda */
 			&gpio_b 31 0 /* scl */
