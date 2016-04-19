@@ -28,3 +28,7 @@
 	pinctrl-0 = <&pwm0_pin &pwm1_pin>;
 	samsung,pwm-outputs = <0>, <1>;
 };
+
+&i2c_gpio4 {
+	status = "disabled";
+};

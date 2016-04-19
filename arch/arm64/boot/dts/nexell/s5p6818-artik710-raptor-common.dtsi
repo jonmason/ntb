@@ -42,6 +42,7 @@
 	aliases {
 		i2c3 = &i2c_gpio3;
 		i2c4 = &i2c_gpio4;
+		i2c5 = &i2c_gpio5;
 	};
 
 	soc {
@@ -317,6 +318,21 @@
 			connect-gpios = <&gpio_a 18 0>;
 			reset-gpios = <&gpio_a 22 0>;
 			initial-mode = <1>;
+		};
+	};
+
+	i2c_gpio5: i2c@5 {
+		compatible = "i2c-gpio";
+		gpios = <&gpio_d 31 0	/* sda */
+			&gpio_e 3 0	/* scl */
+			>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		rtc@68 {
+			compatible = "ti,bq32000";
+			trickle-resistor-ohms = <1120>;
+			reg = <0x68>;
 		};
 	};
 
