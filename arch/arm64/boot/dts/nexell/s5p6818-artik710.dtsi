@@ -92,6 +92,11 @@
 			nexell,sample_shift = <0x01>;
 		};
 
+		dynamic-freq@bb000 {
+			supply_name = "vdd_core_regulator";
+			vdd_core_regulator-supply = <&VCC_DCDC0>;
+		};
+
 		tmuctrl_0: tmuctrl@c0096000 {
 			status = "okay";
 		};
