@@ -748,7 +748,7 @@
 			status = "disabled";
 		};
 
-		dp_drm: display {
+		dp_drm: display_drm {
 			compatible = "nexell,s5p6818-drm";
 			reg = <0xc0102800 0x100>, <0xc0102c00 0x100>,
 				<0xc0102000 0x100>, <0xc0102400 0x100>,
@@ -759,15 +759,15 @@
 			resets = <&nexell_reset RESET_ID_DISP_TOP>,
 				<&nexell_reset RESET_ID_DISPLAY>;
 			ports {
-				#address-cells = <0x1>;
+				#address-cells = <1>;
 				#size-cells = <0>;
 				port@0 { };
 				port@1 { };
 			};
 		};
 
-		lcd_panel: dp_lcd_panel {
-			compatible = "nexell,s5p6818-lcd-panel";
+		dp_drm_lcd: display_drm_lcd {
+			compatible = "nexell,s5p6818-drm-lcd";
 		};
 
 		video-codec@c0080000 {
