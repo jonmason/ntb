@@ -21,7 +21,7 @@ SOC specific portion:
 	...
 	soc {
 		...
-		dp_drm: display {
+		dp_drm: display_drm {
 			compatible = "nexell,s5p6818-drm";
 			reg = <0xc0102800 0x100>, <0xc0102c00 0x100>,
 				  <0xc0102000 0x100>, <0xc0102400 0x100>,

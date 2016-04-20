@@ -270,8 +270,8 @@ static int nx_drm_probe(struct platform_device *pdev)
 {
 	struct component_match *match = NULL;
 	static const char *const dev_names[] = {
-		"lcd_panel",	/* node name */
-		"hdmi_out",
+		"display_drm_lcd",	/* node name (x:name) */
+		"display_drm_hdmi",
 	};
 	bool found = false;
 	int i;
@@ -323,7 +323,7 @@ static struct platform_driver nx_drm_platform_drv = {
 	.remove = nx_drm_remove,
 	.driver = {
 		   .owner = THIS_MODULE,
-		   .name = "nexell-drm",
+		   .name = "nexell,display_drm",
 		   .of_match_table = dt_of_match,
 		   },
 };

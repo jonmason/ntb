@@ -13,12 +13,11 @@ Required properties for display soc panel driver:
     Documentation/devicetree/bindings/video/display-timing.txt for display
     timing binding details.
 
- - port: sub node to config display port
-  - encoder-port: connect encoder port 0 or 1
-  - panel-type: lcd type "rgb", "lvds", "mipi"
-  - panel-mpu: support mpu type RGB LCD
+ - encoder-port: connect encoder port 0 or 1
+ - panel-type: lcd type "rgb", "lvds", "mipi"
+ - panel-mpu: support mpu type RGB LCD
 
-  - dp-control: sub node to config display port hw parameters.
+  - dp_control: sub node to config display port hw parameters.
    - clk_src_lv0: select display clock source of clock generator '0'
       0:PLL0, 1:PLL1, 2:SVLCK, 3:P(S)VCLK, 4:~P(S)VCLK, 5:AVCLK
       6:~SVLCK, 7:ClKGEN0's Output( Only use Clock generator1 )
@@ -51,45 +50,40 @@ SOC specific portion:
 / {
 	...
 	soc {
-		lcd_panel: lcd_panel {
-    			compatible = "nexell,s5p6818-lcd-panel";
+		dp_drm_lcd: display_drm_lcd {
+    			compatible = "nexell,s5p6818-drm-lcd";
 		};
 	};
 };
 
 Board Specific portion:
 
-&lcd_panel {
-	remote-endpoint = <&panel_control>;
-	width-mm = <210>;
-    	height-mm = <158>;
-	panel-timing {
-        clock-frequency = <65000000>;
-        hactive = <1024>;
-        hsync-len = <20>;
-        hback-porch = <160>;
-        hfront-porch = <160>;
-        hsync-active = <1>;
-        vactive = <600>;
-        vsync-len = <3>;
-        vback-porch = <23>;
-        vfront-porch = <12>;
-        vsync-active = <1>;
-    };
-
-    port {
+&dp_drm_lcd {
+	remote-endpoint = <&lcd_panel>;
 	encoder-port = <0>;
 	panel-type = "rgb";
 	panel-mpu = <0>;
 
-        panel_control: endpoint {
-        	remote-endpoint = <&lcd_panel>;
-		dp-control {
-			clk_src_lv0  = <0>;
-			clk_div_lv0	= <16>;
-			clk_src_lv1	= <7>;
-			clk_div_lv1	= <1>;
-		};
+	panel-timing {
+	        clock-frequency = <65000000>;
+        	hactive = <1024>;
+	        hsync-len = <20>;
+        	hback-porch = <160>;
+	        hfront-porch = <160>;
+        	hsync-active = <1>;
+	        vactive = <600>;
+	        vsync-len = <3>;
+        	vback-porch = <23>;
+	        vfront-porch = <12>;
+	        vsync-active = <1>;
+	};
+
+	dp_control {
+		clk_src_lv0 = <0>;
+		clk_div_lv0 = <16>;
+		clk_src_lv1 = <7>;
+		clk_div_lv1 = <1>;
+		.....
 	};
     };
 };

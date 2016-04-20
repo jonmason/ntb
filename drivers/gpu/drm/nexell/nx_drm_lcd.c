@@ -262,18 +262,20 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 	 * if not exist dp-control at remote endpoint,
 	 * get from lcd_panel node.
 	 */
-	tmp = of_find_node_by_name(np, "dp-control");
+	tmp = of_find_node_by_name(np, "dp_control");
 	if (!tmp)
 		np = node;
 
 	/*
 	 * parse display panel info
 	 */
-	np = of_find_node_by_name(node, "port");
-	if (!np) {
-		DRM_ERROR("fail : not find panel's port node (%s:%s) !!!\n",
-			node->name, node->full_name);
-		return -EINVAL;
+	if (np != node)  {
+		np = of_find_node_by_name(node, "port");
+		if (!np) {
+			DRM_ERROR("fail : not find panel's port node (%s:%s)\n",
+				node->name, node->full_name);
+			return -EINVAL;
+		}
 	}
 
 	parse_read_prop(np, "encoder-port", ctx->encoder_port);
@@ -286,7 +288,7 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 	/*
 	 * parse display control config
 	 */
-	np = of_find_node_by_name(np, "dp-control");
+	np = of_find_node_by_name(np, "dp_control");
 	if (!np) {
 		DRM_ERROR("fail : not find panel's control node (%s:%s) !!!\n",
 			node->name, node->full_name);
@@ -360,7 +362,7 @@ static const struct dev_pm_ops panel_lcd_pm = {
 };
 
 static const struct of_device_id panel_lcd_of_match[] = {
-	{.compatible = "nexell,s5p6818-lcd-panel"},
+	{.compatible = "nexell,s5p6818-drm-lcd"},
 	{}
 };
 MODULE_DEVICE_TABLE(of, panel_lcd_of_match);
@@ -369,7 +371,7 @@ struct platform_driver panel_lcd_driver = {
 	.probe = panel_lcd_probe,
 	.remove = panel_lcd_remove,
 	.driver = {
-		.name = "nexell,lcd_panel",
+		.name = "nexell,display_drm_lcd",
 		.owner = THIS_MODULE,
 		.of_match_table = panel_lcd_of_match,
 		.pm = &panel_lcd_pm,
