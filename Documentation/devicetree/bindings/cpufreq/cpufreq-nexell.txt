@@ -1,0 +1,23 @@
+
+Nexell cpufreq driver
+-------------------
+
+Nexell SoC cpufreq driver for CPU frequency scaling.
+
+Required properties:
+- compatible: Should be "nexell,s5pxx18-cpu"
+
+-supply_name: arm vdd control regulator name.
+-<arm vdd control regulator name>-supply: arm vdd control node
+
+All the required listed above must be defined under node cpufreq.
+
+Example:
+--------
+	dynamic-freq@bb000 {
+		compatible = "nexell,s5pxx18-cpufreq";
+		reg = <0xc00bb000 0x30000>;
+		supply_name = "vdd_core_regulator";
+		vdd_core_regulator-supply = <&VCC_DCDC0>;
+	};
+

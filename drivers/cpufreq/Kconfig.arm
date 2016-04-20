@@ -255,3 +255,39 @@ config ACPI_CPPC_CPUFREQ
 	  support for its operation.
 
 	  If in doubt, say N.
+
+config ARM_NEXELL_CPUFREQ
+	bool "SLsiAP CPU Frequency scaling support"
+	depends on ARCH_S5P6818
+	default y
+	help
+	  This adds the CPUFreq driver for Nexell SoC.
+
+config ARM_NEXELL_CPUFREQ_DEBUG
+	bool "Dynamic Frequency scaling debug message"
+	depends on ARM_NEXELL_CPUFREQ
+	default n
+
+config ARM_NEXELL_CPUFREQ_VOLTAGE_DEBUG
+	bool "Dynamic Voltage scaling debug message"
+	depends on ARM_NEXELL_CPUFREQ
+	default n
+
+choice
+	prompt "Select CPU PLL device"
+	depends on ARM_NEXELL_CPUFREQ
+	default NEXELL_CPUFREQ_PLL_1
+
+	config NEXELL_CPUFREQ_PLL_0
+		bool "PLL 0"
+
+	config NEXELL_CPUFREQ_PLL_1
+		bool "PLL 1"
+endchoice
+
+config NEXELL_CPUFREQ_PLLDEV
+	int
+	default 0 if NEXELL_CPUFREQ_PLL_0
+	default 1 if NEXELL_CPUFREQ_PLL_1
+	default 2 if NEXELL_CPUFREQ_PLL_2
+	default 3 if NEXELL_CPUFREQ_PLL_3
