@@ -454,7 +454,7 @@ nxe2000_regulator_preinit(struct device *parent, struct nxe2000_regulator *ri,
 		}
 	}
 
-	if (nxe2000_pdata->sleep_slots == -1) {
+	if (nxe2000_pdata->sleep_slots == 0xF) {
 		ret = __nxe2000_set_voltage(parent, ri, nxe2000_pdata->init_uV,
 					    nxe2000_pdata->init_uV, 0, 1);
 		if (ret < 0) {
