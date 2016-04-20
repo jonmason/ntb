@@ -526,10 +526,10 @@ static void __init clk_dev_of_setup(struct device_node *node)
 	int i = 0, size = (sizeof(*clk_data) + sizeof(*peri));
 	int num_clks;
 
-#ifdef CONFIG_ARM_NXP_CPUFREQ
+#ifdef CONFIG_ARM_NEXELL_CPUFREQ
 	char pll[16];
 
-	sprintf(pll, "sys-pll%d", CONFIG_NXP_CPUFREQ_PLLDEV);
+	sprintf(pll, "sys-pll%d", CONFIG_NEXELL_CPUFREQ_PLLDEV);
 #endif
 
 	num_clks = of_get_child_count(node);
@@ -559,7 +559,7 @@ static void __init clk_dev_of_setup(struct device_node *node)
 		if (peri[i].parent_name) {
 			ops = &clk_empty_ops;
 			flags = CLK_IS_BASIC;
-#ifdef CONFIG_ARM_NXP_CPUFREQ
+#ifdef CONFIG_ARM_NEXELL_CPUFREQ
 			if (!strcmp(pll, peri[i].parent_name))
 				flags |= CLK_SET_RATE_PARENT;
 #endif
