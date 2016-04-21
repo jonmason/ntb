@@ -133,6 +133,7 @@ struct nx_csi {
 	u32 swap_clocklane;
 	u32 swap_datalane;
 	u32 pllval;
+	u32 hssettle;
 
 	struct reset_control *rst_mipi;
 	struct reset_control *rst_csi;
@@ -266,15 +267,18 @@ static void nx_mipi_set_base_address(u32 module_index, void *base_address)
 		(struct nx_mipi_register_set *)base_address;
 }
 
-static int nx_mipi_open_module(u32 module_index)
+static int nx_mipi_open_module(struct nx_csi *me)
 {
 	register struct nx_mipi_register_set *pregister;
+	u32 module_index;
+
+	module_index = me->module;
 
 	pregister = __g_pregister[module_index];
 
 	pregister->csis_dphyctrl_1 = 0;
 
-	pregister->csis_dphyctrl = (22 << CSIS_DPHYCTRL_HSSETTLE);
+	pregister->csis_dphyctrl = (me->hssettle << CSIS_DPHYCTRL_HSSETTLE);
 
 	return true;
 }
@@ -687,7 +691,7 @@ static void nx_csi_run(struct nx_csi *me)
 	reset_control_deassert(me->rst_mipi);
 	reset_control_deassert(me->rst_csi);
 
-	nx_mipi_open_module(module);
+	nx_mipi_open_module(me);
 
 	clk_disable_unprepare(me->clk);
 	clk_set_rate(me->clk, 300000000);
@@ -948,6 +952,11 @@ static int nx_csi_parse_dt(struct platform_device *pdev, struct nx_csi *me)
 
 	if (of_property_read_u32(np, "pllval", &me->pllval)) {
 		dev_err(dev, "failed to get dt pllval\n");
+		return -EINVAL;
+	}
+
+	if (of_property_read_u32(np, "hssettle", &me->hssettle)) {
+		dev_err(dev, "failed to get dt hssettle\n");
 		return -EINVAL;
 	}
 
