@@ -63,7 +63,6 @@ static struct snd_soc_jack hp_jack;
 static int alc5658_jack_status_check(void *data)
 {
 	struct snd_soc_codec *codec = alc5658;
-	int jack = jack_gpio.gpio;
 	int invert = jack_gpio.invert;
 	int level = 1;/*gpio_get_value_cansleep(jack);*/
 
@@ -266,7 +265,6 @@ static struct snd_soc_dai_link alc5658_dai_link = {
 	.cpu_dai_name = str_dai_name,
 	.platform_name = "nexell-pcm",
 	.codec_dai_name = "rt5659-aif1",
-	.codec_name = "rt5659.3-001a",
 	.ops = &alc5658_ops,
 	.symmetric_rates = 1,
 	.init = alc5658_dai_init,
@@ -345,6 +343,17 @@ static int alc5658_probe(struct platform_device *pdev)
 	}
 #endif
 	card->dev = &pdev->dev;
+	if (!alc5658_dai_link.codec_name) {
+		alc5658_dai_link.codec_name = NULL;
+		alc5658_dai_link.codec_of_node = of_parse_phandle(
+		pdev->dev.of_node, "audio-codec", 0);
+		if (!alc5658_dai_link.codec_of_node) {
+			dev_err(&pdev->dev,
+			    "Property 'audio-codec' missing or invalid\n");
+			ret = -EINVAL;
+		}
+	}
+
 	ret = snd_soc_register_card(card);
 	if (ret) {
 		dev_err(&pdev->dev,
