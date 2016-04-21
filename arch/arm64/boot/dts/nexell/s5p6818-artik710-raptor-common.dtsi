@@ -45,7 +45,15 @@
 		i2c5 = &i2c_gpio5;
 	};
 
+	nx-v4l2 {
+		status = "okay";
+	};
+
 	soc {
+
+		clocks {
+			vip0:vip@c00c1000 { clock-frequency = <300000000>;};
+		};
 
 		serial3:serial@c00a3000 {
 			status ="okay";
@@ -309,6 +317,41 @@
 			sample-rate = <48000>;
 			pre-supply-mclk = <1>;
 			status = "okay";
+		};
+
+		vip_0:vip@c0063000 {
+			status = "okay";
+		};
+
+		i2c_0:i2c@c00a4000 {
+			samsung,i2c-max-bus-freq = <400000>;
+			status = "okay";
+		};
+
+		mipi_csi:mipi_csi@c00d0000 {
+			data_lane = <2>;
+			pllval = <750>;
+			hssettle = <7>;
+			status = "okay";
+		};
+
+		clipper_0:clipper0@c0063000 {
+			interface_type = <NX_CAPTURE_INTERFACE_MIPI_CSI>;
+			gpios = <&gpio_a 17 0 &gpio_a 3 0 &gpio_a 6 0>;
+			status = "okay";
+			sensor {
+				type = <NX_CAPTURE_SENSOR_I2C>;
+				i2c_name = "S5K4ECGA";
+				i2c_adapter = <0>;
+				addr = <0x56>;
+			};
+			power {
+				enable_seq = <
+					NX_ACTION_START NX_ACTION_TYPE_GPIO 2 1 2 NX_ACTION_END
+					NX_ACTION_START NX_ACTION_TYPE_GPIO 1 1 1 NX_ACTION_END
+					NX_ACTION_START NX_ACTION_TYPE_GPIO 0 1 1 NX_ACTION_END
+				>;
+			};
 		};
 	};	/*** soc ***/
 
