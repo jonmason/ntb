@@ -2480,6 +2480,26 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+static void dw_mci_notify_change(void *dev_id, int state)
+{
+	struct dw_mci *host = (struct dw_mci *)dev_id;
+	unsigned long flags;
+
+	if (host) {
+		spin_lock_irqsave(&host->lock, flags);
+		if (state) {
+			dev_info(host->dev, "card inserted.\n");
+			host->pdata->quirks |=
+				DW_MCI_QUIRK_BROKEN_CARD_DETECTION;
+		} else {
+			dev_info(host->dev, "card removed.\n");
+			host->pdata->quirks &=
+				~DW_MCI_QUIRK_BROKEN_CARD_DETECTION;
+		}
+		spin_unlock_irqrestore(&host->lock, flags);
+	}
+}
+
 #ifdef CONFIG_OF
 /* given a slot, find out the device node representing that slot */
 static struct device_node *dw_mci_of_find_slot_node(struct dw_mci_slot *slot)
@@ -2615,6 +2635,9 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
 	ret = mmc_add_host(mmc);
 	if (ret)
 		goto err_host_allocated;
+
+	if (host->pdata->cd_type == DW_MCI_CD_EXTERNAL)
+		host->pdata->ext_cd_init(&dw_mci_notify_change, (void *)host);
 
 #if defined(CONFIG_DEBUG_FS)
 	dw_mci_init_debugfs(slot);
@@ -2866,6 +2889,36 @@ static struct dw_mci_of_quirks {
 	},
 };
 
+void (*notify_func_callback)(void *dev_id, int state);
+EXPORT_SYMBOL(notify_func_callback);
+void *mmc_host_dev = NULL;
+EXPORT_SYMBOL(mmc_host_dev);
+static DEFINE_MUTEX(notify_mutex_lock);
+
+static int ext_cd_init_callback(
+	void (*notify_func)(void *dev_id, int state), void *dev_id)
+{
+	mutex_lock(&notify_mutex_lock);
+	WARN_ON(notify_func_callback);
+	notify_func_callback = notify_func;
+	mmc_host_dev = dev_id;
+	mutex_unlock(&notify_mutex_lock);
+
+	return 0;
+}
+
+static int ext_cd_cleanup_callback(
+	void (*notify_func)(void *dev_id, int state), void *dev_id)
+{
+	mutex_lock(&notify_mutex_lock);
+	WARN_ON(notify_func_callback);
+	notify_func_callback = NULL;
+	mmc_host_dev = NULL;
+	mutex_unlock(&notify_mutex_lock);
+
+	return 0;
+}
+
 static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 {
 	struct dw_mci_board *pdata;
@@ -2910,6 +2963,12 @@ static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 	if (of_find_property(np, "supports-highspeed", NULL)) {
 		dev_info(dev, "supports-highspeed property is deprecated.\n");
 		pdata->caps |= MMC_CAP_SD_HIGHSPEED | MMC_CAP_MMC_HIGHSPEED;
+	}
+
+	if (of_find_property(np, "cd-type-external", NULL)) {
+		pdata->cd_type = DW_MCI_CD_EXTERNAL;
+		pdata->ext_cd_init = ext_cd_init_callback;
+		pdata->ext_cd_cleanup = ext_cd_cleanup_callback;
 	}
 
 	return pdata;
