@@ -29,7 +29,7 @@
 
 #define DBG_REGISTER		0
 #define DBG_ES_ADDR		0
-#define INFO_MSG			0
+#define INFO_MSG		0
 
 
 /*--------------------------------------------------------------------------- */

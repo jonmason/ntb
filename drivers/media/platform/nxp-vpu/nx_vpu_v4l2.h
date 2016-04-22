@@ -2,22 +2,22 @@
  * Copyright (C) 2016  Nexell Co., Ltd.
  * Author: Seonghee, Kim <kshblue@nexell.co.kr>
  *
- * This	program	is free	software; you can redistribute it and/or
- * modify it under the terms of	the GNU	General	Public License
- * as published	by the Free Software Foundation; either	version	2
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
  *
- * This	program	is distributed in the hope that	it will	be useful,
+ * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If	not, see <http://www.gnu.org/licenses/>.
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef	_nx_vpu_v4l2_H
-#define	_nx_vpu_v4l2_H
+#ifndef _nx_vpu_v4l2_H
+#define _nx_vpu_v4l2_H
 
 #include <linux/platform_device.h>
 #include <linux/irqreturn.h>
@@ -28,30 +28,29 @@
 #include "nx_vpu_config.h"
 #include "nx_vpu_api.h"
 
-#define	DBG_MUTEX	0
+#define DBG_MUTEX			0
 
 
-#define	VPU_MAX_BUFFERS			32
-#define	STREAM_BUF_SIZE			(4*1024*1024)
-#define	ENABLE_INTERRUPT_MODE
+#define VPU_MAX_BUFFERS                 32
+#define STREAM_BUF_SIZE                 (4*1024*1024)
+#define ENABLE_INTERRUPT_MODE
 
-#define	call_cop(c, op,	args...) (((c)->c_ops->op) ? ((c)->c_ops->op(args)) : 0)
-#define	fh_to_ctx(__fh)	container_of(__fh, struct nx_vpu_ctx, fh)
-#define	vb_to_vpu_buf(x)	container_of(x,	struct nx_vpu_buf, vb)
+#define fh_to_ctx(__fh) container_of(__fh, struct nx_vpu_ctx, fh)
+#define vb_to_vpu_buf(x) container_of(x, struct nx_vpu_buf, vb)
 
 
 struct nx_vpu_v4l2 {
-	struct v4l2_device	v4l2_dev;
-	struct video_device	*vfd_dec;
-	struct video_device	*vfd_enc;
-	struct platform_device	*plat_dev;
+	struct v4l2_device v4l2_dev;
+	struct video_device *vfd_dec;
+	struct video_device *vfd_enc;
+	struct platform_device *plat_dev;
 
-	void			*regs_base;
-	struct reset_control	*coda_c;
-	struct reset_control	*coda_a;
-	struct reset_control	*coda_p;
+	void *regs_base;
+	struct reset_control *coda_c;
+	struct reset_control *coda_a;
+	struct reset_control *coda_p;
 
-	spinlock_t irqlock;	/* lock	when operating on videobuf2 queues */
+	spinlock_t irqlock;	/* lock when operating on videobuf2 queues */
 	struct mutex vpu_mutex;
 
 	wait_queue_head_t vpu_wait_queue;
@@ -72,23 +71,23 @@ struct nx_vpu_v4l2 {
 };
 
 struct vpu_enc_ctx {
-	int gop_frm_cnt;			/* gop frame counter */
+	int gop_frm_cnt;		/* gop frame counter */
 	int userIQP;
 	int userPQP;
 
-	int gopSize;				/* Group Of Pictures' Size */
-	int frameRateNum;			/* Framerate numerator */
-	int frameRateDen;			/* Framerate denominator */
-	int bitrate;				/* BitRate */
-	int enable_skip;			/* Enable skip frame */
+	int gopSize;			/* Group Of pictures' size */
+	int frameRateNum;		/* Framerate numerator */
+	int frameRateDen;		/* Framerate denominator */
+	int bitrate;
+	int enable_skip;		/* Enable skip frame */
 
-	/*int force_frame_type;	*/
+	/*int force_frame_type; */
 
 	struct nx_vid_memory_info *ref_recon_buf[2];
 	struct nx_memory_info *sub_sample_buf[2];
 
-	union vpu_enc_get_header_arg seq_info;		/* TBD */
-	struct vpu_enc_seq_arg seq_para;		/* TBD */
+	union vpu_enc_get_header_arg seq_info;	/* TBD */
+	struct vpu_enc_seq_arg seq_para;	/* TBD */
 };
 
 struct vpu_dec_ctx {
@@ -118,11 +117,11 @@ struct nx_vpu_ctx {
 	struct v4l2_fh fh;
 
 	int idx;
-	int instIndex;			/* TBD.	*/
+	int instIndex;				/* TBD */
 
 	enum nx_vpu_cmd vpu_cmd;
 
-	void *hInst;			/* VPU handle */
+	void *hInst;				/* VPU handle */
 	int is_initialized;
 	int is_encoder;
 	int codec_mode;
@@ -142,7 +141,7 @@ struct nx_vpu_ctx {
 	struct nx_memory_info *bit_stream_buf;
 
 #if 0
-	/* TBD.	*/
+	/* TBD. */
 	struct list_head ctrls;
 	struct list_head src_ctrls[VPU_MAX_BUFFERS];
 	struct list_head dst_ctrls[VPU_MAX_BUFFERS];
@@ -163,7 +162,7 @@ struct nx_vpu_ctx {
 	unsigned int img_queue_cnt;
 	unsigned int strm_queue_cnt;
 
-	struct nx_vpu_codec_ops	*c_ops;
+	struct nx_vpu_codec_ops *c_ops;
 
 	union {
 		struct vpu_enc_ctx enc;
@@ -192,7 +191,7 @@ struct nx_vpu_buf {
 };
 
 
-dma_addr_t nx_vpu_mem_plane_addr(struct	nx_vpu_ctx *c, struct vb2_buffer *v,
+dma_addr_t nx_vpu_mem_plane_addr(struct nx_vpu_ctx *c, struct vb2_buffer *v,
 	unsigned int n);
 int nx_vpu_try_run(struct nx_vpu_v4l2 *dev);
 
@@ -208,14 +207,14 @@ int vidioc_enum_fmt_vid_out(struct file *file, void *prov,
 int vidioc_enum_fmt_vid_out_mplane(struct file *file, void *priv,
 	struct v4l2_fmtdesc *f);
 int vidioc_querybuf(struct file *file, void *priv, struct v4l2_buffer *buf);
-int vidioc_streamon(struct file *file, void *priv, enum	v4l2_buf_type type);
+int vidioc_streamon(struct file *file, void *priv, enum v4l2_buf_type type);
 int vidioc_streamoff(struct file *file, void *priv, enum v4l2_buf_type type);
 int nx_vpu_queue_setup(struct vb2_queue *vq, const void *parg,
 	unsigned int *buf_count, unsigned int *plane_count,
 	unsigned int psize[], void *allocators[]);
 
 void nx_vpu_unlock(struct vb2_queue *q);
-void nx_vpu_lock(struct	vb2_queue *q);
+void nx_vpu_lock(struct vb2_queue *q);
 int nx_vpu_buf_init(struct vb2_buffer *vb);
 int nx_vpu_buf_prepare(struct vb2_buffer *vb);
 void nx_vpu_cleanup_queue(struct list_head *lh, struct vb2_queue *vq);
@@ -245,4 +244,4 @@ int alloc_decoder_memory(struct nx_vpu_ctx *ctx);
 int free_decoder_memory(struct nx_vpu_ctx *ctx);
 
 
-#endif		/* #define _nx_vpu_v4l2_H */
+#endif          /* #define _nx_vpu_v4l2_H */

@@ -42,7 +42,7 @@
 
 
 #define INFO_MSG				0
-#define RECON_CHROMA_INTERLEAVE		0
+#define RECON_CHROMA_INTERLEAVE			0
 
 
 static int nx_vpu_enc_ctx_ready(struct nx_vpu_ctx *ctx)
@@ -1024,7 +1024,7 @@ static void get_stream_buffer(struct nx_vpu_ctx *ctx,
 	struct nx_vpu_buf *dst_mb;
 	unsigned long flags;
 
-	spin_lock_irqsave(&ctx->dev->irqlock, flags);
+	/* spin_lock_irqsave(&ctx->dev->irqlock, flags); */
 
 	dst_mb = list_entry(ctx->strm_queue.next, struct nx_vpu_buf, list);
 	dst_mb->used = 1;
@@ -1038,7 +1038,7 @@ static void get_stream_buffer(struct nx_vpu_ctx *ctx,
 	stream_buf->virAddr = vb2_plane_vaddr(&dst_mb->vb, 0);
 #endif
 
-	spin_unlock_irqrestore(&ctx->dev->irqlock, flags);
+	/* spin_unlock_irqrestore(&ctx->dev->irqlock, flags); */
 }
 
 int vpu_enc_init(struct nx_vpu_ctx *ctx)

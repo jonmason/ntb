@@ -261,7 +261,7 @@ int SetTiledMapType(int mapType, int stride, int interleave)
  *	|                  |
  */
 
-enum nx_vpu_ret ConfigEncSecAXI(int codStd, struct sec_axi_info *sa, int width,
+int ConfigEncSecAXI(int codStd, struct sec_axi_info *sa, int width,
 	int height)
 {
 	int offset;
@@ -371,8 +371,7 @@ int ConfigDecSecAXI(int codStd, struct sec_axi_info *sa, int width, int height)
 	 * useDbkCEnable : Deblocking Chrominance
 	 * useBitEnable : BitAxiSecEn (USE Bit Processor)
 	 * useOvlEnable : Enabled Overlap Filter(VC-1 Only)
-	 * useBtpEnable : Enable BTP(Bit-Plane)(VC-1 Only)
-	 */
+	 * useBtpEnable : Enable BTP(Bit-Plane)(VC-1 Only) */
 	switch (codStd) {
 	case CODEC_STD_AVC:
 		if ((totalMB > NUM_MB_SD) && (totalMB <= NUM_MB_720)) {
@@ -423,7 +422,7 @@ int ConfigDecSecAXI(int codStd, struct sec_axi_info *sa, int width, int height)
 
 	offset = 0;
 
-	/*BIT */
+	/* BIT */
 	if (sa->useBitEnable) {
 		sa->useBitEnable = 1;
 		sa->bufBitUse = sramPhyAddr + offset;
@@ -458,7 +457,7 @@ int ConfigDecSecAXI(int codStd, struct sec_axi_info *sa, int width, int height)
 		}
 	}
 
-	/*Intra Prediction, ACDC */
+	/* Intra Prediction, ACDC */
 	if (sa->useIpEnable) {
 		sa->bufIpAcDcUse = sramPhyAddr + offset;
 		sa->useIpEnable = 1;
@@ -493,7 +492,7 @@ int ConfigDecSecAXI(int codStd, struct sec_axi_info *sa, int width, int height)
 		}
 	}
 
-	/*Deblock Chroma */
+	/* Deblock Chroma */
 	if (sa->useDbkCEnable) {
 		sa->bufDbkCUse = sramPhyAddr + offset;
 		sa->useDbkCEnable = 1;
@@ -527,7 +526,7 @@ int ConfigDecSecAXI(int codStd, struct sec_axi_info *sa, int width, int height)
 		}
 	}
 
-	/*Deblock Luma */
+	/* Deblock Luma */
 	if (sa->useDbkYEnable) {
 		sa->bufDbkYUse = sramPhyAddr + offset;
 		sa->useDbkYEnable = 1;

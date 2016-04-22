@@ -26,13 +26,13 @@
 #include <dt-bindings/tieoff/s5p6818-tieoff.h>
 
 #include "blackbird_v2.3.10.h"
-#include "vpu_hw_interface.h"           /* Register Access */
+#include "vpu_hw_interface.h"		/* Register Access */
 #include "nx_vpu_api.h"
 
 
-#define	DBG_POWER		0
-#define	DBG_CLOCK		0
-#define	INFO_MSG			1
+#define	DBG_POWER			0
+#define	DBG_CLOCK			0
+#define	INFO_MSG			0
 
 
 /*--------------------------------------------------------------------------- */
@@ -54,28 +54,28 @@ static unsigned int VPU_IsBusy(void);
 /*----------------------------------------------------------------------------
  *		Nexell Specific VPU Hardware On/Off Logic
  *--------------------------------------------------------------------------- */
-#define VPU_ALIVEGATE_REG	        0xC0010800
+#define VPU_ALIVEGATE_REG		0xC0010800
 #define VPU_NISOLATE_REG		0xC0010D00
-#define VPU_NPRECHARGE_REG	        0xC0010D04
+#define VPU_NPRECHARGE_REG		0xC0010D04
 #define VPU_NPOWERUP_REG		0xC0010D08
-#define VPU_NPOWERACK_REG	        0xC0010D0C
+#define VPU_NPOWERACK_REG		0xC0010D0C
 #define CODA960CLKENB_REG		0xC00C7000
 
-#define	POWER_PMU_VPU_MASK	        0x00000002
+#define	POWER_PMU_VPU_MASK		0x00000002
 
 #if defined(CONFIG_ARCH_S5P6818)
 
 #if 1
-#define	TIEOFF_REG131		        0xC001120C
+#define	TIEOFF_REG131			0xC001120C
 
-#define	VPU_ASYNCXUI0_CSYSACK	        (1<<14)
-#define	VPU_ASYNCXUI0_CACTIVE	        (1<<15)
-#define	VPU_ASYNCXUI1_CSYSACK	        (1<<16)
-#define	VPU_ASYNCXUI1_CACTIVE	        (1<<17)
+#define	VPU_ASYNCXUI0_CSYSACK		(1<<14)
+#define	VPU_ASYNCXUI0_CACTIVE		(1<<15)
+#define	VPU_ASYNCXUI1_CSYSACK		(1<<16)
+#define	VPU_ASYNCXUI1_CACTIVE		(1<<17)
 
-#define	TIEOFF_REG69		        0xC0011114
-#define	VPU_ASYNCXUI0_CSYSREQ	        (1<<3)
-#define	VPU_ASYNCXUI1_CSYSREQ	        (1<<4)
+#define	TIEOFF_REG69			0xC0011114
+#define	VPU_ASYNCXUI0_CSYSREQ		(1<<3)
+#define	VPU_ASYNCXUI1_CSYSREQ		(1<<4)
 #endif
 
 
@@ -298,8 +298,8 @@ void NX_VPU_HWOff(void *dev)
 		/* Initialize ISolate Register's */
 		pIsolateBase = ioremap(VPU_NISOLATE_REG, 16);
 		pNPreCharge = pIsolateBase + 4;
-		pNPowerUp   = pIsolateBase + 8;
-		pNPowerAck  = pIsolateBase + 12;
+		pNPowerUp = pIsolateBase + 8;
+		pNPowerAck = pIsolateBase + 12;
 
 		/* Initialize Alivegate Register */
 		pAliveBase = ioremap(VPU_ALIVEGATE_REG, 16);
@@ -457,12 +457,12 @@ void CheckVersion(void)
  */
 
 /* SW Reset command */
-#define VPU_SW_RESET_BPU_CORE   0x008
-#define VPU_SW_RESET_BPU_BUS    0x010
-#define VPU_SW_RESET_VCE_CORE   0x020
-#define VPU_SW_RESET_VCE_BUS    0x040
-#define VPU_SW_RESET_GDI_CORE   0x080
-#define VPU_SW_RESET_GDI_BUS    0x100
+#define VPU_SW_RESET_BPU_CORE	0x008
+#define VPU_SW_RESET_BPU_BUS	0x010
+#define VPU_SW_RESET_VCE_CORE	0x020
+#define VPU_SW_RESET_VCE_BUS	0x040
+#define VPU_SW_RESET_GDI_CORE	0x080
+#define VPU_SW_RESET_GDI_BUS	0x100
 
 int VPU_SWReset(int resetMode)
 {
@@ -515,7 +515,7 @@ int VPU_SWReset(int resetMode)
 int NX_VpuInit(void *dev, void *baseAddr, void *firmVirAddr,
 	uint32_t firmPhyAddr)
 {
-	enum nx_vpu_ret	ret = VPU_RET_OK;
+	enum nx_vpu_ret ret = VPU_RET_OK;
 	int32_t i;
 	uint32_t tmpData;
 	uint32_t codeBufAddr, tmpBufAddr, paramBufAddr;

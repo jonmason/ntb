@@ -133,7 +133,7 @@ struct nx_vid_memory_info *nx_alloc_frame_memory(void *drv, int32_t width,
 		chroma_planes = 1;
 		break;
 	default:
-		pr_err("Unknown fourCC type.\n");
+		NX_ErrMsg(("Unknown fourCC type.\n"));
 		goto Error_Exit;
 	}
 	cSize = cWidth * cHeight;

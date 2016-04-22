@@ -2,18 +2,18 @@
  * Copyright (C) 2016  Nexell Co., Ltd.
  * Author: Seonghee, Kim <kshblue@nexell.co.kr>
  *
- * This	program	is free	software; you can redistribute it and/or
- * modify it under the terms of	the GNU	General	Public License
- * as published	by the Free Software Foundation; either	version	2
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
  *
- * This	program	is distributed in the hope that	it will	be useful,
+ * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	 See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If	not, see <http://www.gnu.org/licenses/>.
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <linux/module.h>
@@ -41,7 +41,7 @@
 #define	NX_VIDEO_DEC_NAME "nx-vpu-dec"
 
 
-#define INFO_MSG				0
+#define INFO_MSG		0
 
 
 dma_addr_t nx_vpu_mem_plane_addr(struct nx_vpu_ctx *c, struct vb2_buffer *v,
@@ -49,7 +49,7 @@ dma_addr_t nx_vpu_mem_plane_addr(struct nx_vpu_ctx *c, struct vb2_buffer *v,
 {
 #ifdef USE_ION_MEMORY
 	void *cookie = vb2_plane_cookie(v, n);
-	dma_addr_t addr	= 0;
+	dma_addr_t addr = 0;
 
 	WARN_ON(vb2_ion_dma_address(cookie, &addr) != 0);
 	return (unsigned long)addr;
@@ -68,10 +68,10 @@ static inline int nx_vpu_get_new_ctx(struct nx_vpu_v4l2 *dev)
 	FUNC_IN();
 
 	/* printk("curr_ctx = %d\n", dev->curr_ctx); */
-	new_ctx	= (dev->curr_ctx + 1) % NX_MAX_VPU_INSTANCE;
+	new_ctx = (dev->curr_ctx + 1) % NX_MAX_VPU_INSTANCE;
 	cnt = 0;
 	while (!test_bit(new_ctx, &dev->ctx_work_bits)) {
-		new_ctx	= (new_ctx + 1) % NX_MAX_VPU_INSTANCE;
+		new_ctx = (new_ctx + 1) % NX_MAX_VPU_INSTANCE;
 		if (++cnt > NX_MAX_VPU_INSTANCE) {
 			NX_ErrMsg(("new ctx error\n"));
 			return -EAGAIN;
@@ -227,7 +227,7 @@ int nx_vpu_try_run(struct nx_vpu_v4l2 *dev)
 
 
 /*-----------------------------------------------------------------------------
- *	functions for Input/Output format
+ *      functions for Input/Output format
  *----------------------------------------------------------------------------*/
 static struct nx_vpu_fmt formats[] = {
 	{
@@ -307,7 +307,7 @@ static int vidioc_enum_fmt(struct v4l2_fmtdesc *f, bool mplane, bool out)
 
 
 /*-----------------------------------------------------------------------------
- *	functions for vidioc_queryctrl
+ *      functions for vidioc_queryctrl
  *----------------------------------------------------------------------------*/
 
 /* Query capabilities of the device */
@@ -426,7 +426,7 @@ int vidioc_streamoff(struct file *file, void *priv,
 
 
 /*-----------------------------------------------------------------------------
- *	functions for VB2 Contorls(struct "vb2_ops")
+ *      functions for VB2 Contorls(struct "vb2_ops")
  *----------------------------------------------------------------------------*/
 
 static int check_vb_with_fmt(struct nx_vpu_fmt *fmt, struct vb2_buffer *vb)
@@ -637,7 +637,7 @@ void nx_vpu_cleanup_queue(struct list_head *lh, struct vb2_queue *vq)
 
 
 /*-----------------------------------------------------------------------------
- *	Linux VPU Interrupt Handler
+ *      Linux VPU Interrupt Handler
  *----------------------------------------------------------------------------*/
 
 static irqreturn_t nx_vpu_irq(int irq, void *priv)
@@ -656,7 +656,7 @@ static irqreturn_t nx_vpu_irq(int irq, void *priv)
 
 static int VPU_WaitVpuInterrupt(struct nx_vpu_v4l2 *dev, int timeOut)
 {
-	int ret	= wait_event_interruptible_timeout(dev->vpu_wait_queue,
+	int ret = wait_event_interruptible_timeout(dev->vpu_wait_queue,
 		atomic_read(&dev->vpu_event_present),
 		msecs_to_jiffies(timeOut));
 
@@ -704,7 +704,7 @@ int VPU_WaitBitInterrupt(void *devHandle, int mSeconds)
 		return 0;
 	}
 
-	VpuWriteReg(BIT_INT_CLEAR, 1);	/* clear HW signal */
+	VpuWriteReg(BIT_INT_CLEAR, 1);  /* clear HW signal */
 	reason = VpuReadReg(BIT_INT_REASON);
 	VpuWriteReg(BIT_INT_REASON, 0);
 	return reason;
@@ -888,7 +888,7 @@ static int nx_vpu_close(struct file *file)
 	return 0;
 }
 
-static unsigned	int nx_vpu_poll(struct file *file, struct poll_table_struct
+static unsigned int nx_vpu_poll(struct file *file, struct poll_table_struct
 	*wait)
 {
 	FUNC_IN();
@@ -1044,7 +1044,7 @@ static int nx_vpu_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	/* alloc context : use vb2 dma contig	*/
+	/* alloc context : use vb2 dma contig   */
 	dev->alloc_ctx = vb2_dma_contig_init_ctx(&pdev->dev);
 	if (!dev->alloc_ctx) {
 		dev_err(&pdev->dev, "%s: failed to dma alloc context\n",
@@ -1202,7 +1202,7 @@ static const struct of_device_id nx_vpu_dt_match[] = {
 	},
 	{},
 };
-MODULE_DEVICE_TABLE(of,	nx_vpu_dt_match);
+MODULE_DEVICE_TABLE(of, nx_vpu_dt_match);
 
 static struct platform_driver nx_vpu_driver = {
 	.probe = nx_vpu_probe,

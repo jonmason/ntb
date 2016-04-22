@@ -54,13 +54,13 @@ struct vpu_enc_seq_arg {
 	uint64_t strmBufPhyAddr;
 	int32_t strmBufSize;
 
-	int32_t frameRateNum;	        /* frame rate */
+	int32_t frameRateNum;		/* frame rate */
 	int32_t frameRateDen;
 	int32_t gopSize;		/* group of picture size */
 
 	/* Rate Control */
 	int32_t bitrate;		/* Target Bitrate */
-	int32_t disableSkip;	        /* Flag of Skip frame disable */
+	int32_t disableSkip;		/* Flag of Skip frame disable */
 
 	/* This value is valid if RCModule is 1.(MAX 0x7FFF)
 	 * 0 does not check Reference decoder buffer delay constraint. */
@@ -74,7 +74,7 @@ struct vpu_enc_seq_arg {
 	int32_t gammaFactor;
 
 	/* Quantization Scale [ H.264/AVC(0~51), MPEG4(1~31) ] */
-	int32_t maxQP;		        /* Max Quantization Scale */
+	int32_t maxQP;			/* Max Quantization Scale */
 
 	/* This value is Initial QP when CBR
 	 *       (Initial QP is computed if initQP is 0)
@@ -102,7 +102,7 @@ struct vpu_enc_seq_arg {
 	int32_t mirDirection;
 
 	/* AVC Only */
-	int32_t	enableAUDelimiter;
+	int32_t enableAUDelimiter;
 
 	/* JPEG Specific */
 	int32_t quality;
@@ -110,7 +110,7 @@ struct vpu_enc_seq_arg {
 
 struct vpu_enc_set_frame_arg {
 	/* Reconstruct Buffer */
-	int32_t	numFrameBuffer;
+	int32_t numFrameBuffer;
 	struct nx_vid_memory_info frameBuffer[2];
 
 	/* Sub Sample Buffers(1 sub sample buffer size = Framebuffer size/4) */
@@ -203,8 +203,8 @@ struct vpu_dec_seq_init_arg {
 	/* General Output Information */
 	int32_t outWidth;
 	int32_t outHeight;
-	int32_t frameRateNum;	/* Frame Rate Numerator */
-	int32_t frameRateDen;	/* Frame Rate Denominator */
+	int32_t frameRateNum;		/* Frame Rate Numerator */
+	int32_t frameRateDen;		/* Frame Rate Denominator */
 	uint32_t bitrate;
 
 	int32_t profile;
@@ -264,7 +264,7 @@ struct vpu_dec_seq_init_arg {
 
 struct vpu_dec_reg_frame_arg {
 	/* Frame Buffers */
-	int32_t	numFrameBuffer;
+	int32_t numFrameBuffer;
 	struct nx_vid_memory_info frameBuffer[30];
 
 	/* MV Buffer Address */
@@ -279,19 +279,19 @@ struct vpu_dec_reg_frame_arg {
 
 /* VP8 specific display information */
 struct vp8_scale_info {
-	uint32_t hScaleFactor   : 2;
-	uint32_t vScaleFactor   : 2;
-	uint32_t picWidth       : 14;
-	uint32_t picHeight      : 14;
+	uint32_t hScaleFactor	: 2;
+	uint32_t vScaleFactor	: 2;
+	uint32_t picWidth	: 14;
+	uint32_t picHeight	: 14;
 };
 
 /* VP8 specific header information */
 struct vp8_pic_info {
-	uint32_t showFrame      : 1;
-	uint32_t versionNumber  : 3;
-	uint32_t refIdxLast     : 8;
-	uint32_t refIdxAltr     : 8;
-	uint32_t refIdxGold     : 8;
+	uint32_t showFrame	: 1;
+	uint32_t versionNumber	: 3;
+	uint32_t refIdxLast	: 8;
+	uint32_t refIdxAltr	: 8;
+	uint32_t refIdxGold	: 8;
 };
 
 struct vpu_dec_frame_arg {

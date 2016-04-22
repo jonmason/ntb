@@ -27,9 +27,9 @@
 #include "nx_vpu_gdi.h"
 
 
-#define DBG_USERDATA		0
-#define DBG_REGISTER		0
-#define DBG_ES_ADDR		0
+#define DBG_USERDATA			0
+#define DBG_REGISTER			0
+#define DBG_ES_ADDR			0
 #define	INFO_MSG			0
 
 

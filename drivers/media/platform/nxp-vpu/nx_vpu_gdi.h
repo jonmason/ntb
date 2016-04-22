@@ -20,9 +20,9 @@
 #define	__NX_VPU_GDI_H__
 
 int SetTiledMapType(int mapType, int stride, int interleave);
-enum nx_vpu_ret ConfigEncSecAXI(int codStd, struct sec_axi_info *sa, int width,
+int ConfigEncSecAXI(int codStd, struct sec_axi_info *sa, int width,
 	int height);
-enum nx_vpu_ret ConfigDecSecAXI(int codStd, struct sec_axi_info *sa, int width,
+int ConfigDecSecAXI(int codStd, struct sec_axi_info *sa, int width,
 	int height);
 unsigned int MaverickCache2Config(int decoder, int interleave, int bypass,
 	int burst, int merge, int mapType, int wayshape);

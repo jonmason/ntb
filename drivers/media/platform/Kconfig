@@ -311,4 +311,4 @@ config VIDEO_NEXELL_CODEC
 	depends on VIDEO_V4L2
 	default n
 	---help---
-	  This is a v4l2 driver for Nesell Video Codec.
+	  This is a v4l2 driver for Nexell Video Codec.
