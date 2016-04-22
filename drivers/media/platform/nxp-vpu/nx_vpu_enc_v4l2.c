@@ -1099,34 +1099,6 @@ int vpu_enc_init(struct nx_vpu_ctx *ctx)
 		/*pseqArg.quality = pstParam->jpgQuality; */
 	}
 
-	NX_DbgMsg(INFO_MSG, ("codec mode = %d\n", ctx->codec_mode));
-	NX_DbgMsg(INFO_MSG, ("W = %d, H = %d\n", pSeqArg->srcWidth,
-		pSeqArg->srcHeight));
-	NX_DbgMsg(INFO_MSG, ("Buff = %x %x %x\n", pSeqArg->strmBufVirAddr,
-		pSeqArg->strmBufPhyAddr, pSeqArg->strmBufSize));
-	NX_DbgMsg(INFO_MSG, ("FPS = %d, %d\n", pSeqArg->frameRateNum,
-		pSeqArg->frameRateDen));
-	NX_DbgMsg(INFO_MSG, ("gopSize = %d\n", pSeqArg->gopSize));
-	NX_DbgMsg(INFO_MSG, ("bitrate = %d\n", pSeqArg->bitrate));
-	NX_DbgMsg(INFO_MSG, ("disableSkip = %d\n", pSeqArg->disableSkip));
-	NX_DbgMsg(INFO_MSG, ("initialDelay = %d\n", pSeqArg->initialDelay));
-	NX_DbgMsg(INFO_MSG, ("vbvBufferSize = %d\n", pSeqArg->vbvBufferSize));
-	NX_DbgMsg(INFO_MSG, ("gammaFactor = %d\n", pSeqArg->gammaFactor));
-	NX_DbgMsg(INFO_MSG, ("maxQP = %d\n", pSeqArg->maxQP));
-	NX_DbgMsg(INFO_MSG, ("initQP = %d\n", pSeqArg->initQP));
-	NX_DbgMsg(INFO_MSG, ("chromaInterleave = %d\n",
-		pSeqArg->chromaInterleave));
-	NX_DbgMsg(INFO_MSG, ("refChromaInterleave = %d\n",
-		pSeqArg->refChromaInterleave));
-	NX_DbgMsg(INFO_MSG, ("searchRange = %d\n", pSeqArg->searchRange));
-	NX_DbgMsg(INFO_MSG, ("intraRefreshMbs = %d\n",
-		pSeqArg->intraRefreshMbs));
-	NX_DbgMsg(INFO_MSG, ("rotAngle = %d\n", pSeqArg->rotAngle));
-	NX_DbgMsg(INFO_MSG, ("mirDirection = %d\n", pSeqArg->mirDirection));
-	NX_DbgMsg(INFO_MSG, ("enableAUDelimiter = %d\n",
-		pSeqArg->enableAUDelimiter));
-	NX_DbgMsg(INFO_MSG, ("quality = %d\n", pSeqArg->quality));
-
 	ret = NX_VpuEncSetSeqParam(ctx->hInst, pSeqArg);
 	if (ret != VPU_RET_OK) {
 		NX_ErrMsg(("NX_VpuEncSetSeqParam() failed.(ErrorCode=%d)\n",
@@ -1183,12 +1155,13 @@ void vpu_enc_get_seq_info(struct nx_vpu_ctx *ctx)
 {
 	struct nx_memory_info stream_buf;
 	union vpu_enc_get_header_arg *pHdr = &ctx->codec.enc.seq_info;
-	void *pvDst = stream_buf.virAddr;
+	void *pvDst;
 
 	FUNC_IN();
 
 	if (ctx->codec_mode == CODEC_STD_AVC) {
 		get_stream_buffer(ctx, &stream_buf);
+		pvDst = stream_buf.virAddr;
 
 		NX_DrvMemcpy(pvDst, (void *)pHdr->avcHeader.spsData,
 			pHdr->avcHeader.spsSize);
@@ -1199,6 +1172,7 @@ void vpu_enc_get_seq_info(struct nx_vpu_ctx *ctx)
 			pHdr->avcHeader.ppsSize;
 	} else if (ctx->codec_mode == CODEC_STD_MPEG4) {
 		get_stream_buffer(ctx, &stream_buf);
+		pvDst = stream_buf.virAddr;
 
 		NX_DrvMemcpy((void *)stream_buf.virAddr,
 			pHdr->mp4Header.vosData, pHdr->mp4Header.vosSize);

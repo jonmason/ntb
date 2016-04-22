@@ -539,9 +539,8 @@ int NX_VpuInit(void *dev, void *baseAddr, void *firmVirAddr,
 
 	{
 		unsigned char *dst = (unsigned char *)firmVirAddr;
-		int size = ARRAY_SIZE(bit_code) / sizeof(bit_code[0]);
 
-		for (i = 0; i < size ; i += 4) {
+		for (i = 0; i < ARRAY_SIZE(bit_code) ; i += 4) {
 			*dst++ = (unsigned char)(bit_code[i+3] >> 0);
 			*dst++ = (unsigned char)(bit_code[i+3] >> 8);
 
