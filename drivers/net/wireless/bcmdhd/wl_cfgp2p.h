@@ -191,12 +191,6 @@ enum wl_cfgp2p_status {
 #undef WL_SUPPORT_BACKPORTED_KPATCHES
 #endif
 #else
-#ifdef WLP2P
-#ifndef WL_ENABLE_P2P_IF
-/* Enable P2P network Interface if P2P support is enabled */
-#define WL_ENABLE_P2P_IF
-#endif /* WL_ENABLE_P2P_IF */
-#endif /* WLP2P */
 #endif /* (LINUX_VERSION >= VERSION(3, 8, 0)) */
 
 #ifndef WL_CFG80211_P2P_DEV_IF
