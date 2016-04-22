@@ -158,13 +158,10 @@ int NX_VpuDecOpen(struct vpu_open_arg *openArg, void *dev,
 		pDecInfo->bitStreamMode = BS_MODE_ROLLBACK;
 	}
 
-	pDecInfo->cbcrInterleave = openArg->chromaInterleave;
 	pDecInfo->streamEndflag = 0;/* Frame Unit Operation */
 	pDecInfo->bwbEnable = VPU_ENABLE_BWB;
 	pDecInfo->seqInitEscape = 0;
 	pDecInfo->streamEndian = VPU_STREAM_ENDIAN;
-	pDecInfo->cacheConfig = MaverickCache2Config(1,
-		pDecInfo->cbcrInterleave, 0, 0, 3, 0, 15);
 
 	NX_DrvMemset((void *)hInst->paramVirAddr, 0, PARA_BUF_SIZE);
 
@@ -744,6 +741,10 @@ static int VPU_DecRegisterFrameBufCommand(struct nx_vpu_codec_inst
 	NX_DrvMemset(frameAddr, 0, sizeof(frameAddr));
 	NX_DrvMemset(colMvAddr, 0, sizeof(colMvAddr));
 
+	pInfo->cbcrInterleave = pArg->chromaInterleave;
+	pInfo->cacheConfig =
+		MaverickCache2Config(1, pInfo->cbcrInterleave, 0, 0, 3, 0, 15);
+
 	SetTiledMapType(VPU_LINEAR_FRAME_MAP, bufferStride,
 		pInfo->cbcrInterleave);
 
@@ -760,10 +761,16 @@ static int VPU_DecRegisterFrameBufCommand(struct nx_vpu_codec_inst
 		frameAddr[i][1][2] = (frameBuffer->phyAddr[1] >>  8) & 0xFF;
 		frameAddr[i][1][3] = (frameBuffer->phyAddr[1] >>  0) & 0xFF;
 
-		frameAddr[i][2][0] = (frameBuffer->phyAddr[2] >> 24) & 0xFF;
-		frameAddr[i][2][1] = (frameBuffer->phyAddr[2] >> 16) & 0xFF;
-		frameAddr[i][2][2] = (frameBuffer->phyAddr[2] >>  8) & 0xFF;
-		frameAddr[i][2][3] = (frameBuffer->phyAddr[2] >>  0) & 0xFF;
+		if (pInfo->cbcrInterleave == 0) {
+			frameAddr[i][2][0] = (frameBuffer->phyAddr[2] >> 24)
+				& 0xFF;
+			frameAddr[i][2][1] = (frameBuffer->phyAddr[2] >> 16)
+				& 0xFF;
+			frameAddr[i][2][2] = (frameBuffer->phyAddr[2] >>  8)
+				& 0xFF;
+			frameAddr[i][2][3] = (frameBuffer->phyAddr[2] >>  0)
+				& 0xFF;
+		}
 	}
 
 	swap_endian((unsigned char *)frameAddr, sizeof(frameAddr));

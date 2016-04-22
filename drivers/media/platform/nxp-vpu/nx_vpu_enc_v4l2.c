@@ -98,7 +98,7 @@ static struct v4l2_queryctrl controls[] = {
 		.default_value = 30,
 	},
 	{
-		.id = V4L2_CID_MPEG_VIDEO_NUM_IREFRESH_MBS,
+		.id = V4L2_CID_MPEG_VIDEO_CYCLIC_INTRA_REFRESH_MB,
 		.type = V4L2_CTRL_TYPE_INTEGER,
 		.name = "Intra MB refresh number",
 		.minimum = 0,
@@ -138,7 +138,7 @@ static struct v4l2_queryctrl controls[] = {
 		.type = V4L2_CTRL_TYPE_INTEGER,
 		.name = "VBV size in byte",
 		.minimum = 0,
-		.maximum = (1 << 16) - 1,
+		.maximum = 0x7FFFFFFF,
 		.step = 1,
 		.default_value = 0,
 	},
@@ -169,15 +169,15 @@ static struct v4l2_queryctrl controls[] = {
 		.step = 1,
 		.default_value = 0,
 	},
-	/*{
+	{
 		.id = V4L2_CID_MPEG_VIDEO_H264_PROFILE,
 		.type = V4L2_CTRL_TYPE_INTEGER,
 		.name = "H264 profile",
 		.minimum = V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE,
-		.maximum = V4L2_MPEG_VIDEO_H264_PROFILE_HIGH,
+		.maximum = V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE,
 		.step = 1,
 		.default_value = V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE,
-	},*/
+	},
 	{
 		.id = V4L2_CID_MPEG_VIDEO_H264_I_FRAME_QP,
 		.type = V4L2_CTRL_TYPE_INTEGER,
@@ -249,6 +249,15 @@ static struct v4l2_queryctrl controls[] = {
 		.maximum = 31,
 		.step = 1,
 		.default_value = 0,
+	},
+	{
+		.id = V4L2_CID_MPEG_VIDEO_H263_PROFILE,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "H263 Profile",
+		.minimum = V4L2_MPEG_VIDEO_H263_PROFILE_P0,
+		.maximum = V4L2_MPEG_VIDEO_H263_PROFILE_P3,
+		.step = 1,
+		.default_value = V4L2_MPEG_VIDEO_H263_PROFILE_P0,
 	},
 	{
 		.id = V4L2_CID_MPEG_VIDEO_H263_I_FRAME_QP,
@@ -422,7 +431,8 @@ static int vidioc_try_fmt(struct file *file, void *priv, struct v4l2_format *f)
 		}
 
 		if (fmt->num_planes != pix_fmt_mp->num_planes) {
-			NX_ErrMsg(("failed to try input format\n"));
+			NX_ErrMsg(("failed to try input format(%d, %d)\n",
+				fmt->num_planes, pix_fmt_mp->num_planes));
 			return -EINVAL;
 		}
 	} else {
@@ -485,27 +495,28 @@ static int vidioc_s_fmt(struct file *file, void *priv, struct v4l2_format *f)
 		ctx->img_fmt = fmt;
 		ctx->width = pix_fmt_mp->width;
 		ctx->height = pix_fmt_mp->height;
+		ctx->chromaInterleave = (fmt->fourcc == V4L2_PIX_FMT_YUV420M) ?
+			(0) : (1);
 
 		enc_ctx->seq_para.srcWidth = ctx->width;
 		enc_ctx->seq_para.srcHeight = ctx->height;
-		enc_ctx->seq_para.chromaInterleave =
-			(fmt->fourcc == V4L2_PIX_FMT_YUV420M) ? (0) : (1);
+		enc_ctx->seq_para.chromaInterleave = ctx->chromaInterleave;
 		enc_ctx->seq_para.refChromaInterleave = RECON_CHROMA_INTERLEAVE;
 
-		if (enc_ctx->seq_para.chromaInterleave == 0) {
-			ctx->buf_width = ALIGN(ctx->width, 32);
-			ctx->buf_height = ALIGN(ctx->height, 16);
-			ctx->luma_size = ctx->buf_width * ctx->buf_height;
+		ctx->buf_width = ALIGN(ctx->width, 32);
+		ctx->buf_height = ALIGN(ctx->height, 16);
+		ctx->luma_size = ctx->buf_width * ctx->buf_height;
+
+		if (ctx->chromaInterleave == 0)
 			ctx->chroma_size = ctx->luma_size >> 2;
-		} else {
-			NX_ErrMsg(("%s will be coded!!\n", __func__));
-		}
+		else
+			ctx->chroma_size = ctx->luma_size >> 1;
 
 		pix_fmt_mp->plane_fmt[0].bytesperline = ctx->buf_width;
 		pix_fmt_mp->plane_fmt[0].sizeimage = ctx->luma_size;
 		pix_fmt_mp->plane_fmt[1].bytesperline = ctx->buf_width / 2;
 		pix_fmt_mp->plane_fmt[1].sizeimage = ctx->chroma_size;
-		if (enc_ctx->seq_para.chromaInterleave == 0) {
+		if (ctx->chromaInterleave == 0) {
 			pix_fmt_mp->plane_fmt[2].bytesperline
 				= ctx->buf_width / 2;
 			pix_fmt_mp->plane_fmt[2].sizeimage = ctx->chroma_size;
@@ -519,7 +530,6 @@ ERROR_EXIT:
 	NX_DbgMsg(INFO_MSG, ("%s End!!(ret = %d)\n", __func__, ret));
 	return ret;
 }
-
 
 static int vidioc_reqbufs(struct file *file, void *priv,
 					  struct v4l2_requestbuffers *reqbufs)
@@ -573,24 +583,21 @@ static int vidioc_qbuf(struct file *file, void *priv, struct v4l2_buffer *buf)
 
 	if (buf->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
 		return vb2_qbuf(&ctx->vq_img, buf);
-	else
-		return vb2_qbuf(&ctx->vq_strm, buf);
+
+	return vb2_qbuf(&ctx->vq_strm, buf);
 }
 
 /* Dequeue a buffer */
 static int vidioc_dqbuf(struct file *file, void *priv, struct v4l2_buffer *buf)
 {
 	struct nx_vpu_ctx *ctx = fh_to_ctx(file->private_data);
-	int ret;
 
 	FUNC_IN();
 
 	if (buf->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
-		ret = vb2_dqbuf(&ctx->vq_img, buf, file->f_flags & O_NONBLOCK);
-	else
-		ret = vb2_dqbuf(&ctx->vq_strm, buf, file->f_flags & O_NONBLOCK);
+		return vb2_dqbuf(&ctx->vq_img, buf, file->f_flags & O_NONBLOCK);
 
-	return ret;
+	return vb2_dqbuf(&ctx->vq_strm, buf, file->f_flags & O_NONBLOCK);
 }
 
 static int get_ctrl_val(struct nx_vpu_ctx *ctx, struct v4l2_control *ctrl)
@@ -629,7 +636,7 @@ static int set_enc_param(struct nx_vpu_ctx *ctx, struct v4l2_control *ctrl)
 	case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
 		seq_para->gopSize = ctrl->value;
 		break;
-	case V4L2_CID_MPEG_VIDEO_NUM_IREFRESH_MBS:
+	case V4L2_CID_MPEG_VIDEO_CYCLIC_INTRA_REFRESH_MB:
 		seq_para->intraRefreshMbs = ctrl->value;
 		break;
 	case V4L2_CID_MPEG_VIDEO_SEARCH_RANGE:
@@ -670,6 +677,10 @@ static int set_enc_param(struct nx_vpu_ctx *ctx, struct v4l2_control *ctrl)
 		break;
 	case V4L2_CID_MPEG_VIDEO_H264_AUD_INSERT:
 		seq_para->enableAUDelimiter = ctrl->value;
+		break;
+	case V4L2_CID_MPEG_VIDEO_H263_PROFILE:
+		if (ctrl->value == V4L2_MPEG_VIDEO_H263_PROFILE_P3)
+			seq_para->annexFlg = 1;
 		break;
 	default:
 		NX_ErrMsg(("Invalid control(ID = %x)\n", ctrl->id));
@@ -1185,7 +1196,7 @@ void vpu_enc_get_seq_info(struct nx_vpu_ctx *ctx)
 		ctx->strm_size = 0;
 	}
 
-	if (ctx->strm_size > 0) {
+	/*if (ctx->strm_size > 0)*/ {
 		struct nx_vpu_buf *dst_mb;
 		unsigned long flags;
 
@@ -1234,8 +1245,10 @@ int vpu_enc_encode_frame(struct nx_vpu_ctx *ctx)
 		&mb_entry->vb, 0);
 	runArg.inImgBuffer.phyAddr[1] = nx_vpu_mem_plane_addr(ctx,
 		&mb_entry->vb, 1);
-	runArg.inImgBuffer.phyAddr[2] = nx_vpu_mem_plane_addr(ctx,
-		&mb_entry->vb, 2);
+	if (ctx->chromaInterleave == 0)
+		runArg.inImgBuffer.phyAddr[2] = nx_vpu_mem_plane_addr(ctx,
+			&mb_entry->vb, 2);
+
 	runArg.inImgBuffer.stride[0] = ctx->buf_width;
 
 	spin_unlock_irqrestore(&dev->irqlock, flags);
@@ -1279,6 +1292,10 @@ int vpu_enc_encode_frame(struct nx_vpu_ctx *ctx)
 
 		list_del(&mb_entry->list);
 		ctx->strm_queue_cnt--;
+
+		mb_entry->vb.v4l2_buf.reserved = (runArg.frameType == 0) ?
+			(V4L2_BUF_FLAG_KEYFRAME) : (V4L2_BUF_FLAG_PFRAME);
+
 		vb2_set_plane_payload(&mb_entry->vb, 0, ctx->strm_size);
 
 		vb2_buffer_done(&mb_entry->vb, VB2_BUF_STATE_DONE);
@@ -1291,7 +1308,7 @@ int vpu_enc_encode_frame(struct nx_vpu_ctx *ctx)
 
 int alloc_encoder_memory(struct nx_vpu_ctx *ctx)
 {
-	int width, height;
+	int width, height, i;
 	struct vpu_enc_ctx *enc_ctx = &ctx->codec.enc;
 	void *drv = &ctx->dev->plat_dev->dev;
 
@@ -1301,38 +1318,28 @@ int alloc_encoder_memory(struct nx_vpu_ctx *ctx)
 	height = ALIGN(ctx->height, 16);
 
 	if (ctx->codec_mode != CODEC_STD_MJPG) {
-		enc_ctx->ref_recon_buf[0] = nx_alloc_frame_memory(drv, width,
-			height, 3, ctx->img_fmt->fourcc, 64);
-		if (enc_ctx->ref_recon_buf[0] == 0) {
-			NX_ErrMsg(("alloc_frame(%d,%d,..) failed(recon0)\n",
-				width, height));
-			goto Error_Exit;
-		}
+		for (i = 0 ; i < 2 ; i++) {
+#if RECON_CHROMA_INTERLEAVE
+			enc_ctx->ref_recon_buf[i] = nx_alloc_frame_memory(drv,
+				width, height, 3, V4L2_PIX_FMT_YUV420M, 64);
+#else
+			enc_ctx->ref_recon_buf[i] = nx_alloc_frame_memory(drv,
+				width, height, 2, V4L2_PIX_FMT_NV12M, 64);
+#endif
+			if (enc_ctx->ref_recon_buf[i] == 0) {
+				NX_ErrMsg(("alloc(%d,%d,..) failed(recon%d)\n",
+					width, height, i));
+				goto Error_Exit;
+			}
 
-		enc_ctx->ref_recon_buf[1] = nx_alloc_frame_memory(drv, width,
-			height, 3, ctx->img_fmt->fourcc, 64);
-		if (enc_ctx->ref_recon_buf[1] == 0) {
-			NX_ErrMsg(("alloc_frame(%d,%d,..) failed(recon1)\n",
-				width, height));
-			goto Error_Exit;
-		}
-
-		enc_ctx->sub_sample_buf[0] = nx_alloc_memory(drv,
-			width * height/4, 4096);
-		if (enc_ctx->sub_sample_buf[0] == 0) {
-			NX_ErrMsg(("sub_sample_buf0 allocation failed\n"));
-			NX_ErrMsg(("  size = %d, align = %d)\n",
-				width * height, 16));
-			goto Error_Exit;
-		}
-
-		enc_ctx->sub_sample_buf[1] = nx_alloc_memory(drv,
-			width * height / 4, 4096);
-		if (enc_ctx->sub_sample_buf[1] == 0) {
-			NX_ErrMsg(("sub_sample_buf1 allocation failed\n"));
-			NX_ErrMsg(("  size = %d, align = %d)\n",
-				width * height, 16));
-			goto Error_Exit;
+			enc_ctx->sub_sample_buf[i] = nx_alloc_memory(drv,
+				width * height/4, 4096);
+			if (enc_ctx->sub_sample_buf[i] == 0) {
+				NX_ErrMsg(("sub_buf allocation failed\n"));
+				NX_ErrMsg(("  size = %d, align = %d)\n",
+					width * height, 16));
+				goto Error_Exit;
+			}
 		}
 
 		ctx->bit_stream_buf = nx_alloc_memory(drv, STREAM_BUF_SIZE,

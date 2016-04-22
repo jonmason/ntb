@@ -72,6 +72,7 @@ struct nx_vpu_v4l2 {
 
 struct vpu_enc_ctx {
 	int gop_frm_cnt;		/* gop frame counter */
+
 	int userIQP;
 	int userPQP;
 
@@ -91,12 +92,16 @@ struct vpu_enc_ctx {
 };
 
 struct vpu_dec_ctx {
-	int frm_type;
+	int flush;
 	int eos_tag;
-	int interlace_flg;
 	int delay_frm;
 	int frame_buf_delay;
-	int reliable_0_100;
+	int cur_reliable;
+
+	int frm_type[VPU_MAX_BUFFERS];
+	int interlace_flg[VPU_MAX_BUFFERS];
+	int reliable_0_100[VPU_MAX_BUFFERS];
+	struct timeval timeStamp[VPU_MAX_BUFFERS];
 
 	unsigned int start_Addr;
 	unsigned int end_Addr;
@@ -110,6 +115,8 @@ struct vpu_dec_ctx {
 
 	struct list_head dpb_queue;
 	unsigned int dpb_queue_cnt;
+
+	int crop_left, crop_right, crop_top, crop_bot;
 };
 
 struct nx_vpu_ctx {
@@ -134,6 +141,8 @@ struct nx_vpu_ctx {
 
 	int luma_size;
 	int chroma_size;
+
+	int chromaInterleave;
 
 	unsigned int strm_size;
 

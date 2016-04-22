@@ -35,7 +35,6 @@ struct vpu_open_arg {
 	int32_t codecStd;
 	int32_t isEncoder;
 	int32_t mp4Class;
-	int32_t chromaInterleave;
 
 	struct nx_memory_info instanceBuf;
 	struct nx_memory_info streamBuf;
@@ -106,6 +105,9 @@ struct vpu_enc_seq_arg {
 
 	/* JPEG Specific */
 	int32_t quality;
+
+	/* H.263 Only */
+	int32_t annexFlg;
 };
 
 struct vpu_enc_set_frame_arg {
@@ -275,6 +277,8 @@ struct vpu_dec_reg_frame_arg {
 
 	/* VPX Codec Specific */
 	struct nx_memory_info pvbSliceBuffer;
+
+	int32_t chromaInterleave;
 };
 
 /* VP8 specific display information */

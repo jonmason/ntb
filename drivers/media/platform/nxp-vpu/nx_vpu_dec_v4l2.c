@@ -91,7 +91,7 @@ static int vidioc_g_fmt_vid_cap_mplane(struct file *file, void *priv,
 
 	pix_mp->width = ctx->width;
 	pix_mp->height = ctx->height;
-	pix_mp->field = ctx->codec.dec.interlace_flg;
+	pix_mp->field = ctx->codec.dec.interlace_flg[0];
 	pix_mp->num_planes = 3;
 	pix_mp->pixelformat = V4L2_PIX_FMT_YUV420M;
 
@@ -188,6 +188,8 @@ static int vidioc_s_fmt_vid_cap_mplane(struct file *file, void *priv,
 		return -EINVAL;
 	}
 
+	ctx->chromaInterleave = (pix_fmt_mp->num_planes == 3) ? (0) : (1);
+
 	return 0;
 }
 
@@ -244,9 +246,14 @@ static int vidioc_reqbufs(struct file *file, void *priv,
 			return ret;
 		}
 	} else if (reqbufs->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+		if (reqbufs->count == 0)
+			return vb2_reqbufs(&ctx->vq_img, reqbufs);
+
+		/* TBD. Additional frame buffer count */
 		if ((reqbufs->count + 2) < ctx->codec.dec.frame_buffer_cnt) {
 			NX_ErrMsg(("v4l2_requestbuffers : count error\n"));
-			return -EINVAL;
+			reqbufs->count = ctx->codec.dec.frame_buffer_cnt;
+			return -ENOMEM;
 		}
 
 		ret = vb2_reqbufs(&ctx->vq_img, reqbufs);
@@ -273,11 +280,14 @@ static int vidioc_qbuf(struct file *file, void *priv, struct v4l2_buffer *buf)
 
 	if (buf->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		if ((buf->m.planes[0].bytesused == 0)
-			&& (ctx->is_initialized))
-			return ctx->vq_strm.ops->start_streaming(&ctx->vq_strm,
-				buf->flags);
-		else
-			return vb2_qbuf(&ctx->vq_strm, buf);
+			&& (ctx->is_initialized)) {
+				ctx->codec.dec.flush = 1;
+				return ctx->vq_strm.ops->start_streaming(
+					&ctx->vq_strm, buf->flags);
+			} else {
+				ctx->codec.dec.flush = 0;
+				return vb2_qbuf(&ctx->vq_strm, buf);
+			}
 	} else {
 		if (ctx->is_initialized) {
 			struct vpu_dec_clr_dsp_flag_arg clrFlagArg;
@@ -350,8 +360,16 @@ static int vidioc_s_ctrl(struct file *file, void *priv, struct v4l2_control
 
 static int vidioc_g_crop(struct file *file, void *priv, struct v4l2_crop *cr)
 {
+	struct nx_vpu_ctx *ctx = fh_to_ctx(file->private_data);
+	struct vpu_dec_ctx *dec_ctx = &ctx->codec.dec;
+
 	FUNC_IN();
-	NX_ErrMsg(("%s will be coded!!\n", __func__));
+
+	cr->c.left = dec_ctx->crop_left;
+	cr->c.top = dec_ctx->crop_top;
+	cr->c.width = dec_ctx->crop_right - dec_ctx->crop_left;
+	cr->c.height = dec_ctx->crop_bot - dec_ctx->crop_top;
+
 	return 0;
 }
 
@@ -417,12 +435,13 @@ static void cleanup_dpb_queue(struct nx_vpu_ctx *ctx)
 static int nx_vpu_dec_start_streaming(struct vb2_queue *q, unsigned int count)
 {
 	struct nx_vpu_ctx *ctx = q->drv_priv;
+	struct vpu_dec_ctx *dec_ctx = &ctx->codec.dec;
 	int ret = 0;
 
 	FUNC_IN();
 
-	if ((count == 1) || (nx_vpu_dec_ctx_ready(ctx))) {
-		ctx->codec.dec.eos_tag = count;
+	if ((dec_ctx->flush) || (nx_vpu_dec_ctx_ready(ctx))) {
+		dec_ctx->eos_tag = count;
 		ret = nx_vpu_try_run(ctx->dev);
 	}
 
@@ -481,12 +500,15 @@ static void nx_vpu_dec_buf_queue(struct vb2_buffer *vb)
 		unsigned int idx = dec_ctx->dpb_queue_cnt;
 
 		buf->planes.raw.y = nx_vpu_mem_plane_addr(ctx, vb, 0);
-		buf->planes.raw.cb = nx_vpu_mem_plane_addr(ctx, vb, 1);
-		buf->planes.raw.cr = nx_vpu_mem_plane_addr(ctx, vb, 2);
-
 		dec_ctx->frame_buf[idx].phyAddr[0] = buf->planes.raw.y;
+
+		buf->planes.raw.cb = nx_vpu_mem_plane_addr(ctx, vb, 1);
 		dec_ctx->frame_buf[idx].phyAddr[1] = buf->planes.raw.cb;
-		dec_ctx->frame_buf[idx].phyAddr[2] = buf->planes.raw.cr;
+
+		if (ctx->chromaInterleave == 0) {
+			buf->planes.raw.cr = nx_vpu_mem_plane_addr(ctx, vb, 2);
+			dec_ctx->frame_buf[idx].phyAddr[2] = buf->planes.raw.cr;
+		}
 
 		list_add_tail(&buf->list, &ctx->codec.dec.dpb_queue);
 		dec_ctx->dpb_queue_cnt++;
@@ -582,16 +604,30 @@ int vpu_dec_open_instance(struct nx_vpu_ctx *ctx)
 	memset(&openArg, 0, sizeof(openArg));
 
 	switch (ctx->strm_fmt->fourcc) {
-	case V4L2_PIX_FMT_MPEG4:
-		ctx->codec_mode = CODEC_STD_MPEG4;
-		break;
 	case V4L2_PIX_FMT_H264:
 		ctx->codec_mode = CODEC_STD_AVC;
 		workBufSize += PS_SAVE_SIZE;
 		break;
+	case V4L2_PIX_FMT_MPEG2:
+		ctx->codec_mode = CODEC_STD_MPEG2;
+		break;
+	case V4L2_PIX_FMT_MPEG4:
+	case V4L2_PIX_FMT_XVID:
+		ctx->codec_mode = CODEC_STD_MPEG4;
+		break;
 	case V4L2_PIX_FMT_H263:
 		ctx->codec_mode = CODEC_STD_H263;
 		break;
+	case V4L2_PIX_FMT_VP8:
+		ctx->codec_mode = CODEC_STD_VP8;
+		break;
+#if 0
+		ctx->codec_mode = CODEC_STD_DIV3;
+		ctx->codec_mode = CODEC_STD_RV;
+		ctx->codec_mode = CODEC_STD_VC1;
+		ctx->codec_mode = CODEC_STD_THO;
+		ctx->codec_mode = CODEC_STD_MJPG;
+#endif
 	default:
 		NX_ErrMsg(("Invalid codec type(fourcc = %x)!!!\n",
 			ctx->strm_fmt->fourcc));
@@ -709,8 +745,8 @@ int vpu_dec_parse_vfg(struct nx_vpu_ctx *ctx)
 	ctx->height = seqArg.cropBottom;
 	dec_ctx->frame_buffer_cnt = seqArg.minFrameBufCnt;
 
-	dec_ctx->interlace_flg = (seqArg.interlace == 0) ? (V4L2_FIELD_NONE) :
-		(V4L2_FIELD_INTERLACED);
+	dec_ctx->interlace_flg[0] = (seqArg.interlace == 0) ?
+		(V4L2_FIELD_NONE) : (V4L2_FIELD_INTERLACED);
 	dec_ctx->frame_buf_delay = seqArg.frameBufDelay;
 	ctx->buf_width = ALIGN(ctx->width, 32);
 	ctx->buf_height = ALIGN(ctx->height, 16);
@@ -720,6 +756,11 @@ int vpu_dec_parse_vfg(struct nx_vpu_ctx *ctx)
 	dec_ctx->start_Addr = 0;
 	dec_ctx->end_Addr = seqArg.strmReadPos;
 	ctx->strm_size = dec_ctx->end_Addr - dec_ctx->start_Addr;
+
+	dec_ctx->crop_left = seqArg.cropLeft;
+	dec_ctx->crop_right = seqArg.cropRight;
+	dec_ctx->crop_top = seqArg.cropTop;
+	dec_ctx->crop_bot = seqArg.cropBottom;
 
 	NX_DbgMsg(INFO_MSG, ("[PARSE]Min_Buff = %d\n",
 		dec_ctx->frame_buffer_cnt));
@@ -763,13 +804,18 @@ int vpu_dec_init(struct nx_vpu_ctx *ctx)
 
 	NX_DrvMemset(&frameArg, 0, sizeof(frameArg));
 
+	frameArg.chromaInterleave = ctx->chromaInterleave;
+
 	for (i = 0; i < dec_ctx->dpb_queue_cnt; i++) {
 		frameArg.frameBuffer[i].phyAddr[0]
 			= dec_ctx->frame_buf[i].phyAddr[0];
 		frameArg.frameBuffer[i].phyAddr[1]
 			= dec_ctx->frame_buf[i].phyAddr[1];
-		frameArg.frameBuffer[i].phyAddr[2]
-			= dec_ctx->frame_buf[i].phyAddr[2];
+
+		if (ctx->chromaInterleave == 0)
+			frameArg.frameBuffer[i].phyAddr[2]
+				= dec_ctx->frame_buf[i].phyAddr[2];
+
 		frameArg.frameBuffer[i].stride[0] = ctx->buf_width;
 	}
 	frameArg.numFrameBuffer = dec_ctx->dpb_queue_cnt;
@@ -787,6 +833,65 @@ int vpu_dec_init(struct nx_vpu_ctx *ctx)
 			ret));
 
 	return ret;
+}
+
+static void put_dec_info(struct nx_vpu_ctx *ctx,
+	struct vpu_dec_frame_arg *pDecArg, struct timeval *pTimestamp)
+{
+	struct vpu_dec_ctx *dec_ctx = &ctx->codec.dec;
+	int32_t idx = pDecArg->indexFrameDecoded;
+
+	if (idx < 0)
+		return;
+
+	if ((pDecArg->isInterace) || ((ctx->codec_mode == CODEC_STD_MPEG2) &&
+		(pDecArg->picStructure != 3)))
+		dec_ctx->interlace_flg[idx] = (pDecArg->topFieldFirst) ?
+			(V4L2_FIELD_SEQ_TB) : (V4L2_FIELD_SEQ_BT);
+	else
+		dec_ctx->interlace_flg[idx] = V4L2_FIELD_NONE;
+
+	switch (pDecArg->picType) {
+	case 0:
+	case 6:
+		dec_ctx->frm_type[idx] = V4L2_BUF_FLAG_KEYFRAME;
+		break;
+	case 1:
+	case 4:
+	case 5:
+		dec_ctx->frm_type[idx] = V4L2_BUF_FLAG_PFRAME;
+		break;
+	case 2:
+	case 3:
+		dec_ctx->frm_type[idx] = V4L2_BUF_FLAG_BFRAME;
+		break;
+	case 7:
+		dec_ctx->frm_type[idx] = -1;
+		break;
+	default:
+		NX_ErrMsg(("not defined frame type!!!\n"));
+		dec_ctx->frm_type[idx] = -1;
+	}
+
+	if (pDecArg->numOfErrMBs == 0) {
+		dec_ctx->cur_reliable = 100;
+	} else {
+		if (ctx->codec_mode != CODEC_STD_MJPG) {
+			int totalMbNum = ((pDecArg->outWidth + 15) >> 4) *
+				((pDecArg->outHeight + 15) >> 4);
+			dec_ctx->cur_reliable = (totalMbNum -
+				pDecArg->numOfErrMBs) * 100 / totalMbNum;
+		}
+	}
+
+	if ((dec_ctx->interlace_flg[idx] == V4L2_FIELD_NONE) ||
+		(pDecArg->npf))
+		dec_ctx->reliable_0_100[idx] = dec_ctx->cur_reliable;
+	else
+		dec_ctx->reliable_0_100[idx] += dec_ctx->cur_reliable >> 1;
+
+	dec_ctx->timeStamp[idx].tv_sec = pTimestamp->tv_sec;
+	dec_ctx->timeStamp[idx].tv_usec = pTimestamp->tv_usec;
 }
 
 int vpu_dec_decode_slice(struct nx_vpu_ctx *ctx)
@@ -809,7 +914,7 @@ int vpu_dec_decode_slice(struct nx_vpu_ctx *ctx)
 
 	NX_DrvMemset(&decArg, 0, sizeof(decArg));
 
-	if (dec_ctx->eos_tag == 0) {
+	if (dec_ctx->flush == 0) {
 		int alignSz;
 		unsigned long phyAddr;
 
@@ -861,46 +966,7 @@ int vpu_dec_decode_slice(struct nx_vpu_ctx *ctx)
 		ctx->strm_size = (STREAM_BUF_SIZE - dec_ctx->start_Addr)
 				+ dec_ctx->end_Addr;
 
-	if (decArg.isInterace == 0)
-		dec_ctx->interlace_flg = V4L2_FIELD_NONE;
-	else
-		dec_ctx->interlace_flg = (decArg.topFieldFirst) ?
-			(V4L2_FIELD_SEQ_TB) : (V4L2_FIELD_SEQ_BT);
-
-	switch (decArg.picType) {
-	case 0:
-	case 6:
-		dec_ctx->frm_type = V4L2_BUF_FLAG_KEYFRAME;
-		break;
-	case 1:
-	case 4:
-	case 5:
-		dec_ctx->frm_type = V4L2_BUF_FLAG_PFRAME;
-		break;
-	case 2:
-	case 3:
-		dec_ctx->frm_type = V4L2_BUF_FLAG_BFRAME;
-		break;
-	case 7:
-		dec_ctx->frm_type = -1;
-		break;
-	default:
-		NX_ErrMsg(("not defined frame type!!!\n"));
-		dec_ctx->frm_type = -1;
-	}
-
-	if (decArg.indexFrameDecoded >= 0) {
-		if (decArg.numOfErrMBs == 0) {
-			dec_ctx->reliable_0_100 = 100;
-		} else {
-			if (ctx->codec_mode != CODEC_STD_MJPG) {
-				int totalMbNum = ((decArg.outWidth + 15) >> 4) *
-					((decArg.outHeight + 15) >> 4);
-				dec_ctx->reliable_0_100 = (totalMbNum -
-					decArg.numOfErrMBs) * 100 / totalMbNum;
-			}
-		}
-	}
+	put_dec_info(ctx, &decArg, &timestamp);
 
 	if (decArg.indexFrameDisplay >= 0) {
 		dec_ctx->delay_frm = 0;
@@ -938,6 +1004,8 @@ int vpu_dec_decode_slice(struct nx_vpu_ctx *ctx)
 	spin_lock_irqsave(&dev->irqlock, flags);
 
 	if (ctx->strm_queue_cnt > 0) {
+		int idx = decArg.indexFrameDecoded;
+
 		buf = list_entry(ctx->strm_queue.next, struct nx_vpu_buf, list);
 
 		if (buf->used) {
@@ -946,17 +1014,32 @@ int vpu_dec_decode_slice(struct nx_vpu_ctx *ctx)
 		}
 
 		vbuf = to_vb2_v4l2_buffer(&buf->vb);
+		buf->vb.index = idx;
 		vbuf->field = dec_ctx->interlace_flg[idx];
 		buf->vb.planes[0].bytesused = ctx->strm_size;
+		vbuf->timestamp.tv_sec =
+			dec_ctx->timeStamp[idx].tv_sec;
+		vbuf->timestamp.tv_usec =
+			dec_ctx->timeStamp[idx].tv_usec;
 
 		vb2_buffer_done(&buf->vb, VB2_BUF_STATE_DONE);
 	}
 
 	if (ctx->img_queue_cnt > 0) {
+		int idx = decArg.indexFrameDisplay;
+
 		buf = list_entry(ctx->img_queue.next, struct nx_vpu_buf, list);
 
 		list_del(&buf->list);
 		ctx->img_queue_cnt--;
+
+		buf->vb.v4l2_buf.reserved2 = dec_ctx->frm_type[idx];
+		buf->vb.v4l2_buf.field = dec_ctx->interlace_flg[idx];
+		buf->vb.v4l2_buf.reserved = dec_ctx->reliable_0_100[idx];
+		buf->vb.v4l2_buf.timestamp.tv_sec =
+			dec_ctx->timeStamp[idx].tv_sec;
+		buf->vb.v4l2_buf.timestamp.tv_usec =
+			dec_ctx->timeStamp[idx].tv_usec;
 
 		vb2_buffer_done(&buf->vb, VB2_BUF_STATE_DONE);
 	}

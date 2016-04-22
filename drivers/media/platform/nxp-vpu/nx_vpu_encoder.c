@@ -156,8 +156,10 @@ int NX_VpuEncSetSeqParam(struct nx_vpu_codec_inst *handle,
 
 	encInfo->jpegQuality = seqArg->quality;
 
-	encInfo->enc_codec_para.avcEncParam.audEnable
-		= seqArg->enableAUDelimiter;
+	if (seqArg->annexFlg) {
+		encInfo->enc_codec_para.h263EncParam.h263AnnexJEnable = 1;
+		encInfo->enc_codec_para.h263EncParam.h263AnnexTEnable = 1;
+	}
 
 	NX_DbgMsg(INFO_MSG, ("NX_VpuEncSetSeqParam() information\n"));
 	NX_DbgMsg(INFO_MSG, ("Reloution : %d x %d\n",
@@ -335,9 +337,9 @@ static void VPU_EncDefaultParam(struct vpu_enc_info *pEncInfo)
 		struct enc_h263_param *pH263Param =
 			&pEncInfo->enc_codec_para.h263EncParam;
 		pH263Param->h263AnnexIEnable = 0;
-		pH263Param->h263AnnexJEnable = 1;
+		pH263Param->h263AnnexJEnable = 0;
 		pH263Param->h263AnnexKEnable = 0;
-		pH263Param->h263AnnexTEnable = 1;
+		pH263Param->h263AnnexTEnable = 0;
 
 		pEncInfo->userQpMax = 31;
 	} /*else if (CODEC_STD_MJPG == pEncInfo->codecStd) {
@@ -387,11 +389,12 @@ static int VPU_EncSeqCommand(struct nx_vpu_codec_inst *pInst)
 	} else if (pEncInfo->codecStd == CODEC_STD_H263) {
 		struct enc_h263_param *pH263Param =
 			&pEncInfo->enc_codec_para.h263EncParam;
+
 		VpuWriteReg(CMD_ENC_SEQ_COD_STD, 11);
 		tmpData = pH263Param->h263AnnexIEnable << 3 |
-			      pH263Param->h263AnnexJEnable << 2 |
-			      pH263Param->h263AnnexKEnable << 1|
-			      pH263Param->h263AnnexTEnable;
+			pH263Param->h263AnnexJEnable << 2 |
+			pH263Param->h263AnnexKEnable << 1|
+			pH263Param->h263AnnexTEnable;
 		VpuWriteReg(CMD_ENC_SEQ_263_PARA, tmpData);
 	} else if (pEncInfo->codecStd == CODEC_STD_AVC) {
 		struct enc_avc_param *pAvcParam =

@@ -240,14 +240,14 @@ static struct nx_vpu_fmt formats[] = {
 		.fourcc = V4L2_PIX_FMT_NV12M,
 		.num_planes = 2,
 	},
-	/*{
+	{
 		.name = "4:2:0 2 Planes Y/CrCb",
 		.fourcc = V4L2_PIX_FMT_NV21M,
 		.num_planes = 2,
-	}, */
+	},
 	{
-		.name = "H264 Stream",
-		.fourcc = V4L2_PIX_FMT_H264,
+		.name = "MPEG2 Stream",
+		.fourcc = V4L2_PIX_FMT_MPEG2,
 		.num_planes = 1,
 	},
 	{
@@ -256,8 +256,23 @@ static struct nx_vpu_fmt formats[] = {
 		.num_planes = 1,
 	},
 	{
+		.name = "XVID Stream",
+		.fourcc = V4L2_PIX_FMT_XVID,
+		.num_planes = 1,
+	},
+	{
 		.name = "H263 Stream",
 		.fourcc = V4L2_PIX_FMT_H263,
+		.num_planes = 1,
+	},
+	{
+		.name = "H264 Stream",
+		.fourcc = V4L2_PIX_FMT_H264,
+		.num_planes = 1,
+	},
+	{
+		.name = "VP8 Stream",
+		.fourcc = V4L2_PIX_FMT_VP8,
 		.num_planes = 1,
 	},
 };
@@ -448,7 +463,7 @@ static int check_vb_with_fmt(struct nx_vpu_fmt *fmt, struct vb2_buffer *vb)
 
 	for (i = 0; i < fmt->num_planes; i++) {
 		if (!nx_vpu_mem_plane_addr(ctx, vb, i)) {
-			NX_ErrMsg(("failed to get plane cookie\n"));
+			NX_ErrMsg(("failed to get %d plane cookie\n", i));
 			return -EINVAL;
 		}
 
@@ -490,7 +505,7 @@ int nx_vpu_queue_setup(struct vb2_queue *vq,
 		if (ctx->img_fmt)
 			*plane_count = ctx->img_fmt->num_planes;
 		else
-			*plane_count = 3;
+			*plane_count = (ctx->chromaInterleave) ? (2) : (3);
 
 		if (*buf_count < cnt)
 			*buf_count = cnt;
@@ -592,8 +607,7 @@ int nx_vpu_buf_prepare(struct vb2_buffer *vb)
 			vb2_plane_size(vb, 1), ctx->chroma_size));
 
 		if (vb2_plane_size(vb, 0) < ctx->luma_size ||
-			vb2_plane_size(vb, 1) < ctx->chroma_size ||
-			vb2_plane_size(vb, 2) < ctx->chroma_size) {
+			vb2_plane_size(vb, 1) < ctx->chroma_size) {
 			NX_ErrMsg(("plane size is too small for image\n"));
 			return -EINVAL;
 		}
