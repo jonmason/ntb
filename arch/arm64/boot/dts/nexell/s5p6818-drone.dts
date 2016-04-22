@@ -350,13 +350,13 @@
 			reg = <0>;
 			back_color = < 0x0 >;
 			color_key = < 0x0 >;
-			plane-names = "primary", "rgb", "video";
+			plane-names = "video", "primary", "rgb";
 		};
 		port@1 {
 			reg = <1>;
 			back_color = < 0x0 >;
 			color_key = < 0x0 >;
-			plane-names = "primary", "video";
+			plane-names = "video", "primary", "rgb";
 		};
 	};
 };
