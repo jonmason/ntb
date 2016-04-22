@@ -23,6 +23,13 @@
 #define	IOC_NX_MAGIC	0x6e78	/* nx */
 #define	MAX_PLANE_NUM	3
 
+struct rect {
+	int x;
+	int y;
+	int width;
+	int height;
+};
+
 struct nx_scaler_ioctl_data {
 	int		src_plane_num;
 	int		src_fds[MAX_PLANE_NUM];
@@ -30,12 +37,15 @@ struct nx_scaler_ioctl_data {
 	unsigned int	src_width;
 	unsigned int	src_height;
 	unsigned int	src_code;
+
 	int		dst_plane_num;
 	int		dst_fds[MAX_PLANE_NUM];
 	int		dst_stride[MAX_PLANE_NUM];
 	unsigned int	dst_width;
 	unsigned int	dst_height;
 	unsigned int	dst_code;
+
+	struct rect	crop;
 };
 
 enum	{

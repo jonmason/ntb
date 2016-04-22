@@ -971,9 +971,13 @@ static int _make_command_buffer(struct nx_scaler *me,
 				     struct nx_scaler_ioctl_data *data)
 {
 	u32 *cmd_buffer;
-	u32 src_width, src_height, src_code, dst_width, dst_height, dst_code;
+	u32 src_width, src_height, src_code;
+	u32 dst_width, dst_height, dst_code;
 	u32 cb_src_width, cb_src_height, cb_dst_width, cb_dst_height;
 	dma_addr_t src_phy_addr, dst_phy_addr;
+
+	dma_addr_t src_addr, dst_addr;
+	u32 src_y_pos = 0, src_c_pos = 0;
 
 	src_width = data->src_width;
 	src_height = data->src_height;
@@ -981,6 +985,18 @@ static int _make_command_buffer(struct nx_scaler *me,
 	dst_width = data->dst_width;
 	dst_height = data->dst_height;
 	dst_code = data->dst_code;
+
+	if ((data->crop.x > 0) || (data->crop.y > 0)) {
+		src_y_pos = ((data->crop.y-1) * data->src_stride[0])
+			+ data->crop.x;
+		src_c_pos = (((data->crop.y/2)-1) * data->src_stride[1])
+			+ (data->crop.x/2);
+	}
+
+	if (data->crop.width > 0)
+		src_width = data->crop.width;
+	if (data->crop.height > 0)
+		src_height = data->crop.height;
 
 	cmd_buffer = me->command_buffer_vir;
 
@@ -990,17 +1006,20 @@ static int _make_command_buffer(struct nx_scaler *me,
 	/* Source Address Register */
 	get_phy_addr_from_fd(&me->pdev->dev, data->src_fds[0], true,
 				&src_phy_addr);
-	*cmd_buffer = src_phy_addr;
+	src_addr = src_phy_addr;
+	*cmd_buffer = src_addr+src_y_pos;
 	cmd_buffer++;
 	/* Source Stride Register */
 	*cmd_buffer = data->src_stride[0]; cmd_buffer++;
 	/* Source Size Register */
 	*cmd_buffer = ((src_height - 1) << 16) | (src_width - 1);
 	cmd_buffer++;
+
 	/* Destination Address */
 	get_phy_addr_from_fd(&me->pdev->dev, data->dst_fds[0], false,
 				&dst_phy_addr);
-	*cmd_buffer = dst_phy_addr;
+	dst_addr = dst_phy_addr;
+	*cmd_buffer = dst_addr;
 	cmd_buffer++;
 	/* Destination Stride Register */
 	*cmd_buffer = data->dst_stride[0];
@@ -1028,7 +1047,11 @@ static int _make_command_buffer(struct nx_scaler *me,
 	*cmd_buffer = 0x00000003; cmd_buffer++;
 
 	/* CB command buffer */
-	if (src_code == MEDIA_BUS_FMT_YUYV8_1_5X8) {
+	if (src_code == MEDIA_BUS_FMT_YUYV8_2X8) {
+		/* 420 */
+		cb_src_width = src_width >> 1;
+		cb_src_height = src_height >> 1;
+	} else if (src_code == MEDIA_BUS_FMT_YUYV8_1_5X8) {
 		/* 420 */
 		cb_src_width = src_width >> 1;
 		cb_src_height = src_height >> 1;
@@ -1040,7 +1063,12 @@ static int _make_command_buffer(struct nx_scaler *me,
 		cb_src_width = src_width;
 		cb_src_height = src_height;
 	}
-	if (dst_code == MEDIA_BUS_FMT_YUYV8_1_5X8) {
+
+	if (dst_code == MEDIA_BUS_FMT_YUYV8_2X8) {
+		/* 420 */
+		cb_dst_width = dst_width >> 1;
+		cb_dst_height = dst_height >> 1;
+	} else if (dst_code == MEDIA_BUS_FMT_YUYV8_1_5X8) {
 		/* 420 */
 		cb_dst_width = dst_width >> 1;
 		cb_dst_height = dst_height >> 1;
@@ -1055,17 +1083,17 @@ static int _make_command_buffer(struct nx_scaler *me,
 
 	_make_cmd(cmd_buffer);
 	cmd_buffer++;
-	get_phy_addr_from_fd(&me->pdev->dev, data->src_fds[1], true,
-				&src_phy_addr);
-	*cmd_buffer = src_phy_addr;
+	src_addr += (data->src_stride[0] * ALIGN(data->src_height, 16));
+	*cmd_buffer = src_addr + src_c_pos;
 	cmd_buffer++;
 	*cmd_buffer = data->src_stride[1];
 	cmd_buffer++;
 	*cmd_buffer = ((cb_src_height - 1) << 16) | (cb_src_width - 1);
 	cmd_buffer++;
-	get_phy_addr_from_fd(&me->pdev->dev, data->dst_fds[1], false,
-				&dst_phy_addr);
-	*cmd_buffer = dst_phy_addr;
+
+	dst_addr += (data->dst_stride[0] * ALIGN(data->dst_height, 16));
+	*cmd_buffer = dst_addr;
+	cmd_buffer++;
 	*cmd_buffer = data->dst_stride[1];
 	cmd_buffer++;
 	cmd_buffer++;
@@ -1089,17 +1117,17 @@ static int _make_command_buffer(struct nx_scaler *me,
 
 	_make_cmd(cmd_buffer);
 	cmd_buffer++;
-	get_phy_addr_from_fd(&me->pdev->dev, data->src_fds[2], true,
-				&src_phy_addr);
-	*cmd_buffer = src_phy_addr;
+
+	src_addr += (data->src_stride[1] * ALIGN(data->src_height >> 1, 16));
+	*cmd_buffer = src_addr + src_c_pos;
 	cmd_buffer++;
 	*cmd_buffer = data->src_stride[2];
 	cmd_buffer++;
 	*cmd_buffer = ((cb_src_height - 1) << 16) | (cb_src_width - 1);
 	cmd_buffer++;
-	get_phy_addr_from_fd(&me->pdev->dev, data->dst_fds[2], false,
-				&dst_phy_addr);
-	*cmd_buffer = dst_phy_addr;
+
+	dst_addr += (data->dst_stride[1] * ALIGN(data->dst_height >> 1, 16));
+	*cmd_buffer = dst_addr;
 	cmd_buffer++;
 	*cmd_buffer = data->dst_stride[2];
 	cmd_buffer++;
