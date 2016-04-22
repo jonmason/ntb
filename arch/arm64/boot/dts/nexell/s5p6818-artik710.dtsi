@@ -156,6 +156,20 @@
 				nexell,pin-pull = <1>;
 				nexell,pin-strength = <1>;
 			};
+
+			cfg_wlanen: cfg-wlanen {
+				nexell,pins ="gpiod-28";
+				nexell,pin-function = <1>;
+				nexell,pin-pull = <2>;
+				nexell,pin-strength = <0>;
+			};
+
+			cfg_wlanhostwake: cfg-wlanhostwake {
+				nexell,pins = "alive-3";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <0>;
+				nexell,pin-strength = <0>;
+			};
 		};
 
 		serial1:serial@c00a0000 {
@@ -182,4 +196,28 @@
 		pinctrl-0 = <&bt_cfg_hostwake &bt_cfg_btwake &bt_cfg_en>;
 		status = "okay";
 	};
+
+	wlan {
+		compatible = "samsung,brcm-wlan";
+		gpios = <&gpio_d 28 0  /* WLAN_EN */
+			 &alive_0 3 1>; /* WLAN_HOST_WAKE */
+		status = "okay";
+	};
+};
+
+&dw_mmc_1 {
+	num-slots = <1>;
+	bus-width = <4>;
+	cap-sd-highspeed;
+	cd-type-external;
+	cd-type = <2>;
+	clock-frequency = <100000000>;
+	nexell,drive_dly = <0x0>;
+	nexell,drive_shift = <0x02>;
+	nexell,sample_dly = <0x00>;
+	nexell,sample_shift = <0x01>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdmmc1_cclk &sdmmc1_cmd &sdmmc1_bus4
+		     &cfg_wlanen &cfg_wlanhostwake>;
+	status = "okay";
 };
