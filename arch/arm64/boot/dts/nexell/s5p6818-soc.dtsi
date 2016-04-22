@@ -23,7 +23,7 @@ pinctrl_0: pinctrl@C0010000 {
 	       PHYS_BASE_GPIOC 0x1000
 	       PHYS_BASE_GPIOD 0x1000
 	       PHYS_BASE_GPIOE 0x1000
-	       PHYS_BASE_ALIVE 0x800>;
+	       PHYS_BASE_ALIVE 0x200>;
 	#address-cells = <1>;
 	#size-cells = <1>;
 	interrupts = <0 IRQ_GPIOA 0>,
