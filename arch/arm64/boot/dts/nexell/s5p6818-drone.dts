@@ -17,7 +17,7 @@
  */
 
 /dts-v1/;
-/memreserve/ 0xbed00000 0x00100000; /* OP-TEE SHM */
+/memreserve/ 0x7ed00000 0x00100000; /* OP-TEE SHM */
 #include <dt-bindings/interrupt-controller/irq.h>
 #include "s5p6818.dtsi"
 
@@ -37,7 +37,7 @@
 / {
 	memory {
 		device_type = "memory";
-		reg = <0x40000000 0x7ee00000>;
+		reg = <0x40000000 0x3ee00000>;
 	};
 
 	nx-v4l2 {
