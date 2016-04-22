@@ -28,7 +28,15 @@ config DRM_NX_LCD
 	select DRM_PANEL
 	select VIDEOMODE_HELPERS
 	help
-	 This selects support for LCD (RGB/LVDS) display out.
-	 If you want to enable LCD (RGB/LVDS) display,
+	 This selects support for LCD (RGB/LVDS/MiPi) display out.
+	 If you want to enable LCD (RGB/LVDS/MiPi) display,
 	 you should selet this option.
 
+config DRM_NX_MIPI_DSI
+	bool "MiPi DSI support"
+	depends on DRM_NX_LCD
+	select DRM_MIPI_DSI
+	help
+	 This selects support for MiPi-DSI display device.
+	 If you want to enable MiPi-DSI display device,
+	 you should selet this option.

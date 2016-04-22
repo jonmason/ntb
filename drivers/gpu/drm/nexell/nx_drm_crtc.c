@@ -27,6 +27,8 @@
 #include "nx_drm_gem.h"
 #include "soc/s5pxx18_drm_dp.h"
 
+#define INVALID_IRQ  ((unsigned)-1)
+
 static void nx_drm_crtc_dpms(struct drm_crtc *crtc, int mode)
 {
 	struct drm_device *drm = crtc->dev;
@@ -284,6 +286,68 @@ void nx_drm_crtc_disable_vblank(struct drm_device *drm, unsigned int pipe)
 		return;
 }
 
+#ifdef DEBUG_FPS_TIME
+#define	DUMP_FPS_TIME(p) {	\
+	static long ts[2] = { 0, };	\
+	long new = ktime_to_ms(ktime_get());	\
+	pr_info("[dp.%d] %ld ms\n", p, new - ts[p]);	\
+	ts[p] = new;	\
+	}
+#else
+#define	DUMP_FPS_TIME(p)
+#endif
+
+static irqreturn_t nx_drm_crtc_interrupt(int irq, void *arg)
+{
+	struct drm_device *drm = arg;
+	struct nx_drm_priv *priv;
+	int pipe;
+
+	priv = drm->dev_private;
+
+	for (pipe = 0; pipe < priv->num_crtcs; pipe++) {
+		struct drm_crtc *crtc = priv->crtcs[pipe];
+
+		if (crtc) {
+			if (irq == to_nx_crtc(crtc)->pipe_irq) {
+				struct dp_control_dev ddc = { .module = pipe };
+
+				drm_handle_vblank(drm, pipe);
+				DUMP_FPS_TIME(pipe);
+
+				/* clear hw pend */
+				nx_soc_dp_device_irq_clear(&ddc);
+				break;
+			}
+		}
+	}
+
+	return IRQ_HANDLED;
+}
+
+static int nx_drm_crtc_irq_install(struct drm_device *drm,
+			struct drm_crtc *crtc)
+{
+	struct nx_drm_crtc *nx_crtc = to_nx_crtc(crtc);
+	struct drm_driver *drv = drm->driver;
+	int irq = nx_crtc->pipe_irq;
+	int ret = 0;
+
+	if (NULL == drv->irq_handler)
+		drv->irq_handler = nx_drm_crtc_interrupt;
+
+	if (drm->irq_enabled)
+		drm->irq_enabled = false;
+
+	ret = drm_irq_install(drm, irq);
+	if (0 > ret)
+		DRM_ERROR("fail : crtc.%d irq %d !!!\n", nx_crtc->pipe, irq);
+
+	DRM_INFO("irq %d install for crtc.%d\n", irq, nx_crtc->pipe);
+
+	return ret;
+}
+
 static int __of_graph_get_port_num_index(struct drm_device *drm,
 			int *pipe, int pipe_size)
 {
@@ -321,28 +385,48 @@ static int __of_graph_get_port_num_index(struct drm_device *drm,
 		v = _v;	\
 	}
 
-static int nx_drm_crtc_parse_dt(struct drm_device *drm,
+static int nx_drm_crtc_parse_dt_setup(struct drm_device *drm,
 			struct drm_crtc *crtc, int pipe)
 {
+	struct device_node *np;
+	struct reset_control *rsc;
 	struct device *dev = &drm->platformdev->dev;
 	struct device_node *node = dev->of_node;
-	struct device_node *child;
-	struct dp_plane_top *top = &to_nx_crtc(crtc)->top;
+	struct nx_drm_crtc *nx_crtc = to_nx_crtc(crtc);
+	struct dp_plane_top *top = &nx_crtc->top;
 	const char *strings[10];
-	int i, size = 0;
+	int i, size = 0, err;
+	int irq = INVALID_IRQ;
 
 	DRM_DEBUG_KMS("crtc.%d for %s\n", pipe, dev_name(dev));
 
-	child = of_graph_get_port_by_id(node, pipe);
-	if (!child)
+	/*
+	 * parse base address
+	 */
+	err = nx_drm_dp_driver_base_setup(drm->platformdev, pipe, &irq, &rsc);
+	if (0 > err)
 		return -EINVAL;
 
-	parse_read_prop(child, "back_color", top->back_color);
-	parse_read_prop(child, "color_key", top->color_key);
+	nx_crtc->pipe_irq = irq;
+	nx_crtc->reset_ctrl = rsc;
 
-	size = of_property_read_string_array(child,
-				"plane-names", strings, 10);
+	if (INVALID_IRQ != nx_crtc->pipe_irq) {
+		err = nx_drm_crtc_irq_install(drm, crtc);
+		if (0 > err)
+			return -EINVAL;
+	}
 
+	/*
+	 * parse port properties.
+	 */
+	np = of_graph_get_port_by_id(node, pipe);
+	if (!np)
+		return -EINVAL;
+
+	parse_read_prop(np, "back_color", top->back_color);
+	parse_read_prop(np, "color_key", top->color_key);
+
+	size = of_property_read_string_array(np, "plane-names", strings, 10);
 	top->num_planes = size;
 
 	for (i = 0; size > i; i++) {
@@ -440,6 +524,7 @@ int nx_drm_crtc_init(struct drm_device *drm)
 	int size = ARRAY_SIZE(pipes);
 	int i = 0, ret = 0;
 
+	/* get ports 'reg' property value */
 	num_crtcs = __of_graph_get_port_num_index(drm, pipes, size);
 	DRM_DEBUG_KMS("enter num of crtcs %d\n", num_crtcs);
 
@@ -453,7 +538,7 @@ int nx_drm_crtc_init(struct drm_device *drm)
 	for (i = 0; num_crtcs > i; i++) {
 		struct nx_drm_priv *priv;
 		struct nx_drm_crtc *nx_crtc;
-		int pipe = pipes[i];
+		int pipe = pipes[i];	/* reg property */
 
 		nx_crtc = devm_kzalloc(drm->dev,
 					sizeof(struct nx_drm_crtc), GFP_KERNEL);
@@ -465,10 +550,10 @@ int nx_drm_crtc_init(struct drm_device *drm)
 		priv->num_crtcs++;
 
 		nx_crtc->pipe = pipe;
-		nx_crtc->pipe_irq = priv->hw_irq_no[pipe];
 		nx_crtc->dpms_mode = DRM_MODE_DPMS_OFF;
+		nx_crtc->pipe_irq = INVALID_IRQ;
 
-		ret = nx_drm_crtc_parse_dt(drm, &nx_crtc->crtc, pipe);
+		ret = nx_drm_crtc_parse_dt_setup(drm, &nx_crtc->crtc, pipe);
 		if (0 > ret)
 			return ret;
 

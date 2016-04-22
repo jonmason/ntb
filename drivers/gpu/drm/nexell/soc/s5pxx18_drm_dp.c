@@ -106,104 +106,90 @@ static uint32_t convert_dp_vid_format(uint32_t fourcc,
 	return 0;
 }
 
-int nx_drm_driver_parse_dt_setup(struct drm_device *drm,
-			struct nx_drm_priv *priv)
-{
-	struct device *dev;
-	struct device_node *np;
-	struct reset_control *rsc;
-	const char *strings[4];
-	void *base[5];
-	int i, counts;
-	int ret = 0;
-
-	BUG_ON(!drm);
-	dev = &drm->platformdev->dev;
-	np = dev->of_node;
-
-	/* parse base address */
-	for (i = 0; ARRAY_SIZE(base) > i; i++) {
-		base[i] = of_iomap(np, i);
-		if (!base[i])
-			return -EINVAL;
-		DRM_DEBUG_KMS("vbase[%d]: %p\n", i, base[i]);
-	}
-
-	nx_soc_dp_device_set_base(&base[0], 2);
-	nx_soc_dp_plane_top_set_base(&base[2], 2);
-	nx_soc_dp_device_top_base(&base[4], 1);
-
-	/* parse soc reset */
-	counts = of_property_read_string_array(np, "reset-names", strings, 4);
-	for (i = 0; counts > i; i++) {
-		rsc = devm_reset_control_get(dev, strings[i]);
-		priv->reset_ctrl[i] = rsc;
-		DRM_DEBUG_KMS("reset[%d]: %s\n", i, strings[i]);
-	}
-
-	priv->num_resets = counts;
-	nx_drm_dp_device_reset(drm, priv);
-
-	/* parse interrupts */
-	for (i = 0; 2 > i; i++) {
-		ret = platform_get_irq(drm->platformdev, i);
-		if (0 > ret)
-			return -EINVAL;
-		priv->hw_irq_no[i] = ret;
-		priv->num_irqs++;
-		DRM_DEBUG_KMS("irqno[%d]: %d\n", i, ret);
-	}
-
-	return 0;
-}
-
 #define parse_read_prop(n, s, v)	{ \
 	u32 _v;	\
 	if (!of_property_read_u32(n, s, &_v))	\
 		v = _v;	\
 	}
 
-int nx_drm_dp_parse_dt_panel(struct device_node *np,
-			struct dp_device_info *ddi)
+int nx_drm_dp_parse_dt_panel_type(struct device_node *np,
+			struct dp_control_dev *ddc, int soc)
 {
+	struct device *dev;
 	const char *name;
 
-	BUG_ON(!ddi);
+	BUG_ON(!ddc);
+	dev = ddc->dev;
 
 	if (of_property_read_string(np, "panel-type", &name)) {
-		DRM_ERROR("not defined 'panel-type' !!!\n");
-		DRM_ERROR("'panel-type' = 'rgb, lvds, mipi, hdmi, vivi'\n");
+		DRM_ERROR("not defined 'panel-type' (%s:%s) !!!\n",
+			np->name, np->full_name);
+		DRM_ERROR("'panel-type' = 'rgb, lvds, mipi'\n");
 		return -EINVAL;
 	}
 
 	if (!strcmp("rgb", name)) {
-		ddi->panel_type = do_panel_type_lcd;
+		struct dp_rgb_dev *rgb;
+		u32 mpu_lcd = 0;
+
+		rgb = devm_kzalloc(dev, sizeof(*rgb), GFP_KERNEL);
+		if (IS_ERR(rgb))
+			return -ENOMEM;
+
+		parse_read_prop(np, "panel-mpu", mpu_lcd);
+		rgb->mpu_lcd = mpu_lcd ? true : false;
+
+		ddc->panel_type = dp_panel_type_lcd;
+		ddc->dp_out_dev = rgb;
+
 	} else if (!strcmp("lvds", name)) {
-		ddi->panel_type = do_panel_type_lvds;
+		struct dp_lvds_dev *lvds;
+
+		lvds = devm_kzalloc(dev, sizeof(*lvds), GFP_KERNEL);
+		if (IS_ERR(lvds))
+			return -ENOMEM;
+
+		ddc->panel_type = dp_panel_type_lvds;
+		ddc->dp_out_dev = lvds;
+
 	} else if (!strcmp("mipi", name)) {
-		ddi->panel_type = do_panel_type_mipi;
+
+		struct dp_mipi_dev *mipi;
+		u32 lp_bitrate = 0, hs_bitrate = 0;
+
+		mipi = devm_kzalloc(dev, sizeof(*mipi), GFP_KERNEL);
+		if (IS_ERR(mipi))
+			return -ENOMEM;
+
+		parse_read_prop(np, "lp_bitrate", lp_bitrate);
+		parse_read_prop(np, "hs_bitrate", hs_bitrate);
+
+		mipi->lp_bitrate = lp_bitrate;
+		mipi->hs_bitrate = hs_bitrate;
+
+		ddc->panel_type = dp_panel_type_mipi;
+		ddc->dp_out_dev = mipi;
+
 	} else if (!strcmp("hdmi", name)) {
-		ddi->panel_type = do_panel_type_hdmi;
-	} else if (!strcmp("vivi", name)) {
-		ddi->panel_type = do_panel_type_vidi;
+		ddc->panel_type = dp_panel_type_hdmi;
 	} else {
 		DRM_ERROR("%s not support 'panel-type' !!!\n", name);
-		DRM_ERROR("'panel-type' = 'rgb, lvds, mipi, hdmi, vivi'\n");
+		DRM_ERROR("'panel-type' = 'rgb, lvds, mipi'\n");
 		return -EINVAL;
 	}
+
 	return 0;
 }
 
-int nx_drm_dp_parse_dt_ctrl(struct device_node *np,
-			struct dp_device_info *ddi)
+int nx_drm_dp_parse_dt_dp_control(struct device_node *np,
+			struct dp_control_dev *ddc)
 {
 	struct dp_ctrl_info *ctrl;
 
-	BUG_ON(!np || !ddi);
+	BUG_ON(!np || !ddc);
 
-	ctrl = &ddi->ctrl;
+	ctrl = &ddc->ctrl;
 
-	parse_read_prop(np, "lcd-rgb", ddi->panel_type);
 	parse_read_prop(np, "clk_src_lv0", ctrl->clk_src_lv0);
 	parse_read_prop(np, "clk_src_lv0", ctrl->clk_src_lv0);
 	parse_read_prop(np, "clk_src_lv0", ctrl->clk_src_lv0);
@@ -233,11 +219,11 @@ int nx_drm_dp_parse_dt_ctrl(struct device_node *np,
 	return 0;
 }
 
-void nx_drm_dp_parse_dp_dump(struct nx_drm_dp_dev *dp_dev)
+void nx_drm_dp_dump_dp_control(struct nx_drm_dp_dev *dp_dev)
 {
-	struct nx_drm_panel *dpp = &dp_dev->dpp;
-	struct dp_device_info *ddi = &dp_dev->ddi;
-	struct dp_ctrl_info *ctrl = &ddi->ctrl;
+	struct nx_drm_dp_panel *dpp = &dp_dev->dpp;
+	struct dp_control_dev *ddc = &dp_dev->ddc;
+	struct dp_ctrl_info *ctrl = &ddc->ctrl;
 
 	DRM_DEBUG_KMS("SYNC -> LCD %d x %d mm\n",
 		dpp->width_mm, dpp->height_mm);
@@ -250,7 +236,11 @@ void nx_drm_dp_parse_dp_dump(struct nx_drm_dp_dev *dp_dev)
 	DRM_DEBUG_KMS("flags:0x%x\n", dpp->vm.flags);
 
 	DRM_DEBUG_KMS("CTRL (%s)\n",
-		ddi->panel_type ? "RGB" : "");
+		dp_panel_type_lcd  == ddc->panel_type ? "RGB"  :
+		dp_panel_type_lvds == ddc->panel_type ? "LVDS" :
+		dp_panel_type_mipi == ddc->panel_type ? "MiPi" :
+		dp_panel_type_hdmi == ddc->panel_type ? "HDMI" :
+		"unknown");
 	DRM_DEBUG_KMS("cs0:%d, cd0:%d, cs1:%d, cd1:%d\n",
 	    ctrl->clk_src_lv0, ctrl->clk_div_lv0,
 	    ctrl->clk_src_lv1, ctrl->clk_div_lv1);
@@ -563,18 +553,18 @@ void nx_drm_dp_display_mode_to_sync(struct drm_display_mode *mode,
 void nx_drm_dp_encoder_commit(struct drm_encoder *encoder)
 {
 	struct nx_drm_dp_dev *dp_dev = to_nx_encoder(encoder)->dp_dev;
-	struct dp_device_info *ddi = &dp_dev->ddi;
+	struct dp_control_dev *ddc = &dp_dev->ddc;
 
-	nx_soc_dp_device_prepare(ddi);
+	nx_soc_dp_device_prepare(ddc);
 }
 
 int nx_drm_dp_encoder_get_dpms(struct drm_encoder *encoder)
 {
 	struct nx_drm_dp_dev *dp_dev = to_nx_encoder(encoder)->dp_dev;
-	struct dp_device_info *ddi = &dp_dev->ddi;
+	struct dp_control_dev *ddc = &dp_dev->ddc;
 	bool poweron;
 
-	poweron = nx_soc_dp_device_power_status(ddi);
+	poweron = nx_soc_dp_device_power_status(ddc);
 
 	return poweron ? DRM_MODE_DPMS_ON : DRM_MODE_DPMS_OFF;
 }
@@ -582,46 +572,367 @@ int nx_drm_dp_encoder_get_dpms(struct drm_encoder *encoder)
 void nx_drm_dp_encoder_dpms(struct drm_encoder *encoder, bool poweron)
 {
 	struct nx_drm_dp_dev *dp_dev = to_nx_encoder(encoder)->dp_dev;
-	struct dp_device_info *ddi = &dp_dev->ddi;
+	struct dp_control_dev *ddc = &dp_dev->ddc;
 
-	nx_soc_dp_device_power_on(ddi, poweron);
+	nx_soc_dp_device_power_on(ddc, poweron);
 }
 
 void nx_drm_dp_encoder_init(struct drm_encoder *encoder,
 			int index, bool irqon)
 {
 	struct nx_drm_dp_dev *dp_dev = to_nx_encoder(encoder)->dp_dev;
-	struct dp_device_info *ddi = &dp_dev->ddi;
+	struct dp_control_dev *ddc = &dp_dev->ddc;
 
 	/*
 	 * set display module index
 	 */
-	ddi->module = index;
+	ddc->module = index;
 
-	nx_soc_dp_device_setup(ddi);
-	nx_soc_dp_device_irq_on(ddi, irqon);
+	nx_soc_dp_device_setup(ddc);
+	nx_soc_dp_device_irq_on(ddc, irqon);
 }
 
-int nx_drm_dp_device_reset(struct drm_device *drm,
-			struct nx_drm_priv *priv)
+void nx_drm_dp_encoder_deinit(struct drm_encoder *encoder)
 {
-	int nums = priv->num_resets;
-	int i;
+	struct nx_drm_dp_dev *dp_dev = to_nx_encoder(encoder)->dp_dev;
+	struct dp_control_dev *ddc = &dp_dev->ddc;
 
-	DRM_DEBUG_KMS("enter\n");
+	nx_soc_dp_device_irq_on(ddc, false);
+}
 
-	for (i = 0; nums > i; i++) {
-		struct reset_control *rsc = priv->reset_ctrl[i];
+int nx_drm_dp_driver_base_setup(struct platform_device *pdev, int pipe,
+			int *irqno, struct reset_control **reset)
+{
+	struct device *dev = &pdev->dev;
+	struct device_node *node = dev->of_node;
+	const char *strings[10];
+	void *base[8];
+	int i, n, size = 0;
+	int offset = 4;	/* mlc. or dpc. */
+	int err;
 
-		if (rsc) {
-			bool reset = reset_control_status(rsc);
+	DRM_DEBUG_KMS("crtc.%d for %s\n", pipe, dev_name(dev));
 
-			if (reset)
-				reset_control_reset(rsc);
+	/*
+	 * parse base address
+	 */
+	size = of_property_read_string_array(node,
+			"reg-names", strings, ARRAY_SIZE(strings));
+	if (size > ARRAY_SIZE(strings))
+		return -EINVAL;
+
+	for (n = 0, i = 0; size > i; i++) {
+		const char *c = strings[i] + offset;
+		unsigned long no;
+
+		if (0 > kstrtoul(c, 0, &no))
+			continue;
+
+		if (pipe != no)
+			continue;
+
+		base[n] = of_iomap(node, i);
+		if (!base[n]) {
+			DRM_DEBUG_KMS("fail : %s iomap\n", strings[i]);
+			return -EINVAL;
 		}
+		n++;
 	}
 
-	DRM_DEBUG_KMS("done\n");
+	/*
+	 * parse interrupts.
+	 */
+	size = of_property_read_string_array(node,
+			"interrupts-names", strings, ARRAY_SIZE(strings));
+	if (size > ARRAY_SIZE(strings))
+		return -EINVAL;
+
+	for (n = 0, i = 0; size > i; i++) {
+		const char *c = strings[i] + offset;
+		unsigned long no;
+
+		if (0 > kstrtoul(c, 0, &no))
+			continue;
+
+		if (pipe != no)
+			continue;
+
+		err = platform_get_irq(pdev, i);
+		if (0 > err)
+			return -EINVAL;
+
+		*irqno = err;
+	}
+
+	/*
+	 * parse reset address
+	 */
+	size = of_property_read_string_array(node,
+				"reset-names", strings, ARRAY_SIZE(strings));
+	for (i = 0; size > i; i++) {
+		*reset = devm_reset_control_get(dev, strings[i]);
+		if (*reset) {
+			bool stat = reset_control_status(*reset);
+
+			if (stat)
+				reset_control_reset(*reset);
+		}
+		DRM_DEBUG_KMS("reset[%d]: %s\n", i, strings[i]);
+	}
+
+	nx_soc_dp_device_dpc_base(pipe, base[0]);
+	nx_soc_dp_device_mlc_base(pipe, base[1]);
+
 	return 0;
 }
 
+int nx_drm_dp_lcd_base_setup(struct platform_device *pdev,
+			void **base, struct reset_control **reset)
+{
+	struct device *dev = &pdev->dev;
+	struct device_node *node = dev->of_node;
+	const char *string;
+	int err;
+
+	*base = of_iomap(node, 0);
+	if (!*base)
+		return -EINVAL;
+
+	err = of_property_read_string(node, "reset-names", &string);
+	if (!err) {
+		*reset = devm_reset_control_get(dev, string);
+		if (*reset) {
+			bool stat = reset_control_status(*reset);
+
+			if (stat)
+				reset_control_reset(*reset);
+		}
+	}
+
+	nx_soc_dp_device_top_base(0, *base);
+
+	return 0;
+}
+
+int nx_drm_dp_lcd_device_setup(struct platform_device *pdev,
+			struct device_node *node, struct nx_drm_dp_reg *dp_reg,
+			enum dp_panel_type panel_type)
+{
+	const __be32 *list;
+	const char *strings[8];
+	u32 addr;
+	int size, i = 0;
+	bool reset;
+	int clks_len = ARRAY_SIZE(dp_reg->clk_ids);
+	int tieoffs_len = ARRAY_SIZE(dp_reg->tieoffs);
+	int resets_len = ARRAY_SIZE(dp_reg->resets);
+
+	/*
+	 * register base
+	 */
+	if (of_property_read_u32(node, "reg_base", &addr))
+		return -EINVAL;
+
+	dp_reg->vir_base = ioremap(addr, PAGE_SIZE);
+	if (!dp_reg->vir_base)
+		return -EINVAL;
+
+	DRM_DEBUG_KMS("base  :  0x%x\n", addr);
+
+	/*
+	 * clock gen base : 2 contents
+	 */
+	list = of_get_property(node, "clk_base", &size);
+	size /= 8;
+	if (size > clks_len) {
+		DRM_ERROR("error : over clks dt size %d (%d)\n",
+			size, clks_len);
+		return -EINVAL;
+	}
+
+	for (i = 0; size > i; i++) {
+		addr = be32_to_cpu(*list++);
+		dp_reg->clk_bases[i] = ioremap(addr, PAGE_SIZE);
+		dp_reg->clk_ids[i] = be32_to_cpu(*list++);
+		DRM_DEBUG_KMS("clock : [%d] clk 0x%x, %d\n",
+			i, addr, dp_reg->clk_ids[i]);
+	}
+	dp_reg->num_clks = size;
+
+	/*
+	 * tieoffs : 2 contents
+	 */
+	list = of_get_property(node, "soc,tieoff", &size);
+	size /= 8;
+	if (size > tieoffs_len) {
+		DRM_ERROR("error : over tieoff dt size %d (%d)\n",
+			size, tieoffs_len);
+		return -EINVAL;
+	}
+	dp_reg->num_tieoffs = size;
+
+	for (i = 0; size > i; i++) {
+		dp_reg->tieoffs[i][0] = be32_to_cpu(*list++);
+		dp_reg->tieoffs[i][1] = be32_to_cpu(*list++);
+		DRM_DEBUG_KMS("tieoff: [%d] dp_reg->tieoffs <0x%x %d>\n",
+			i, dp_reg->tieoffs[i][0], dp_reg->tieoffs[i][1]);
+	}
+
+	for (i = 0; size > i; i += 2)
+		nx_tieoff_set(dp_reg->tieoffs[i][0], dp_reg->tieoffs[i][1]);
+
+	/*
+	 * resets
+	 */
+	size = of_property_read_string_array(node,
+			"reset-names", strings, resets_len);
+	for (i = 0; size > i; i++) {
+		dp_reg->resets[i] = of_reset_control_get(node, strings[i]);
+		DRM_DEBUG_KMS("reset : [%d] %s\n", i, strings[i]);
+	}
+	dp_reg->num_resets = size;
+
+	for (i = 0; size > i; i++) {
+		reset = reset_control_status(dp_reg->resets[i]);
+		if (reset)
+			reset_control_assert(dp_reg->resets[i]);
+	}
+
+	for (i = 0; size > i; i++)
+		reset_control_deassert(dp_reg->resets[i]);
+
+	/*
+	 * set base
+	 */
+	for (i = 0; dp_reg->num_clks > i; i++)
+		nx_soc_dp_device_clk_base(
+				dp_reg->clk_ids[i], dp_reg->clk_bases[i]);
+
+#ifdef CONFIG_DRM_NX_MIPI_DSI
+	if (dp_panel_type_mipi == panel_type)
+		nx_soc_dp_device_mipi_base(0, dp_reg->vir_base);
+#endif
+
+	return 0;
+}
+
+int nx_drm_dp_lcd_prepare(struct nx_drm_dp_dev *dp_dev,
+			struct drm_panel *panel)
+{
+#ifdef CONFIG_DRM_NX_MIPI_DSI
+	struct dp_control_dev *ddc = &dp_dev->ddc;
+	enum dp_panel_type type = ddc->panel_type;
+
+	if (dp_panel_type_mipi == type)
+		nx_soc_dp_mipi_set_prepare(ddc, panel ? 1 : 0);
+#endif
+	return 0;
+}
+
+int nx_drm_dp_lcd_enable(struct nx_drm_dp_dev *dp_dev,
+				struct drm_panel *panel)
+{
+#ifdef CONFIG_DRM_NX_MIPI_DSI
+	struct dp_control_dev *ddc = &dp_dev->ddc;
+	enum dp_panel_type type = ddc->panel_type;
+
+	if (dp_panel_type_mipi == type)
+		nx_soc_dp_mipi_set_enable(ddc, panel ? 1 : 0);
+#endif
+	return 0;
+}
+
+int nx_drm_dp_lcd_unprepare(struct nx_drm_dp_dev *dp_dev,
+				struct drm_panel *panel)
+{
+#ifdef CONFIG_DRM_NX_MIPI_DSI
+	struct dp_control_dev *ddc = &dp_dev->ddc;
+	enum dp_panel_type type = ddc->panel_type;
+
+	if (dp_panel_type_mipi == type)
+		nx_soc_dp_mipi_set_unprepare(ddc, panel ? 1 : 0);
+#endif
+	return 0;
+}
+
+int nx_drm_dp_lcd_disable(struct nx_drm_dp_dev *dp_dev,
+				struct drm_panel *panel)
+{
+#ifdef CONFIG_DRM_NX_MIPI_DSI
+	struct dp_control_dev *ddc = &dp_dev->ddc;
+	enum dp_panel_type type = ddc->panel_type;
+
+	if (dp_panel_type_mipi == type)
+		nx_soc_dp_mipi_set_disable(ddc, panel ? 1 : 0);
+#endif
+	return 0;
+}
+
+#ifdef CONFIG_DRM_NX_MIPI_DSI
+static void dump_mipi_dsi_messages(const struct mipi_dsi_msg *msg, bool dump)
+{
+	const char *txb = msg->tx_buf;
+	const char *rxb = msg->rx_buf;
+	int i = 0;
+
+	if (!dump)
+		return;
+
+	pr_info("%s\n", __func__);
+	pr_info("channel:%d\n", msg->channel);
+	pr_info("type   :%d\n", msg->type);
+	pr_info("flags  :%d\n", msg->flags);
+
+	for (i = 0; msg->tx_len > i; i++)
+		pr_info("[%2d]: 0x%02x\n", i, txb[i]);
+
+	for (i = 0; msg->rx_len > i; i++)
+		pr_info("[%2d]: 0x%02x\n", i, rxb[i]);
+}
+
+#define	IS_SHORT(t)	(9 > (t & 0x0f))
+
+int nx_drm_dp_mipi_transfer(struct mipi_dsi_host *host,
+			const struct mipi_dsi_msg *msg)
+{
+	struct dp_mipi_xfer xfer;
+
+	dump_mipi_dsi_messages(msg, false);
+
+	if (!msg->tx_len)
+		return -EINVAL;
+
+	/* set id */
+	xfer.id = msg->type | (msg->channel << 6);
+
+	/* short type msg */
+	if (IS_SHORT(msg->type)) {
+		const char *txb = msg->tx_buf;
+
+		if (msg->tx_len > 2)
+			return -EINVAL;
+
+		xfer.tx_len  = 0;	/* no payload */
+		xfer.data[0] = txb[0];
+		xfer.data[1] = (msg->tx_len == 2) ? txb[1] : 0;
+
+	} else {
+		xfer.tx_len  = msg->tx_len;
+		xfer.data[0] = msg->tx_len & 0xff;
+		xfer.data[1] = msg->tx_len >> 8;
+		xfer.tx_buf = msg->tx_buf;
+	}
+
+	xfer.rx_len = msg->rx_len;
+	xfer.rx_buf = msg->rx_buf;
+	xfer.flags = msg->flags;
+
+	return nx_soc_dp_mipi_transfer(&xfer);
+}
+#else
+int nx_drm_dp_mipi_transfer(struct mipi_dsi_host *host,
+			const struct mipi_dsi_msg *msg)
+{
+	return 0;
+}
+#endif

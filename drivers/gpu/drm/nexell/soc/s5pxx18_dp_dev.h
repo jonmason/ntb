@@ -15,13 +15,17 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef _S5PXX18_SOC_DP_H_
-#define _S5PXX18_SOC_DP_H_
+#ifndef _S5PXX18_DP_DEV_H_
+#define _S5PXX18_DP_DEV_H_
+
+#include <drm/drm_mipi_dsi.h>
 
 #include "s5pxx18_soc_mlc.h"
 #include "s5pxx18_soc_dpc.h"
 #include "s5pxx18_soc_disptop.h"
 #include "s5pxx18_soc_disp.h"
+#include "s5pxx18_soc_mipi.h"
+#include "s5pxx18_soc_disptop_clk.h"
 
 /*
  * display sync info
@@ -114,22 +118,68 @@ struct dp_ctrl_info {
 
 /* this enumerates display type. */
 enum dp_panel_type {
-	do_panel_type_none,
-	do_panel_type_lcd,
-	do_panel_type_lvds,
-	do_panel_type_mipi,
-	do_panel_type_hdmi,
-	do_panel_type_vidi,
+	dp_panel_type_none,
+	dp_panel_type_lcd,
+	dp_panel_type_lvds,
+	dp_panel_type_mipi,
+	dp_panel_type_hdmi,
+	dp_panel_type_vidi,
 };
 
-struct dp_device_info {
+struct dp_control_dev {
 	struct device *dev;
 	int module;
 	void *base;
 	struct dp_sync_info sync;
 	struct dp_ctrl_info ctrl;
 	enum dp_panel_type panel_type;
-	bool panel_mpu_lcd;
+	void *dp_out_dev;
+};
+
+enum {
+	dp_clock_rconv = 0,
+	dp_clock_lcd = 1,
+	dp_clock_mipi = 2,
+	dp_clock_lvds = 3,
+	dp_clock_hdmi = 4,
+	dp_clock_end,
+};
+
+struct dp_rgb_dev {
+	bool mpu_lcd;
+};
+
+struct dp_mipi_dev {
+	int lp_bitrate;	/* to lcd setup, low power bitrate (150, 100, 80 Mhz) */
+	int hs_bitrate; /* to lcd data, high speed bitrate (1000, ... Mhz) */
+	unsigned int hs_pllpms;
+	unsigned int hs_bandctl;
+	unsigned int lp_pllpms;
+	unsigned int lp_bandctl;
+
+};
+
+struct dp_lvds_dev {
+	unsigned int lvds_format;	/* 0:VESA, 1:JEIDA, 2: Location */
+	int pol_inv_hs;		/* hsync polarity invert for VESA, JEIDA */
+	int pol_inv_vs;		/* bsync polarity invert for VESA, JEIDA */
+	int pol_inv_de;		/* de polarity invert for VESA, JEIDA */
+	int pol_inv_ck;		/* input clock(pixel clock) polarity invert */
+
+};
+
+struct dp_hdmi_dev {
+	bool preset;
+};
+
+struct dp_mipi_xfer {
+	u8  id;
+	u8  data[2];
+	u16 flags;
+	const u8 *tx_buf;
+	u16 tx_len;
+	u8 *rx_buf;
+	u16 rx_len;
 };
 
 /*
@@ -240,7 +290,13 @@ struct dp_plane_layer {
 	} color;
 };
 
-void nx_soc_dp_plane_top_set_base(void *base[], int size);
+void nx_soc_dp_device_dpc_base(int module, void *base);
+void nx_soc_dp_device_mlc_base(int module, void *base);
+void nx_soc_dp_device_top_base(int module, void *base);
+void nx_soc_dp_device_mipi_base(int module, void *base);
+void nx_soc_dp_device_hdmi_base(int module, void *base);
+void nx_soc_dp_device_clk_base(int module, void *base);
+
 void nx_soc_dp_plane_top_setup(struct dp_plane_top *top);
 void nx_soc_dp_plane_top_set_format(struct dp_plane_top *top,
 			int width, int height);
@@ -278,15 +334,20 @@ void nx_soc_dp_video_set_address_3plane(struct dp_plane_layer *layer,
 void nx_soc_dp_video_set_enable(struct dp_plane_layer *layer,
 			bool on, bool adjust);
 
-void nx_soc_dp_device_set_base(void *base[], int size);
-void nx_soc_dp_device_setup(struct dp_device_info *ddi);
-int  nx_soc_dp_device_prepare(struct dp_device_info *ddi);
-int  nx_soc_dp_device_power_status(struct dp_device_info *ddi);
-void nx_soc_dp_device_power_on(struct dp_device_info *ddi, bool on);
-void nx_soc_dp_device_irq_on(struct dp_device_info *ddi, bool on);
-void nx_soc_dp_device_irq_clear(struct dp_device_info *ddi);
+void nx_soc_dp_device_setup(struct dp_control_dev *ddc);
+int  nx_soc_dp_device_prepare(struct dp_control_dev *ddc);
+int  nx_soc_dp_device_power_status(struct dp_control_dev *ddc);
+void nx_soc_dp_device_power_on(struct dp_control_dev *ddc, bool on);
+void nx_soc_dp_device_irq_on(struct dp_control_dev *ddc, bool on);
+void nx_soc_dp_device_irq_clear(struct dp_control_dev *ddc);
 
-void nx_soc_dp_device_top_base(void *base[], int size);
-void nx_soc_dp_device_top_mux(struct dp_device_info *ddi);
+void nx_soc_dp_device_top_mux(struct dp_control_dev *ddc);
 
-#endif /* __S5PXX18_SOC_DP_H__ */
+int nx_soc_dp_mipi_set_prepare(struct dp_control_dev *ddc, unsigned int flags);
+int nx_soc_dp_mipi_set_enable(struct dp_control_dev *ddc, unsigned int flags);
+int nx_soc_dp_mipi_set_unprepare(struct dp_control_dev *ddc,
+			unsigned int flags);
+int nx_soc_dp_mipi_set_disable(struct dp_control_dev *ddc, unsigned int flags);
+int nx_soc_dp_mipi_transfer(struct dp_mipi_xfer *xfer);
+
+#endif /* __S5PXX18_DP_DEV_H__ */

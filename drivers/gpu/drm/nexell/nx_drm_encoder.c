@@ -28,7 +28,7 @@
 static void nx_drm_encoder_dpms(struct drm_encoder *encoder, int mode)
 {
 	struct nx_drm_dp_dev *dp_dev = to_nx_encoder(encoder)->dp_dev;
-	struct nx_drm_dev_ops *ops = dp_dev->ops;
+	struct nx_drm_dp_ops *ops = dp_dev->ops;
 
 	DRM_DEBUG_KMS("enter, encoder dpms: %d\n", mode);
 
@@ -68,7 +68,7 @@ static bool nx_drm_encoder_mode_fixup(struct drm_encoder *encoder,
 	struct drm_device *drm = encoder->dev;
 	struct drm_connector *connector;
 	struct nx_drm_dp_dev *dp_dev = to_nx_encoder(encoder)->dp_dev;
-	struct nx_drm_dev_ops *ops = dp_dev->ops;
+	struct nx_drm_dp_ops *ops = dp_dev->ops;
 
 	DRM_DEBUG_KMS("enter, encoder id:%d\n", encoder->base.id);
 
@@ -90,7 +90,7 @@ static void nx_drm_encoder_mode_set(struct drm_encoder *encoder,
 	struct drm_device *drm = encoder->dev;
 	struct drm_connector *connector;
 	struct nx_drm_dp_dev *dp_dev = to_nx_encoder(encoder)->dp_dev;
-	struct nx_drm_dev_ops *ops = dp_dev->ops;
+	struct nx_drm_dp_ops *ops = dp_dev->ops;
 
 	DRM_DEBUG_KMS("enter\n");
 
@@ -101,7 +101,7 @@ static void nx_drm_encoder_mode_set(struct drm_encoder *encoder,
 		}
 	}
 
-	nx_drm_dp_display_mode_to_sync(adjusted_mode, &dp_dev->ddi.sync);
+	nx_drm_dp_display_mode_to_sync(adjusted_mode, &dp_dev->ddc.sync);
 }
 
 static void nx_drm_encoder_prepare(struct drm_encoder *encoder)
@@ -113,7 +113,7 @@ static void nx_drm_encoder_prepare(struct drm_encoder *encoder)
 static void nx_drm_encoder_commit(struct drm_encoder *encoder)
 {
 	struct nx_drm_dp_dev *dp_dev = to_nx_encoder(encoder)->dp_dev;
-	struct nx_drm_dev_ops *ops = dp_dev->ops;
+	struct nx_drm_dp_ops *ops = dp_dev->ops;
 
 	DRM_DEBUG_KMS("enter\n");
 
@@ -135,14 +135,8 @@ static void nx_drm_encoder_destroy(struct drm_encoder *encoder)
 {
 	struct drm_device *drm = encoder->dev;
 	struct nx_drm_encoder *nx_encoder = to_nx_encoder(encoder);
-	struct nx_drm_dp_dev *dp_dev = to_nx_encoder(encoder)->dp_dev;
 
-	if (nx_encoder->irq_install) {
-		struct dp_device_info *ddi = &dp_dev->ddi;
-
-		drm_irq_uninstall(drm);
-		nx_soc_dp_device_irq_on(ddi, false);
-	}
+	nx_drm_dp_encoder_deinit(encoder);
 
 	drm_encoder_cleanup(encoder);
 	devm_kfree(drm->dev, nx_encoder);
@@ -151,66 +145,6 @@ static void nx_drm_encoder_destroy(struct drm_encoder *encoder)
 static struct drm_encoder_funcs nx_encoder_funcs = {
 	.destroy = nx_drm_encoder_destroy,
 };
-
-static irqreturn_t nx_drm_irq(int irq, void *arg)
-{
-	struct drm_device *drm = arg;
-	struct nx_drm_priv *priv;
-	int pipe;
-
-	priv = drm->dev_private;
-
-	for (pipe = 0; pipe < priv->num_crtcs; pipe++) {
-		struct drm_crtc *crtc = priv->crtcs[pipe];
-
-		if (crtc) {
-			if (irq == to_nx_crtc(crtc)->pipe_irq) {
-				struct dp_device_info ddi = { .module = pipe };
-
-				drm_handle_vblank(drm, pipe);
-
-				/* clear hw pend */
-				nx_soc_dp_device_irq_clear(&ddi);
-				break;
-			}
-		}
-	}
-
-	return IRQ_HANDLED;
-}
-
-static int nx_drm_encoder_irq_install(struct drm_device *drm,
-			struct drm_encoder *encoder)
-{
-	struct drm_driver *drv;
-	struct nx_drm_priv *priv;
-	struct nx_drm_dp_dev *dp_dev;
-	int ret = 0;
-
-	drv = drm->driver;
-	priv = drm->dev_private;
-	dp_dev = to_nx_encoder(encoder)->dp_dev;
-
-	if (priv->num_irqs) {
-		struct nx_drm_encoder *nx_encoder = to_nx_encoder(encoder);
-		struct dp_device_info *ddi = &dp_dev->ddi;
-		int pipe = ddi->module;
-		int irq = priv->hw_irq_no[pipe];
-
-		if (NULL == drv->irq_handler)
-			drv->irq_handler = nx_drm_irq;
-
-		ret = drm_irq_install(drm, irq);
-		if (0 > ret)
-			DRM_ERROR("fail : %d interruput %d !!!\n", pipe, irq);
-
-		nx_encoder->irq_install = true;
-		nx_soc_dp_device_irq_on(ddi, true);
-		DRM_INFO("irq %d install for crtc.%d\n", irq, pipe);
-	}
-
-	return ret;
-}
 
 struct drm_encoder *nx_drm_encoder_create(struct drm_device *drm,
 			struct nx_drm_dp_dev *dp_dev, int type,
@@ -238,7 +172,6 @@ struct drm_encoder *nx_drm_encoder_create(struct drm_device *drm,
 	encoder->possible_crtcs = possible_crtcs;
 
 	nx_drm_dp_encoder_init(encoder, pipe, true);
-	nx_drm_encoder_irq_install(drm, encoder);
 
 	drm_encoder_init(drm, encoder, &nx_encoder_funcs, type);
 	drm_encoder_helper_add(encoder, &nx_encoder_helper_funcs);

@@ -74,8 +74,7 @@ static int nx_drm_load(struct drm_device *drm, unsigned long flags)
 	struct nx_drm_priv *priv;
 	int ret;
 
-	DRM_DEBUG_DRIVER("drm %p, %s flags 0x%lx\n",
-			drm, dev_name(drm->dev), flags);
+	DRM_DEBUG_DRIVER("drm %s flags 0x%lx\n", dev_name(drm->dev), flags);
 
 	priv = devm_kzalloc(drm->dev,
 			sizeof(struct nx_drm_priv), GFP_KERNEL);
@@ -84,8 +83,6 @@ static int nx_drm_load(struct drm_device *drm, unsigned long flags)
 
 	drm->dev_private = (void *)priv;
 	dev_set_drvdata(drm->dev, drm);
-
-	nx_drm_driver_parse_dt_setup(drm, priv);
 
 	/* drm->mode_config initialization */
 	drm_mode_config_init(drm);
@@ -110,7 +107,7 @@ static int nx_drm_load(struct drm_device *drm, unsigned long flags)
 #ifdef CONFIG_DRM_NX_FBDEV
 	ret = nx_drm_framebuffer_dev_init(drm);
 	if (ret) {
-		DRM_ERROR("fail : initialize drm fbdev\n");
+		DRM_ERROR("initialize drm fbdev\n");
 		drm_vblank_cleanup(drm);
 		goto err_unbind_all;
 	}
@@ -269,7 +266,7 @@ static int match_component(struct device *dev, void *data)
 static int nx_drm_probe(struct platform_device *pdev)
 {
 	struct component_match *match = NULL;
-	static const char *const dev_names[] = {
+	const char *const dev_names[] = {
 		"display_drm_lcd",	/* node name (x:name) */
 		"display_drm_hdmi",
 	};

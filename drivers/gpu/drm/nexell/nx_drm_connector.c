@@ -26,7 +26,7 @@
 static int nx_drm_connector_get_modes(struct drm_connector *connector)
 {
 	struct nx_drm_dp_dev *dp_dev = to_nx_connector(connector)->dp_dev;
-	struct nx_drm_dev_ops *ops = dp_dev->ops;
+	struct nx_drm_dp_ops *ops = dp_dev->ops;
 
 	DRM_DEBUG_KMS("enter\n");
 
@@ -41,7 +41,7 @@ static int nx_drm_connector_mode_valid(struct drm_connector *connector,
 			struct drm_display_mode *mode)
 {
 	struct nx_drm_dp_dev *dp_dev = to_nx_connector(connector)->dp_dev;
-	struct nx_drm_dev_ops *ops = dp_dev->ops;
+	struct nx_drm_dp_ops *ops = dp_dev->ops;
 
 	DRM_DEBUG_KMS("enter\n");
 	DRM_DEBUG_KMS("bpp specified : %s, %d\n",
@@ -82,7 +82,7 @@ static enum drm_connector_status nx_drm_connector_detect(
 {
 	struct nx_drm_connector *nx_connector = to_nx_connector(connector);
 	struct nx_drm_dp_dev *dp_dev = nx_connector->dp_dev;
-	struct nx_drm_dev_ops *ops = dp_dev->ops;
+	struct nx_drm_dp_ops *ops = dp_dev->ops;
 	enum drm_connector_status status = connector_status_disconnected;
 
 	if (ops && ops->is_connected) {
@@ -158,27 +158,27 @@ int nx_drm_connector_create_and_attach(struct drm_device *drm,
 	DRM_DEBUG_KMS("enter\n");
 
 	BUG_ON(!dp_dev);
-	panel_type = dp_dev->ddi.panel_type;
+	panel_type = dp_dev->ddc.panel_type;
 
 	switch (panel_type) {
-	case do_panel_type_lcd:
+	case dp_panel_type_lcd:
 		con_type = DRM_MODE_CONNECTOR_VGA;
 		enc_type = DRM_MODE_ENCODER_TMDS;
 		break;
-	case do_panel_type_lvds:
+	case dp_panel_type_lvds:
 		con_type = DRM_MODE_CONNECTOR_LVDS;
 		enc_type = DRM_MODE_ENCODER_LVDS;
 		break;
-	case do_panel_type_mipi:	/* MiPi DSI */
+	case dp_panel_type_mipi:	/* MiPi DSI */
 		con_type = DRM_MODE_CONNECTOR_DSI;
 		enc_type = DRM_MODE_ENCODER_DSI;
 		break;
-	case do_panel_type_hdmi:
+	case dp_panel_type_hdmi:
 		con_type = DRM_MODE_CONNECTOR_HDMIA;
 		interlace_allowed = true;
 		polled = DRM_CONNECTOR_POLL_HPD;
 		break;
-	case do_panel_type_vidi:
+	case dp_panel_type_vidi:
 		con_type = DRM_MODE_CONNECTOR_VIRTUAL;
 		enc_type = DRM_MODE_ENCODER_VIRTUAL;
 		polled = DRM_CONNECTOR_POLL_HPD;

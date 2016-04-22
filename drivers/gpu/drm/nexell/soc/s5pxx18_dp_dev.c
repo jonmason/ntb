@@ -27,7 +27,7 @@
 #include <linux/io.h>
 #include <linux/reset.h>
 
-#include "s5pxx18_soc_dp.h"
+#include "s5pxx18_dp_dev.h"
 
 #define	WAIT_VBLANK(m, n, o)
 #define	LAYER_VIDEO		PLANE_VIDEO_NUM
@@ -83,23 +83,54 @@ static inline unsigned int R3G3B2toR8G8B8(u8 RGB)
 	return R8B8G8;
 }
 
-static void soc_dp_plane_adjust(int module, int layer, bool now)
+static void dp_plane_adjust(int module, int layer, bool now)
 {
 	if (now)
 		nx_mlc_set_dirty_flag(module, layer);
 }
 
-void nx_soc_dp_plane_top_set_base(void *base[], int size)
+void nx_soc_dp_device_dpc_base(int module, void *base)
 {
-	int module = 0;
+	BUG_ON(!base);
+	pr_debug("%s: dev.%d\n", __func__, module);
 
-	for (module = 0; size > module; module++) {
-		BUG_ON(!base[module]);
-		pr_debug("%s: crtc.%d base:%p\n",
-			__func__, module, base[module]);
-		nx_mlc_set_base_address(module, base[module]);
-	}
+	nx_dpc_set_base_address(module, base);
 }
+
+void nx_soc_dp_device_mlc_base(int module, void *base)
+{
+	BUG_ON(!base);
+	pr_debug("%s: crtc.%d\n", __func__, module);
+
+	nx_mlc_set_base_address(module, base);
+}
+
+void nx_soc_dp_device_top_base(int module, void *base)
+{
+	BUG_ON(!base);
+	pr_debug("%s: dev top\n", __func__);
+
+	nx_disp_top_set_base_address(base);
+}
+
+void nx_soc_dp_device_clk_base(int id, void *base)
+{
+	BUG_ON(!base);
+	pr_debug("%s: dev clk %d\n", __func__, id);
+
+	nx_disp_top_clkgen_set_base_address(id, base);
+	nx_disp_top_clkgen_set_clock_pclk_mode(id, nx_pclkmode_always);
+}
+
+#ifdef CONFIG_DRM_NX_MIPI_DSI
+void nx_soc_dp_device_mipi_base(int module, void *base)
+{
+	BUG_ON(!base);
+	pr_debug("%s: dev mipi\n", __func__);
+
+	nx_mipi_set_base_address(module, base);
+}
+#endif
 
 void nx_soc_dp_plane_top_setup(struct dp_plane_top *top)
 {
@@ -190,7 +221,7 @@ int nx_soc_dp_plane_top_set_enable(struct dp_plane_top *top, bool on)
 	} else {
 		for (i = 0; num_planes > i; i++) {
 			nx_mlc_set_layer_enable(module, i, 0);
-			soc_dp_plane_adjust(module, i, true);
+			dp_plane_adjust(module, i, true);
 		}
 
 		nx_mlc_set_top_power_mode(module, 0);
@@ -236,7 +267,7 @@ int nx_soc_dp_rgb_set_format(struct dp_plane_layer *layer,
 	nx_mlc_set_format_rgb(module, num, (enum nx_mlc_rgbfmt)format);
 	nx_mlc_set_rgblayer_invalid_position(module, num, 0, 0, 0, 0, 0, 0);
 	nx_mlc_set_rgblayer_invalid_position(module, num, 1, 0, 0, 0, 0, 0);
-	soc_dp_plane_adjust(module, num, adjust);
+	dp_plane_adjust(module, num, adjust);
 
 	return 0;
 }
@@ -266,7 +297,7 @@ int nx_soc_dp_rgb_set_position(struct dp_plane_layer *layer,
 
 	nx_mlc_set_position(module, num, dst_x, dst_y,
 		dst_x + sw - 1, dst_y + sh - 1);
-	soc_dp_plane_adjust(module, num, adjust);
+	dp_plane_adjust(module, num, adjust);
 	return 0;
 }
 
@@ -285,7 +316,7 @@ void nx_soc_dp_rgb_set_address(struct dp_plane_layer *layer,
 
 	nx_mlc_set_rgblayer_stride(module, num, pixelbyte, stride);
 	nx_mlc_set_rgblayer_address(module, num, phys);
-	soc_dp_plane_adjust(module, num, adjust);
+	dp_plane_adjust(module, num, adjust);
 }
 
 void nx_soc_dp_rgb_set_enable(struct dp_plane_layer *layer,
@@ -299,7 +330,7 @@ void nx_soc_dp_rgb_set_enable(struct dp_plane_layer *layer,
 
 	layer->enable = on;
 	nx_mlc_set_layer_enable(module, num, (on ? 1 : 0));
-	soc_dp_plane_adjust(module, num, adjust);
+	dp_plane_adjust(module, num, adjust);
 }
 
 void nx_soc_dp_rgb_set_color(struct dp_plane_layer *layer,
@@ -325,7 +356,7 @@ void nx_soc_dp_rgb_set_color(struct dp_plane_layer *layer,
 		nx_mlc_set_alpha_blending(module, num,
 			 (on ? 1 : 0), (u32)color);
 
-		soc_dp_plane_adjust(module, num, adjust);
+		dp_plane_adjust(module, num, adjust);
 		break;
 
 	case dp_color_transp:
@@ -344,7 +375,7 @@ void nx_soc_dp_rgb_set_color(struct dp_plane_layer *layer,
 		nx_mlc_set_transparency(module, num,
 			(on ? 1 : 0), (u32)(color & 0x00FFFFFF));
 
-		soc_dp_plane_adjust(module, num, adjust);
+		dp_plane_adjust(module, num, adjust);
 		break;
 
 	case dp_color_invert:
@@ -364,7 +395,7 @@ void nx_soc_dp_rgb_set_color(struct dp_plane_layer *layer,
 			(on ? 1 : 0),
 			(u32)(color & 0x00FFFFFF));
 
-		soc_dp_plane_adjust(module, num, adjust);
+		dp_plane_adjust(module, num, adjust);
 		break;
 	default:
 		break;
@@ -382,7 +413,7 @@ int nx_soc_dp_video_set_format(struct dp_plane_layer *layer,
 		__func__, layer->name, format);
 
 	nx_mlc_set_format_yuv(module, (enum nx_mlc_yuvfmt)format);
-	soc_dp_plane_adjust(module, LAYER_VIDEO, adjust);
+	dp_plane_adjust(module, LAYER_VIDEO, adjust);
 
 	return 0;
 }
@@ -424,7 +455,7 @@ int nx_soc_dp_video_set_position(struct dp_plane_layer *layer,
 	nx_mlc_set_video_layer_scale(module, sw, sh, dw, dh, hf, hf, vf, vf);
 	nx_mlc_set_position(module, LAYER_VIDEO, dx, dy,
 			dx + dw - 1, dy + dh - 1);
-	soc_dp_plane_adjust(module, LAYER_VIDEO, adjust);
+	dp_plane_adjust(module, LAYER_VIDEO, adjust);
 
 	return 0;
 }
@@ -441,7 +472,7 @@ void nx_soc_dp_video_set_address_1plane(struct dp_plane_layer *layer,
 		__func__, layer->name, addr, phys, stride);
 
 	nx_mlc_set_video_layer_address_yuyv(module, phys, stride);
-	soc_dp_plane_adjust(module, LAYER_VIDEO, adjust);
+	dp_plane_adjust(module, LAYER_VIDEO, adjust);
 }
 
 void nx_soc_dp_video_set_address_3plane(struct dp_plane_layer *layer,
@@ -477,7 +508,7 @@ void nx_soc_dp_video_set_address_3plane(struct dp_plane_layer *layer,
 
 	nx_mlc_set_video_layer_stride(module, lu_s, cb_s, cr_s);
 	nx_mlc_set_video_layer_address(module, lu_a, cb_a, cr_a);
-	soc_dp_plane_adjust(module, LAYER_VIDEO, adjust);
+	dp_plane_adjust(module, LAYER_VIDEO, adjust);
 }
 
 void nx_soc_dp_video_set_enable(struct dp_plane_layer *layer,
@@ -495,10 +526,10 @@ void nx_soc_dp_video_set_enable(struct dp_plane_layer *layer,
 		nx_mlc_set_video_layer_line_buffer_power_mode(module, 1);
 		nx_mlc_set_video_layer_line_buffer_sleep_mode(module, 0);
 		nx_mlc_set_layer_enable(module, LAYER_VIDEO, 1);
-		soc_dp_plane_adjust(module, LAYER_VIDEO, adjust);
+		dp_plane_adjust(module, LAYER_VIDEO, adjust);
 	} else {
 		nx_mlc_set_layer_enable(module, LAYER_VIDEO, 0);
-		soc_dp_plane_adjust(module, LAYER_VIDEO, adjust);
+		dp_plane_adjust(module, LAYER_VIDEO, adjust);
 		WAIT_VBLANK(module, LAYER_VIDEO, 1);
 
 		nx_mlc_get_video_layer_scale_filter(module, &hl, &hc, &vl, &vc);
@@ -506,35 +537,23 @@ void nx_soc_dp_video_set_enable(struct dp_plane_layer *layer,
 			nx_mlc_set_video_layer_scale_filter(module, 0, 0, 0, 0);
 		nx_mlc_set_video_layer_line_buffer_power_mode(module, 0);
 		nx_mlc_set_video_layer_line_buffer_sleep_mode(module, 1);
-		soc_dp_plane_adjust(module, LAYER_VIDEO, adjust);
+		dp_plane_adjust(module, LAYER_VIDEO, adjust);
 	}
 }
 
-void nx_soc_dp_device_set_base(void *base[], int size)
+void nx_soc_dp_device_setup(struct dp_control_dev *ddc)
 {
-	int module = 0;
-
-	for (module = 0; size > module; module++) {
-		BUG_ON(!base[module]);
-		pr_debug("%s: dev.%d base:%p\n",
-			__func__, module, base[module]);
-		nx_dpc_set_base_address(module, base[module]);
-	}
-}
-
-void nx_soc_dp_device_setup(struct dp_device_info *ddi)
-{
-	int module = ddi->module;
+	int module = ddc->module;
 
 	pr_debug("%s: dev.%d\n", __func__, module);
 	nx_dpc_set_clock_pclk_mode(module, nx_pclkmode_always);
 }
 
-int nx_soc_dp_device_prepare(struct dp_device_info *ddi)
+int nx_soc_dp_device_prepare(struct dp_control_dev *ddc)
 {
-	struct dp_sync_info *sync = &ddi->sync;
-	struct dp_ctrl_info *ctrl = &ddi->ctrl;
-	int module = ddi->module;
+	struct dp_sync_info *sync = &ddc->sync;
+	struct dp_ctrl_info *ctrl = &ddc->ctrl;
+	int module = ddc->module;
 	unsigned int out_format = ctrl->out_format;
 	unsigned int delay_mask = ctrl->delay_mask;
 	int rgb_pvd = 0, hsync_cp1 = 7, vsync_fram = 7, de_cp2 = 7;
@@ -550,7 +569,7 @@ int nx_soc_dp_device_prepare(struct dp_device_info *ddi)
 
 	enum nx_dpc_dither r_dither, g_dither, b_dither;
 	int rgb_mode = 0;
-	bool lcd_rgb = ddi->panel_type == do_panel_type_lcd ?
+	bool lcd_rgb = ddc->panel_type == dp_panel_type_lcd ?
 			true : false;
 
 	/* set delay mask */
@@ -660,9 +679,9 @@ int nx_soc_dp_device_prepare(struct dp_device_info *ddi)
 	return 0;
 }
 
-int nx_soc_dp_device_power_status(struct dp_device_info *ddi)
+int nx_soc_dp_device_power_status(struct dp_control_dev *ddc)
 {
-	int module = ddi->module;
+	int module = ddc->module;
 	int status = nx_dpc_get_dpc_enable(module) ? 1 : 0;
 
 	pr_debug("%s: dev.%d current power %s\n",
@@ -670,9 +689,9 @@ int nx_soc_dp_device_power_status(struct dp_device_info *ddi)
 	return status;
 }
 
-void nx_soc_dp_device_power_on(struct dp_device_info *ddi, bool on)
+void nx_soc_dp_device_power_on(struct dp_control_dev *ddc, bool on)
 {
-	int module = ddi->module;
+	int module = ddc->module;
 
 	pr_debug("%s: dev.%d power on\n", __func__, module);
 	if (on) {
@@ -687,9 +706,9 @@ void nx_soc_dp_device_power_on(struct dp_device_info *ddi, bool on)
 	}
 }
 
-void nx_soc_dp_device_irq_on(struct dp_device_info *ddi, bool on)
+void nx_soc_dp_device_irq_on(struct dp_control_dev *ddc, bool on)
 {
-	int module = ddi->module;
+	int module = ddc->module;
 
 	pr_debug("%s: dev.%d, %s\n", __func__, module, on ? "on" : "off");
 
@@ -697,47 +716,54 @@ void nx_soc_dp_device_irq_on(struct dp_device_info *ddi, bool on)
 	nx_dpc_set_interrupt_enable_all(module, on ? 1 : 0);
 }
 
-void nx_soc_dp_device_irq_clear(struct dp_device_info *ddi)
+void nx_soc_dp_device_irq_clear(struct dp_control_dev *ddc)
 {
-	int module = ddi->module;
+	int module = ddc->module;
 
 	nx_dpc_clear_interrupt_pending_all(module);
 }
 
-void nx_soc_dp_device_top_base(void *base[], int size)
+void nx_soc_dp_device_top_mux(struct dp_control_dev *ddc)
 {
-	BUG_ON(!base[0]);
-	pr_debug("%s: dev top base:%p\n", __func__, base[0]);
+	int module = ddc->module;
 
-	nx_disp_top_set_base_address(base[0]);
-}
-
-void nx_soc_dp_device_top_mux(struct dp_device_info *ddi)
-{
-	int module = ddi->module;
-	bool mpu_lcd = ddi->panel_mpu_lcd;
-	int pin = 0;
-
-	if (do_panel_type_lcd == ddi->panel_type) {
+	/*
+	 * Mux RGB LCD
+	 */
+	if (dp_panel_type_lcd == ddc->panel_type) {
 		/*
 		 *  0 : Primary MLC  , 1 : Primary MPU,
 		 *  2 : Secondary MLC, 3 : ResConv(LCDIF)
 		*/
+		struct dp_rgb_dev *rgb = ddc->dp_out_dev;
+		int pin = 0;
+
+		BUG_ON(!rgb);
+
 		switch (module) {
 		case 0:
-			pin = mpu_lcd ? 1 : 0;
+			pin = rgb->mpu_lcd ? 1 : 0;
 			break;
 		case 1:
-			pin = mpu_lcd ? 3 : 2;
+			pin = rgb->mpu_lcd ? 3 : 2;
 			break;
 		default:
 			pr_err("fail : %s not support module %d\n",
 				__func__, module);
 			return;
 		}
+
+		nx_disp_top_set_primary_mux(pin);
+		return;
 	}
 
-	pr_debug("%s: dev.%d, pin:%d\n", __func__, module, pin);
-	nx_disp_top_set_primary_mux(pin);
-}
+	/*
+	 * Mux MiPi-DSI
+	 */
+	if (dp_panel_type_mipi == ddc->panel_type) {
+		nx_disp_top_set_mipimux(1, module);
+		return;
+	}
 
+	pr_debug("%s: dev.%d\n", __func__, module);
+}

@@ -25,7 +25,6 @@ struct nx_drm_encoder {
 	int pipe;
 	struct nx_drm_dp_dev *dp_dev;
 	int dpms;
-	bool irq_install;
 	void *context;		/* device context */
 };
 

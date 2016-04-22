@@ -31,10 +31,6 @@ struct nx_drm_priv {
 	struct nx_framebuffer_dev *fbdev;
 	int num_crtcs;
 	struct drm_crtc *crtcs[MAX_CRTCS];
-	int num_resets;
-	struct reset_control *reset_ctrl[MAX_CRTCS];
-	int num_irqs;
-	int hw_irq_no[MAX_CRTCS];
 };
 
 #endif
