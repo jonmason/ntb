@@ -677,6 +677,16 @@ static void nx_mipi_setpll(u32 module_index, int enable, u32 pllstabletimer,
 	}
 }
 
+static bool nx_mipi_is_pll_enable(u32 module_index)
+{
+	register struct nx_mipi_register_set *pregister;
+	register u32 regvalue;
+
+	pregister = __g_pregister[module_index];
+	regvalue = pregister->dsim_pllctrl;
+
+	return regvalue & (1 << DSIM_PLLCTRL_ENABLE) ? true : false;
+}
 
 static void nx_csi_run(struct nx_csi *me)
 {
@@ -761,19 +771,21 @@ static void nx_csi_run(struct nx_csi *me)
 
 	reset_control_deassert(me->rst_phy_s);
 
-	if (me->pllval == 750) {
-		pms = PMS_FOR_750MHz;
-		bandctl = BANDCTL_FOR_750MHz;
-	} else if (me->pllval == 1000) {
-		pms = PMS_FOR_1000MHz;
-		bandctl = BANDCTL_FOR_1000MHz;
-	} else {
-		dev_err(me->dev, "unknown pllval %d --> set default\n",
-			me->pllval);
-		pms = PMS_FOR_750MHz;
-		bandctl = BANDCTL_FOR_750MHz;
+	if (!nx_mipi_is_pll_enable(module)) {
+		if (me->pllval == 750) {
+			pms = PMS_FOR_750MHz;
+			bandctl = BANDCTL_FOR_750MHz;
+		} else if (me->pllval == 1000) {
+			pms = PMS_FOR_1000MHz;
+			bandctl = BANDCTL_FOR_1000MHz;
+		} else {
+			dev_err(me->dev, "unknown pllval %d --> set default\n",
+				me->pllval);
+			pms = PMS_FOR_750MHz;
+			bandctl = BANDCTL_FOR_750MHz;
+		}
+		nx_mipi_setpll(module, 1, PLL_STABLE_TIME_VAL, pms, bandctl, 0, 0);
 	}
-	nx_mipi_setpll(module, 1, PLL_STABLE_TIME_VAL, pms, bandctl, 0, 0);
 }
 
 static void nx_csi_stop(struct nx_csi *me)
