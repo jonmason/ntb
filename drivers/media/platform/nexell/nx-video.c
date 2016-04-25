@@ -488,21 +488,23 @@ static int nx_video_querycap(struct file *file, void *fh,
 
 	switch (me->type) {
 	case NX_VIDEO_TYPE_CAPTURE:
-		cap->capabilities =
+		cap->device_caps =
 			V4L2_CAP_VIDEO_CAPTURE_MPLANE | V4L2_CAP_STREAMING;
 		break;
 	case NX_VIDEO_TYPE_OUT:
-		cap->capabilities =
+		cap->device_caps =
 			V4L2_CAP_VIDEO_OUTPUT_MPLANE | V4L2_CAP_STREAMING;
 		break;
 	case NX_VIDEO_TYPE_M2M:
-		cap->capabilities = V4L2_CAP_VIDEO_CAPTURE_MPLANE |
+		cap->device_caps = V4L2_CAP_VIDEO_CAPTURE_MPLANE |
 			V4L2_CAP_VIDEO_OUTPUT_MPLANE | V4L2_CAP_STREAMING;
 		break;
 	default:
 		pr_err("[nx video] querycap: invalid type(%d)\n", me->type);
 		return -EINVAL;
 	}
+
+	cap->capabilities = cap->device_caps | V4L2_CAP_DEVICE_CAPS;
 
 	return 0;
 }
