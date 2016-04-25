@@ -281,8 +281,7 @@ static int panel_mipi_detach(struct mipi_dsi_host *host,
 static ssize_t panel_mipi_transfer(struct mipi_dsi_host *host,
 			const struct mipi_dsi_msg *msg)
 {
-	nx_drm_dp_mipi_transfer(host, msg);
-	return 0;
+	return nx_drm_dp_mipi_transfer(host, msg);
 }
 
 static struct mipi_dsi_host_ops panel_mipi_ops = {

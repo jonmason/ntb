@@ -254,6 +254,10 @@ enum nx_mipi_int {
 	nx_mipi_int_dsi_err_content_lp1 = 32 + 0,
 };
 
+#define DSI_TX_FIFO_SIZE	2048
+#define DSI_RX_FIFO_SIZE	256
+#define DSI_RX_FIFO_EMPTY	0x30800002
+
 void nx_mipi_csi_set_size(u32 module_index,
 				int channel, u32 width, u32 height);
 void nx_mipi_csi_set_format(u32 module_index, int channel,
@@ -373,6 +377,7 @@ void nx_mipi_dsi_set_pll(u32 module_index, int enable,
 
 void nx_mipi_dsi_write_pkheader(u32 module_index, u32 data);
 void nx_mipi_dsi_write_payload(u32 module_index, u32 data);
+u32 nx_mipi_dsi_read_fifo(u32 module_index);
 
 int nx_mipi_smoke_test(u32 module_index);
 int nx_mipi_initialize(void);

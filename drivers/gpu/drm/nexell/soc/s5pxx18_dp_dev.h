@@ -348,6 +348,7 @@ int nx_soc_dp_mipi_set_enable(struct dp_control_dev *ddc, unsigned int flags);
 int nx_soc_dp_mipi_set_unprepare(struct dp_control_dev *ddc,
 			unsigned int flags);
 int nx_soc_dp_mipi_set_disable(struct dp_control_dev *ddc, unsigned int flags);
-int nx_soc_dp_mipi_transfer(struct dp_mipi_xfer *xfer);
+int nx_soc_dp_mipi_tx_transfer(struct dp_mipi_xfer *xfer);
+int nx_soc_dp_mipi_rx_transfer(struct dp_mipi_xfer *xfer);
 
 #endif /* __S5PXX18_DP_DEV_H__ */

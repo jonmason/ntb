@@ -157,6 +157,11 @@ int nx_drm_dp_parse_dt_panel_type(struct device_node *np,
 		struct dp_mipi_dev *mipi;
 		u32 lp_bitrate = 0, hs_bitrate = 0;
 
+		if (!IS_ENABLED(CONFIG_DRM_NX_MIPI_DSI)) {
+			DRM_ERROR("not selected mipi panel configs !\n");
+			return -EINVAL;
+		}
+
 		mipi = devm_kzalloc(dev, sizeof(*mipi), GFP_KERNEL);
 		if (IS_ERR(mipi))
 			return -ENOMEM;
@@ -879,15 +884,15 @@ static void dump_mipi_dsi_messages(const struct mipi_dsi_msg *msg, bool dump)
 		return;
 
 	pr_info("%s\n", __func__);
-	pr_info("channel:%d\n", msg->channel);
-	pr_info("type   :%d\n", msg->type);
-	pr_info("flags  :%d\n", msg->flags);
+	pr_info("ch   :%d\n", msg->channel);
+	pr_info("type :0x%x\n", msg->type);
+	pr_info("flags:0x%x\n", msg->flags);
 
 	for (i = 0; msg->tx_len > i; i++)
-		pr_info("[%2d]: 0x%02x\n", i, txb[i]);
+		pr_info("T[%2d]: 0x%02x\n", i, txb[i]);
 
 	for (i = 0; msg->rx_len > i; i++)
-		pr_info("[%2d]: 0x%02x\n", i, rxb[i]);
+		pr_info("R[%2d]: 0x%02x\n", i, rxb[i]);
 }
 
 #define	IS_SHORT(t)	(9 > (t & 0x0f))
@@ -896,6 +901,7 @@ int nx_drm_dp_mipi_transfer(struct mipi_dsi_host *host,
 			const struct mipi_dsi_msg *msg)
 {
 	struct dp_mipi_xfer xfer;
+	int err;
 
 	dump_mipi_dsi_messages(msg, false);
 
@@ -927,7 +933,12 @@ int nx_drm_dp_mipi_transfer(struct mipi_dsi_host *host,
 	xfer.rx_buf = msg->rx_buf;
 	xfer.flags = msg->flags;
 
-	return nx_soc_dp_mipi_transfer(&xfer);
+	err = nx_soc_dp_mipi_tx_transfer(&xfer);
+
+	if (xfer.rx_len)
+		err = nx_soc_dp_mipi_rx_transfer(&xfer);
+
+	return err;
 }
 #else
 int nx_drm_dp_mipi_transfer(struct mipi_dsi_host *host,

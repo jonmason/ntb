@@ -18,6 +18,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/delay.h>
+#include <video/mipi_display.h>
 
 #include "s5pxx18_dp_dev.h"
 
@@ -59,8 +60,6 @@
 #define	BANDCTL_100MHZ		0x1
 #define	PLLPMS_80MHZ		0x3283
 #define	BANDCTL_80MHZ		0x0
-
-#define	MIPI_TX_FIFO_SIZE	2048
 
 #define	MIPI_INDEX			0
 #define	MIPI_EXC_PRE_VALUE	1
@@ -279,17 +278,15 @@ int nx_soc_dp_mipi_set_disable(struct dp_control_dev *ddc,
 	return 0;
 }
 
-int nx_soc_dp_mipi_transfer(struct dp_mipi_xfer *xfer)
+int nx_soc_dp_mipi_tx_transfer(struct dp_mipi_xfer *xfer)
 {
 	const u8 *txb;
 	u16 size;
 	u32 data;
 
-	pr_debug("%s\n", __func__);
-
-	if (xfer->tx_len > MIPI_TX_FIFO_SIZE)
+	if (xfer->tx_len > DSI_TX_FIFO_SIZE)
 		pr_warn("warn: tx %d size over fifo %d\n", (int)xfer->tx_len,
-			MIPI_TX_FIFO_SIZE);
+			DSI_TX_FIFO_SIZE);
 
 	/*
 	 * write payload
@@ -327,4 +324,85 @@ int nx_soc_dp_mipi_transfer(struct dp_mipi_xfer *xfer)
 	nx_mipi_dsi_write_pkheader(0, data);
 
 	return 0;
+}
+
+int nx_soc_dp_mipi_rx_transfer(struct dp_mipi_xfer *xfer)
+{
+	int module = 0;
+	u8 *rxb = xfer->rx_buf;
+	int rx_len = 0;
+	u16 size;
+	u32 data;
+	int err = -EINVAL;
+
+	data = nx_mipi_dsi_read_fifo(module);
+
+	switch (data & 0x3f) {
+	case MIPI_DSI_RX_GENERIC_SHORT_READ_RESPONSE_2BYTE:
+	case MIPI_DSI_RX_DCS_SHORT_READ_RESPONSE_2BYTE:
+		if (xfer->rx_len >= 2) {
+			rxb[1] = data >> 16;
+			rx_len++;
+		}
+
+		/* Fall through */
+	case MIPI_DSI_RX_GENERIC_SHORT_READ_RESPONSE_1BYTE:
+	case MIPI_DSI_RX_DCS_SHORT_READ_RESPONSE_1BYTE:
+		rxb[0] = data >> 8;
+		rx_len++;
+		xfer->rx_len = rx_len;
+		err = rx_len;
+		goto clear_fifo;
+
+	case MIPI_DSI_RX_ACKNOWLEDGE_AND_ERROR_REPORT:
+		pr_debug("DSI Error Report: 0x%04x\n",
+			(data >> 8) & 0xffff);
+		err = rx_len;
+		goto clear_fifo;
+	}
+
+	size = (data >> 8) & 0xffff;
+
+	if (size > xfer->rx_len)
+		size = xfer->rx_len;
+	else if (size < xfer->rx_len)
+		xfer->rx_len = size;
+
+	size = xfer->rx_len - rx_len;
+	rx_len += size;
+
+	/* Receive payload */
+	while (size >= 4) {
+		data = nx_mipi_dsi_read_fifo(module);
+		rxb[0] = (data >>  0) & 0xff;
+		rxb[1] = (data >>  8) & 0xff;
+		rxb[2] = (data >> 16) & 0xff;
+		rxb[3] = (data >> 24) & 0xff;
+		rxb += 4, size -= 4;
+	}
+
+	if (size) {
+		data = nx_mipi_dsi_read_fifo(module);
+		switch (size) {
+		case 3:
+			rxb[2] = (data >> 16) & 0xff;
+		case 2:
+			rxb[1] = (data >> 8) & 0xff;
+		case 1:
+			rxb[0] = data & 0xff;
+		}
+	}
+
+	if (rx_len == xfer->rx_len)
+		err = rx_len;
+
+clear_fifo:
+	size = DSI_RX_FIFO_SIZE / 4;
+	do {
+		data = nx_mipi_dsi_read_fifo(module);
+		if (data == DSI_RX_FIFO_EMPTY)
+			break;
+	} while (--size);
+
+	return err;
 }

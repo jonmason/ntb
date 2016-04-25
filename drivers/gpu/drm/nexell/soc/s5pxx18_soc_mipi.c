@@ -1035,3 +1035,11 @@ void nx_mipi_dsi_write_payload(u32 module_index, u32 data)
 	pregister = __g_pregister[module_index];
 	writel(data, &pregister->dsim_payload);
 }
+
+u32 nx_mipi_dsi_read_fifo(u32 module_index)
+{
+	register struct nx_mipi_register_set *pregister;
+
+	pregister = __g_pregister[module_index];
+	return readl(&pregister->dsim_rxfifo);
+}
