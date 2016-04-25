@@ -521,3 +521,66 @@
 	pinctrl-0 = <&pwm0_pin &pwm1_pin &pwm2_pin>;
 	samsung,pwm-outputs = <0>, <1>, <2>;
 };
+
+&dp_drm {
+        status = "okay";
+        ports {
+                port@0 {
+                        reg = <0>;
+                        back_color = < 0x0 >;
+                        color_key = < 0x0 >;
+			plane-names = "video", "primary", "rgb";
+		};
+		port@1 {
+			reg = <1>;
+			back_color = < 0x0 >;
+			color_key = < 0x0 >;
+			plane-names = "video", "primary";
+		};
+       };
+};
+
+&dp_drm_lcd {
+	encoder-port = <0>;
+	panel-type = "mipi";
+
+	hs_bitrate = <960>;
+	lp_bitrate = <100>;
+
+	panel@0 {
+		compatible = "samsung,s6e8fa0";
+		reg = <0>;
+		vdd3-supply = <&VCC_LDO0>;
+		vci-supply = <&VCC_LDO1>;
+		reset-gpio = <&gpio_e 30 0>;
+		power-on-delay= <50>;
+		reset-delay = <100>;
+		init-delay = <100>;
+		display-timings {
+			timing-0 {
+				clock-frequency = <130361520>;
+				hactive = <1080>;
+				vactive = <1920>;
+				hfront-porch = <32>;
+				hback-porch = <16>;
+				hsync-len = <12>;
+				vfront-porch = <12>;
+				vback-porch = <3>;
+				vsync-len = <1>;
+			};
+		};
+	};
+
+	dp_control {
+		clk_src_lv0 = <0>;
+		clk_div_lv0 = <6>;
+		clk_src_lv1 = <7>;
+		clk_div_lv1 = <1>;
+
+		out_format = <3>;
+		vs_start_offset = <480>;
+		ev_start_offset = <480>;
+		vs_end_offset = <0>;
+		ev_end_offset = <0>;
+	};
+};
