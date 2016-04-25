@@ -18,3 +18,17 @@
 
 /dts-v1/;
 #include "s5p6818-artik710-raptor-common.dtsi"
+
+&i2c_2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	nxe2000@32 {
+		compatible = "nexell,nxe2000";
+		reg = <0x32>;
+		interrupt-parent = <&alive_0>;
+		interrupts = <0x5 IRQ_TYPE_EDGE_FALLING>;
+	};
+};
+
