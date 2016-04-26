@@ -316,6 +316,21 @@ struct task_struct *__switch_to(struct task_struct *prev,
 {
 	struct task_struct *last;
 
+	/* FIXME: temporary turnaround code to resolve user space translation
+	 * fault. We assume the cause of this issue is synchronization between cpu
+	 * clusters. This issue must be resolved in BL1~BL3 layer not here.
+	 * This patch will be removed afterwards.
+	 */
+#if defined (CONFIG_SMP) && defined (CONFIG_ARCH_S5P6818)
+	if (prev->mm) {
+		/* TLB Flush ALL */
+		dsb(ishst);
+		asm("tlbi       vmalle1is");
+		dsb(ish);
+		isb();
+	}
+#endif
+
 	fpsimd_thread_switch(next);
 	tls_thread_switch(next);
 	hw_breakpoint_thread_switch(next);
