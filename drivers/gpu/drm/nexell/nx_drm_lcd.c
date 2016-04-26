@@ -215,14 +215,6 @@ static void panel_lcd_dmps(struct device *dev, int mode)
 
 	DRM_DEBUG_KMS("dpms.%d\n", mode);
 	switch (mode) {
-	case DRM_MODE_DPMS_STANDBY:
-		panel_lcd_prepare(dev, panel);
-		break;
-
-	case DRM_MODE_DPMS_SUSPEND:
-		panel_lcd_unprepare(dev, panel);
-		break;
-
 	case DRM_MODE_DPMS_ON:
 		panel_lcd_enable(dev, panel);
 
@@ -230,6 +222,8 @@ static void panel_lcd_dmps(struct device *dev, int mode)
 			gpiod_set_value_cansleep(ctx->enable_gpio, 1);
 		break;
 
+	case DRM_MODE_DPMS_STANDBY:
+	case DRM_MODE_DPMS_SUSPEND:
 	case DRM_MODE_DPMS_OFF:
 		panel_lcd_disable(dev, panel);
 
