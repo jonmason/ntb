@@ -179,6 +179,7 @@ static struct irq_chip s5p6818_gpio_irq_chip = {
 	.irq_set_type = irq_gpio_set_type,
 	.irq_enable = irq_gpio_enable,
 	.irq_disable = irq_gpio_disable,
+	.flags = IRQCHIP_SKIP_SET_WAKE,
 };
 
 static int s5p6818_gpio_irq_map(struct irq_domain *h, unsigned int virq,
@@ -368,6 +369,28 @@ static int irq_alive_set_type(struct irq_data *irqd, unsigned int type)
 	return 0;
 }
 
+static u32 alive_wake_mask = 0xffffffff;
+
+u32 get_wake_mask(void)
+{
+	return alive_wake_mask;
+}
+
+static int irq_set_alive_wake(struct irq_data *irqd, unsigned int on)
+{
+	int bit = (int)(irqd->hwirq);
+
+	pr_info("alive wake bit[%d] %s for irq %d\n",
+		       bit, on ? "enabled" : "disabled", irqd->irq);
+
+	if (!on)
+		alive_wake_mask |= bit;
+	else
+		alive_wake_mask &= ~bit;
+
+	return 0;
+}
+
 static void irq_alive_enable(struct irq_data *irqd)
 {
 	struct nexell_pin_bank *bank = irq_data_get_irq_chip_data(irqd);
@@ -402,6 +425,7 @@ static struct irq_chip s5p6818_alive_irq_chip = {
 	.irq_mask = irq_alive_mask,
 	.irq_unmask = irq_alive_unmask,
 	.irq_set_type = irq_alive_set_type,
+	.irq_set_wake = irq_set_alive_wake,
 	.irq_enable = irq_alive_enable,
 	.irq_disable = irq_alive_disable,
 };
