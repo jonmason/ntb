@@ -140,16 +140,16 @@
 				};
 			};
 			cluster1 {
-				core4 {
+				core0 {
 					cpu = <&cpu4>;
 				};
-				core5 {
+				core1 {
 					cpu = <&cpu5>;
 				};
-				core6 {
+				core2 {
 					cpu = <&cpu6>;
 				};
-				core7 {
+				core3 {
 					cpu = <&cpu7>;
 				};
 			};
