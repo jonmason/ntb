@@ -38,16 +38,13 @@ static void nx_drm_encoder_dpms(struct drm_encoder *encoder, int mode)
 	}
 
 	switch (mode) {
-	case DRM_MODE_DPMS_STANDBY:
-	case DRM_MODE_DPMS_SUSPEND:
-		if (ops && ops->dmps)
-			ops->dmps(dp_dev->dev, mode);
-		break;
 	case DRM_MODE_DPMS_ON:
 		nx_drm_dp_encoder_dpms(encoder, true);
 		if (ops && ops->dmps)
 			ops->dmps(dp_dev->dev, mode);
 		break;
+	case DRM_MODE_DPMS_STANDBY:
+	case DRM_MODE_DPMS_SUSPEND:
 	case DRM_MODE_DPMS_OFF:
 		if (ops && ops->dmps)
 				ops->dmps(dp_dev->dev, mode);

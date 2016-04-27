@@ -557,10 +557,6 @@ void nx_drm_dp_display_mode_to_sync(struct drm_display_mode *mode,
 
 void nx_drm_dp_encoder_commit(struct drm_encoder *encoder)
 {
-	struct nx_drm_dp_dev *dp_dev = to_nx_encoder(encoder)->dp_dev;
-	struct dp_control_dev *ddc = &dp_dev->ddc;
-
-	nx_soc_dp_device_prepare(ddc);
 }
 
 int nx_drm_dp_encoder_get_dpms(struct drm_encoder *encoder)
@@ -578,6 +574,9 @@ void nx_drm_dp_encoder_dpms(struct drm_encoder *encoder, bool poweron)
 {
 	struct nx_drm_dp_dev *dp_dev = to_nx_encoder(encoder)->dp_dev;
 	struct dp_control_dev *ddc = &dp_dev->ddc;
+
+	if (poweron)
+		nx_soc_dp_device_prepare(ddc);
 
 	nx_soc_dp_device_power_on(ddc, poweron);
 }

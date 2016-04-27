@@ -194,12 +194,11 @@ void nx_soc_dp_plane_top_set_bg_color(struct dp_plane_top *top)
 
 int nx_soc_dp_plane_top_set_enable(struct dp_plane_top *top, bool on)
 {
+	struct dp_plane_layer *layer;
 	int module = top->module;
-	int num_planes = top->num_planes;
-	int i = 0;
 
-	pr_debug("%s: crtc.%d, %s\n",
-		__func__, module, on ? "on" : "off");
+	pr_debug("%s: crtc.%d, %s %dx%d\n",
+		__func__, module, on ? "on" : "off", top->width, top->height);
 
 	if (on) {
 		int m_lock_size = 16;
@@ -215,20 +214,27 @@ int nx_soc_dp_plane_top_set_enable(struct dp_plane_top *top, bool on)
 		nx_mlc_set_top_sleep_mode(module, 0);
 		nx_mlc_set_mlc_enable(module, 1);
 
-		for (i = 0; num_planes > i; i++)
-			nx_mlc_set_lock_size(module, i, m_lock_size);
+		list_for_each_entry(layer, &top->plane_list, list) {
+			nx_mlc_set_lock_size(module, layer->num, m_lock_size);
+			if (layer->enable) {
+				nx_mlc_set_layer_enable(module, layer->num, 1);
+				dp_plane_adjust(module, layer->num, true);
+				pr_debug("%s: %s [%d] on\n",
+					__func__, layer->name, layer->num);
+			}
+		}
 
 	} else {
-		for (i = 0; num_planes > i; i++) {
-			nx_mlc_set_layer_enable(module, i, 0);
-			dp_plane_adjust(module, i, true);
+		list_for_each_entry(layer, &top->plane_list, list) {
+			if (layer->enable) {
+				nx_mlc_set_layer_enable(module, layer->num, 1);
+				dp_plane_adjust(module, layer->num, true);
+			}
 		}
 
 		nx_mlc_set_top_power_mode(module, 0);
 		nx_mlc_set_top_sleep_mode(module, 1);
 		nx_mlc_set_mlc_enable(module, 0);
-		nx_mlc_set_top_dirty_flag(module);
-		top->enable = on;
 	}
 
 	nx_mlc_set_top_dirty_flag(module);
@@ -681,19 +687,16 @@ int nx_soc_dp_device_prepare(struct dp_control_dev *ddc)
 
 int nx_soc_dp_device_power_status(struct dp_control_dev *ddc)
 {
-	int module = ddc->module;
-	int status = nx_dpc_get_dpc_enable(module) ? 1 : 0;
-
-	pr_debug("%s: dev.%d current power %s\n",
-		__func__, module, status ? "on" : "off");
-	return status;
+	return 0;
 }
 
 void nx_soc_dp_device_power_on(struct dp_control_dev *ddc, bool on)
 {
 	int module = ddc->module;
 
-	pr_debug("%s: dev.%d power on\n", __func__, module);
+	pr_debug("%s: dev.%d power %s\n",
+		__func__, module, on ? "on" : "off");
+
 	if (on) {
 		if (module == 0)
 			nx_dpc_set_reg_flush(module);
