@@ -42,6 +42,11 @@ static int gstIsVPUOn;
 static unsigned int gstVpuRegStore[64];
 
 static uint32_t *gstCodaClockEnRegVir;
+static uint32_t *gstIsolateBase;
+static uint32_t *gstAliveBase;
+
+static uint32_t *gstTieoff69;
+static uint32_t *gstTieoff131;
 
 static struct nx_vpu_codec_inst gstVpuInstance[NX_MAX_VPU_INST_SPACE];
 
@@ -87,11 +92,7 @@ static unsigned int VPU_IsBusy(void);
  */
 static void NX_ASYNCXUI_PowerDown(void)
 {
-#if 1
 	int32_t tmpVal;
-	uint32_t *tieoff69;
-	uint32_t *tieoff131;
-#endif
 
 	FUNC_IN();
 
@@ -104,24 +105,21 @@ static void NX_ASYNCXUI_PowerDown(void)
 	nx_tieoff_set(NX_TIEOFF_INST_CODA960_ASYNCXIU1_CSYSACK_S, 0);
 	nx_tieoff_set(NX_TIEOFF_INST_CODA960_ASYNCXIU1_CACTIVE_S, 0);
 #else
-	tieoff69 = ioremap(TIEOFF_REG69, 128);
-	tieoff131 = ioremap(TIEOFF_REG131, 128);
-
 	/* Apply To Async XUI 0 */
 
 	/* Step 1. Waiting until CACTIVE to High */
 	do {
-		tmpVal = ReadReg32(tieoff131);
+		tmpVal = ReadReg32(gstTieoff131);
 	} while (!(tmpVal&VPU_ASYNCXUI0_CACTIVE));
 
 	/* Step 2. Set CSYSREQ to Low */
-	tmpVal = ReadReg32(tieoff69);
+	tmpVal = ReadReg32(gstTieoff69);
 	tmpVal &= (~VPU_ASYNCXUI0_CSYSREQ);
-	WriteReg32(tieoff69, tmpVal);
+	WriteReg32(gstTieoff69, tmpVal);
 
 	/*Step 3. Waiting until CSYSACK to Low */
 	do {
-		tmpVal = ReadReg32(tieoff131);
+		tmpVal = ReadReg32(gstTieoff131);
 	} while (tmpVal&VPU_ASYNCXUI0_CSYSACK);
 
 
@@ -129,21 +127,18 @@ static void NX_ASYNCXUI_PowerDown(void)
 
 	/* Step 1. Waiting until CACTIVE to High */
 	do {
-		tmpVal = ReadReg32(tieoff131);
+		tmpVal = ReadReg32(gstTieoff131);
 	} while (!(tmpVal&VPU_ASYNCXUI1_CACTIVE));
 
 	/* Step 2. Set CSYSREQ to Low */
-	tmpVal = ReadReg32(tieoff69);
+	tmpVal = ReadReg32(gstTieoff69);
 	tmpVal &= (~VPU_ASYNCXUI1_CSYSREQ);
-	WriteReg32(tieoff69, tmpVal);
+	WriteReg32(gstTieoff69, tmpVal);
 
 	/* Step 3. Waiting until CSYSACK to Low */
 	do {
-		tmpVal = ReadReg32(tieoff131);
+		tmpVal = ReadReg32(gstTieoff131);
 	} while (tmpVal&VPU_ASYNCXUI1_CSYSACK);
-
-	iounmap(tieoff69);
-	iounmap(tieoff131);
 #endif
 
 	FUNC_OUT();
@@ -156,11 +151,7 @@ static void NX_ASYNCXUI_PowerDown(void)
  */
 static void NX_ASYNCXUI_PowerUp(void)
 {
-#if 1
 	int32_t tmpVal;
-	uint32_t *tieoff69;
-	uint32_t *tieoff131;
-#endif
 
 	FUNC_IN();
 
@@ -173,35 +164,29 @@ static void NX_ASYNCXUI_PowerUp(void)
 	nx_tieoff_set(NX_TIEOFF_INST_CODA960_ASYNCXIU1_CSYSACK_S, 1);
 	nx_tieoff_set(NX_TIEOFF_INST_CODA960_ASYNCXIU1_CACTIVE_S, 1);
 #else
-	tieoff69 = ioremap(TIEOFF_REG69, 128);
-	tieoff131 = ioremap(TIEOFF_REG131, 128);
-
 	/* Apply To Async XUI 0 */
 
 	/* Step 1. Set CSYSREQ to High */
-	tmpVal = ReadReg32(tieoff69);
+	tmpVal = ReadReg32(gstTieoff69);
 	tmpVal |= VPU_ASYNCXUI0_CSYSREQ;
-	WriteReg32(tieoff69, tmpVal);
+	WriteReg32(gstTieoff69, tmpVal);
 
 	/* Step 2. Waiting until CSYSACK to High */
 	do {
-		tmpVal = ReadReg32(tieoff131);
+		tmpVal = ReadReg32(gstTieoff131);
 	} while (!(tmpVal&VPU_ASYNCXUI0_CSYSACK));
 
 	/* Apply To Async XUI 1 */
 
 	/* Step 1. Set CSYSREQ to High */
-	tmpVal = ReadReg32(tieoff69);
+	tmpVal = ReadReg32(gstTieoff69);
 	tmpVal |= VPU_ASYNCXUI1_CSYSREQ;
-	WriteReg32(tieoff69, tmpVal);
+	WriteReg32(gstTieoff69, tmpVal);
 
 	/* Step 2. Waiting until CSYSACK to High */
 	do {
-		tmpVal = ReadReg32(tieoff131);
+		tmpVal = ReadReg32(gstTieoff131);
 	} while (!(tmpVal&VPU_ASYNCXUI1_CSYSACK));
-
-	iounmap(tieoff69);
-	iounmap(tieoff131);
 #endif
 
 	FUNC_OUT();
@@ -211,8 +196,6 @@ static void NX_ASYNCXUI_PowerUp(void)
 void NX_VPU_HwOn(void *dev, void *pVpuBaseAddr)
 {
 	uint32_t tmpVal;
-	uint32_t *pIsolateBase;
-	uint32_t *pAliveBase;
 	uint32_t *pNPreCharge, *pNPowerUp, *pNPowerAck;
 
 	NX_DbgMsg(DBG_POWER, ("NX_VPU_HwOn() ++\n"));
@@ -226,23 +209,19 @@ void NX_VPU_HwOn(void *dev, void *pVpuBaseAddr)
 	InitVpuRegister(pVpuBaseAddr);
 
 	/* Initialize ISolate Register's */
-	pIsolateBase = ioremap(VPU_NISOLATE_REG, 128);
-	pNPreCharge  = pIsolateBase + 1;
-	pNPowerUp    = pIsolateBase + 2;
-	pNPowerAck   = pIsolateBase + 3;
+	pNPreCharge  = gstIsolateBase + 1;
+	pNPowerUp    = gstIsolateBase + 2;
+	pNPowerAck   = gstIsolateBase + 3;
 
-	/* Initialize Alivegate Register */
-	pAliveBase = ioremap(VPU_ALIVEGATE_REG, 128);
+	NX_DbgMsg(INFO_MSG, ("====================================\n"));
+	NX_DbgMsg(INFO_MSG, ("pVpuBaseAddr = %p\n", pVpuBaseAddr));
+	NX_DbgMsg(INFO_MSG, ("pIsolateBase = %p\n", gstIsolateBase));
+	NX_DbgMsg(INFO_MSG, ("pNPreCharge  = %p\n", pNPreCharge));
+	NX_DbgMsg(INFO_MSG, ("pNPowerUp    = %p\n", pNPowerUp));
+	NX_DbgMsg(INFO_MSG, ("pNPowerAck   = %p\n", pNPowerAck));
+	NX_DbgMsg(INFO_MSG, ("====================================\n"));
 
-	/* printk("====================================\n");
-	 * printk("pVpuBaseAddr = %p\n", pVpuBaseAddr);
-	 * printk("pIsolateBase = %p\n", pIsolateBase);
-	 * printk("pNPreCharge  = %p\n", pNPreCharge );
-	 * printk("pNPowerUp    = %p\n", pNPowerUp   );
-	 * printk("pNPowerAck   = %p\n", pNPowerAck  );
-	 * printk("====================================\n"); */
-
-	WriteReg32(pAliveBase,  0x3);
+	WriteReg32(gstAliveBase,  0x3);
 
 	/* Enable PreCharge */
 	tmpVal = ReadReg32(pNPreCharge);
@@ -255,9 +234,9 @@ void NX_VPU_HwOn(void *dev, void *pVpuBaseAddr)
 	WriteReg32(pNPowerUp, tmpVal);
 
 	/* Disable ISolate */
-	tmpVal = ReadReg32(pIsolateBase);
+	tmpVal = ReadReg32(gstIsolateBase);
 	tmpVal |= (POWER_PMU_VPU_MASK);
-	WriteReg32(pIsolateBase, tmpVal);
+	WriteReg32(gstIsolateBase, tmpVal);
 
 	mdelay(1);
 
@@ -271,8 +250,6 @@ void NX_VPU_HwOn(void *dev, void *pVpuBaseAddr)
 
 	gstIsVPUOn = 1;
 
-	iounmap(pIsolateBase);
-	iounmap(pAliveBase);
 
 	NX_DbgMsg(DBG_POWER, ("NX_VPU_HwOn() --\n"));
 }
@@ -283,8 +260,6 @@ void NX_VPU_HWOff(void *dev)
 
 	if (gstIsVPUOn) {
 		unsigned int tmpVal;
-		uint32_t *pIsolateBase;
-		uint32_t *pAliveBase;
 		uint32_t *pNPreCharge, *pNPowerUp, *pNPowerAck;
 
 #if defined(CONFIG_ARCH_S5P6818)
@@ -296,21 +271,17 @@ void NX_VPU_HWOff(void *dev)
 		NX_DbgMsg(DBG_POWER, ("NX_VPU_HWOff() ++\n"));
 
 		/* Initialize ISolate Register's */
-		pIsolateBase = ioremap(VPU_NISOLATE_REG, 16);
-		pNPreCharge = pIsolateBase + 4;
-		pNPowerUp = pIsolateBase + 8;
-		pNPowerAck = pIsolateBase + 12;
-
-		/* Initialize Alivegate Register */
-		pAliveBase = ioremap(VPU_ALIVEGATE_REG, 16);
+		pNPreCharge = gstIsolateBase + 4;
+		pNPowerUp = gstIsolateBase + 8;
+		pNPowerAck = gstIsolateBase + 12;
 
 		/* Enter Coda Reset State */
-		WriteReg32(pAliveBase,  0x3);
+		WriteReg32(gstAliveBase,  0x3);
 
 		/* Isolate VPU H/W */
-		tmpVal = ReadReg32(pIsolateBase);
+		tmpVal = ReadReg32(gstIsolateBase);
 		tmpVal &= (~POWER_PMU_VPU_MASK);
-		WriteReg32(pIsolateBase, tmpVal);
+		WriteReg32(gstIsolateBase, tmpVal);
 
 		/* Pre Charget Off */
 		tmpVal = ReadReg32(pNPreCharge);
@@ -323,12 +294,10 @@ void NX_VPU_HWOff(void *dev)
 		WriteReg32(pNPowerUp, tmpVal);
 
 		/* Isolate VPU H/W */
-		tmpVal = ReadReg32(pIsolateBase);
+		tmpVal = ReadReg32(gstIsolateBase);
 		tmpVal &= (~POWER_PMU_VPU_MASK);
-		WriteReg32(pIsolateBase, tmpVal);
+		WriteReg32(gstIsolateBase, tmpVal);
 
-		iounmap(pIsolateBase);
-		iounmap(pAliveBase);
 		gstIsVPUOn = 0;
 
 		NX_DbgMsg(DBG_POWER, ("NX_VPU_HWOff() --\n"));
@@ -345,9 +314,6 @@ int NX_VPU_GetCurPowerState(void)
 void NX_VPU_Clock(int on)
 {
 	FUNC_IN();
-
-	if (gstCodaClockEnRegVir == NULL)
-		gstCodaClockEnRegVir = ioremap(CODA960CLKENB_REG, 4);
 
 	if (on) {
 		WriteReg32(gstCodaClockEnRegVir, 0x0000000F);
@@ -734,9 +700,28 @@ int swap_endian(unsigned char *data, int len)
 	return swap;
 }
 
-void NX_VpuParaInitialized(void)
+int NX_VpuParaInitialized(void *dev)
 {
 	gstIsInitialized = 0;
 	gstIsVPUOn = 0;
-	gstCodaClockEnRegVir = NULL;
+
+	gstCodaClockEnRegVir = (uint32_t *)devm_ioremap_nocache(dev,
+		CODA960CLKENB_REG, 4);
+	if (!gstCodaClockEnRegVir)
+		return -EBUSY;
+
+	gstTieoff69 = (uint32_t *)devm_ioremap_nocache(dev, TIEOFF_REG69, 128);
+	gstTieoff131 = (uint32_t *)devm_ioremap_nocache(dev, TIEOFF_REG131,
+		128);
+	if (!gstTieoff69 || !gstTieoff131)
+		return -EBUSY;
+
+	gstIsolateBase = (uint32_t *)devm_ioremap_nocache(dev,
+		VPU_NISOLATE_REG, 128);
+	gstAliveBase = (uint32_t *)devm_ioremap_nocache(dev,
+		VPU_ALIVEGATE_REG, 128);
+	if (!gstIsolateBase || !gstAliveBase)
+		return -EBUSY;
+
+	return 0;
 }

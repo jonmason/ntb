@@ -432,7 +432,7 @@ int NX_VPU_GetCurPowerState(void);
 void NX_VPU_Clock(int on);
 int VPU_SWReset(int resetMode);
 
-void NX_VpuParaInitialized(void);
+int NX_VpuParaInitialized(void *dev);
 
 int VPU_WaitVpuBusy(int mSeconds, unsigned int busyFlagReg);
 int NX_VpuInit(void *pv, void *baseAddr, void *firmVirAddr,

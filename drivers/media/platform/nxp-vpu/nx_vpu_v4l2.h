@@ -28,8 +28,6 @@
 #include "nx_vpu_config.h"
 #include "nx_vpu_api.h"
 
-#define DBG_MUTEX			0
-
 
 #define VPU_MAX_BUFFERS                 32
 #define STREAM_BUF_SIZE                 (4*1024*1024)
@@ -51,6 +49,7 @@ struct nx_vpu_v4l2 {
 	struct reset_control *coda_p;
 
 	spinlock_t irqlock;	/* lock when operating on videobuf2 queues */
+	struct mutex dev_mutex;
 	struct mutex vpu_mutex;
 
 	wait_queue_head_t vpu_wait_queue;

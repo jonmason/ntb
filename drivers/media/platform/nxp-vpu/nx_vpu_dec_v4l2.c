@@ -456,11 +456,14 @@ static void nx_vpu_dec_stop_streaming(struct vb2_queue *q)
 
 	FUNC_IN();
 
-	ctx->vpu_cmd = SEQ_END;
-
-	spin_lock_irqsave(&dev->irqlock, flags);
-
 	if (q->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+		if (ctx->codec_mode != CODEC_STD_MJPG) {
+			ctx->vpu_cmd = DEC_BUF_FLUSH;
+			nx_vpu_try_run(ctx->dev);
+		}
+
+		spin_lock_irqsave(&dev->irqlock, flags);
+
 		cleanup_dpb_queue(ctx);
 		nx_vpu_cleanup_queue(&ctx->img_queue, &ctx->vq_img);
 
@@ -469,13 +472,19 @@ static void nx_vpu_dec_stop_streaming(struct vb2_queue *q)
 
 		INIT_LIST_HEAD(&ctx->codec.dec.dpb_queue);
 		ctx->codec.dec.dpb_queue_cnt = 0;
+
+		spin_unlock_irqrestore(&dev->irqlock, flags);
 	} else if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
+		spin_lock_irqsave(&dev->irqlock, flags);
+
 		nx_vpu_cleanup_queue(&ctx->strm_queue, &ctx->vq_strm);
 		INIT_LIST_HEAD(&ctx->strm_queue);
 		ctx->strm_queue_cnt = 0;
+
+		spin_unlock_irqrestore(&dev->irqlock, flags);
 	}
 
-	spin_unlock_irqrestore(&dev->irqlock, flags);
+	ctx->vpu_cmd = SEQ_END;
 }
 
 static void nx_vpu_dec_buf_queue(struct vb2_buffer *vb)
@@ -554,7 +563,7 @@ int nx_vpu_dec_open(struct nx_vpu_ctx *ctx)
 	/* Init videobuf2 queue for OUTPUT */
 	ctx->vq_strm.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
 	ctx->vq_strm.drv_priv = ctx;
-	ctx->vq_strm.lock = &ctx->dev->vpu_mutex;
+	ctx->vq_strm.lock = &ctx->dev->dev_mutex;
 	ctx->vq_strm.buf_struct_size = sizeof(struct nx_vpu_buf);
 	ctx->vq_strm.io_modes = VB2_MMAP | VB2_USERPTR | VB2_DMABUF;
 	ctx->vq_strm.mem_ops = &vb2_dma_contig_memops;
@@ -570,7 +579,7 @@ int nx_vpu_dec_open(struct nx_vpu_ctx *ctx)
 	/* Init videobuf2 queue for CAPTURE */
 	ctx->vq_img.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 	ctx->vq_img.drv_priv = ctx;
-	ctx->vq_img.lock = &ctx->dev->vpu_mutex;
+	ctx->vq_img.lock = &ctx->dev->dev_mutex;
 	ctx->vq_img.buf_struct_size = sizeof(struct nx_vpu_buf);
 	ctx->vq_img.io_modes = VB2_MMAP | VB2_USERPTR | VB2_DMABUF;
 	ctx->vq_img.mem_ops = &vb2_dma_contig_memops;

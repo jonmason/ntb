@@ -108,9 +108,7 @@ int nx_vpu_try_run(struct nx_vpu_v4l2 *dev)
 
 	NX_DbgMsg(INFO_MSG, ("cmd = %x\n", ctx->vpu_cmd));
 
-#if DBG_MUTEX
 	mutex_lock(&dev->vpu_mutex);
-#endif
 
 #ifdef ENABLE_CLOCK_GATING
 	NX_VPU_Clock(1);
@@ -189,6 +187,12 @@ int nx_vpu_try_run(struct nx_vpu_v4l2 *dev)
 		}
 		break;
 
+	case DEC_BUF_FLUSH:
+		ret = NX_VpuDecFlush(ctx->hInst);
+		if (ret != 0)
+			dev_err(err, "dec_flush() is failed\n");
+		break;
+
 	case SEQ_END:
 		if (ctx->hInst) {
 			dev->curr_ctx = ctx->idx;
@@ -218,9 +222,7 @@ int nx_vpu_try_run(struct nx_vpu_v4l2 *dev)
 	NX_VPU_Clock(0);
 #endif
 
-#if DBG_MUTEX
 	mutex_unlock(&dev->vpu_mutex);
-#endif
 
 	return ret;
 }
@@ -535,26 +537,18 @@ int nx_vpu_queue_setup(struct vb2_queue *vq,
 
 void nx_vpu_unlock(struct vb2_queue *q)
 {
-#if DBG_MUTEX
 	struct nx_vpu_ctx *ctx = q->drv_priv;
-#endif
-	FUNC_IN();
 
-#if DBG_MUTEX
-	mutex_unlock(&ctx->dev->vpu_mutex);
-#endif
+	FUNC_IN();
+	mutex_unlock(&ctx->dev->dev_mutex);
 }
 
 void nx_vpu_lock(struct vb2_queue *q)
 {
-#if DBG_MUTEX
 	struct nx_vpu_ctx *ctx = q->drv_priv;
-#endif
-	FUNC_IN();
 
-#if DBG_MUTEX
-	mutex_lock(&ctx->dev->vpu_mutex);
-#endif
+	FUNC_IN();
+	mutex_lock(&ctx->dev->dev_mutex);
 }
 
 int nx_vpu_buf_init(struct vb2_buffer *vb)
@@ -752,22 +746,15 @@ static int nx_vpu_open(struct file *file)
 
 	FUNC_IN();
 
+	if (mutex_lock_interruptible(&dev->vpu_mutex))
+		return -ERESTARTSYS;
+
 	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
 	if (!ctx) {
 		NX_ErrMsg(("Not enough memory.\n"));
 		ret = -ENOMEM;
 		goto err_ctx_mem;
 	}
-
-#if DBG_MUTEX
-	mutex_lock(&dev->vpu_mutex);
-#endif
-
-	v4l2_fh_init(&ctx->fh, vdev);
-	file->private_data = &ctx->fh;
-	v4l2_fh_add(&ctx->fh);
-
-	ctx->dev = dev;
 
 	/* get context number */
 	ctx->idx = 0;
@@ -782,14 +769,20 @@ static int nx_vpu_open(struct file *file)
 		}
 	}
 
-	/* Mark context as idle */
-	__clear_bit(ctx->idx, &dev->ctx_work_bits);
-	dev->ctx[ctx->idx] = ctx;
+	v4l2_fh_init(&ctx->fh, vdev);
+	file->private_data = &ctx->fh;
+	v4l2_fh_add(&ctx->fh);
+
+	ctx->dev = dev;
 
 	INIT_LIST_HEAD(&ctx->img_queue);
 	INIT_LIST_HEAD(&ctx->strm_queue);
 	ctx->img_queue_cnt = 0;
 	ctx->strm_queue_cnt = 0;
+
+	/* Mark context as idle */
+	__clear_bit(ctx->idx, &dev->ctx_work_bits);
+	dev->ctx[ctx->idx] = ctx;
 
 	if (vdev == dev->vfd_enc) {
 		ctx->is_encoder = 1;
@@ -824,9 +817,7 @@ static int nx_vpu_open(struct file *file)
 	}
 #endif
 
-#if DBG_MUTEX
 	mutex_unlock(&dev->vpu_mutex);
-#endif
 
 	return ret;
 
@@ -839,9 +830,7 @@ err_no_ctx:
 	kfree(ctx);
 
 err_ctx_mem:
-#if DBG_MUTEX
 	mutex_unlock(&dev->vpu_mutex);
-#endif
 
 	return ret;
 }
@@ -853,19 +842,6 @@ static int nx_vpu_close(struct file *file)
 
 	FUNC_IN();
 
-#if DBG_MUTEX
-	mutex_lock(&dev->vpu_mutex);
-#endif
-
-	v4l2_fh_del(&ctx->fh);
-	v4l2_fh_exit(&ctx->fh);
-
-	vb2_queue_release(&ctx->vq_img);
-	vb2_queue_release(&ctx->vq_strm);
-
-	/* Mark context as idle */
-	__clear_bit(ctx->idx, &dev->ctx_work_bits);
-
 	if (ctx->is_initialized) {
 		ctx->vpu_cmd = SEQ_END;
 		nx_vpu_try_run(dev);
@@ -875,6 +851,8 @@ static int nx_vpu_close(struct file *file)
 		else
 			free_decoder_memory(ctx);
 	}
+
+	mutex_lock(&dev->vpu_mutex);
 
 #ifdef ENABLE_POWER_SAVING
 	if (dev->cur_num_instance == 0) {
@@ -892,12 +870,19 @@ static int nx_vpu_close(struct file *file)
 	NX_VPU_Clock(0);
 #endif
 
+	vb2_queue_release(&ctx->vq_img);
+	vb2_queue_release(&ctx->vq_strm);
+
+	v4l2_fh_del(&ctx->fh);
+	v4l2_fh_exit(&ctx->fh);
+
+	/* Mark context as idle */
+	__clear_bit(ctx->idx, &dev->ctx_work_bits);
+
 	dev->ctx[ctx->idx] = 0;
 	kfree(ctx);
 
-#if DBG_MUTEX
 	mutex_unlock(&dev->vpu_mutex);
-#endif
 
 	return 0;
 }
@@ -905,16 +890,41 @@ static int nx_vpu_close(struct file *file)
 static unsigned int nx_vpu_poll(struct file *file, struct poll_table_struct
 	*wait)
 {
+	struct nx_vpu_ctx *ctx = fh_to_ctx(file->private_data);
+	int ret;
+
 	FUNC_IN();
-	NX_ErrMsg(("%s will be coded!!\n", __func__));
-	return 0;
+
+	ret = vb2_poll(&ctx->vq_img, file, wait);
+	if (ret == 0)
+		ret = vb2_poll(&ctx->vq_strm, file, wait);
+
+	return ret;
 }
 
+#define	DST_QUEUE_OFF_BASE	(1 << 30)
 static int nx_vpu_mmap(struct file *file, struct vm_area_struct *vma)
 {
+	struct nx_vpu_ctx *ctx = fh_to_ctx(file->private_data);
+	struct nx_vpu_v4l2 *dev = ctx->dev;
+	uint32_t offset = vma->vm_pgoff << PAGE_SHIFT;
+	int ret;
+
 	FUNC_IN();
-	NX_ErrMsg(("%s will be coded!!\n", __func__));
-	return 0;
+
+	if (mutex_lock_interruptible(&dev->dev_mutex))
+		return -ERESTARTSYS;
+
+	if (offset < DST_QUEUE_OFF_BASE) {
+		ret = vb2_mmap(&ctx->vq_strm, vma);
+	} else {
+		vma->vm_pgoff -= (DST_QUEUE_OFF_BASE >> PAGE_SHIFT);
+		ret = vb2_mmap(&ctx->vq_img, vma);
+	}
+
+	mutex_unlock(&dev->dev_mutex);
+
+	return ret;
 }
 
 static const struct v4l2_file_operations nx_vpu_fops = {
@@ -957,6 +967,8 @@ static int nx_vpu_init(struct nx_vpu_v4l2 *dev)
 		return -ENOMEM;
 	}
 
+	mutex_lock(&dev->vpu_mutex);
+
 	NX_VPU_Clock(1);
 
 	ret = NX_VpuInit(dev, dev->regs_base, dev->firmware_buf->virAddr,
@@ -965,6 +977,8 @@ static int nx_vpu_init(struct nx_vpu_v4l2 *dev)
 #ifdef ENABLE_CLOCK_GATING
 	NX_VPU_Clock(0);
 #endif
+
+	mutex_unlock(&dev->vpu_mutex);
 
 	dev->cur_num_instance = 0;
 	dev->cur_jpg_instance = 0;
@@ -1066,6 +1080,7 @@ static int nx_vpu_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
+	mutex_init(&dev->dev_mutex);
 	mutex_init(&dev->vpu_mutex);
 
 	ret = v4l2_device_register(&pdev->dev, &dev->v4l2_dev);
@@ -1086,8 +1101,8 @@ static int nx_vpu_probe(struct platform_device *pdev)
 	vfd->fops = &nx_vpu_fops;
 	vfd->ioctl_ops = get_enc_ioctl_ops();
 	vfd->minor = -1;
-	vfd->release = video_device_release_empty;
-	vfd->lock = &dev->vpu_mutex;
+	vfd->release = video_device_release;
+	vfd->lock = &dev->dev_mutex;
 	vfd->v4l2_dev = &dev->v4l2_dev;
 	vfd->vfl_dir = VFL_DIR_M2M;
 	snprintf(vfd->name, sizeof(vfd->name), "%s", NX_VIDEO_ENC_NAME);
@@ -1114,8 +1129,8 @@ static int nx_vpu_probe(struct platform_device *pdev)
 	vfd->fops = &nx_vpu_fops;
 	vfd->ioctl_ops = get_dec_ioctl_ops();
 	vfd->minor = -1;
-	vfd->release = video_device_release_empty;
-	vfd->lock = &dev->vpu_mutex;
+	vfd->release = video_device_release;
+	vfd->lock = &dev->dev_mutex;
 	vfd->v4l2_dev = &dev->v4l2_dev;
 	vfd->vfl_dir = VFL_DIR_M2M;
 	snprintf(vfd->name, sizeof(vfd->name), "%s", NX_VIDEO_DEC_NAME);
@@ -1135,7 +1150,11 @@ static int nx_vpu_probe(struct platform_device *pdev)
 
 	atomic_set(&dev->vpu_event_present, 0);
 
-	NX_VpuParaInitialized();
+	ret = NX_VpuParaInitialized(&pdev->dev);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "failed to ioremap\n");
+		goto err_vpu_init;
+	}
 
 	ret = nx_vpu_init(dev);
 	if (ret < 0) {
@@ -1172,15 +1191,15 @@ static int nx_vpu_remove(struct platform_device *pdev)
 	if (unlikely(!dev))
 		return 0;
 
-#if DBG_MUTEX
-	mutex_lock(&dev->vpu_mutex);
-#endif
-
 	if (dev->cur_num_instance > 0) {
 		dev_err(&pdev->dev, "Warning Video Frimware is running.\n");
 		dev_err(&pdev->dev, "(Video(%d), Jpeg(%d)\n",
 			dev->cur_num_instance, dev->cur_jpg_instance);
 	}
+
+	video_unregister_device(dev->vfd_enc);
+	video_unregister_device(dev->vfd_dec);
+	v4l2_device_unregister(&dev->v4l2_dev);
 
 	reset_control_assert(dev->coda_c);
 	reset_control_assert(dev->coda_a);
@@ -1188,16 +1207,11 @@ static int nx_vpu_remove(struct platform_device *pdev)
 
 	nx_vpu_deinit(dev);
 
-	video_unregister_device(dev->vfd_enc);
-	video_unregister_device(dev->vfd_dec);
-	v4l2_device_unregister(&dev->v4l2_dev);
+	if (dev->alloc_ctx)
+		vb2_dma_contig_cleanup_ctx(dev->alloc_ctx);
 
-	vb2_dma_contig_cleanup_ctx(dev->alloc_ctx);
-
-#if DBG_MUTEX
-	mutex_unlock(&dev->vpu_mutex);
-#endif
 	mutex_destroy(&dev->vpu_mutex);
+	mutex_destroy(&dev->dev_mutex);
 
 	kfree(dev);
 	return 0;
