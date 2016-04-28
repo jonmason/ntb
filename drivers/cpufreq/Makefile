@@ -78,6 +78,7 @@ obj-$(CONFIG_ARM_TEGRA124_CPUFREQ)	+= tegra124-cpufreq.o
 obj-$(CONFIG_ARM_VEXPRESS_SPC_CPUFREQ)	+= vexpress-spc-cpufreq.o
 obj-$(CONFIG_ACPI_CPPC_CPUFREQ) += cppc_cpufreq.o
 obj-$(CONFIG_ARM_NEXELL_CPUFREQ)   	+= nexell-cpufreq.o
+obj-$(CONFIG_ARM_DYNAMIC_CLUSTER_HOTPLUG)	+= dm_cluster_hotplug.o
 
 ##################################################################################
 # PowerPC platform drivers

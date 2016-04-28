@@ -273,6 +273,12 @@ config ARM_NEXELL_CPUFREQ_VOLTAGE_DEBUG
 	depends on ARM_NEXELL_CPUFREQ
 	default n
 
+config ARM_DYNAMIC_CLUSTER_HOTPLUG
+	bool "Dynamic CLUSTER Hotplug support"
+	depends on HOTPLUG_CPU
+	help
+		Enable Dynamic CLUSTER Hotplug
+
 choice
 	prompt "Select CPU PLL device"
 	depends on ARM_NEXELL_CPUFREQ
