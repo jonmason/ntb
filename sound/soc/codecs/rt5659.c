@@ -1250,7 +1250,8 @@ static const SOC_VALUE_ENUM_SINGLE_DECL(
 static int rt5659_clk_sel_put(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
+	struct snd_soc_codec *codec = component->codec;
 	unsigned int u_bit = 0, p_bit = 0;
 	unsigned int asrc2, asrc3;
 	int ret;
@@ -1370,7 +1371,8 @@ static int rt5659_clk_sel_put(struct snd_kcontrol *kcontrol,
 static int rt5659_hp_vol_put(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
+	struct snd_soc_codec *codec = component->codec;
 	int ret;
 
 	ret = snd_soc_put_volsw(kcontrol, ucontrol);
@@ -1651,7 +1653,8 @@ static int rt5659_push_btn_get(struct snd_kcontrol *kcontrol,
 static int rt5659_push_btn_put(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
+	struct snd_soc_codec *codec = component->codec;
 
 	dev_info(codec->dev, "ret=0x%x\n", rt5659_button_detect(codec));
 
@@ -1676,7 +1679,8 @@ static int rt5659_jack_type_get(struct snd_kcontrol *kcontrol,
 static int rt5659_jack_type_put(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
+	struct snd_soc_codec *codec = component->codec;
 	int jack_insert = ucontrol->value.integer.value[0];
 
 	dev_info(codec->dev, "ret=0x%x\n",
@@ -1857,7 +1861,8 @@ static const struct snd_kcontrol_new rt5659_snd_controls[] = {
 static int set_dmic_clk(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *kcontrol, int event)
 {
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
+	struct snd_soc_codec *codec = component->codec;
 	struct rt5659_priv *rt5659 = snd_soc_codec_get_drvdata(codec);
 	int div[] = { 2, 3, 4, 6, 8, 12 }, idx =
 	    -EINVAL, i, rate, red, bound, temp;
