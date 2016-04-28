@@ -55,7 +55,6 @@ static struct reg_default init_list[] = {
 	{RT5659_HP_CALIB_CTRL_7,	0x0000},
 	{RT5659_MONO_NG2_CTRL_2,	0x003a},
 	{RT5659_ASRC_8,				0x0120},
-	{RT5659_ADDA_CLK_1,			0x0110},
 	/* Jack detect (GPIO JD2 to IRQ) */
 	{RT5659_RC_CLK_CTRL,		0x0100},
 	{RT5659_JD_CTRL_2,			0x0600},
@@ -161,7 +160,7 @@ static const struct reg_default rt5659_reg[RT5659_ADC_R_EQ_POST_VOL + 1] = {
 	{ 0x0070, 0x8000 },
 	{ 0x0071, 0x8000 },
 	{ 0x0072, 0x8000 },
-	{ 0x0073, 0x0110 },
+	{ 0x0073, 0x1110 },
 	{ 0x0074, 0xfe00 },
 	{ 0x0075, 0x2409 },
 	{ 0x0076, 0x000a },
@@ -1583,7 +1582,7 @@ static int rt5659_imp_detect(struct snd_soc_codec *codec)
 		snd_soc_write(codec, RT5659_HP_CHARGE_PUMP_1, 0x021e);
 		snd_soc_update_bits(codec, RT5659_PWR_DIG_2, 0x4400, 0x4400);
 		snd_soc_update_bits(codec, RT5659_PWR_ANLG_3, 0x01c0, 0x01c0);
-		snd_soc_write(codec, RT5659_ADDA_CLK_1, 0x0110);
+		snd_soc_write(codec, RT5659_ADDA_CLK_1, 0x0000);
 		snd_soc_update_bits(codec, RT5659_DEPOP_1, 0x0010, 0x0010);
 		snd_soc_write(codec, RT5659_SINE_GEN_CTRL_2, 0x8000);
 		snd_soc_write(codec, RT5659_DIG_MISC, 0x0000);
@@ -1599,7 +1598,7 @@ static int rt5659_imp_detect(struct snd_soc_codec *codec)
 
 			if (snd_soc_read(codec, RT5659_INT_ST_1) & 0x2) {
 				rt5659->impedance_value = snd_soc_read(codec,
-				RT5659_HP_IMP_SENS_CTRL_3);
+					RT5659_HP_IMP_SENS_CTRL_3);
 				break;
 			}
 		}
