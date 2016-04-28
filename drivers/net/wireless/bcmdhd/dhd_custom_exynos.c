@@ -188,7 +188,6 @@ int __init
 dhd_wlan_init_gpio(void)
 {
 	const char *wlan_node = "samsung,brcm-wlan";
-	unsigned int wlan_host_wake_up = -1;
 	struct device_node *root_node = NULL;
 
 	root_node = of_find_compatible_node(NULL, NULL, wlan_node);
