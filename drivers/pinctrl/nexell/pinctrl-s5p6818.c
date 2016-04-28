@@ -573,7 +573,7 @@ static struct nexell_pin_bank s5p6818_pin_banks[] = {
 /*
  * Nexell pinctrl driver data for SoC.
  */
-const struct nexell_pin_ctrl s5p6818_pin_ctrl[] __initconst = {
+const struct nexell_pin_ctrl s5p6818_pin_ctrl[] = {
 	{
 		.pin_banks = s5p6818_pin_banks,
 		.nr_banks = ARRAY_SIZE(s5p6818_pin_banks),
