@@ -9632,6 +9632,7 @@ static s32 wl_setup_wiphy(struct wireless_dev *wdev, struct device *sdiofunc_dev
 		brcm_wowlan_config->patterns = NULL;
 		brcm_wowlan_config->n_patterns = 0;
 		brcm_wowlan_config->tcp = NULL;
+		brcm_wowlan_config->nd_config = NULL;
 	} else {
 		WL_ERR(("Can not allocate memory for brcm_wowlan_config,"
 					" So wiphy->wowlan_config is set to NULL\n"));
