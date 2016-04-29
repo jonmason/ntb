@@ -181,6 +181,67 @@ static int trickle_charger_of_init(struct device *dev, struct device_node *node)
 	return 0;
 }
 
+static int bq32k_set_inittime(struct device *dev, struct rtc_time *tm)
+{
+	dev_info(dev, "The RTC time is set as the default time "
+		"%d-%02d-%02d %02d:%02d:%02d UTC\n",
+		tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
+		tm->tm_hour, tm->tm_min, tm->tm_sec);
+
+	return bq32k_rtc_set_time(dev, tm);
+}
+
+static int bq32k_check_inittime(struct i2c_client *client)
+{
+	struct device *dev = &client->dev;
+	struct device_node *node = client->dev.of_node;
+	struct rtc_time hw_tm;
+	struct rtc_time init_tm;
+	int ret;
+
+	ret = bq32k_rtc_read_time(dev, &hw_tm);
+	if (ret < 0) {
+		dev_err(dev, "Invalid time format\n");
+		return ret;
+	}
+
+	memset(&init_tm, 0, sizeof(struct rtc_time));
+	ret = of_property_read_u32(node, "init_time,year", &init_tm.tm_year);
+	if (ret < 0) {
+		dev_err(dev, "Cannot parse init_time,year from DT\n");
+		return ret;
+	}
+
+	ret = of_property_read_u32(node, "init_time,mon", &init_tm.tm_mon);
+	if (ret < 0) {
+		dev_err(dev, "Cannot parse init_time,mon from DT\n");
+		return ret;
+	}
+
+	ret = of_property_read_u32(node, "init_time,mday", &init_tm.tm_mday);
+	if (ret < 0) {
+		dev_err(dev, "Cannot parse init_time,mday from DT\n");
+		return ret;
+	}
+
+	ret = of_property_read_u32(node, "init_time,wday", &init_tm.tm_wday);
+	if (ret < 0) {
+		dev_err(dev, "Cannot parse init_time,wday from DT\n");
+		return ret;
+	}
+
+	if (hw_tm.tm_year < init_tm.tm_year)
+		return bq32k_set_inittime(dev, &init_tm);
+
+	if (hw_tm.tm_mon < init_tm.tm_mon)
+		return bq32k_set_inittime(dev, &init_tm);
+
+	if (hw_tm.tm_mday < init_tm.tm_mday)
+		return bq32k_set_inittime(dev, &init_tm);
+
+	return 0;
+}
+
 static int bq32k_probe(struct i2c_client *client,
 				const struct i2c_device_id *id)
 {
@@ -212,8 +273,10 @@ static int bq32k_probe(struct i2c_client *client,
 	if (error)
 		return error;
 
-	if (client->dev.of_node)
+	if (client->dev.of_node) {
+		bq32k_check_inittime(client);
 		trickle_charger_of_init(dev, client->dev.of_node);
+	}
 
 	rtc = devm_rtc_device_register(&client->dev, bq32k_driver.driver.name,
 						&bq32k_rtc_ops, THIS_MODULE);

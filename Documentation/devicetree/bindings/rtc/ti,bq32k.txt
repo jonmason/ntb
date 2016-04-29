@@ -10,9 +10,25 @@ Optional properties:
        Should be given if trickle charger should be enabled
 - trickle-diode-disable : Do not use internal trickle charger diode
        Should be given if internal trickle charger diode should be disabled
+- init_time,{value} : default time value for first booting
+	init_time properties used to set default time when booting first
+	refer example, and it means "04/29/2016 (Fri)"
+	-- init_time,year : Year
+		: If realworld year over 2000, add 100. and add 2 digits.
+	-- init_time,mon : Month
+		: value = Realworld month - 1
+	-- init_time,mday : Day
+		: value = Realworld day
+	-- init_time,wday : Day of the week,
+		: Monday = 1, Tuesday = 2, Wednesday = 3.....
+
 Example:
        bq32000: rtc@68 {
                compatible = "ti,bq32000";
                trickle-resistor-ohms = <1120>;
                reg = <0x68>;
+	       init_time,year = <116>;
+	       init_time,mon = <3>;
+	       init_time,mday = <29>;
+	       init_time,wday = <5>;
        };
