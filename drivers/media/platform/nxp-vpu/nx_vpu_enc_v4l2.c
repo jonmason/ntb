@@ -497,11 +497,13 @@ static int vidioc_s_fmt(struct file *file, void *priv, struct v4l2_format *f)
 		ctx->height = pix_fmt_mp->height;
 		ctx->chromaInterleave = (fmt->fourcc == V4L2_PIX_FMT_YUV420M) ?
 			(0) : (1);
+		enc_ctx->reconChromaInterleave = RECON_CHROMA_INTERLEAVE;
 
 		enc_ctx->seq_para.srcWidth = ctx->width;
 		enc_ctx->seq_para.srcHeight = ctx->height;
 		enc_ctx->seq_para.chromaInterleave = ctx->chromaInterleave;
-		enc_ctx->seq_para.refChromaInterleave = RECON_CHROMA_INTERLEAVE;
+		enc_ctx->seq_para.refChromaInterleave
+			= enc_ctx->reconChromaInterleave;
 
 		ctx->buf_width = ALIGN(ctx->width, 32);
 		ctx->buf_height = ALIGN(ctx->height, 16);
@@ -1307,9 +1309,6 @@ int vpu_enc_encode_frame(struct nx_vpu_ctx *ctx)
 		list_del(&mb_entry->list);
 		ctx->strm_queue_cnt--;
 
-		mb_entry->vb.v4l2_buf.reserved = (runArg.frameType == 0) ?
-			(V4L2_BUF_FLAG_KEYFRAME) : (V4L2_BUF_FLAG_PFRAME);
-
 		vb2_set_plane_payload(&mb_entry->vb, 0, ctx->strm_size);
 
 		vb2_buffer_done(&mb_entry->vb, VB2_BUF_STATE_DONE);
@@ -1332,14 +1331,21 @@ int alloc_encoder_memory(struct nx_vpu_ctx *ctx)
 	height = ALIGN(ctx->height, 16);
 
 	if (ctx->codec_mode != CODEC_STD_MJPG) {
+		int num;
+		uint32_t format;
+
+		if (enc_ctx->reconChromaInterleave == 0) {
+			num = 3;
+			format = V4L2_PIX_FMT_YUV420M;
+		} else {
+			num = 2;
+			format = V4L2_PIX_FMT_NV12M;
+		}
+
 		for (i = 0 ; i < 2 ; i++) {
-#if RECON_CHROMA_INTERLEAVE
 			enc_ctx->ref_recon_buf[i] = nx_alloc_frame_memory(drv,
-				width, height, 3, V4L2_PIX_FMT_YUV420M, 64);
-#else
-			enc_ctx->ref_recon_buf[i] = nx_alloc_frame_memory(drv,
-				width, height, 2, V4L2_PIX_FMT_NV12M, 64);
-#endif
+				width, height, num, format, 64);
+
 			if (enc_ctx->ref_recon_buf[i] == 0) {
 				NX_ErrMsg(("alloc(%d,%d,..) failed(recon%d)\n",
 					width, height, i));

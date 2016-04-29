@@ -621,21 +621,50 @@ int vpu_dec_open_instance(struct nx_vpu_ctx *ctx)
 		ctx->codec_mode = CODEC_STD_MPEG2;
 		break;
 	case V4L2_PIX_FMT_MPEG4:
+		ctx->codec_mode = CODEC_STD_MPEG4;
+		break;
 	case V4L2_PIX_FMT_XVID:
 		ctx->codec_mode = CODEC_STD_MPEG4;
+		openArg.mp4Class = 2;
+		break;
+	case V4L2_PIX_FMT_DIV4:
+	case V4L2_PIX_FMT_DIVX:
+		ctx->codec_mode = CODEC_STD_MPEG4;
+		openArg.mp4Class = 5;
+		break;
+	case V4L2_PIX_FMT_DIV5:
+	case V4L2_PIX_FMT_DIV6:
+		ctx->codec_mode = CODEC_STD_MPEG4;
+		openArg.mp4Class = 1;
 		break;
 	case V4L2_PIX_FMT_H263:
 		ctx->codec_mode = CODEC_STD_H263;
+		break;
+	case V4L2_PIX_FMT_DIV3:
+		ctx->codec_mode = CODEC_STD_DIV3;
+		break;
+	case V4L2_PIX_FMT_WMV9:
+	case V4L2_PIX_FMT_WVC1:
+		ctx->codec_mode = CODEC_STD_VC1;
+		break;
+	case V4L2_PIX_FMT_RV8:
+	case V4L2_PIX_FMT_RV9:
+		ctx->codec_mode = CODEC_STD_RV;
+		break;
+	case V4L2_PIX_FMT_FLV1:
+		ctx->codec_mode = CODEC_STD_MPEG4;
+		openArg.mp4Class = 256;
+		break;
+	case V4L2_PIX_FMT_THEORA:
+		ctx->codec_mode = CODEC_STD_THO;
 		break;
 	case V4L2_PIX_FMT_VP8:
 		ctx->codec_mode = CODEC_STD_VP8;
 		break;
 #if 0
-		ctx->codec_mode = CODEC_STD_DIV3;
-		ctx->codec_mode = CODEC_STD_RV;
-		ctx->codec_mode = CODEC_STD_VC1;
-		ctx->codec_mode = CODEC_STD_THO;
+	case V4L2_PIX_FMT_MJPEG:		/* TBD */
 		ctx->codec_mode = CODEC_STD_MJPG;
+		break;
 #endif
 	default:
 		NX_ErrMsg(("Invalid codec type(fourcc = %x)!!!\n",
@@ -949,7 +978,7 @@ int vpu_dec_decode_slice(struct nx_vpu_ctx *ctx)
 #endif
 
 		decArg.eos = vbuf->flags;
-		timestamp.tv_sec = vbuf->timestamp.tv_usec;
+		timestamp.tv_sec = vbuf->timestamp.tv_sec;
 		timestamp.tv_usec = vbuf->timestamp.tv_usec;
 
 		/* spin_unlock_irqrestore(&dev->irqlock, flags); */
@@ -1000,11 +1029,13 @@ int vpu_dec_decode_slice(struct nx_vpu_ctx *ctx)
 		}
 
 		spin_unlock_irqrestore(&dev->irqlock, flags);
-	} else if ((decArg.indexFrameDisplay < 0) &&
-		(decArg.indexFrameDecoded >= 0)) {
+	} else if (decArg.indexFrameDisplay == -3) {
 		NX_DbgMsg(INFO_MSG, ("delayed Output(%d)\n",
 			decArg.indexFrameDisplay));
 		dec_ctx->delay_frm = 1;
+	} else if (decArg.indexFrameDisplay == -2) {
+		NX_DbgMsg(INFO_MSG, ("Skip Frame(%d)\n"));
+		dec_ctx->delay_frm = -1;
 	} else {
 		NX_ErrMsg(("There is not decoded img!!!\n"));
 		dec_ctx->delay_frm = -1;
@@ -1042,12 +1073,11 @@ int vpu_dec_decode_slice(struct nx_vpu_ctx *ctx)
 		list_del(&buf->list);
 		ctx->img_queue_cnt--;
 
-		buf->vb.v4l2_buf.reserved2 = dec_ctx->frm_type[idx];
-		buf->vb.v4l2_buf.field = dec_ctx->interlace_flg[idx];
-		buf->vb.v4l2_buf.reserved = dec_ctx->reliable_0_100[idx];
-		buf->vb.v4l2_buf.timestamp.tv_sec =
+		vbuf = to_vb2_v4l2_buffer(&buf->vb);
+		vbuf->field = dec_ctx->interlace_flg[idx];
+		vbuf->timestamp.tv_sec =
 			dec_ctx->timeStamp[idx].tv_sec;
-		buf->vb.v4l2_buf.timestamp.tv_usec =
+		vbuf->timestamp.tv_usec =
 			dec_ctx->timeStamp[idx].tv_usec;
 
 		vb2_buffer_done(&buf->vb, VB2_BUF_STATE_DONE);

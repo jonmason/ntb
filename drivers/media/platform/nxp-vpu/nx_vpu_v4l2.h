@@ -88,6 +88,8 @@ struct vpu_enc_ctx {
 
 	union vpu_enc_get_header_arg seq_info;	/* TBD */
 	struct vpu_enc_seq_arg seq_para;	/* TBD */
+
+	int reconChromaInterleave;
 };
 
 struct vpu_dec_ctx {

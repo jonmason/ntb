@@ -350,11 +350,6 @@ static void VPU_EncDefaultParam(struct vpu_enc_info *pEncInfo)
 	pEncInfo->MEUseZeroPmv = 0;
 	pEncInfo->MESearchRange = 1;
 	pEncInfo->MEBlockMode = 0;	/* Use All Macro Block Type */
-
-	/* decoder(0), cbcr interleve(0), bypass(0), burst(0), merge(3),
-		maptype(linear), wayshape(15) */
-	pEncInfo->cacheConfig = MaverickCache2Config(0,
-		pEncInfo->cbcrInterleave, 0, 0, 3, 0, 15);
 }
 
 static int VPU_EncSeqCommand(struct nx_vpu_codec_inst *pInst)
@@ -571,6 +566,11 @@ static int VPU_EncSetFrameBufCommand(struct nx_vpu_codec_inst
 		pEncInfo->srcHeight))
 		return VPU_RET_ERR_SRAM;
 
+	/* decoder(0), cbcr interleve(0), bypass(0), burst(0), merge(3),
+		maptype(linear), wayshape(15) */
+	pEncInfo->cacheConfig = MaverickCache2Config(0,
+		pEncInfo->cbcrInterleaveRefFrame, 0, 0, 3, 0, 15);
+
 	SetTiledMapType(VPU_LINEAR_FRAME_MAP, frameBufStride,
 		pEncInfo->cbcrInterleaveRefFrame);
 
@@ -781,8 +781,8 @@ static int VPU_EncOneFrameCommand(struct nx_vpu_codec_inst *pInst,
 	} else {
 		/* Registering Source Frame Buffer information */
 		/* Hide GDI IF under FW level */
-		/*if (runArg->inImgBuffer.format == FOURCC_NV12)
-			pEncInfo->cbcrInterleave = 1;*/
+		if (runArg->inImgBuffer.planes == 2)
+			pEncInfo->cbcrInterleave = 1;
 
 		VpuWriteReg(CMD_ENC_PIC_SRC_INDEX, 2);
 		VpuWriteReg(CMD_ENC_PIC_SRC_STRIDE,

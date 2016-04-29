@@ -188,9 +188,11 @@ int nx_vpu_try_run(struct nx_vpu_v4l2 *dev)
 		break;
 
 	case DEC_BUF_FLUSH:
-		ret = NX_VpuDecFlush(ctx->hInst);
-		if (ret != 0)
-			dev_err(err, "dec_flush() is failed\n");
+		if (ctx->is_initialized) {
+			ret = NX_VpuDecFlush(ctx->hInst);
+			if (ret != 0)
+				dev_err(err, "dec_flush() is failed\n");
+		}
 		break;
 
 	case SEQ_END:
@@ -263,6 +265,31 @@ static struct nx_vpu_fmt formats[] = {
 		.num_planes = 1,
 	},
 	{
+		.name = "DIV3 Stream",
+		.fourcc = V4L2_PIX_FMT_DIV3,
+		.num_planes = 1,
+	},
+	{
+		.name = "DIV4 Stream",
+		.fourcc = V4L2_PIX_FMT_DIV4,
+		.num_planes = 1,
+	},
+	{
+		.name = "DIV5 Stream",
+		.fourcc = V4L2_PIX_FMT_DIV5,
+		.num_planes = 1,
+	},
+	{
+		.name = "DIV6 Stream",
+		.fourcc = V4L2_PIX_FMT_DIV6,
+		.num_planes = 1,
+	},
+	{
+		.name = "DIVX Stream",
+		.fourcc = V4L2_PIX_FMT_DIVX,
+		.num_planes = 1,
+	},
+	{
 		.name = "H263 Stream",
 		.fourcc = V4L2_PIX_FMT_H263,
 		.num_planes = 1,
@@ -273,8 +300,43 @@ static struct nx_vpu_fmt formats[] = {
 		.num_planes = 1,
 	},
 	{
+		.name = "WMV9 Stream",
+		.fourcc = V4L2_PIX_FMT_WMV9,
+		.num_planes = 1,
+	},
+	{
+		.name = "VC1 Stream",
+		.fourcc = V4L2_PIX_FMT_WVC1,
+		.num_planes = 1,
+	},
+	{
+		.name = "RV8 Stream",
+		.fourcc = V4L2_PIX_FMT_RV8,
+		.num_planes = 1,
+	},
+	{
+		.name = "RV9/10 Stream",
+		.fourcc = V4L2_PIX_FMT_RV9,
+		.num_planes = 1,
+	},
+	{
 		.name = "VP8 Stream",
 		.fourcc = V4L2_PIX_FMT_VP8,
+		.num_planes = 1,
+	},
+	{
+		.name = "SORENSON SPARK Stream",
+		.fourcc = V4L2_PIX_FMT_FLV1,
+		.num_planes = 1,
+	},
+	{
+		.name = "THEORA Stream",
+		.fourcc = V4L2_PIX_FMT_THEORA,
+		.num_planes = 1,
+	},
+	{
+		.name = "JPEG Stream",
+		.fourcc = V4L2_PIX_FMT_MJPEG,
 		.num_planes = 1,
 	},
 };
@@ -842,6 +904,8 @@ static int nx_vpu_close(struct file *file)
 
 	FUNC_IN();
 
+	mutex_lock(&dev->dev_mutex);
+
 	if (ctx->is_initialized) {
 		ctx->vpu_cmd = SEQ_END;
 		nx_vpu_try_run(dev);
@@ -851,8 +915,6 @@ static int nx_vpu_close(struct file *file)
 		else
 			free_decoder_memory(ctx);
 	}
-
-	mutex_lock(&dev->vpu_mutex);
 
 #ifdef ENABLE_POWER_SAVING
 	if (dev->cur_num_instance == 0) {
@@ -882,7 +944,7 @@ static int nx_vpu_close(struct file *file)
 	dev->ctx[ctx->idx] = 0;
 	kfree(ctx);
 
-	mutex_unlock(&dev->vpu_mutex);
+	mutex_unlock(&dev->dev_mutex);
 
 	return 0;
 }

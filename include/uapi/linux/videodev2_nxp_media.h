@@ -20,6 +20,23 @@
 #define _VIDEODEV2_NXP_MEDIA_H
 
 /*
+ * compressed formats
+ */
+
+#define V4L2_PIX_FMT_DIV3			v4l2_fourcc('D', 'I', 'V', '3')
+#define V4L2_PIX_FMT_DIV4			v4l2_fourcc('D', 'I', 'V', '4')
+#define V4L2_PIX_FMT_DIV5			v4l2_fourcc('D', 'I', 'V', '5')
+#define V4L2_PIX_FMT_DIV6			v4l2_fourcc('D', 'I', 'V', '6')
+#define V4L2_PIX_FMT_DIVX			v4l2_fourcc('D', 'I', 'V', 'X')
+#define V4L2_PIX_FMT_RV8			v4l2_fourcc('R', 'V', '3', '0')
+#define V4L2_PIX_FMT_RV9			v4l2_fourcc('R', 'V', '4', '0')
+#define V4L2_PIX_FMT_WMV9			v4l2_fourcc('W', 'M', 'V', '3')
+#define V4L2_PIX_FMT_WVC1			v4l2_fourcc('W', 'V', 'C', '1')
+#define V4L2_PIX_FMT_FLV1			v4l2_fourcc('F', 'L', 'V', '1')
+#define V4L2_PIX_FMT_THEORA			v4l2_fourcc('T', 'H', 'E', 'O')
+
+
+/*
  * C O N T R O L S
  */
 
