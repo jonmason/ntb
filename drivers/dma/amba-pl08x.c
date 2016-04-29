@@ -1167,10 +1167,7 @@ static int pl08x_fill_llis_for_desc(struct pl08x_driver_data *pl08x,
 	if (txd->cyclic) {
 		/* Link back to the first LLI. */
 		last_lli[PL080_LLI_LLI] = txd->llis_bus | bd.lli_bus;
-		/* add wait_to flush dma buffer */
-		if (pl08x->pd->slave_channels->wait_flush_dma) {
-			txd->lli_num = num_llis;
-		}
+		txd->lli_num = num_llis;
 	} else {
 		/* The final LLI terminates the LLI. */
 		last_lli[PL080_LLI_LLI] = 0;
