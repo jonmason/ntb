@@ -4163,32 +4163,16 @@ static int rt5659_hw_params(struct snd_pcm_substream *substream,
 		snd_soc_update_bits(codec, RT5659_ADDA_CLK_1,
 			RT5659_DAC_OSR_MASK | RT5659_ADC_OSR_MASK,
 			RT5659_DAC_OSR_32 | RT5659_ADC_OSR_32);
-		if (dai->id == RT5659_AIF1)
-			snd_soc_update_bits(codec, RT5659_ASRC_2,
-				RT5659_DA_STO_T_MASK |
-				RT5659_AD_STO1_T_MASK, 0);
 		break;
 	case 96000:
 		snd_soc_update_bits(codec, RT5659_ADDA_CLK_1,
 			RT5659_DAC_OSR_MASK | RT5659_ADC_OSR_MASK,
 			RT5659_DAC_OSR_64 | RT5659_ADC_OSR_64);
-		if (dai->id == RT5659_AIF1)
-			snd_soc_update_bits(codec, RT5659_ASRC_2,
-				RT5659_DA_STO_T_MASK |
-				RT5659_AD_STO1_T_MASK,
-				1 << RT5659_DA_STO_T_SFT |
-				1 << RT5659_AD_STO1_T_SFT);
 		break;
 	default:
 		snd_soc_update_bits(codec, RT5659_ADDA_CLK_1,
 			RT5659_DAC_OSR_MASK | RT5659_ADC_OSR_MASK,
 			RT5659_DAC_OSR_128 | RT5659_ADC_OSR_128);
-		if (dai->id == RT5659_AIF1)
-			snd_soc_update_bits(codec, RT5659_ASRC_2,
-				RT5659_DA_STO_T_MASK |
-				RT5659_AD_STO1_T_MASK,
-				1 << RT5659_DA_STO_T_SFT |
-				1 << RT5659_AD_STO1_T_SFT);
 		break;
 	}
 
