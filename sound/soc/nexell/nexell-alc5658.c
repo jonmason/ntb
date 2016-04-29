@@ -194,7 +194,6 @@ static const struct snd_soc_dapm_widget alc5658_dapm_widgets[] = {
 	/* TODO: change initial path */
 	SND_SOC_DAPM_HP("Headphone Jack", NULL),
 	/* TODO: change initial path */
-	SND_SOC_DAPM_MIC("Headset Mic", NULL),
 	SND_SOC_DAPM_MIC("Main Mic", NULL),
 };
 
@@ -206,9 +205,6 @@ static const struct snd_soc_dapm_route alc5658_audio_map[] = {
 	/* speaker connected to HPOL, HPOR */ /* TODO: change initial path */
 	{"Ext Spk", NULL, "HPOL"},
 	{"Ext Spk", NULL, "HPOR"},
-	/* Headset Mic connected to IN1P */
-	{"IN1P", NULL, "MICBIAS1"},
-	{"IN1P", NULL, "Headset Mic"},
 	/* Main Mic Connected to IN2P */
 	{"IN2P", NULL, "MICBIAS1"},
 	{"IN2P", NULL, "Main Mic"},
