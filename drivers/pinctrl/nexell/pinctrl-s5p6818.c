@@ -488,8 +488,14 @@ static int s5p6818_alive_irq_init(struct nexell_pinctrl_drv_data *d)
 
 	bank = d->ctrl->pin_banks;
 	for (i = 0; i < d->ctrl->nr_banks; ++i, ++bank) {
+		void __iomem *base = bank->virt_base;
+
 		if (bank->eint_type != EINT_TYPE_WKUP)
 			continue;
+
+		/* clear pending, disable irq detect */
+		writel(-1, base + ALIVE_INT_RESET);
+		writel(-1, base + ALIVE_INT_STATUS);
 
 		ret =
 		    devm_request_irq(dev, bank->irq, s5p6818_alive_irq_handler,
