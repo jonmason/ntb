@@ -59,7 +59,7 @@ struct nx_pcm_runtime_data {
 	struct dma_chan  *dma_chan;
 	struct nx_pcm_dma_param *dma_param;
 	/* dbg dma */
-	unsigned int mem_area;
+	void *mem_area;
 	long mem_len;
 	unsigned int mem_offs;
 	long long period_time_us;

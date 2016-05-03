@@ -92,7 +92,7 @@ static void nx_pcm_file_mem_allocate(char *filename,
 
 	prtd->mem_len = (sample_rate * sample_ch * (sample_bits/8))
 			* DUMP_DMA_TIME;
-	prtd->mem_area = (uint)vzalloc(prtd->mem_len);
+	prtd->mem_area = vzalloc(prtd->mem_len);
 
 	/* delete previous file */
 #ifndef DUMP_DMA_CONTINUOUS
@@ -104,7 +104,7 @@ static void nx_pcm_file_mem_allocate(char *filename,
 		set_fs(old_fs);
 	}
 #endif
-	dev_dbg(prtd->dev, "file mem = 0x%08x (%ld = rate:%d, ch:%d, bits:%d,",
+	dev_dbg(prtd->dev, "file mem = 0x%p (%ld = rate:%d, ch:%d, bits:%d,",
 		 prtd->mem_area, prtd->mem_len, sample_rate, sample_ch,
 		 sample_bits);
 	dev_dbg(prtd->dev, "time:%dsec)\n", DUMP_DMA_TIME);
