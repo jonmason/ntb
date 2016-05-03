@@ -113,6 +113,7 @@ config ARCH_S5P6818
 	select ARM64_ERRATUM_845719
 	select HAVE_S3C2410_I2C if I2C
 	select HAVE_S3C2410_WATCHDOG if WATCHDOG
+	select ARM64_WORKAROUND_CCI400_DVMV7
 	help
 	  This enables support for the NEXELL S5P6818 Architecture
 

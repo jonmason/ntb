@@ -200,6 +200,11 @@ static int asids_init(void)
 		asid_bits = 16;
 	}
 
+#ifdef CONFIG_ARM64_WORKAROUND_CCI400_DVMV7
+/* In DVMv7 protocol, ASID bits must be 8 regardless of cpu core feature */
+	asid_bits = 8;
+#endif
+
 	/* If we end up with more CPUs than ASIDs, expect things to crash */
 	WARN_ON(NUM_USER_ASIDS < num_possible_cpus());
 	atomic64_set(&asid_generation, ASID_FIRST_VERSION);
