@@ -29,7 +29,7 @@
 	samsung,pwm-outputs = <0>, <1>;
 };
 
-&i2c_gpio4 {
+&i2c_gpio5 {
 	status = "disabled";
 };
 
