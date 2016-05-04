@@ -45,8 +45,6 @@ static uint32_t *gstCodaClockEnRegVir;
 static uint32_t *gstIsolateBase;
 static uint32_t *gstAliveBase;
 
-static uint32_t *gstTieoff69;
-static uint32_t *gstTieoff131;
 
 static struct nx_vpu_codec_inst gstVpuInstance[NX_MAX_VPU_INST_SPACE];
 
@@ -61,29 +59,11 @@ static unsigned int VPU_IsBusy(void);
  *--------------------------------------------------------------------------- */
 #define VPU_ALIVEGATE_REG		0xC0010800
 #define VPU_NISOLATE_REG		0xC0010D00
-#define VPU_NPRECHARGE_REG		0xC0010D04
-#define VPU_NPOWERUP_REG		0xC0010D08
-#define VPU_NPOWERACK_REG		0xC0010D0C
 #define CODA960CLKENB_REG		0xC00C7000
 
 #define	POWER_PMU_VPU_MASK		0x00000002
 
 #if defined(CONFIG_ARCH_S5P6818)
-
-#if 1
-#define	TIEOFF_REG131			0xC001120C
-
-#define	VPU_ASYNCXUI0_CSYSACK		(1<<14)
-#define	VPU_ASYNCXUI0_CACTIVE		(1<<15)
-#define	VPU_ASYNCXUI1_CSYSACK		(1<<16)
-#define	VPU_ASYNCXUI1_CACTIVE		(1<<17)
-
-#define	TIEOFF_REG69			0xC0011114
-#define	VPU_ASYNCXUI0_CSYSREQ		(1<<3)
-#define	VPU_ASYNCXUI1_CSYSREQ		(1<<4)
-#endif
-
-
 /*	Async XUI Power Down
  *
  *	Step 1. Waiting until CACTIVE to High
@@ -96,50 +76,36 @@ static void NX_ASYNCXUI_PowerDown(void)
 
 	FUNC_IN();
 
-#if 0
-	nx_tieoff_set(NX_TIEOFF_INST_ASYNCXUI0_CSYSREQ, 0);
-	nx_tieoff_set(NX_TIEOFF_INST_ASYNCXUI1_CSYSREQ, 0);
-
-	nx_tieoff_set(NX_TIEOFF_INST_CODA960_ASYNCXIU0_CSYSACK_S, 0);
-	nx_tieoff_set(NX_TIEOFF_INST_CODA960_ASYNCXIU0_CACTIVE_S, 0);
-	nx_tieoff_set(NX_TIEOFF_INST_CODA960_ASYNCXIU1_CSYSACK_S, 0);
-	nx_tieoff_set(NX_TIEOFF_INST_CODA960_ASYNCXIU1_CACTIVE_S, 0);
-#else
 	/* Apply To Async XUI 0 */
 
 	/* Step 1. Waiting until CACTIVE to High */
 	do {
-		tmpVal = ReadReg32(gstTieoff131);
-	} while (!(tmpVal&VPU_ASYNCXUI0_CACTIVE));
+		tmpVal = nx_tieoff_get(NX_TIEOFF_Inst_CODA960_ASYNCXIU0_CACTIVE_S);
+	} while (!tmpVal);
 
 	/* Step 2. Set CSYSREQ to Low */
-	tmpVal = ReadReg32(gstTieoff69);
-	tmpVal &= (~VPU_ASYNCXUI0_CSYSREQ);
-	WriteReg32(gstTieoff69, tmpVal);
+	nx_tieoff_set(NX_TIEOFF_Inst_ASYNCXUI0_CSYSREQ, 0);
 
 	/*Step 3. Waiting until CSYSACK to Low */
 	do {
-		tmpVal = ReadReg32(gstTieoff131);
-	} while (tmpVal&VPU_ASYNCXUI0_CSYSACK);
-
+		tmpVal = nx_tieoff_get(NX_TIEOFF_Inst_CODA960_ASYNCXIU0_CSYSACK_S);
+	} while (tmpVal);
 
 	/* Apply To Async XUI 1 */
 
 	/* Step 1. Waiting until CACTIVE to High */
 	do {
-		tmpVal = ReadReg32(gstTieoff131);
-	} while (!(tmpVal&VPU_ASYNCXUI1_CACTIVE));
+		tmpVal = nx_tieoff_get(NX_TIEOFF_Inst_CODA960_ASYNCXIU1_CACTIVE_S);
+	} while (!tmpVal);
 
 	/* Step 2. Set CSYSREQ to Low */
-	tmpVal = ReadReg32(gstTieoff69);
-	tmpVal &= (~VPU_ASYNCXUI1_CSYSREQ);
-	WriteReg32(gstTieoff69, tmpVal);
+	nx_tieoff_set(NX_TIEOFF_Inst_ASYNCXUI1_CSYSREQ, 0);
 
 	/* Step 3. Waiting until CSYSACK to Low */
 	do {
-		tmpVal = ReadReg32(gstTieoff131);
-	} while (tmpVal&VPU_ASYNCXUI1_CSYSACK);
-#endif
+		tmpVal = nx_tieoff_get(NX_TIEOFF_Inst_CODA960_ASYNCXIU1_CSYSACK_S);
+	} while (tmpVal);
+
 
 	FUNC_OUT();
 }
@@ -155,39 +121,25 @@ static void NX_ASYNCXUI_PowerUp(void)
 
 	FUNC_IN();
 
-#if 0
-	nx_tieoff_set(NX_TIEOFF_INST_ASYNCXUI0_CSYSREQ, 1);
-	nx_tieoff_set(NX_TIEOFF_INST_ASYNCXUI1_CSYSREQ, 1);
-
-	nx_tieoff_set(NX_TIEOFF_INST_CODA960_ASYNCXIU0_CSYSACK_S, 1);
-	nx_tieoff_set(NX_TIEOFF_INST_CODA960_ASYNCXIU0_CACTIVE_S, 1);
-	nx_tieoff_set(NX_TIEOFF_INST_CODA960_ASYNCXIU1_CSYSACK_S, 1);
-	nx_tieoff_set(NX_TIEOFF_INST_CODA960_ASYNCXIU1_CACTIVE_S, 1);
-#else
 	/* Apply To Async XUI 0 */
 
 	/* Step 1. Set CSYSREQ to High */
-	tmpVal = ReadReg32(gstTieoff69);
-	tmpVal |= VPU_ASYNCXUI0_CSYSREQ;
-	WriteReg32(gstTieoff69, tmpVal);
+	nx_tieoff_set(NX_TIEOFF_Inst_ASYNCXUI0_CSYSREQ, 1);
 
 	/* Step 2. Waiting until CSYSACK to High */
 	do {
-		tmpVal = ReadReg32(gstTieoff131);
-	} while (!(tmpVal&VPU_ASYNCXUI0_CSYSACK));
+		tmpVal = nx_tieoff_get(NX_TIEOFF_Inst_CODA960_ASYNCXIU0_CSYSACK_S);
+	} while (!tmpVal);
 
 	/* Apply To Async XUI 1 */
 
 	/* Step 1. Set CSYSREQ to High */
-	tmpVal = ReadReg32(gstTieoff69);
-	tmpVal |= VPU_ASYNCXUI1_CSYSREQ;
-	WriteReg32(gstTieoff69, tmpVal);
+	nx_tieoff_set(NX_TIEOFF_Inst_ASYNCXUI1_CSYSREQ, 1);
 
 	/* Step 2. Waiting until CSYSACK to High */
 	do {
-		tmpVal = ReadReg32(gstTieoff131);
-	} while (!(tmpVal&VPU_ASYNCXUI1_CSYSACK));
-#endif
+		tmpVal = nx_tieoff_get(NX_TIEOFF_Inst_CODA960_ASYNCXIU1_CSYSACK_S);
+	} while (!tmpVal);
 
 	FUNC_OUT();
 }
@@ -708,12 +660,6 @@ int NX_VpuParaInitialized(void *dev)
 	gstCodaClockEnRegVir = (uint32_t *)devm_ioremap_nocache(dev,
 		CODA960CLKENB_REG, 4);
 	if (!gstCodaClockEnRegVir)
-		return -EBUSY;
-
-	gstTieoff69 = (uint32_t *)devm_ioremap_nocache(dev, TIEOFF_REG69, 128);
-	gstTieoff131 = (uint32_t *)devm_ioremap_nocache(dev, TIEOFF_REG131,
-		128);
-	if (!gstTieoff69 || !gstTieoff131)
 		return -EBUSY;
 
 	gstIsolateBase = (uint32_t *)devm_ioremap_nocache(dev,
