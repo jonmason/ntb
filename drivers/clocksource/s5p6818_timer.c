@@ -279,7 +279,7 @@ static int __init timer_source_of_init(struct device_node *node)
 /*
  * Timer clock event
  */
-static inline void timer_event_resume(struct clock_event_device *evt)
+static void timer_event_resume(struct clock_event_device *evt)
 {
 	struct timer_of_dev *dev = get_timer_dev();
 	struct timer_info *info = &dev->timer_event;
@@ -298,8 +298,24 @@ static inline void timer_event_resume(struct clock_event_device *evt)
 	timer_clock(base, ch, info->tmux, info->prescale);
 }
 
-static void timer_event_set_mode(enum clock_event_mode mode,
-				 struct clock_event_device *evt)
+static int timer_event_shutdown(struct clock_event_device *evt)
+{
+	struct timer_of_dev *dev = get_timer_dev();
+	struct timer_info *info = &dev->timer_event;
+	void __iomem *base = dev->base;
+	int ch = info->channel;
+
+	timer_stop(base, ch, 0);
+
+	return 0;
+}
+
+static int timer_event_set_oneshot(struct clock_event_device *evt)
+{
+	return 0;
+}
+
+static int timer_event_set_periodic(struct clock_event_device *evt)
 {
 	struct timer_of_dev *dev = get_timer_dev();
 	struct timer_info *info = &dev->timer_event;
@@ -307,29 +323,11 @@ static void timer_event_set_mode(enum clock_event_mode mode,
 	int ch = info->channel;
 	unsigned long cnt = info->tcount;
 
-	pr_debug("%s (ch:%d, mode:0x%x, cnt:%ld)\n", __func__, ch, mode, cnt);
+	timer_stop(base, ch, 0);
+	timer_count(base, ch, cnt);
+	timer_start(base, ch, 1);
 
-	switch (mode) {
-	case CLOCK_EVT_MODE_UNUSED:
-	case CLOCK_EVT_MODE_ONESHOT:
-		break;
-
-	case CLOCK_EVT_MODE_SHUTDOWN:
-		timer_stop(base, ch, 0);
-		break;
-
-	case CLOCK_EVT_MODE_RESUME:
-		timer_event_resume(evt);
-		break;
-	case CLOCK_EVT_MODE_PERIODIC:
-		timer_stop(base, ch, 0);
-		timer_count(base, ch, cnt);
-		timer_start(base, ch, 1);
-		break;
-
-	default:
-		break;
-	}
+	return 0;
 }
 
 static int timer_event_set_next(unsigned long delta,
@@ -354,7 +352,10 @@ static int timer_event_set_next(unsigned long delta,
 static struct clock_event_device timer_clock_event = {
 	.name = "event timer",
 	.features = CLOCK_EVT_FEAT_PERIODIC | CLOCK_EVT_FEAT_ONESHOT,
-	.set_mode = timer_event_set_mode,
+	.set_state_shutdown = timer_event_shutdown,
+	.set_state_periodic = timer_event_set_periodic,
+	.set_state_oneshot = timer_event_set_oneshot,
+	.tick_resume = timer_event_shutdown,
 	.set_next_event = timer_event_set_next,
 	.resume = timer_event_resume,
 	.rating = 50, /* Lower than dummy timer (for 6818) */
