@@ -22,16 +22,19 @@
 
 struct nx_drm_connector {
 	struct drm_connector connector;
-	struct nx_drm_dp_dev *dp_dev;
+	struct drm_encoder *encoder;
+	struct nx_drm_device *display;
 	void *context;		/* device context */
 };
 
 #define to_nx_connector(c)		\
 		container_of(c, struct nx_drm_connector, connector)
 
-int nx_drm_connector_create_and_attach(struct drm_device *drm,
-			struct nx_drm_dp_dev *dp_dev,
-			int to_encoder, void *context);
+struct drm_connector *nx_drm_connector_create_and_attach(
+			struct drm_device *drm,
+			struct nx_drm_device *display,
+			int pipe, enum dp_panel_type panel_type,
+			void *context);
 
 void nx_drm_connector_destroy_and_detach(struct drm_connector *connector);
 

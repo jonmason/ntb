@@ -23,7 +23,7 @@
 struct nx_drm_encoder {
 	struct drm_encoder encoder;
 	int pipe;
-	struct nx_drm_dp_dev *dp_dev;
+	struct nx_drm_device *display;
 	int dpms;
 	void *context;		/* device context */
 };
@@ -32,7 +32,7 @@ struct nx_drm_encoder {
 		container_of(e, struct nx_drm_encoder, encoder)
 
 struct drm_encoder *nx_drm_encoder_create(struct drm_device *drm,
-			struct nx_drm_dp_dev *dp_dev, int type,
+			struct nx_drm_device *display, int type,
 			int pipe, int possible_crtcs, void *context);
 
 #endif

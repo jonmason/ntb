@@ -156,10 +156,10 @@ static int dp_mipi_phy_pll(int bitrate, unsigned int *pllpms,
 	return 0;
 }
 
-int nx_soc_dp_mipi_set_prepare(struct dp_control_dev *ddc,
+int nx_soc_dp_mipi_set_prepare(struct dp_control_dev *dpc,
 			unsigned int flags)
 {
-	struct dp_mipi_dev *dev = ddc->dp_out_dev;
+	struct dp_mipi_dev *dev = dpc->dp_output;
 	int index = MIPI_INDEX;
 	u32 esc_pre_value = MIPI_EXC_PRE_VALUE;
 	int ret = 0;
@@ -196,16 +196,16 @@ int nx_soc_dp_mipi_set_prepare(struct dp_control_dev *ddc,
 	return 0;
 }
 
-int nx_soc_dp_mipi_set_enable(struct dp_control_dev *ddc,
+int nx_soc_dp_mipi_set_enable(struct dp_control_dev *dpc,
 			unsigned int flags)
 {
-	struct dp_mipi_dev *dev = ddc->dp_out_dev;
-	struct dp_sync_info *sync = &ddc->sync;
-	struct dp_ctrl_info *ctrl = &ddc->ctrl;
+	struct dp_mipi_dev *dev = dpc->dp_output;
+	struct dp_sync_info *sync = &dpc->sync;
+	struct dp_ctrl_info *ctrl = &dpc->ctrl;
 	int clkid = dp_clock_mipi;
 	int index = MIPI_INDEX;
 	u32 esc_pre_value = MIPI_EXC_PRE_VALUE;
-	int module = ddc->module;
+	int module = dpc->module;
 	int HFP = sync->h_front_porch;
 	int HBP = sync->h_back_porch;
 	int HS = sync->h_sync_width;
@@ -255,13 +255,13 @@ int nx_soc_dp_mipi_set_enable(struct dp_control_dev *ddc,
 	return 0;
 }
 
-int nx_soc_dp_mipi_set_unprepare(struct dp_control_dev *ddc,
+int nx_soc_dp_mipi_set_unprepare(struct dp_control_dev *dpc,
 			unsigned int flags)
 {
 	return 0;
 }
 
-int nx_soc_dp_mipi_set_disable(struct dp_control_dev *ddc,
+int nx_soc_dp_mipi_set_disable(struct dp_control_dev *dpc,
 			unsigned int flags)
 {
 	int clkid = dp_clock_mipi;

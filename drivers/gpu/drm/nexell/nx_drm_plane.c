@@ -65,14 +65,16 @@ static int nx_drm_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 			uint32_t src_y, uint32_t src_w, uint32_t src_h)
 {
 	struct nx_drm_plane *nx_plane = to_nx_plane(plane);
+	int ret;
 
-	nx_drm_dp_plane_update(plane, fb, crtc_x, crtc_y,
+	ret = nx_drm_dp_plane_update(plane, fb, crtc_x, crtc_y,
 			      crtc_w, crtc_h, src_x >> 16, src_y >> 16,
 			      src_w >> 16, src_h >> 16);
 
-	nx_plane->enabled = true;
+	if (!ret)
+		nx_plane->enabled = true;
 
-	return 0;
+	return ret;
 }
 
 static int nx_drm_plane_disable(struct drm_plane *plane)

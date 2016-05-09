@@ -13,7 +13,6 @@ Required properties for display soc panel driver:
     Documentation/devicetree/bindings/video/display-timing.txt for display
     timing binding details.
 
- - encoder-port: connect encoder port 0 or 1
  - panel-type: lcd type "rgb", "lvds", "mipi"
  - panel-mpu: support mpu type RGB LCD
 
@@ -60,7 +59,6 @@ Board Specific portion:
 
 &dp_drm_lcd {
 	remote-endpoint = <&lcd_panel>;
-	encoder-port = <0>;
 	panel-type = "rgb";
 	panel-mpu = <0>;
 

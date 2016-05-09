@@ -25,9 +25,6 @@
 #define	PHY_BASEADDR_DISPTOP_LIST	\
 		{ PHY_BASEADDR_DISPLAYTOP_MODULE }
 
-#define HDMI_ADDR_OFFSET                                                       \
-	(((PHY_BASEADDR_DISPLAYTOP_MODULE / 0x00100000) % 2) ? 0x100000        \
-							     : 0x000000)
 #define OTHER_ADDR_OFFSET                                                      \
 	(((PHY_BASEADDR_DISPLAYTOP_MODULE / 0x00100000) % 2) ? 0x000000        \
 							     : 0x100000)

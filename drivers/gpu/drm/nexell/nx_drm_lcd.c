@@ -34,62 +34,67 @@
 #include "nx_drm_crtc.h"
 #include "nx_drm_encoder.h"
 #include "nx_drm_connector.h"
+#include "nx_drm_fb.h"
 #include "soc/s5pxx18_drm_dp.h"
 
-struct lcd_mipi_dsi {
+struct mipi_resource {
 	struct mipi_dsi_host mipi_host;
 	struct mipi_dsi_device *mipi_dev;
 	unsigned long flags;
 	enum mipi_dsi_pixel_format format;
 	unsigned int lanes;
-	struct nx_drm_dp_reg r_base;
 };
 
 struct lcd_context {
 	struct drm_connector *connector;
-	struct drm_encoder *encoder;
-	struct gpio_desc *enable_gpio;
-	int encoder_port;
+	int crtc_pipe;
 	struct reset_control *reset;
 	void *base;
-	struct nx_drm_dp_dev *dp_dev;
-	struct lcd_mipi_dsi mipi_dsi;
-	bool panel_timing;
+	struct nx_drm_device *display;
 	struct mutex lock;
+	bool panel_timing;
+	struct gpio_desc *enable_gpio;
+	struct mipi_resource mipi_res;
 };
 
-#define ctx_to_ddc(c)	(struct dp_control_dev *)(&c->dp_dev->ddc)
-#define ctx_to_dsi(c)	(struct lcd_mipi_dsi *)(&c->mipi_dsi)
-#define host_to_dsi(h)	container_of(h, struct lcd_mipi_dsi, mipi_host)
-#define dsi_to_ctx(d)	container_of(d, struct lcd_context, mipi_dsi)
+#define ctx_to_mipi(c)	(struct mipi_resource *)(&c->mipi_res)
+#define host_to_mipi(h)	container_of(h, struct mipi_resource, mipi_host)
+#define mipi_to_ctx(d)	container_of(d, struct lcd_context, mipi_res)
+
+static inline enum dp_panel_type panel_get_type(
+			struct nx_drm_device *display)
+{
+	struct nx_drm_ctrl *ctrl = &display->ctrl;
+
+	return ctrl->dpc.panel_type;
+}
 
 static bool panel_lcd_is_connected(struct device *dev,
 			struct drm_connector *connector)
 {
 	struct lcd_context *ctx = dev_get_drvdata(dev);
-	struct nx_drm_dp_panel *dpp = &ctx->dp_dev->dpp;
-	struct device_node *panel_node = dpp->panel_node;
+	struct nx_drm_panel *panel = &ctx->display->panel;
+	struct device_node *panel_node = panel->panel_node;
 
 	DRM_DEBUG_KMS("enter panel node %s\n",
 		panel_node ? "exist" : "not exist");
 
 	if (panel_node) {
-		struct drm_panel *panel = of_drm_find_panel(panel_node);
+		struct drm_panel *drm_panel = of_drm_find_panel(panel_node);
 
-		if (panel) {
-			dpp->panel = panel;
-			drm_panel_attach(panel, connector);
+		if (drm_panel) {
+			panel->panel = drm_panel;
+			drm_panel_attach(drm_panel, connector);
 		}
 	}
 
 	if (!panel_node && false == ctx->panel_timing) {
-		struct dp_control_dev *ddc = ctx_to_ddc(ctx);
+		enum dp_panel_type panel_type = panel_get_type(ctx->display);
 
 		DRM_ERROR("not exist %s panel node and display timing !\n",
-			dp_panel_type_lcd  == ddc->panel_type ? "RGB"  :
-			dp_panel_type_lvds == ddc->panel_type ? "LVDS" :
-			dp_panel_type_mipi == ddc->panel_type ? "MiPi" :
-			dp_panel_type_hdmi == ddc->panel_type ? "HDMI" :
+			dp_panel_type_lcd  == panel_type ? "RGB"  :
+			dp_panel_type_lvds == panel_type ? "LVDS" :
+			dp_panel_type_mipi == panel_type ? "MiPi" :
 			"unknown");
 
 		return false;
@@ -107,13 +112,13 @@ static int panel_lcd_get_modes(struct device *dev,
 {
 	struct drm_display_mode *mode;
 	struct lcd_context *ctx = dev_get_drvdata(dev);
-	struct nx_drm_dp_panel *dpp = &ctx->dp_dev->dpp;
+	struct nx_drm_panel *panel = &ctx->display->panel;
 
 	DRM_DEBUG_KMS("enter panel %s\n",
-		dpp->panel ? "attached" : "detached");
+		panel->panel ? "attached" : "detached");
 
-	if (dpp->panel)
-		return drm_panel_get_modes(dpp->panel);
+	if (panel->panel)
+		return drm_panel_get_modes(panel->panel);
 
 	mode = drm_mode_create(connector->dev);
 	if (!mode) {
@@ -121,9 +126,9 @@ static int panel_lcd_get_modes(struct device *dev,
 		return 0;
 	}
 
-	drm_display_mode_from_videomode(&dpp->vm, mode);
-	mode->width_mm = dpp->width_mm;
-	mode->height_mm = dpp->height_mm;
+	drm_display_mode_from_videomode(&panel->vm, mode);
+	mode->width_mm = panel->width_mm;
+	mode->height_mm = panel->height_mm;
 	connector->display_info.width_mm = mode->width_mm;
 	connector->display_info.height_mm = mode->height_mm;
 
@@ -140,83 +145,76 @@ static int panel_lcd_check_mode(struct device *dev,
 			struct drm_display_mode *mode)
 {
 	struct lcd_context *ctx = dev_get_drvdata(dev);
-	struct nx_drm_dp_panel *dpp = &ctx->dp_dev->dpp;
+	struct nx_drm_panel *panel = &ctx->display->panel;
 
-	drm_display_mode_to_videomode(mode, &dpp->vm);
+	drm_display_mode_to_videomode(mode, &panel->vm);
+
+	panel->width_mm = mode->width_mm;
+	panel->height_mm = mode->height_mm;
 
 	DRM_DEBUG_KMS("SYNC -> LCD %d x %d mm\n",
-		dpp->width_mm, dpp->height_mm);
-	DRM_DEBUG_KMS("ha:%d, hs:%d, hb:%d, hf:%d\n",
-		dpp->vm.hactive, dpp->vm.hsync_len,
-		dpp->vm.hback_porch, dpp->vm.hfront_porch);
-	DRM_DEBUG_KMS("va:%d, vs:%d, vb:%d, vf:%d\n",
-		dpp->vm.vactive, dpp->vm.vsync_len,
-		dpp->vm.vback_porch, dpp->vm.vfront_porch);
-	DRM_DEBUG_KMS("flags:0x%x\n", dpp->vm.flags);
+		panel->width_mm, panel->height_mm);
+	DRM_DEBUG_KMS("ha:%d, hf:%d, hb:%d, hs:%d\n",
+		panel->vm.hactive, panel->vm.hfront_porch,
+		panel->vm.hback_porch, panel->vm.hsync_len);
+	DRM_DEBUG_KMS("va:%d, vf:%d, vb:%d, vs:%d\n",
+		panel->vm.vactive, panel->vm.vfront_porch,
+		panel->vm.vback_porch, panel->vm.vsync_len);
+	DRM_DEBUG_KMS("flags:0x%x\n", panel->vm.flags);
 
 	return MODE_OK;
+}
+
+bool panel_lcd_mode_fixup(struct device *dev,
+			struct drm_connector *connector,
+			const struct drm_display_mode *mode,
+			struct drm_display_mode *adjusted_mode)
+{
+	return true;
 }
 
 static void panel_lcd_commit(struct device *dev)
 {
 	struct lcd_context *ctx = dev_get_drvdata(dev);
+	struct nx_drm_device *display = ctx->display;
 
-	DRM_DEBUG_KMS("enter\n");
-	nx_soc_dp_device_top_mux(ctx_to_ddc(ctx));
-}
-
-static void panel_lcd_prepare(struct device *dev, struct drm_panel *panel)
-{
-	struct lcd_context *ctx = dev_get_drvdata(dev);
-	struct nx_drm_dp_dev *ddv = ctx->dp_dev;
-
-	nx_drm_dp_lcd_prepare(ddv, panel);
-	drm_panel_prepare(panel);
-}
-
-static void panel_lcd_unprepare(struct device *dev, struct drm_panel *panel)
-{
-	struct lcd_context *ctx = dev_get_drvdata(dev);
-	struct nx_drm_dp_dev *ddv = ctx->dp_dev;
-
-	drm_panel_unprepare(panel);
-	nx_drm_dp_lcd_unprepare(ddv, panel);
+	nx_drm_dp_output_dev_sel(display);
 }
 
 static void panel_lcd_enable(struct device *dev, struct drm_panel *panel)
 {
 	struct lcd_context *ctx = dev_get_drvdata(dev);
-	struct nx_drm_dp_dev *ddv = ctx->dp_dev;
+	struct nx_drm_device *display = ctx->display;
 
-	nx_drm_dp_lcd_prepare(ddv, panel);
+	nx_drm_dp_lcd_prepare(display, panel);
 	drm_panel_prepare(panel);
 
 	drm_panel_enable(panel);
-	nx_drm_dp_lcd_enable(ddv, panel);
+	nx_drm_dp_lcd_enable(display, panel);
 }
 
 static void panel_lcd_disable(struct device *dev, struct drm_panel *panel)
 {
 	struct lcd_context *ctx = dev_get_drvdata(dev);
-	struct nx_drm_dp_dev *ddv = ctx->dp_dev;
+	struct nx_drm_device *display = ctx->display;
 
 	drm_panel_unprepare(panel);
 	drm_panel_disable(panel);
 
-	nx_drm_dp_lcd_unprepare(ddv, panel);
-	nx_drm_dp_lcd_disable(ddv, panel);
+	nx_drm_dp_lcd_unprepare(display, panel);
+	nx_drm_dp_lcd_disable(display, panel);
 }
 
 static void panel_lcd_dmps(struct device *dev, int mode)
 {
 	struct lcd_context *ctx = dev_get_drvdata(dev);
-	struct nx_drm_dp_panel *dpp = &ctx->dp_dev->dpp;
-	struct drm_panel *panel = dpp->panel;
+	struct nx_drm_panel *panel = &ctx->display->panel;
+	struct drm_panel *drm_panel = panel->panel;
 
 	DRM_DEBUG_KMS("dpms.%d\n", mode);
 	switch (mode) {
 	case DRM_MODE_DPMS_ON:
-		panel_lcd_enable(dev, panel);
+		panel_lcd_enable(dev, drm_panel);
 
 		if (!panel && ctx->enable_gpio)
 			gpiod_set_value_cansleep(ctx->enable_gpio, 1);
@@ -225,7 +223,7 @@ static void panel_lcd_dmps(struct device *dev, int mode)
 	case DRM_MODE_DPMS_STANDBY:
 	case DRM_MODE_DPMS_SUSPEND:
 	case DRM_MODE_DPMS_OFF:
-		panel_lcd_disable(dev, panel);
+		panel_lcd_disable(dev, drm_panel);
 
 		if (!panel && ctx->enable_gpio)
 			gpiod_set_value_cansleep(ctx->enable_gpio, 0);
@@ -239,17 +237,17 @@ static void panel_lcd_dmps(struct device *dev, int mode)
 static int panel_mipi_attach(struct mipi_dsi_host *host,
 			struct mipi_dsi_device *device)
 {
-	struct lcd_mipi_dsi *dsi = host_to_dsi(host);
-	struct lcd_context *ctx = dsi_to_ctx(dsi);
-	struct nx_drm_dp_panel *dpp = &ctx->dp_dev->dpp;
+	struct mipi_resource *mipi = host_to_mipi(host);
+	struct lcd_context *ctx = mipi_to_ctx(mipi);
+	struct nx_drm_panel *panel = &ctx->display->panel;
 
-	dsi->lanes = device->lanes;
-	dsi->format = device->format;
-	dsi->flags = device->mode_flags;
-	dsi->mipi_dev = device;
+	mipi->lanes = device->lanes;
+	mipi->format = device->format;
+	mipi->flags = device->mode_flags;
+	mipi->mipi_dev = device;
 
 	/* set panel node */
-	dpp->panel_node = device->dev.of_node;
+	panel->panel_node = device->dev.of_node;
 
 	DRM_INFO("mipi: %s lanes:%d, format:%d, flags:%lx\n",
 		dev_name(&device->dev), device->lanes,
@@ -261,13 +259,13 @@ static int panel_mipi_attach(struct mipi_dsi_host *host,
 static int panel_mipi_detach(struct mipi_dsi_host *host,
 			struct mipi_dsi_device *device)
 {
-	struct lcd_mipi_dsi *dsi = host_to_dsi(host);
-	struct lcd_context *ctx = dsi_to_ctx(dsi);
-	struct nx_drm_dp_panel *dpp = &ctx->dp_dev->dpp;
+	struct mipi_resource *mipi = host_to_mipi(host);
+	struct lcd_context *ctx = mipi_to_ctx(mipi);
+	struct nx_drm_panel *panel = &ctx->display->panel;
 
 	DRM_DEBUG_KMS("enter\n");
 
-	dpp->panel_node = NULL;
+	panel->panel_node = NULL;
 
 	return 0;
 }
@@ -284,15 +282,16 @@ static struct mipi_dsi_host_ops panel_mipi_ops = {
 	.transfer = panel_mipi_transfer,
 };
 
-static struct nx_drm_dp_ops panel_lcd_ops = {
+static struct nx_drm_ops panel_lcd_ops = {
 	.is_connected = panel_lcd_is_connected,
 	.get_modes = panel_lcd_get_modes,
 	.check_mode = panel_lcd_check_mode,
+	.mode_fixup = panel_lcd_mode_fixup,
 	.commit = panel_lcd_commit,
-	.dmps = panel_lcd_dmps,
+	.dpms = panel_lcd_dmps,
 };
 
-static struct nx_drm_dp_dev lcd_dp_dev = {
+static struct nx_drm_device lcd_dp_dev = {
 	.ops = &panel_lcd_ops,
 };
 
@@ -301,46 +300,54 @@ static int panel_lcd_bind(struct device *dev,
 {
 	struct drm_device *drm = data;
 	struct lcd_context *ctx = dev_get_drvdata(dev);
-	struct dp_control_dev *ddc = ctx_to_ddc(ctx);
-	int port = ctx->encoder_port;
+	struct platform_driver *pdrv = to_platform_driver(dev->driver);
+	enum dp_panel_type panel_type = panel_get_type(ctx->display);
+	int pipe = ctx->crtc_pipe;
 	int err;
 
-	DRM_DEBUG_KMS("enter\n");
-
-	err = nx_drm_connector_create_and_attach(drm, ctx->dp_dev, port, ctx);
-	if (0 > err) {
-		DRM_ERROR("fail : create for LCD connector !\n");
-		return -EFAULT;
-	}
+	ctx->connector = nx_drm_connector_create_and_attach(drm,
+			ctx->display, pipe, panel_type, ctx);
+	if (IS_ERR(ctx->connector))
+		goto err_bind;
 
 	if (IS_ENABLED(CONFIG_DRM_NX_MIPI_DSI)) {
-		if (dp_panel_type_mipi == ddc->panel_type) {
-			struct lcd_mipi_dsi *dsi = ctx_to_dsi(ctx);
+		if (dp_panel_type_mipi == panel_type) {
+			struct mipi_resource *mipi = ctx_to_mipi(ctx);
 
-			err = mipi_dsi_host_register(&dsi->mipi_host);
-			if (0 > err)
-				DRM_ERROR("fail : register mipi host !\n");
-
+			err = mipi_dsi_host_register(&mipi->mipi_host);
 		}
 	}
 
-	DRM_DEBUG_KMS("done %d\n", err);
-	return err;
+	if (!err) {
+		struct nx_drm_priv *priv = drm->dev_private;
+
+		if (panel_lcd_is_connected(dev, ctx->connector))
+			priv->force_detect = true;
+
+		return 0;
+	}
+
+err_bind:
+	if (pdrv->remove)
+		pdrv->remove(to_platform_device(dev));
+
+	return 0;
 }
 
 static void panel_lcd_unbind(struct device *dev,
 			struct device *master, void *data)
 {
 	struct lcd_context *ctx = dev_get_drvdata(dev);
-	struct dp_control_dev *ddc = ctx_to_ddc(ctx);
+	enum dp_panel_type panel_type = panel_get_type(ctx->display);
 
-	nx_drm_connector_destroy_and_detach(ctx->connector);
+	if (ctx->connector)
+		nx_drm_connector_destroy_and_detach(ctx->connector);
 
 	if (IS_ENABLED(CONFIG_DRM_NX_MIPI_DSI)) {
-		if (dp_panel_type_mipi == ddc->panel_type) {
-			struct lcd_mipi_dsi *dsi = ctx_to_dsi(ctx);
+		if (dp_panel_type_mipi == panel_type) {
+			struct mipi_resource *mipi = ctx_to_mipi(ctx);
 
-			mipi_dsi_host_unregister(&dsi->mipi_host);
+			mipi_dsi_host_unregister(&mipi->mipi_host);
 		}
 	}
 }
@@ -360,8 +367,8 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 			struct lcd_context *ctx)
 {
 	struct device *dev = &pdev->dev;
-	struct nx_drm_dp_panel *dpp = &ctx->dp_dev->dpp;
-	struct dp_control_dev *ddc = ctx_to_ddc(ctx);
+	struct nx_drm_panel *panel = &ctx->display->panel;
+	struct nx_drm_device *display = ctx->display;
 	struct device_node *node = dev->of_node;
 	struct device_node *np, *tmp;
 	struct display_timing timing;
@@ -370,7 +377,7 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 	DRM_DEBUG_KMS("enter\n");
 
 	np = of_graph_get_remote_port_parent(node);
-	dpp->panel_node = np;
+	panel->panel_node = np;
 	if (!np) {
 		DRM_INFO("not use remote panel node (%s) !\n",
 			node->full_name);
@@ -384,8 +391,9 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 	 */
 	ctx->enable_gpio =
 			devm_gpiod_get_optional(dev, "enable", GPIOD_OUT_LOW);
-	parse_read_prop(np, "width-mm", dpp->width_mm);
-	parse_read_prop(np, "height-mm", dpp->height_mm);
+
+	parse_read_prop(np, "width-mm", panel->width_mm);
+	parse_read_prop(np, "height-mm", panel->height_mm);
 
 	/*
 	 * parse display timing (sync)
@@ -394,7 +402,7 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 	 */
 	err = of_get_display_timing(np, "panel-timing", &timing);
 	if (0 == err) {
-		videomode_from_timing(&timing, &dpp->vm);
+		videomode_from_timing(&timing, &panel->vm);
 		ctx->panel_timing = true;
 	}
 
@@ -421,9 +429,9 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 		}
 	}
 
-	parse_read_prop(np, "encoder-port", ctx->encoder_port);
+	parse_read_prop(np, "crtc-pipe", ctx->crtc_pipe);
 
-	err = nx_drm_dp_parse_dt_panel_type(np, ddc, 0);
+	err = nx_drm_dp_panel_type_parse(dev, np, display);
 	if (0 > err)
 		return err;
 
@@ -437,8 +445,8 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 		return -EINVAL;
 	}
 
-	nx_drm_dp_parse_dt_dp_control(np, ddc);
-	nx_drm_dp_dump_dp_control(ctx->dp_dev);
+	nx_drm_dp_panel_ctrl_parse(np, display);
+	nx_drm_dp_panel_ctrl_dump(ctx->display);
 
 	return 0;
 }
@@ -449,26 +457,32 @@ static int panel_lcd_setup(struct platform_device *pdev,
 	struct device_node *np;
 	struct device *dev = &pdev->dev;
 	struct device_node *node = dev->of_node;
-	struct dp_control_dev *ddc = ctx_to_ddc(ctx);
+	enum dp_panel_type panel_type;
+	struct nx_drm_res *res;
 	int err;
 
-	nx_drm_dp_lcd_base_setup(pdev, &ctx->base, &ctx->reset);
+	panel_type = panel_get_type(ctx->display);
 
-	if (dp_panel_type_mipi == ddc->panel_type) {
-		struct lcd_mipi_dsi *dsi = ctx_to_dsi(ctx);
+	nx_drm_dp_panel_drv_parse(pdev, &ctx->base, &ctx->reset);
+
+	if (dp_panel_type_mipi == panel_type) {
 
 		np = of_find_node_by_name(node, "dp_mipi");
 		if (!np) {
-			DRM_ERROR("fail : not found 'dp_mipi' node (%s)\n",
+			DRM_ERROR("fail : not found 'dp_mipi' node(%s)\n",
 				node->full_name);
 			return -EINVAL;
 		}
-
-		err = nx_drm_dp_lcd_device_setup(pdev,
-				np, &dsi->r_base, ddc->panel_type);
-		if (0 > err)
-			return -EINVAL;
+		res = &ctx->display->res;
 	}
+
+	/* No need for RGB LCD */
+	if (!res)
+		return 0;
+
+	err = nx_drm_dp_panel_res_parse(pdev, np, res, panel_type);
+	if (0 > err)
+		return -EINVAL;
 
 	return 0;
 }
@@ -477,7 +491,7 @@ static int panel_lcd_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct lcd_context *ctx;
-	struct dp_control_dev *ddc;
+	enum dp_panel_type panel_type;
 	int err;
 
 	DRM_DEBUG_KMS("enter (%s)\n", dev_name(dev));
@@ -486,10 +500,8 @@ static int panel_lcd_probe(struct platform_device *pdev)
 	if (IS_ERR(ctx))
 		return -ENOMEM;
 
-	ctx->dp_dev = &lcd_dp_dev;
-	ctx->dp_dev->dev = dev;
-	ddc = ctx_to_ddc(ctx);
-	ddc->dev = dev;
+	ctx->display = &lcd_dp_dev;
+	ctx->display->dev = dev;
 
 	mutex_init(&ctx->lock);
 
@@ -501,12 +513,14 @@ static int panel_lcd_probe(struct platform_device *pdev)
 	if (0 > err)
 		goto err_parse;
 
-	if (IS_ENABLED(CONFIG_DRM_NX_MIPI_DSI)) {
-		if (dp_panel_type_mipi == ddc->panel_type) {
-			struct lcd_mipi_dsi *dsi = ctx_to_dsi(ctx);
+	panel_type = panel_get_type(ctx->display);
 
-			dsi->mipi_host.ops = &panel_mipi_ops;
-			dsi->mipi_host.dev = dev;
+	if (IS_ENABLED(CONFIG_DRM_NX_MIPI_DSI)) {
+		if (dp_panel_type_mipi == panel_type) {
+			struct mipi_resource *mipi = ctx_to_mipi(ctx);
+
+			mipi->mipi_host.ops = &panel_mipi_ops;
+			mipi->mipi_host.dev = dev;
 		}
 	}
 
@@ -527,14 +541,14 @@ static int panel_lcd_remove(struct platform_device *pdev)
 {
 	struct lcd_context *ctx = dev_get_drvdata(&pdev->dev);
 
-	if (ctx) {
-		struct dp_control_dev *ddc = ctx_to_ddc(ctx);
+	if (!ctx)
+		return 0;
 
-		if (ddc->dp_out_dev)
-			devm_kfree(&pdev->dev, ddc->dp_out_dev);
+	nx_drm_dp_panel_res_free(pdev, &ctx->display->res);
+	nx_drm_dp_panel_drv_free(pdev, ctx->base, ctx->reset);
+	nx_drm_dp_panel_type_free(&pdev->dev, ctx->display);
 
-		devm_kfree(&pdev->dev, ctx);
-	}
+	devm_kfree(&pdev->dev, ctx);
 
 	return 0;
 }

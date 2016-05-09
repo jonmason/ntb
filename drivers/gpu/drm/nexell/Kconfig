@@ -40,3 +40,12 @@ config DRM_NX_MIPI_DSI
 	 This selects support for MiPi-DSI display device.
 	 If you want to enable MiPi-DSI display device,
 	 you should selet this option.
+
+config DRM_NX_HDMI
+	bool "HDMI support"
+	depends on DRM_NX
+	select VIDEOMODE_HELPERS
+	help
+	 This selects support for HDMI display out.
+	 If you want to enable HDMI display,
+	 you should selet this option.

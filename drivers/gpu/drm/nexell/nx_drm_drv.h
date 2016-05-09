@@ -29,8 +29,11 @@
 
 struct nx_drm_priv {
 	struct nx_framebuffer_dev *fbdev;
-	int num_crtcs;
+	unsigned int possible_pipes;
+	bool force_detect;
 	struct drm_crtc *crtcs[MAX_CRTCS];
+	int num_crtcs;
+	struct mutex lock;
 };
 
 #endif

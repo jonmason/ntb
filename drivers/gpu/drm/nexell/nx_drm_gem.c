@@ -105,9 +105,9 @@ int nx_drm_gem_create_ioctl(struct drm_device *drm, void *data,
 	/* drop reference from allocate - handle holds it now. */
 	drm_gem_object_unreference_unlocked(gem_obj);
 
-	DRM_DEBUG_DRIVER("alloc dma p:0x%x, v:%p s:%d\n",
+	DRM_DEBUG_DRIVER("alloc dma p:0x%x, v:0x%lx s:%d\n",
 		(unsigned int)cma_obj->paddr,
-		cma_obj->vaddr, (int)gem_obj->size);
+		(unsigned long)cma_obj->vaddr, (int)gem_obj->size);
 
 	return 0;
 

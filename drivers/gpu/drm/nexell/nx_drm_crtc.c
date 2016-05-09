@@ -27,12 +27,12 @@
 #include "nx_drm_gem.h"
 #include "soc/s5pxx18_drm_dp.h"
 
-#define INVALID_IRQ  ((unsigned)-1)
-
 static void nx_drm_crtc_dpms(struct drm_crtc *crtc, int mode)
 {
 	struct drm_device *drm = crtc->dev;
 	struct nx_drm_crtc *nx_crtc = to_nx_crtc(crtc);
+
+	DRM_DEBUG_KMS("enter [CRTC:%d] dpms:%d\n", crtc->base.id, mode);
 
 	if (nx_crtc->dpms_mode == mode) {
 		DRM_DEBUG_KMS("dpms %d same as previous one.\n", mode);
@@ -63,12 +63,15 @@ err_dpms:
 
 static void nx_drm_crtc_prepare(struct drm_crtc *crtc)
 {
-	/* drm framework doesn't check NULL. */
+	DRM_DEBUG_KMS("enter\n");
 }
 
 static void nx_drm_crtc_commit(struct drm_crtc *crtc)
 {
 	struct nx_drm_crtc *nx_crtc = to_nx_crtc(crtc);
+
+	DRM_DEBUG_KMS("enter current [CRTC:%d] dpms:%d\n",
+		crtc->base.id, nx_crtc->dpms_mode);
 
 	/*
 	 * when set_crtc is requested from user or at booting time,
@@ -77,12 +80,10 @@ static void nx_drm_crtc_commit(struct drm_crtc *crtc)
 	 * with DRM_MODE_DPMS_ON for the hardware power to be on.
 	 */
 	if (nx_crtc->dpms_mode != DRM_MODE_DPMS_ON) {
-		int mode = DRM_MODE_DPMS_ON;
-		/*
-		 * enable hardware(power on) to all encoders hdmi connected
-		 * to current crtc.
-		 */
-		nx_drm_crtc_dpms(crtc, mode);
+		nx_drm_crtc_dpms(crtc, DRM_MODE_DPMS_ON);
+	} else {
+		nx_drm_crtc_dpms(crtc, DRM_MODE_DPMS_OFF);
+		nx_drm_crtc_dpms(crtc, DRM_MODE_DPMS_ON);
 	}
 
 	nx_drm_dp_crtc_commit(crtc);
@@ -102,10 +103,14 @@ static int nx_drm_crtc_mode_set(struct drm_crtc *crtc,
 			struct drm_framebuffer *old_fb)
 {
 	struct drm_framebuffer *fb = crtc->primary->fb;
-	unsigned int crtc_w;
-	unsigned int crtc_h;
+	struct nx_drm_crtc *nx_crtc = to_nx_crtc(crtc);
+	struct videomode vm;
+	unsigned int src_w, src_h, dst_w, dst_h;
 
 	DRM_DEBUG_KMS("enter\n");
+
+	drm_display_mode_to_videomode(mode, &vm);
+	drm_mode_copy(&nx_crtc->current_mode, mode);
 
 	/*
 	 * copy the mode data adjusted by mode_fixup() into crtc->mode
@@ -113,12 +118,14 @@ static int nx_drm_crtc_mode_set(struct drm_crtc *crtc,
 	 */
 	memcpy(&crtc->mode, adjusted_mode, sizeof(*adjusted_mode));
 
-	crtc_w = fb->width - x;
-	crtc_h = fb->height - y;
+	src_w = vm.hactive;
+	src_h = vm.vactive;
+	dst_w = fb->width - x;
+	dst_h = fb->height - y;
 
 	return nx_drm_dp_crtc_mode_set(crtc,
 				crtc->primary, crtc->primary->fb,
-				0, 0, crtc_w, crtc_h, x, y, crtc_w, crtc_h);
+				0, 0, src_w, src_h, x, y, dst_w, dst_h);
 }
 
 static int nx_drm_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
@@ -126,8 +133,12 @@ static int nx_drm_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 {
 	struct drm_framebuffer *fb = crtc->primary->fb;
 	struct nx_drm_crtc *nx_crtc = to_nx_crtc(crtc);
-	unsigned int crtc_w;
-	unsigned int crtc_h;
+	struct videomode vm;
+	unsigned int src_w, src_h, dst_w, dst_h;
+
+	DRM_DEBUG_KMS("enter\n");
+
+	drm_display_mode_to_videomode(&nx_crtc->current_mode, &vm);
 
 	/* when framebuffer changing is requested, crtc's dpms should be on */
 	if (nx_crtc->dpms_mode > DRM_MODE_DPMS_ON) {
@@ -135,17 +146,21 @@ static int nx_drm_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 		return -EPERM;
 	}
 
-	crtc_w = fb->width - x;
-	crtc_h = fb->height - y;
+	src_w = vm.hactive;
+	src_h = vm.vactive;
+	dst_w = fb->width - x;
+	dst_h = fb->height - y;
 
 	return nx_drm_dp_plane_update(crtc->primary, fb, 0, 0,
-				   crtc_w, crtc_h, x, y, crtc_w, crtc_h);
+				   src_w, src_h, x, y, dst_w, dst_h);
 }
 
 static void nx_drm_crtc_disable(struct drm_crtc *crtc)
 {
 	struct drm_plane *plane;
 	int ret;
+
+	DRM_DEBUG_KMS("enter\n");
 
 	nx_drm_crtc_dpms(crtc, DRM_MODE_DPMS_OFF);
 
@@ -301,22 +316,22 @@ static irqreturn_t nx_drm_crtc_interrupt(int irq, void *arg)
 {
 	struct drm_device *drm = arg;
 	struct nx_drm_priv *priv;
-	int pipe;
+	int i;
 
 	priv = drm->dev_private;
 
-	for (pipe = 0; pipe < priv->num_crtcs; pipe++) {
-		struct drm_crtc *crtc = priv->crtcs[pipe];
+	for (i = 0; i < priv->num_crtcs; i++) {
+		struct drm_crtc *crtc = priv->crtcs[i];
 
 		if (crtc) {
 			if (irq == to_nx_crtc(crtc)->pipe_irq) {
-				struct dp_control_dev ddc = { .module = pipe };
+				int pipe = to_nx_crtc(crtc)->pipe;
 
-				drm_handle_vblank(drm, pipe);
+				drm_handle_vblank(drm, i);
 				DUMP_FPS_TIME(pipe);
 
 				/* clear hw pend */
-				nx_soc_dp_device_irq_clear(&ddc);
+				nx_drm_dp_crtc_irq_done(crtc, pipe);
 				break;
 			}
 		}
@@ -403,7 +418,7 @@ static int nx_drm_crtc_parse_dt_setup(struct drm_device *drm,
 	/*
 	 * parse base address
 	 */
-	err = nx_drm_dp_driver_base_setup(drm->platformdev, pipe, &irq, &rsc);
+	err = nx_drm_dp_crtc_drv_parse(drm->platformdev, pipe, &irq, &rsc);
 	if (0 > err)
 		return -EINVAL;
 
@@ -548,6 +563,7 @@ int nx_drm_crtc_init(struct drm_device *drm)
 		priv = drm->dev_private;
 		priv->crtcs[i] = &nx_crtc->crtc;	/* sequentially link */
 		priv->num_crtcs++;
+		priv->possible_pipes |= (1 << pipe);
 
 		nx_crtc->pipe = pipe;
 		nx_crtc->dpms_mode = DRM_MODE_DPMS_OFF;

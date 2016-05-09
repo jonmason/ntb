@@ -23,15 +23,23 @@
 #include "nx_drm_encoder.h"
 #include "soc/s5pxx18_drm_dp.h"
 
+static inline enum dp_panel_type panel_get_type(
+			struct nx_drm_device *display)
+{
+	struct nx_drm_ctrl *ctrl = &display->ctrl;
+
+	return ctrl->dpc.panel_type;
+}
+
 static int nx_drm_connector_get_modes(struct drm_connector *connector)
 {
-	struct nx_drm_dp_dev *dp_dev = to_nx_connector(connector)->dp_dev;
-	struct nx_drm_dp_ops *ops = dp_dev->ops;
+	struct nx_drm_device *display = to_nx_connector(connector)->display;
+	struct nx_drm_ops *ops = display->ops;
 
 	DRM_DEBUG_KMS("enter\n");
 
 	if (ops && ops->get_modes)
-		return ops->get_modes(dp_dev->dev, connector);
+		return ops->get_modes(display->dev, connector);
 
 	DRM_ERROR("fail : create a new display mode.\n");
 	return 0;
@@ -40,8 +48,8 @@ static int nx_drm_connector_get_modes(struct drm_connector *connector)
 static int nx_drm_connector_mode_valid(struct drm_connector *connector,
 			struct drm_display_mode *mode)
 {
-	struct nx_drm_dp_dev *dp_dev = to_nx_connector(connector)->dp_dev;
-	struct nx_drm_dp_ops *ops = dp_dev->ops;
+	struct nx_drm_device *display = to_nx_connector(connector)->display;
+	struct nx_drm_ops *ops = display->ops;
 
 	DRM_DEBUG_KMS("enter\n");
 	DRM_DEBUG_KMS("bpp specified : %s, %d\n",
@@ -49,23 +57,20 @@ static int nx_drm_connector_mode_valid(struct drm_connector *connector,
 		connector->cmdline_mode.bpp);
 
 	if (ops && ops->check_mode)
-		return ops->check_mode(dp_dev->dev, mode);
+		return ops->check_mode(display->dev, mode);
 
 	return MODE_BAD;
 }
 
 struct drm_encoder *nx_drm_best_encoder(struct drm_connector *connector)
 {
-	/*
-	struct drm_device *drm = connector->dev;
-	*/
 	struct nx_drm_connector *nx_connector = to_nx_connector(connector);
-	struct drm_encoder *encoder = nx_connector->connector.encoder;
+	struct drm_encoder *encoder = nx_connector->encoder;
 
-	if (encoder) {
-		DRM_DEBUG_KMS("encoodr id:%d (enc.%d)\n",
-			encoder->base.id, to_nx_encoder(encoder)->pipe);
-	}
+	if (encoder)
+		DRM_DEBUG_KMS("encoodr id:%d (enc.%d) panel %d\n",
+			encoder->base.id, to_nx_encoder(encoder)->pipe,
+			panel_get_type(to_nx_connector(connector)->display));
 
 	DRM_DEBUG_KMS("connector id:%d\n", connector->base.id);
 	return encoder;
@@ -81,12 +86,12 @@ static enum drm_connector_status nx_drm_connector_detect(
 			struct drm_connector *connector, bool force)
 {
 	struct nx_drm_connector *nx_connector = to_nx_connector(connector);
-	struct nx_drm_dp_dev *dp_dev = nx_connector->dp_dev;
-	struct nx_drm_dp_ops *ops = dp_dev->ops;
+	struct nx_drm_device *display = nx_connector->display;
+	struct nx_drm_ops *ops = display->ops;
 	enum drm_connector_status status = connector_status_disconnected;
 
 	if (ops && ops->is_connected) {
-		if (ops->is_connected(dp_dev->dev, connector))
+		if (ops->is_connected(display->dev, connector))
 			status = connector_status_connected;
 		else
 			status = connector_status_disconnected;
@@ -113,7 +118,9 @@ static void nx_drm_connector_destroy(struct drm_connector *connector)
 
 static int nx_drm_connector_dpms(struct drm_connector *connector, int mode)
 {
-	DRM_DEBUG_KMS("enter\n");
+	DRM_DEBUG_KMS("enter [CONNECTOR:%d]  dpms:%d\n",
+		connector->base.id, mode);
+
 	return drm_helper_connector_dpms(connector, mode);
 }
 
@@ -139,9 +146,10 @@ void nx_drm_connector_destroy_and_detach(struct drm_connector *connector)
 }
 EXPORT_SYMBOL(nx_drm_connector_destroy_and_detach);
 
-int nx_drm_connector_create_and_attach(struct drm_device *drm,
-			struct nx_drm_dp_dev *dp_dev, int to_encoder,
-			void *context)
+struct drm_connector *nx_drm_connector_create_and_attach(
+			struct drm_device *drm,
+			struct nx_drm_device *display, int pipe,
+			enum dp_panel_type panel_type, void *context)
 {
 	struct nx_drm_priv *priv = drm->dev_private;
 	struct nx_drm_connector *nx_connector;
@@ -149,16 +157,15 @@ int nx_drm_connector_create_and_attach(struct drm_device *drm,
 	struct drm_encoder *encoder;
 
 	/* bitmask of potential CRTC bindings */
-	int crtc_mask = (1 << priv->num_crtcs) - 1;
-	int panel_type, con_type = 0, enc_type = 0;
+	int possible_crtcs = (1 << priv->num_crtcs) - 1;
+	int con_type = 0, enc_type = 0;
 	bool interlace_allowed = false;
 	uint8_t polled = 0;
 	int err;
 
 	DRM_DEBUG_KMS("enter\n");
 
-	BUG_ON(!dp_dev);
-	panel_type = dp_dev->ddc.panel_type;
+	BUG_ON(!display);
 
 	switch (panel_type) {
 	case dp_panel_type_lcd:
@@ -176,32 +183,31 @@ int nx_drm_connector_create_and_attach(struct drm_device *drm,
 	case dp_panel_type_hdmi:
 		con_type = DRM_MODE_CONNECTOR_HDMIA;
 		interlace_allowed = true;
-		polled = DRM_CONNECTOR_POLL_HPD;
 		break;
 	case dp_panel_type_vidi:
 		con_type = DRM_MODE_CONNECTOR_VIRTUAL;
 		enc_type = DRM_MODE_ENCODER_VIRTUAL;
-		polled = DRM_CONNECTOR_POLL_HPD;
 		break;
 	default:
 		con_type = DRM_MODE_CONNECTOR_Unknown;
 		DRM_ERROR("fail : unknown drm connector type(%d)\n",
 			panel_type);
-		return -EINVAL;
+		return NULL;
 	}
+	polled = DRM_CONNECTOR_POLL_HPD;	/* for hpd_irq_event */
 
 	nx_connector =
 		devm_kzalloc(drm->dev, sizeof(*nx_connector), GFP_KERNEL);
 	if (IS_ERR(nx_connector))
-		return -ENOMEM;
+		return NULL;
 
 	connector = &nx_connector->connector;
 	connector->polled = polled;
 	connector->interlace_allowed = interlace_allowed;
 
 	/* create encoder */
-	encoder = nx_drm_encoder_create(drm, dp_dev, enc_type,
-					to_encoder, crtc_mask, context);
+	encoder = nx_drm_encoder_create(drm, display, enc_type,
+					pipe, possible_crtcs, context);
 	if (IS_ERR(encoder))
 		goto err_alloc;
 
@@ -219,8 +225,9 @@ int nx_drm_connector_create_and_attach(struct drm_device *drm,
 		goto err_connector;
 	}
 
-	nx_connector->dp_dev = dp_dev;
+	nx_connector->display = display;
 	nx_connector->context = context;
+	nx_connector->encoder = encoder;
 
 	/* inititalize dpms status */
 	connector->dpms = nx_drm_dp_encoder_get_dpms(encoder);
@@ -229,7 +236,7 @@ int nx_drm_connector_create_and_attach(struct drm_device *drm,
 		encoder->base.id, connector->base.id,
 		connector->dpms == DRM_MODE_DPMS_ON ? "on" : "off");
 
-	return 0;
+	return connector;
 
 err_connector:
 	drm_connector_unregister(connector);
@@ -240,7 +247,7 @@ err_encoder:
 err_alloc:
 	devm_kfree(drm->dev, nx_connector);
 
-	return -EINVAL;
+	return NULL;
 }
 EXPORT_SYMBOL(nx_drm_connector_create_and_attach);
 

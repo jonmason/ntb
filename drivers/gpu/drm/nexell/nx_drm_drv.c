@@ -34,14 +34,18 @@ static void nx_drm_output_poll_changed(struct drm_device *drm)
 {
 	struct nx_drm_priv *priv = drm->dev_private;
 	struct nx_framebuffer_dev *nx_fbdev = priv->fbdev;
-	struct drm_fbdev_cma *fbdev = nx_fbdev->fbdev;
 
-	DRM_DEBUG_KMS("enter\n");
+	DRM_DEBUG_KMS("enter :%p\n", nx_fbdev);
 
-	if (fbdev)
+	mutex_lock(&priv->lock);
+
+	if (nx_fbdev && nx_fbdev->fbdev)
 		drm_fb_helper_hotplug_event(
-			(struct drm_fb_helper *)fbdev);
+			(struct drm_fb_helper *)nx_fbdev->fbdev);
+	else
+		nx_drm_framebuffer_dev_init(drm);
 
+	mutex_unlock(&priv->lock);
 	DRM_DEBUG_DRIVER("exit.\n");
 }
 
@@ -81,14 +85,13 @@ static int nx_drm_load(struct drm_device *drm, unsigned long flags)
 	if (!priv)
 		return -ENOMEM;
 
+	mutex_init(&priv->lock);
 	drm->dev_private = (void *)priv;
 	dev_set_drvdata(drm->dev, drm);
 
 	/* drm->mode_config initialization */
 	drm_mode_config_init(drm);
 	nx_drm_mode_config_init(drm);
-
-	drm_kms_helper_poll_init(drm);
 
 	/* Try to nexell crtcs. */
 	ret = nx_drm_crtc_init(drm);
@@ -104,14 +107,12 @@ static int nx_drm_load(struct drm_device *drm, unsigned long flags)
 	if (ret)
 		goto err_mode_config_cleanup;
 
-#ifdef CONFIG_DRM_NX_FBDEV
-	ret = nx_drm_framebuffer_dev_init(drm);
-	if (ret) {
-		DRM_ERROR("initialize drm fbdev\n");
-		drm_vblank_cleanup(drm);
-		goto err_unbind_all;
-	}
-#endif
+	/* init kms poll for handling hpd */
+	drm_kms_helper_poll_init(drm);
+
+	/* force connectors detection for LCD */
+	if (priv->force_detect)
+		drm_helper_hpd_irq_event(drm);
 
 	return 0;
 
@@ -129,9 +130,8 @@ static int nx_drm_unload(struct drm_device *drm)
 {
 	DRM_DEBUG_DRIVER("enter\n");
 
-#ifdef CONFIG_DRM_NX_FBDEV
 	nx_drm_framebuffer_dev_fini(drm);
-#endif
+
 	drm_vblank_cleanup(drm);
 	drm_kms_helper_poll_fini(drm);
 	drm_mode_config_cleanup(drm);
@@ -173,7 +173,6 @@ static struct dma_buf *nx_drm_gem_prime_export(struct drm_device *drm,
 
 static void nx_drm_lastclose(struct drm_device *dev)
 {
-#ifdef CONFIG_DRM_NX_FBDEV
 	struct nx_drm_priv *priv = dev->dev_private;
 	struct drm_fbdev_cma *fbdev;
 
@@ -183,8 +182,7 @@ static void nx_drm_lastclose(struct drm_device *dev)
 	fbdev = priv->fbdev->fbdev;
 	if (fbdev)
 		drm_fb_helper_restore_fbdev_mode_unlocked(
-			(struct drm_fb_helper *)fbdev);
-#endif
+				(struct drm_fb_helper *)fbdev);
 }
 
 static struct drm_driver nx_drm_driver = {
@@ -281,7 +279,7 @@ static int nx_drm_probe(struct platform_device *pdev)
 		dev = bus_find_device(&platform_bus_type, NULL,
 				      (void *)dev_names[i], match_component);
 		if (!dev) {
-			DRM_INFO("not found device: %s\n", dev_names[i]);
+			DRM_INFO("not found device name: %s\n", dev_names[i]);
 			continue;
 		}
 		if (!bus_for_each_drv(dev->bus, NULL,

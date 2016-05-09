@@ -22,6 +22,7 @@
 
 struct nx_drm_crtc {
 	struct drm_crtc crtc;
+	struct drm_display_mode	current_mode;
 	int pipe;		/* hw crtc index */
 	int pipe_irq;
 	struct dp_plane_top top;

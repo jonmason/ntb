@@ -22,6 +22,15 @@
 
 #define PREFERRED_BPP		32
 
+static int nx_drm_framebuffer_dirty(struct drm_framebuffer *fb,
+			struct drm_file *file_priv, unsigned flags,
+			unsigned color, struct drm_clip_rect *clips,
+			unsigned num_clips)
+{
+	/* TODO */
+	return 0;
+}
+
 void nx_drm_framebuffer_dev_fini(struct drm_device *drm)
 {
 	struct nx_drm_priv *priv = drm->dev_private;
@@ -36,11 +45,17 @@ void nx_drm_framebuffer_dev_fini(struct drm_device *drm)
 int nx_drm_framebuffer_dev_init(struct drm_device *drm)
 {
 	struct drm_fbdev_cma *fbdev;
+	struct drm_fb_helper *fb_helper;
+	struct drm_framebuffer_funcs *fb_funcs;
 	struct nx_drm_priv *priv = drm->dev_private;
 	struct nx_framebuffer_dev *nx_fbdev;
 	unsigned int num_crtc;
 	int bpp;
 	int ret = 0;
+
+	if (!drm->mode_config.num_crtc ||
+		!drm->mode_config.num_connector)
+		return 0;
 
 	DRM_DEBUG_KMS("enter crtc num:%d, connector num:%d\n",
 		      drm->mode_config.num_crtc,
@@ -60,7 +75,15 @@ int nx_drm_framebuffer_dev_init(struct drm_device *drm)
 		goto err_drm_fb_dev_free;
 	}
 
+	/*
+	 * set framebuffer dirty api
+	 */
+	fb_helper = (struct drm_fb_helper *)fbdev;
+	fb_funcs = (struct drm_framebuffer_funcs *)fb_helper->fb->funcs;
+	fb_funcs->dirty = nx_drm_framebuffer_dirty;
+
 	nx_fbdev->fbdev = fbdev;
+
 	return 0;
 
 err_drm_fb_dev_free:

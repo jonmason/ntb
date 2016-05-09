@@ -127,13 +127,12 @@ enum dp_panel_type {
 };
 
 struct dp_control_dev {
-	struct device *dev;
 	int module;
 	void *base;
 	struct dp_sync_info sync;
 	struct dp_ctrl_info ctrl;
 	enum dp_panel_type panel_type;
-	void *dp_out_dev;
+	void *dp_output;
 };
 
 enum {
@@ -169,7 +168,8 @@ struct dp_lvds_dev {
 };
 
 struct dp_hdmi_dev {
-	bool preset;
+	int preset_num;
+	void *preset_data;
 };
 
 struct dp_mipi_xfer {
@@ -211,28 +211,6 @@ struct dp_plane_top {
 /*
  * plane's each layers
  */
-/*	RGB layer pixel format. */
-#define	MLC_RGBFMT_R5G6B5		0x44320000 /* {R5,G6,B5 }. */
-#define	MLC_RGBFMT_B5G6R5		0xC4320000 /* {B5,G6,R5 }. */
-#define	MLC_RGBFMT_X1R5G5B5		0x43420000 /* {X1,R5,G5,B5}. */
-#define	MLC_RGBFMT_X1B5G5R5		0xC3420000 /* {X1,B5,G5,R5}. */
-#define	MLC_RGBFMT_X4R4G4B4		0x42110000 /* {X4,R4,G4,B4}. */
-#define	MLC_RGBFMT_X4B4G4R4		0xC2110000 /* {X4,B4,G4,R4}. */
-#define	MLC_RGBFMT_X8R3G3B2		0x41200000 /* {X8,R3,G3,B2}. */
-#define	MLC_RGBFMT_X8B3G3R2		0xC1200000 /* {X8,B3,G3,R2}. */
-#define	MLC_RGBFMT_A1R5G5B5		0x33420000 /* {A1,R5,G5,B5}. */
-#define	MLC_RGBFMT_A1B5G5R5		0xB3420000 /* {A1,B5,G5,R5}. */
-#define	MLC_RGBFMT_A4R4G4B4		0x22110000 /* {A4,R4,G4,B4}. */
-#define	MLC_RGBFMT_A4B4G4R4		0xA2110000 /* {A4,B4,G4,R4}. */
-#define	MLC_RGBFMT_A8R3G3B2		0x11200000 /* {A8,R3,G3,B2}. */
-#define	MLC_RGBFMT_A8B3G3R2		0x91200000 /* {A8,B3,G3,R2}. */
-#define	MLC_RGBFMT_R8G8B8		0x46530000 /* {R8,G8,B8 }. */
-#define	MLC_RGBFMT_B8G8R8		0xC6530000 /* {B8,G8,R8 }. */
-#define	MLC_RGBFMT_X8R8G8B8		0x46530000 /* {X8,R8,G8,B8}. */
-#define	MLC_RGBFMT_X8B8G8R8		0xC6530000 /* {X8,B8,G8,R8}. */
-#define	MLC_RGBFMT_A8R8G8B8		0x06530000 /* {A8,R8,G8,B8}. */
-#define	MLC_RGBFMT_A8B8G8R8		0x86530000 /* {A8,B8,G8,R8}.  */
-
 enum dp_plane_type {
 	dp_plane_rgb,
 	dp_plane_video,
@@ -290,12 +268,11 @@ struct dp_plane_layer {
 	} color;
 };
 
-void nx_soc_dp_device_dpc_base(int module, void *base);
-void nx_soc_dp_device_mlc_base(int module, void *base);
-void nx_soc_dp_device_top_base(int module, void *base);
-void nx_soc_dp_device_mipi_base(int module, void *base);
-void nx_soc_dp_device_hdmi_base(int module, void *base);
-void nx_soc_dp_device_clk_base(int module, void *base);
+void nx_soc_dp_device_dpc_base(int module, void __iomem *base);
+void nx_soc_dp_device_mlc_base(int module, void __iomem *base);
+void nx_soc_dp_device_top_base(int module, void __iomem *base);
+void nx_soc_dp_device_mipi_base(int module, void __iomem *base);
+void nx_soc_dp_device_clk_base(int module, void __iomem *base);
 
 void nx_soc_dp_plane_top_setup(struct dp_plane_top *top);
 void nx_soc_dp_plane_top_set_format(struct dp_plane_top *top,
@@ -334,20 +311,20 @@ void nx_soc_dp_video_set_address_3plane(struct dp_plane_layer *layer,
 void nx_soc_dp_video_set_enable(struct dp_plane_layer *layer,
 			bool on, bool adjust);
 
-void nx_soc_dp_device_setup(struct dp_control_dev *ddc);
-int  nx_soc_dp_device_prepare(struct dp_control_dev *ddc);
-int  nx_soc_dp_device_power_status(struct dp_control_dev *ddc);
-void nx_soc_dp_device_power_on(struct dp_control_dev *ddc, bool on);
-void nx_soc_dp_device_irq_on(struct dp_control_dev *ddc, bool on);
-void nx_soc_dp_device_irq_clear(struct dp_control_dev *ddc);
+void nx_soc_dp_device_setup(struct dp_control_dev *dpc);
+int  nx_soc_dp_device_prepare(struct dp_control_dev *dpc);
+int  nx_soc_dp_device_power_status(struct dp_control_dev *dpc);
+void nx_soc_dp_device_power_on(struct dp_control_dev *dpc, bool on);
+void nx_soc_dp_device_irq_on(struct dp_control_dev *dpc, bool on);
+void nx_soc_dp_device_irq_done(struct dp_control_dev *dpc);
 
-void nx_soc_dp_device_top_mux(struct dp_control_dev *ddc);
+void nx_soc_dp_device_top_mux(struct dp_control_dev *dpc);
 
-int nx_soc_dp_mipi_set_prepare(struct dp_control_dev *ddc, unsigned int flags);
-int nx_soc_dp_mipi_set_enable(struct dp_control_dev *ddc, unsigned int flags);
-int nx_soc_dp_mipi_set_unprepare(struct dp_control_dev *ddc,
+int nx_soc_dp_mipi_set_prepare(struct dp_control_dev *dpc, unsigned int flags);
+int nx_soc_dp_mipi_set_enable(struct dp_control_dev *dpc, unsigned int flags);
+int nx_soc_dp_mipi_set_unprepare(struct dp_control_dev *dpc,
 			unsigned int flags);
-int nx_soc_dp_mipi_set_disable(struct dp_control_dev *ddc, unsigned int flags);
+int nx_soc_dp_mipi_set_disable(struct dp_control_dev *dpc, unsigned int flags);
 int nx_soc_dp_mipi_tx_transfer(struct dp_mipi_xfer *xfer);
 int nx_soc_dp_mipi_rx_transfer(struct dp_mipi_xfer *xfer);
 
