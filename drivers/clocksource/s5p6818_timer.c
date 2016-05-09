@@ -391,6 +391,7 @@ static struct irqaction timer_event_irqaction = {
  * to __delay , refer to arch_timer.h and  arm64 lib delay.c
  */
 u64 arch_counter_get_cntvct(void) { return timer_read_count(); }
+EXPORT_SYMBOL(arch_counter_get_cntvct);
 
 int arch_timer_arch_init(void) { return 0; }
 #endif
