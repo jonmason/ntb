@@ -259,7 +259,6 @@ static struct snd_soc_dai_link alc5658_dai_link = {
 	.name = "ASOC-ALC5658",
 	.stream_name = "ALC5658_AIF1",
 	.cpu_dai_name = str_dai_name,
-	.platform_name = "nexell-pcm",
 	.codec_dai_name = "rt5659-aif1",
 	.ops = &alc5658_ops,
 	.symmetric_rates = 1,
