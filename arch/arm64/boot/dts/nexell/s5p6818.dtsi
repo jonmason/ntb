@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "../skeleton.dtsi"
-
 #include <dt-bindings/tieoff/s5p6818-tieoff.h>
 #include <dt-bindings/soc/s5p6818-base.h>
 #include <dt-bindings/reset/nexell,s5p6818-reset.h>
