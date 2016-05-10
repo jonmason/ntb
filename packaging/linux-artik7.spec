@@ -1,16 +1,14 @@
 %define config_name artik710_raptor_defconfig
 %define buildarch aarch64
 %define target_board artik710-raptor
-%define variant %{buildarch}-%{target_board}
+%define variant %{target_board}
 %define vendor_name nexell
-%define dtb_name s5p6818-artik710-raptor.dtb
 
 Name: linux-artik7
 Summary: The Linux Kernel for ARTIK710 Raptor
 Version: 4.1.15
 Release: 0
 License: GPL-2.0
-ExclusiveArch: aarch64
 Group: System/Kernel
 Vendor: The Linux Community
 URL: http://www.kernel.org
@@ -45,6 +43,7 @@ Kernel-modules includes the loadable kernel modules(.ko files) for %{target_boar
 
 %package -n %{variant}-linux-kernel-headers
 Summary: Header files for the Linux kernel for use by glibc
+BuildArch: noarch
 Obsoletes: kernel-headers
 Provides: kernel-headers = %{fullVersion}
 Group: Development/System
@@ -79,7 +78,7 @@ make %{?_smp_mflags}
 
 # 2. Build Image
 make Image %{?_smp_mflags}
-make %{vendor_name}/%{dtb_name} %{?_smp_mflags}
+make dtbs %{?_smp_mflags}
 
 # 3. Build modules
 make modules %{?_smp_mflags}
