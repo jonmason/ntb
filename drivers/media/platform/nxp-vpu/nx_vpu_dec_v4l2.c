@@ -95,9 +95,6 @@ static int vidioc_g_fmt_vid_cap_mplane(struct file *file, void *priv,
 	pix_mp->num_planes = 3;
 	pix_mp->pixelformat = V4L2_PIX_FMT_YUV420M;
 
-	NX_DbgMsg(INFO_MSG, ("vidioc_g_fmt_vid_cap_mplane : W = %d, H = %d\n",
-		pix_mp->width, pix_mp->height));
-
 	pix_mp->plane_fmt[0].bytesperline = ctx->buf_width;
 	pix_mp->plane_fmt[0].sizeimage = ctx->luma_size;
 	pix_mp->plane_fmt[1].bytesperline = ctx->buf_width / 2;
@@ -105,7 +102,10 @@ static int vidioc_g_fmt_vid_cap_mplane(struct file *file, void *priv,
 	pix_mp->plane_fmt[2].bytesperline = ctx->buf_width / 2;
 	pix_mp->plane_fmt[2].sizeimage = ctx->chroma_size;
 
-	f->fmt.raw_data[0] = (__u8)ctx->codec.dec.frame_buffer_cnt;
+	pix_mp->reserved[0] = (__u8)ctx->codec.dec.frame_buffer_cnt;
+
+	NX_DbgMsg(INFO_MSG, ("vidioc_g_fmt_vid_cap_mplane : W = %d, H = %d\n",
+		pix_mp->width, pix_mp->height));
 
 	return 0;
 }
