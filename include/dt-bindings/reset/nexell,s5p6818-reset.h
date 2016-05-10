@@ -22,12 +22,6 @@
 
 #define RESET_ID_START		0
 #define RESET_ID_AC97		0
-#define RESET_ID_CPU1		1
-#define RESET_ID_CPU2		2
-#define RESET_ID_CPU3		3
-#define RESET_ID_WD1		4
-#define RESET_ID_WD2		5
-#define RESET_ID_WD3		6
 #define RESET_ID_CRYPTO		7
 #define RESET_ID_DEINTERLACE	8
 #define RESET_ID_DISP_TOP	9
