@@ -219,6 +219,6 @@ struct nexell_pmx_func {
 };
 
 /* list of all exported SoC specific data */
-extern const struct nexell_pin_ctrl s5p6818_pin_ctrl[];
+extern const struct nexell_pin_ctrl s5pxx18_pin_ctrl[];
 
 #endif	/* __PINCTRL_NEXELL_H */

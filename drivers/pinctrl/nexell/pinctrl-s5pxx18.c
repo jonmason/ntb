@@ -30,7 +30,7 @@
 
 #include <linux/soc/nexell/s5pxx18-gpio.h>
 #include "pinctrl-nexell.h"
-#include "pinctrl-s5p6818.h"
+#include "pinctrl-s5pxx18.h"
 
 static void irq_gpio_ack(struct irq_data *irqd)
 {
@@ -171,7 +171,7 @@ static void irq_gpio_disable(struct irq_data *irqd)
 /*
  * irq_chip for gpio interrupts.
  */
-static struct irq_chip s5p6818_gpio_irq_chip = {
+static struct irq_chip s5pxx18_gpio_irq_chip = {
 	.name = "GPIO",
 	.irq_ack = irq_gpio_ack,
 	.irq_mask = irq_gpio_mask,
@@ -182,7 +182,7 @@ static struct irq_chip s5p6818_gpio_irq_chip = {
 	.flags = IRQCHIP_SKIP_SET_WAKE,
 };
 
-static int s5p6818_gpio_irq_map(struct irq_domain *h, unsigned int virq,
+static int s5pxx18_gpio_irq_map(struct irq_domain *h, unsigned int virq,
 				irq_hw_number_t hw)
 {
 	struct nexell_pin_bank *b = h->host_data;
@@ -190,7 +190,7 @@ static int s5p6818_gpio_irq_map(struct irq_domain *h, unsigned int virq,
 	pr_debug("%s domain map: virq %d and hw %d\n", __func__, virq, (int)hw);
 
 	irq_set_chip_data(virq, b);
-	irq_set_chip_and_handler(virq, &s5p6818_gpio_irq_chip,
+	irq_set_chip_and_handler(virq, &s5pxx18_gpio_irq_chip,
 				 handle_level_irq);
 	return 0;
 }
@@ -198,11 +198,11 @@ static int s5p6818_gpio_irq_map(struct irq_domain *h, unsigned int virq,
 /*
  * irq domain callbacks for external gpio interrupt controller.
  */
-static const struct irq_domain_ops s5p6818_gpio_irqd_ops = {
-	.map = s5p6818_gpio_irq_map, .xlate = irq_domain_xlate_twocell,
+static const struct irq_domain_ops s5pxx18_gpio_irqd_ops = {
+	.map = s5pxx18_gpio_irq_map, .xlate = irq_domain_xlate_twocell,
 };
 
-static irqreturn_t s5p6818_gpio_irq_handler(int irq, void *data)
+static irqreturn_t s5pxx18_gpio_irq_handler(int irq, void *data)
 {
 	struct nexell_pin_bank *bank = data;
 	void __iomem *base = bank->virt_base;
@@ -233,10 +233,10 @@ static irqreturn_t s5p6818_gpio_irq_handler(int irq, void *data)
 }
 
 /*
- * s5p6818_gpio_irq_init() - setup handling of external gpio interrupts.
+ * s5pxx18_gpio_irq_init() - setup handling of external gpio interrupts.
  * @d: driver data of nexell pinctrl driver.
  */
-static int s5p6818_gpio_irq_init(struct nexell_pinctrl_drv_data *d)
+static int s5pxx18_gpio_irq_init(struct nexell_pinctrl_drv_data *d)
 {
 	struct nexell_pin_bank *bank;
 	struct device *dev = d->dev;
@@ -248,7 +248,7 @@ static int s5p6818_gpio_irq_init(struct nexell_pinctrl_drv_data *d)
 		if (bank->eint_type != EINT_TYPE_GPIO)
 			continue;
 
-		ret = devm_request_irq(dev, bank->irq, s5p6818_gpio_irq_handler,
+		ret = devm_request_irq(dev, bank->irq, s5pxx18_gpio_irq_handler,
 				       0, dev_name(dev), bank);
 		if (ret) {
 			dev_err(dev, "irq request failed\n");
@@ -257,7 +257,7 @@ static int s5p6818_gpio_irq_init(struct nexell_pinctrl_drv_data *d)
 		}
 
 		bank->irq_domain = irq_domain_add_linear(
-		    bank->of_node, bank->nr_pins, &s5p6818_gpio_irqd_ops, bank);
+		    bank->of_node, bank->nr_pins, &s5pxx18_gpio_irqd_ops, bank);
 		if (!bank->irq_domain) {
 			dev_err(dev, "gpio irq domain add failed\n");
 			ret = -ENXIO;
@@ -419,7 +419,7 @@ static void irq_alive_disable(struct irq_data *irqd)
 /*
  * irq_chip for wakeup interrupts
  */
-static struct irq_chip s5p6818_alive_irq_chip = {
+static struct irq_chip s5pxx18_alive_irq_chip = {
 	.name = "ALIVE",
 	.irq_ack = irq_alive_ack,
 	.irq_mask = irq_alive_mask,
@@ -430,7 +430,7 @@ static struct irq_chip s5p6818_alive_irq_chip = {
 	.irq_disable = irq_alive_disable,
 };
 
-static irqreturn_t s5p6818_alive_irq_handler(int irq, void *data)
+static irqreturn_t s5pxx18_alive_irq_handler(int irq, void *data)
 {
 	struct nexell_pin_bank *bank = data;
 	void __iomem *base = bank->virt_base;
@@ -460,26 +460,26 @@ static irqreturn_t s5p6818_alive_irq_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static int s5p6818_alive_irq_map(struct irq_domain *h, unsigned int virq,
+static int s5pxx18_alive_irq_map(struct irq_domain *h, unsigned int virq,
 				 irq_hw_number_t hw)
 {
 	pr_debug("%s domain map: virq %d and hw %d\n", __func__, virq, (int)hw);
 
-	irq_set_chip_and_handler(virq, &s5p6818_alive_irq_chip,
+	irq_set_chip_and_handler(virq, &s5pxx18_alive_irq_chip,
 				 handle_level_irq);
 	irq_set_chip_data(virq, h->host_data);
 	return 0;
 }
 
-static const struct irq_domain_ops s5p6818_alive_irqd_ops = {
-	.map = s5p6818_alive_irq_map, .xlate = irq_domain_xlate_twocell,
+static const struct irq_domain_ops s5pxx18_alive_irqd_ops = {
+	.map = s5pxx18_alive_irq_map, .xlate = irq_domain_xlate_twocell,
 };
 
 /*
- * s5p6818_alive_irq_init() - setup handling of wakeup interrupts.
+ * s5pxx18_alive_irq_init() - setup handling of wakeup interrupts.
  * @d: driver data of nexell pinctrl driver.
  */
-static int s5p6818_alive_irq_init(struct nexell_pinctrl_drv_data *d)
+static int s5pxx18_alive_irq_init(struct nexell_pinctrl_drv_data *d)
 {
 	struct nexell_pin_bank *bank;
 	struct device *dev = d->dev;
@@ -498,7 +498,7 @@ static int s5p6818_alive_irq_init(struct nexell_pinctrl_drv_data *d)
 		writel(-1, base + ALIVE_INT_STATUS);
 
 		ret =
-		    devm_request_irq(dev, bank->irq, s5p6818_alive_irq_handler,
+		    devm_request_irq(dev, bank->irq, s5pxx18_alive_irq_handler,
 				     0, dev_name(dev), bank);
 		if (ret) {
 			dev_err(dev, "irq request failed\n");
@@ -508,7 +508,7 @@ static int s5p6818_alive_irq_init(struct nexell_pinctrl_drv_data *d)
 
 		bank->irq_domain =
 		    irq_domain_add_linear(bank->of_node, bank->nr_pins,
-					  &s5p6818_alive_irqd_ops, bank);
+					  &s5pxx18_alive_irqd_ops, bank);
 		if (!bank->irq_domain) {
 			dev_err(dev, "gpio irq domain add failed\n");
 			ret = -ENXIO;
@@ -529,7 +529,7 @@ err_domains:
 	return ret;
 }
 
-static int s5p6818_base_init(struct nexell_pinctrl_drv_data *drvdata)
+static int s5pxx18_base_init(struct nexell_pinctrl_drv_data *drvdata)
 {
 	struct nexell_pin_ctrl *ctrl = drvdata->ctrl;
 	int nr_banks = ctrl->nr_banks;
@@ -566,8 +566,8 @@ done:
 	return 0;
 }
 
-/* pin banks of s5p6818 pin-controller 0 */
-static struct nexell_pin_bank s5p6818_pin_banks[] = {
+/* pin banks of s5pxx18 pin-controller 0 */
+static struct nexell_pin_bank s5pxx18_pin_banks[] = {
 	SOC_PIN_BANK_EINTG(32, 0xA000, "gpioa"),
 	SOC_PIN_BANK_EINTG(32, 0xB000, "gpiob"),
 	SOC_PIN_BANK_EINTG(32, 0xC000, "gpioc"),
@@ -579,12 +579,12 @@ static struct nexell_pin_bank s5p6818_pin_banks[] = {
 /*
  * Nexell pinctrl driver data for SoC.
  */
-const struct nexell_pin_ctrl s5p6818_pin_ctrl[] = {
+const struct nexell_pin_ctrl s5pxx18_pin_ctrl[] = {
 	{
-		.pin_banks = s5p6818_pin_banks,
-		.nr_banks = ARRAY_SIZE(s5p6818_pin_banks),
-		.base_init = s5p6818_base_init,
-		.gpio_irq_init = s5p6818_gpio_irq_init,
-		.alive_irq_init = s5p6818_alive_irq_init,
+		.pin_banks = s5pxx18_pin_banks,
+		.nr_banks = ARRAY_SIZE(s5pxx18_pin_banks),
+		.base_init = s5pxx18_base_init,
+		.gpio_irq_init = s5pxx18_gpio_irq_init,
+		.alive_irq_init = s5pxx18_alive_irq_init,
 	}
 };
