@@ -131,7 +131,7 @@ static struct reset_control_ops nexell_reset_ops = {
 
 
 static const struct of_device_id nexell_reset_dt_ids[] = {
-	{ .compatible = "nexell,s5p6818-reset", },
+	{ .compatible = "nexell,s5pxx18-reset", },
 	{ },
 };
 MODULE_DEVICE_TABLE(of, nexell_reset_dt_ids);
