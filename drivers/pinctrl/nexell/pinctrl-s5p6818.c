@@ -28,7 +28,7 @@
 #include <linux/spinlock.h>
 #include <linux/err.h>
 
-#include <linux/soc/nexell/s5p6818-gpio.h>
+#include <linux/soc/nexell/s5pxx18-gpio.h>
 #include "pinctrl-nexell.h"
 #include "pinctrl-s5p6818.h"
 
@@ -554,7 +554,7 @@ static int s5p6818_base_init(struct nexell_pinctrl_drv_data *drvdata)
 		list_add_tail(&init_data->node, &banks);
 	}
 
-	s5p6818_gpio_device_init(&banks, nr_banks);
+	s5pxx18_gpio_device_init(&banks, nr_banks);
 
 done:
 	/* free */

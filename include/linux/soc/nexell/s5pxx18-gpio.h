@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __S5P6818_GPIO_H
-#define __S5P6818_GPIO_H
+#ifndef __S5Pxx18_GPIO_H
+#define __S5Pxx18_GPIO_H
 
 #define PAD_MD_POS 0
 #define PAD_MD_MASK 0xF
@@ -131,7 +131,7 @@
 #define IO_ALT_2 (2)
 #define IO_ALT_3 (3)
 
-/* s5p6818 GPIO function number */
+/* s5pxx18 GPIO function number */
 
 #define ALT_NO_GPIO_A                                                          \
 	{                                                                      \
@@ -507,6 +507,6 @@ extern int nx_soc_alive_get_det_mode(unsigned int io, unsigned int mode);
 extern int nx_soc_alive_get_int_pend(unsigned int io);
 extern void nx_soc_alive_clr_int_pend(unsigned int io);
 
-extern int s5p6818_gpio_device_init(struct list_head *banks, int nr_banks);
+extern int s5pxx18_gpio_device_init(struct list_head *banks, int nr_banks);
 
-#endif /* __S5P6818_GPIO_H */
+#endif /* __S5Pxx18_GPIO_H */

@@ -1,1 +1,1 @@
-obj-$(CONFIG_ARCH_S5P6818) += s5p6818/
+obj-$(CONFIG_ARCH_S5P6818) += s5pxx18/

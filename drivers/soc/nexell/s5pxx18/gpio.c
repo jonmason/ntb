@@ -22,7 +22,7 @@
 #include <linux/init.h>
 #include <linux/types.h>
 
-#include <linux/soc/nexell/s5p6818-gpio.h>
+#include <linux/soc/nexell/s5pxx18-gpio.h>
 
 static struct {
 	struct nx_gpio_reg_set *gpio_regs;
@@ -1054,7 +1054,7 @@ void nx_alive_clear_wakeup_status(void) { alive_regs->CLEARWAKEUPSTATUS = 1; }
 
 const unsigned char (*gpio_fn_no)[GPIO_NUM_PER_BANK] = NULL;
 
-const unsigned char s5p6818_pio_fn_no[][GPIO_NUM_PER_BANK] = {
+const unsigned char s5pxx18_pio_fn_no[][GPIO_NUM_PER_BANK] = {
 	ALT_NO_GPIO_A, ALT_NO_GPIO_B, ALT_NO_GPIO_C,
 	ALT_NO_GPIO_D, ALT_NO_GPIO_E, ALT_NO_ALIVE,
 };
@@ -1647,7 +1647,7 @@ void nx_soc_alive_clr_int_pend(unsigned int io)
 	IO_UNLOCK(ALIVE_INDEX);
 }
 
-int s5p6818_gpio_device_init(struct list_head *banks, int nr_banks)
+int s5pxx18_gpio_device_init(struct list_head *banks, int nr_banks)
 {
 	struct module_init_data *init_data;
 	int n = ALIVE_INDEX + 1;
@@ -1656,7 +1656,7 @@ int s5p6818_gpio_device_init(struct list_head *banks, int nr_banks)
 	for (i = 0; n > i; i++)
 		IO_LOCK_INIT(i);
 
-	gpio_fn_no = s5p6818_pio_fn_no;
+	gpio_fn_no = s5pxx18_pio_fn_no;
 
 	i = 0;
 	list_for_each_entry(init_data, banks, node) {

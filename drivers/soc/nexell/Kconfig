@@ -1,3 +1,3 @@
 if ARCH_S5P6818
-source "drivers/soc/nexell/s5p6818/Kconfig"
+source "drivers/soc/nexell/s5pxx18/Kconfig"
 endif
