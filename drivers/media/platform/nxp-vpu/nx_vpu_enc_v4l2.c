@@ -952,7 +952,7 @@ int nx_vpu_enc_open(struct nx_vpu_ctx *ctx)
 	ctx->vq_img.drv_priv = ctx;
 	ctx->vq_img.lock = &ctx->dev->dev_mutex;
 	ctx->vq_img.buf_struct_size = sizeof(struct nx_vpu_buf);
-	ctx->vq_img.io_modes = VB2_DMABUF;
+	ctx->vq_img.io_modes = VB2_USERPTR | VB2_DMABUF;
 	/* ctx->vq_strm.io_modes = VB2_MMAP | VB2_USERPTR | VB2_DMABUF; */
 	ctx->vq_img.ops = &nx_vpu_enc_qops;
 	ctx->vq_img.mem_ops = &vb2_dma_contig_memops;
@@ -969,7 +969,7 @@ int nx_vpu_enc_open(struct nx_vpu_ctx *ctx)
 	ctx->vq_strm.drv_priv = ctx;
 	ctx->vq_strm.lock = &ctx->dev->dev_mutex;
 	ctx->vq_strm.buf_struct_size = sizeof(struct nx_vpu_buf);
-	ctx->vq_strm.io_modes = VB2_DMABUF;
+	ctx->vq_strm.io_modes = VB2_USERPTR | VB2_DMABUF;
 	/* ctx->vq_strm.io_modes = VB2_MMAP | VB2_USERPTR | VB2_DMABUF; */
 	ctx->vq_strm.ops = &nx_vpu_enc_qops;
 	ctx->vq_strm.mem_ops = &vb2_dma_contig_memops;
