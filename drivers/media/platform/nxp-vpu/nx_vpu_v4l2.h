@@ -125,7 +125,6 @@ struct nx_vpu_ctx {
 	struct v4l2_fh fh;
 
 	int idx;
-	int instIndex;				/* TBD */
 
 	enum nx_vpu_cmd vpu_cmd;
 

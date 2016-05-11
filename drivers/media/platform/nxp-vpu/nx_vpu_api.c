@@ -46,7 +46,7 @@ static uint32_t *gstIsolateBase;
 static uint32_t *gstAliveBase;
 
 
-static struct nx_vpu_codec_inst gstVpuInstance[NX_MAX_VPU_INST_SPACE];
+static struct nx_vpu_codec_inst gstVpuInstance[NX_MAX_VPU_INSTANCE];
 
 
 /*--------------------------------------------------------------------------- */
@@ -519,7 +519,7 @@ int NX_VpuInit(void *dev, void *baseAddr, void *firmVirAddr,
 
 	CheckVersion();
 
-	for (i = 0 ; i < NX_MAX_VPU_INST_SPACE ; i++) {
+	for (i = 0 ; i < NX_MAX_VPU_INSTANCE ; i++) {
 		gstVpuInstance[i].inUse = 0;
 		gstVpuInstance[i].paramPhyAddr = paramBufAddr;
 		gstVpuInstance[i].paramVirAddr = (uint64_t)(firmVirAddr +
@@ -604,19 +604,9 @@ int NX_VpuResume(void)
 	return VPU_RET_OK;
 }
 
-struct nx_vpu_codec_inst *NX_VpuGetInstance(int *pIndex)
+struct nx_vpu_codec_inst *NX_VpuGetInstance(int index)
 {
-	int i;
-	struct nx_vpu_codec_inst *hInst = 0;
-
-	for (i = 0; i < NX_MAX_VPU_INSTANCE ; i++) {
-		if (!gstVpuInstance[i].inUse) {
-			hInst = &gstVpuInstance[i];
-			*pIndex = i;
-			break;
-		}
-	}
-	return hInst;
+	return &gstVpuInstance[index];
 }
 
 int NX_VpuIsInitialized(void)

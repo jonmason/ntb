@@ -604,12 +604,6 @@ int vpu_dec_open_instance(struct nx_vpu_ctx *ctx)
 
 	FUNC_IN();
 
-	if (dev->cur_num_instance >= NX_MAX_VPU_INSTANCE) {
-		NX_ErrMsg(("Max codec limit error. Current(%d) vs. MAX(%d)!!!",
-			dev->cur_num_instance, NX_MAX_VPU_INSTANCE));
-		return -EINVAL;
-	}
-
 	memset(&openArg, 0, sizeof(openArg));
 
 	switch (ctx->strm_fmt->fourcc) {
@@ -687,7 +681,7 @@ int vpu_dec_open_instance(struct nx_vpu_ctx *ctx)
 		goto err_exit;
 	}
 
-	openArg.instIndex = -1;
+	openArg.instIndex = ctx->idx;
 	openArg.instanceBuf = *ctx->instance_buf;
 	openArg.streamBuf = *ctx->bit_stream_buf;
 	/*openArg.chromaInterleave; */
@@ -700,9 +694,7 @@ int vpu_dec_open_instance(struct nx_vpu_ctx *ctx)
 		goto err_exit;
 	}
 
-	ctx->instIndex = hInst->instIndex;
 	ctx->hInst = (void *)hInst;
-
 	dev->cur_num_instance++;
 
 	return ret;

@@ -442,7 +442,7 @@ int NX_VpuDeInit(void *);
 int NX_VpuSuspend(void *dev);
 int NX_VpuResume(void);
 
-struct nx_vpu_codec_inst *NX_VpuGetInstance(int *pIndex);
+struct nx_vpu_codec_inst *NX_VpuGetInstance(int index);
 int NX_VpuIsInitialized(void);
 
 int swap_endian(unsigned char *data, int len);

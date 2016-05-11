@@ -55,7 +55,6 @@ static int VPU_EncCloseCommand(struct nx_vpu_codec_inst *pInst,
 int NX_VpuEncOpen(struct vpu_open_arg *openArg, void *dev,
 	struct nx_vpu_codec_inst **handle)
 {
-	int index;
 	struct vpu_enc_info *pEncInfo;
 	struct nx_vpu_codec_inst *hInst = 0;
 
@@ -63,7 +62,7 @@ int NX_VpuEncOpen(struct vpu_open_arg *openArg, void *dev,
 	if (!NX_VpuIsInitialized())
 		return VPU_RET_ERR_INIT;
 
-	hInst = NX_VpuGetInstance(&index);
+	hInst = NX_VpuGetInstance(openArg->instIndex);
 	if (!hInst)
 		return VPU_RET_ERR_INST;
 
@@ -89,7 +88,7 @@ int NX_VpuEncOpen(struct vpu_open_arg *openArg, void *dev,
 	NX_DrvMemset(&hInst->codecInfo, 0, sizeof(hInst->codecInfo));
 
 	hInst->inUse = 1;
-	hInst->instIndex = index;
+	hInst->instIndex = openArg->instIndex;
 	hInst->devHandle = dev;
 
 	hInst->instBufPhyAddr = (uint64_t)openArg->instanceBuf.phyAddr;
