@@ -44,6 +44,7 @@
 		i2c4 = &i2c_gpio4;
 		i2c5 = &i2c_gpio5;
 		i2c6 = &i2c_gpio6;
+		i2c7 = &i2c_gpio7;
 	};
 
 	nx-v4l2 {
@@ -259,6 +260,16 @@
 			compatible = "realtek,rt5658";
 			reg = <0x1a>;
 		};
+	};
+
+	i2c_gpio7:i2c@7 {
+		compatible = "i2c-gpio";
+		gpios = <&gpio_a 24 0 /* sda */
+			&gpio_a 23 0 /* scl */
+			>;
+		i2c-gpio,delay-us = <100>;
+		#address-cells = <1>;
+		#size-cells = <0>;
 	};
 
 	sound {
@@ -556,21 +567,21 @@
                         color_key = < 0x0 >;
 			plane-names = "video", "primary", "rgb";
 		};
-		port@1 {
-			reg = <1>;
-			back_color = < 0x0 >;
-			color_key = < 0x0 >;
+                port@1 {
+                        reg = <1>;
+                        back_color = < 0x0 >;
+                        color_key = < 0x0 >;
 			plane-names = "video", "primary";
 		};
        };
 };
 
 &dp_drm_lcd {
-	encoder-port = <0>;
 	panel-type = "mipi";
 
 	hs_bitrate = <960>;
 	lp_bitrate = <100>;
+	status = "ok";
 
 	panel@0 {
 		compatible = "samsung,s6e8fa0";
@@ -601,11 +612,17 @@
 		clk_div_lv0 = <6>;
 		clk_src_lv1 = <7>;
 		clk_div_lv1 = <1>;
-
 		out_format = <3>;
 		vs_start_offset = <480>;
 		ev_start_offset = <480>;
 		vs_end_offset = <0>;
 		ev_end_offset = <0>;
 	};
+};
+
+&dp_drm_hdmi {
+	panel-type = "hdmi";
+	ddc-i2c-bus = <&i2c_gpio7>;
+	enable-gpios = <&gpio_a 21 0>;
+	status = "ok";
 };
