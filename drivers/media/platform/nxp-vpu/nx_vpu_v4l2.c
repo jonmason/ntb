@@ -1070,6 +1070,7 @@ static int nx_vpu_probe(struct platform_device *pdev)
 	struct video_device *vfd;
 	struct resource res;
 	int ret, irq;
+	uint32_t info[2] = { };
 
 	FUNC_IN();
 
@@ -1130,6 +1131,12 @@ static int nx_vpu_probe(struct platform_device *pdev)
 	if (IS_ERR(dev->coda_p)) {
 		dev_err(&pdev->dev, "failed to get reset control of vpu-c\n");
 		return -ENODEV;
+	}
+
+	ret = of_property_read_u32_array(pdev->dev.of_node, "sram", info, 2);
+	if (!ret) {
+		dev->sram_base_addr = info[0];
+		dev->sram_size = info[1];
 	}
 
 	/* alloc context : use vb2 dma contig   */

@@ -825,7 +825,7 @@ static int VPU_DecRegisterFrameBufCommand(struct nx_vpu_codec_inst
 	}
 
 	if (!ConfigDecSecAXI(pInfo->codecStd, &pInfo->sec_axi_info,
-		pInfo->width, pInfo->height)) {
+		pInfo->width, pInfo->height, pArg->sramAddr, pArg->sramSize)) {
 		NX_ErrMsg(("ConfigDecSecAXI() failed !!!\n"));
 		NX_ErrMsg(("Width = %d, Heigth = %d\n",
 			pInfo->width, pInfo->height));

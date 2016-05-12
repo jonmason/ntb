@@ -857,6 +857,9 @@ int vpu_dec_init(struct nx_vpu_ctx *ctx)
 	if (dec_ctx->pv_slice_buf)
 		frameArg.pvbSliceBuffer = *dec_ctx->pv_slice_buf;
 
+	frameArg.sramAddr = ctx->dev->sram_base_addr;
+	frameArg.sramSize = ctx->dev->sram_size;
+
 	ret = NX_VpuDecRegFrameBuf(ctx->hInst, &frameArg);
 	if (ret != VPU_RET_OK)
 		NX_ErrMsg(("NX_VpuDecRegFrameBuf() failed.(ErrorCode=%d)\n",

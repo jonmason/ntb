@@ -22,15 +22,6 @@
 
 #define	NX_MAX_VPU_INSTANCE		5
 
-/* VPU Internal SRAM */
-#define	VPU_SRAM_PHYSICAL_BASE		0xFFFF0000
-#if defined(CONFIG_ARCH_S5P4418)
-#define VPU_SRAM_SIZE			(0x10000)
-#endif
-#if defined(CONFIG_ARCH_S5P6818)
-#define VPU_SRAM_SIZE			(0x8000)
-#endif
-
 /* VPU Clock Gating */
 #define	ENABLE_CLOCK_GATING
 #define	ENABLE_POWER_SAVING

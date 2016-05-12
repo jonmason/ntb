@@ -120,6 +120,10 @@ struct vpu_enc_set_frame_arg {
 
 	/* Data partition Buffer size(MAX WIDTH * MAX HEIGHT * 3 / 4) */
 	struct nx_memory_info dataPartitionBuffer;
+
+	/* For Sram */
+	uint32_t sramAddr;
+	uint32_t sramSize;
 };
 
 union vpu_enc_get_header_arg {
@@ -279,6 +283,10 @@ struct vpu_dec_reg_frame_arg {
 	struct nx_memory_info pvbSliceBuffer;
 
 	int32_t chromaInterleave;
+
+	/* For Sram */
+	uint32_t sramAddr;
+	uint32_t sramSize;
 };
 
 /* VP8 specific display information */

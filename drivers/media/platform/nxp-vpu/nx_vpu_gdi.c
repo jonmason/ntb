@@ -262,15 +262,13 @@ int SetTiledMapType(int mapType, int stride, int interleave)
  */
 
 int ConfigEncSecAXI(int codStd, struct sec_axi_info *sa, int width,
-	int height)
+	int height, uint32_t sramAddr, uint32_t sramSize)
 {
 	int offset;
 	int MbNumX = ((width & 0xFFFF) + 15) / 16;
 	int MbNumY = ((height & 0xFFFF) + 15) / 16;
 	int totalMB = MbNumX * MbNumY;
-
-	int sramSize = VPU_SRAM_SIZE;
-	int sramPhyAddr = VPU_SRAM_PHYSICAL_BASE;
+	uint32_t sramPhyAddr = sramAddr;
 
 	/* useIpEnable : Intra Prediction
 	 * useDbkYEnable : Deblocking Luminance
@@ -279,36 +277,45 @@ int ConfigEncSecAXI(int codStd, struct sec_axi_info *sa, int width,
 	 * useOvlEnable : Enabled Overlap Filter(VC-1 Only)
 	 * useBtpEnable : Enable BTP(Bit-Plane)(VC-1 Only)
 	 */
-	switch (codStd) {
-	case CODEC_STD_AVC:
-		sa->useIpEnable = 1;
-		sa->useBitEnable = 1;
+	if (sramSize > 0) {
+		switch (codStd) {
+		case CODEC_STD_AVC:
+			sa->useIpEnable = 1;
+			sa->useBitEnable = 1;
+			sa->useDbkYEnable = 0;
+			sa->useDbkCEnable = 0;
+			sa->useOvlEnable = 0;
+			sa->useBtpEnable = 0;
+			break;
+		case CODEC_STD_MPEG4:
+			sa->useBitEnable = 1;
+			sa->useIpEnable = 1;
+			sa->useDbkYEnable = 1;
+			sa->useDbkCEnable = 1;
+			sa->useOvlEnable = 0;
+			sa->useBtpEnable = 0;
+			break;
+		case CODEC_STD_H263:
+			if (totalMB > NUM_MB_SD) {
+				sa->useDbkYEnable = 0;
+				sa->useDbkCEnable = 0;
+			} else {
+				sa->useDbkYEnable = 1;
+				sa->useDbkCEnable = 1;
+			}
+			sa->useBitEnable = 1;
+			sa->useIpEnable = 1;
+			sa->useOvlEnable = 0;
+			sa->useBtpEnable = 0;
+			break;
+		}
+	} else {
+		sa->useIpEnable = 0;
+		sa->useBitEnable = 0;
 		sa->useDbkYEnable = 0;
 		sa->useDbkCEnable = 0;
 		sa->useOvlEnable = 0;
 		sa->useBtpEnable = 0;
-		break;
-	case CODEC_STD_MPEG4:
-		sa->useBitEnable = 1;
-		sa->useIpEnable = 1;
-		sa->useDbkYEnable = 1;
-		sa->useDbkCEnable = 1;
-		sa->useOvlEnable = 0;
-		sa->useBtpEnable = 0;
-		break;
-	case CODEC_STD_H263:
-		if (totalMB > NUM_MB_SD) {
-			sa->useDbkYEnable = 0;
-			sa->useDbkCEnable = 0;
-		} else {
-			sa->useDbkYEnable = 1;
-			sa->useDbkCEnable = 1;
-		}
-		sa->useBitEnable = 1;
-		sa->useIpEnable = 1;
-		sa->useOvlEnable = 0;
-		sa->useBtpEnable = 0;
-		break;
 	}
 
 	offset = 0;
@@ -356,15 +363,14 @@ int ConfigEncSecAXI(int codStd, struct sec_axi_info *sa, int width,
 	return VPU_RET_OK;
 }
 
-int ConfigDecSecAXI(int codStd, struct sec_axi_info *sa, int width, int height)
+int ConfigDecSecAXI(int codStd, struct sec_axi_info *sa, int width, int height,
+	uint32_t sramAddr, uint32_t sramSize)
 {
 	int offset;
 	int MbNumX = ((width & 0xFFFF) + 15) / 16;
 	int MbNumY = ((height & 0xFFFF) + 15) / 16;
 	int totalMB = MbNumX * MbNumY;
-
-	int sramSize = VPU_SRAM_SIZE;
-	int sramPhyAddr = VPU_SRAM_PHYSICAL_BASE;
+	int sramPhyAddr = sramAddr;
 
 	/* useIpEnable : Intra Prediction
 	 * useDbkYEnable : Deblocking Luminance
@@ -372,52 +378,61 @@ int ConfigDecSecAXI(int codStd, struct sec_axi_info *sa, int width, int height)
 	 * useBitEnable : BitAxiSecEn (USE Bit Processor)
 	 * useOvlEnable : Enabled Overlap Filter(VC-1 Only)
 	 * useBtpEnable : Enable BTP(Bit-Plane)(VC-1 Only) */
-	switch (codStd) {
-	case CODEC_STD_AVC:
-		if ((totalMB > NUM_MB_SD) && (totalMB <= NUM_MB_720)) {
+	if (sramSize > 0) {
+		switch (codStd) {
+		case CODEC_STD_AVC:
+			if ((totalMB > NUM_MB_SD) && (totalMB <= NUM_MB_720)) {
+				sa->useIpEnable = 1;
+				sa->useDbkYEnable = 0;
+				sa->useDbkCEnable = 0;
+			}
+			if (totalMB > NUM_MB_720) {
+				sa->useIpEnable = 1;
+				sa->useDbkYEnable = 0;
+				sa->useDbkCEnable = 0;
+			} else {
+				sa->useIpEnable = 1;
+				sa->useDbkYEnable = 0;
+				sa->useDbkCEnable = 0;
+			}
+			sa->useBitEnable = 1;
+			sa->useOvlEnable = 1;
+			sa->useBtpEnable = 1;
+			break;
+		case CODEC_STD_VC1:
+			sa->useBitEnable = 1;
+			sa->useIpEnable = 0;
+			sa->useDbkYEnable = 0;
+			sa->useDbkCEnable = 0;
+			sa->useOvlEnable = 1;
+			sa->useBtpEnable = 1;
+			break;
+		case CODEC_STD_MPEG4:
+		case CODEC_STD_H263:
+		case CODEC_STD_MPEG2:
+			sa->useBitEnable = 1;
 			sa->useIpEnable = 1;
 			sa->useDbkYEnable = 0;
 			sa->useDbkCEnable = 0;
+			sa->useOvlEnable = 1;
+			sa->useBtpEnable = 1;
+			break;
+		case CODEC_STD_RV:
+			sa->useBitEnable = 1;
+			sa->useIpEnable = 1;
+			sa->useDbkYEnable = 0;
+			sa->useDbkCEnable = 0;
+			sa->useOvlEnable = 1;
+			sa->useBtpEnable = 1;
+			break;
 		}
-		if (totalMB > NUM_MB_720) {
-			sa->useIpEnable = 1;
-			sa->useDbkYEnable = 0;
-			sa->useDbkCEnable = 0;
-		} else {
-			sa->useIpEnable = 1;
-			sa->useDbkYEnable = 0;
-			sa->useDbkCEnable = 0;
-		}
-		sa->useBitEnable = 1;
-		sa->useOvlEnable = 1;
-		sa->useBtpEnable = 1;
-		break;
-	case CODEC_STD_VC1:
-		sa->useBitEnable = 1;
+	} else {
+		sa->useBitEnable = 0;
 		sa->useIpEnable = 0;
 		sa->useDbkYEnable = 0;
 		sa->useDbkCEnable = 0;
-		sa->useOvlEnable = 1;
-		sa->useBtpEnable = 1;
-		break;
-	case CODEC_STD_MPEG4:
-	case CODEC_STD_H263:
-	case CODEC_STD_MPEG2:
-		sa->useBitEnable = 1;
-		sa->useIpEnable = 1;
-		sa->useDbkYEnable = 0;
-		sa->useDbkCEnable = 0;
-		sa->useOvlEnable = 1;
-		sa->useBtpEnable = 1;
-		break;
-	case CODEC_STD_RV:
-		sa->useBitEnable = 1;
-		sa->useIpEnable = 1;
-		sa->useDbkYEnable = 0;
-		sa->useDbkCEnable = 0;
-		sa->useOvlEnable = 1;
-		sa->useBtpEnable = 1;
-		break;
+		sa->useOvlEnable = 0;
+		sa->useBtpEnable = 0;
 	}
 
 	offset = 0;

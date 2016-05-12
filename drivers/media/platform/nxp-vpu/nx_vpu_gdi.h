@@ -21,9 +21,9 @@
 
 int SetTiledMapType(int mapType, int stride, int interleave);
 int ConfigEncSecAXI(int codStd, struct sec_axi_info *sa, int width,
-	int height);
+	int height, uint32_t sramAddr, uint32_t sramSize);
 int ConfigDecSecAXI(int codStd, struct sec_axi_info *sa, int width,
-	int height);
+	int height, uint32_t sramAddr, uint32_t sramSize);
 unsigned int MaverickCache2Config(int decoder, int interleave, int bypass,
 	int burst, int merge, int mapType, int wayshape);
 

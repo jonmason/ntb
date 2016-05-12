@@ -1148,6 +1148,9 @@ int vpu_enc_init(struct nx_vpu_ctx *ctx)
 		frameArg.dataPartitionBuffer.phyAddr = 0;
 		frameArg.dataPartitionBuffer.virAddr = 0;
 
+		frameArg.sramAddr = ctx->dev->sram_base_addr;
+		frameArg.sramSize = ctx->dev->sram_size;
+
 		ret = NX_VpuEncSetFrame(ctx->hInst, &frameArg);
 		if (ret != VPU_RET_OK) {
 			NX_ErrMsg(("NX_VpuEncSetFrame() is failed!(ret = %d\n",

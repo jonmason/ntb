@@ -48,6 +48,9 @@ struct nx_vpu_v4l2 {
 	struct reset_control *coda_a;
 	struct reset_control *coda_p;
 
+	uint32_t sram_base_addr;
+	uint32_t sram_size;
+
 	spinlock_t irqlock;	/* lock when operating on videobuf2 queues */
 	struct mutex dev_mutex;
 	struct mutex vpu_mutex;

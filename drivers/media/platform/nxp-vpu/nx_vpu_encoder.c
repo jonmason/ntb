@@ -37,7 +37,7 @@
 static void VPU_EncDefaultParam(struct vpu_enc_info *pInfo);
 static int VPU_EncSeqCommand(struct nx_vpu_codec_inst *pInst);
 static int VPU_EncSetFrameBufCommand(struct nx_vpu_codec_inst
-	*pInst);
+	*pInst, uint32_t sramAddr, uint32_t sramSize);
 static int VPU_EncOneFrameCommand(struct nx_vpu_codec_inst *pInst,
 	struct vpu_enc_run_frame_arg *runArg);
 static int VPU_EncChangeParameterCommand(struct nx_vpu_codec_inst
@@ -211,7 +211,8 @@ int NX_VpuEncSetFrame(struct nx_vpu_codec_inst *handle,
 		pEncInfo->frameBuffer[i] = frmArg->frameBuffer[i];
 	pEncInfo->subSampleAPhyAddr = frmArg->subSampleBuffer[0].phyAddr;
 	pEncInfo->subSampleBPhyAddr = frmArg->subSampleBuffer[1].phyAddr;
-	return VPU_EncSetFrameBufCommand(handle);
+	return VPU_EncSetFrameBufCommand(handle, frmArg->sramAddr,
+		frmArg->sramSize);
 }
 
 int NX_VpuEncGetHeader(struct nx_vpu_codec_inst *handle,
@@ -549,7 +550,7 @@ static int VPU_EncSeqCommand(struct nx_vpu_codec_inst *pInst)
 }
 
 static int VPU_EncSetFrameBufCommand(struct nx_vpu_codec_inst
-	*pInst)
+	*pInst, uint32_t sramAddr, uint32_t sramSize)
 {
 	int i;
 	unsigned char frameAddr[22][3][4];
@@ -562,7 +563,7 @@ static int VPU_EncSetFrameBufCommand(struct nx_vpu_codec_inst
 	/* Set Second AXI Memory (SRAM) Configuration */
 	if (VPU_RET_OK != ConfigEncSecAXI(pEncInfo->codecStd,
 		&pEncInfo->sec_axi_info, pEncInfo->srcWidth,
-		pEncInfo->srcHeight))
+		pEncInfo->srcHeight, sramAddr, sramSize))
 		return VPU_RET_ERR_SRAM;
 
 	/* decoder(0), cbcr interleve(0), bypass(0), burst(0), merge(3),

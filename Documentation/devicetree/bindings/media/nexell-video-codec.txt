@@ -6,6 +6,8 @@ nx-vpu driver is top logical driver for all video codec of Nexell.
 Required properties:
 - compatible : must contain "nexell, nx-vpu"
 - status : To enable nx-vpu, should set to "okay"
+- sram : To enable SRAM, should set to <0xFFFF0000 0x8000>
+         (base_address size)
 
 Example:
 
@@ -19,4 +21,5 @@ video-codec@c0080000 {
 	reset-names = "vpu-a-reset", "vpu-p-reset", "vpu-c-reset";
 	clocks = <&pclk>, <&bclk>;
 	status = "okay";
+	sram = <0xFFFF0000 0x8000>;
 };
