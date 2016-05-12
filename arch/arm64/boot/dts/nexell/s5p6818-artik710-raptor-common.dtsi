@@ -195,6 +195,7 @@
 
 		video-codec@c0080000 {
 			status = "okay";
+			sram = <0xFFFF0000 0x8000>;
 		};
 
 		i2s_0:i2s@c0055000 {
