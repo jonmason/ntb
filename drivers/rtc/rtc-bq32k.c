@@ -199,12 +199,6 @@ static int bq32k_check_inittime(struct i2c_client *client)
 	struct rtc_time init_tm;
 	int ret;
 
-	ret = bq32k_rtc_read_time(dev, &hw_tm);
-	if (ret < 0) {
-		dev_err(dev, "Invalid time format\n");
-		return ret;
-	}
-
 	memset(&init_tm, 0, sizeof(struct rtc_time));
 	ret = of_property_read_u32(node, "init_time,year", &init_tm.tm_year);
 	if (ret < 0) {
@@ -228,6 +222,16 @@ static int bq32k_check_inittime(struct i2c_client *client)
 	if (ret < 0) {
 		dev_err(dev, "Cannot parse init_time,wday from DT\n");
 		return ret;
+	}
+
+	ret = bq32k_rtc_read_time(dev, &hw_tm);
+	if (ret < 0) {
+		if (ret == -EINVAL) {
+			return bq32k_set_inittime(dev, &init_tm);
+		} else {
+			dev_err(dev, "Cannot read i2c on bq32k\n");
+			return ret;
+		}
 	}
 
 	if (hw_tm.tm_year < init_tm.tm_year)
