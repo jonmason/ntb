@@ -493,7 +493,6 @@ static void __init timer_of_init_dt(struct device_node *node)
 #ifdef CONFIG_ARM
 	register_current_timer_delay(&nxp_delay_timer);
 #endif
-
 }
 
-CLOCKSOURCE_OF_DECLARE(nexell, "nexell,s5p6818-timer", timer_of_init_dt);
+CLOCKSOURCE_OF_DECLARE(s5p6818, "nexell,s5p6818-timer", timer_of_init_dt);
