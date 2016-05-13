@@ -329,7 +329,7 @@ config CLKSRC_ST_LPC
 
 config CLKSRC_NEXELL_TIMER
 	bool "Support for s5p6818 timer generation"
-	def_bool y if ARCH_S5P6818
+	def_bool y if ARCH_S5P6818 || ARCH_S5P4418
 	select CLKSRC_OF if OF
 	help
 	  This is a new clocksource driver for the Nexell timer.
