@@ -2637,8 +2637,10 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
 	if (ret)
 		goto err_host_allocated;
 
-	if (host->pdata->cd_type == DW_MCI_CD_EXTERNAL)
+	if (host->pdata->cd_type == DW_MCI_CD_EXTERNAL) {
 		host->pdata->ext_cd_init(&dw_mci_notify_change, (void *)host);
+		mmc->caps &= ~MMC_CAP_NEEDS_POLL;
+	}
 
 #if defined(CONFIG_DEBUG_FS)
 	dw_mci_init_debugfs(slot);
