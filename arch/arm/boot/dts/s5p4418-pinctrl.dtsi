@@ -1,0 +1,492 @@
+/*
+ * Nexell's s5p6818 SoC pin-mux and pin-config device tree source
+ *
+ * Copyright (C) 2016  Nexell Co., Ltd.
+ *		http://www.nexell.co.kr
+ *
+ * Nexell's s5p6818 SoC pin-mux and pin-config options are listed as
+ * device tree nodes in this file.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+pinctrl@C0010000 {
+	gpio_a: gpioa {
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	gpio_b: gpiob {
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	gpio_c: gpioc {
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	gpio_d: gpiod {
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	gpio_e: gpioe {
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	alive_0: alive {
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+
+	/* NAND */
+	nand_default: nand-default {
+		nand_cle: nand-cle {
+			nexell,pins = "gpiob-11";
+			nexell,pin-function = <0>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <0>;
+		};
+
+		nand_ale: nand-ale {
+			nexell,pins = "gpiob-12";
+			nexell,pin-function = <0>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <0>;
+		};
+
+		nand_bus8: nand-bus-width8 {
+			nexell,pins = "gpiob-13", "gpiob-15", "gpiob-17",
+				      "gpiob-19", "gpiob-20", "gpiob-21",
+				      "gpiob-22", "gpiob-23";
+			nexell,pin-function = <0>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <0>;
+		};
+
+		nand_rnb: nand-rnb {
+			nexell,pins = "gpiob-14";
+			nexell,pin-function = <0>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <0>;
+		};
+
+		nand_noe: nand-noe {
+			nexell,pins = "gpiob-16";
+			nexell,pin-function = <0>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <0>;
+		};
+
+		nand_nwe: nand-nwe {
+			nexell,pins = "gpiob-18";
+			nexell,pin-function = <0>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <0>;
+		};
+	};
+
+
+	/* GMAC */
+	gmac_pins: gmac_pins {
+		gmac_txd: gmac-txd {
+			nexell,pins = "gpioe-7", "gpioe-8", "gpioe-9",
+				      "gpioe-10";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <3>;
+		};
+
+		gmac_rxd: gmac-rxd {
+			nexell,pins = "gpioe-14", "gpioe-15", "gpioe-16",
+				      "gpioe-17";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <3>;
+		};
+
+		gmac_txen: gmac-txen {
+			nexell,pins = "gpioe-11";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <3>;
+		};
+
+		gmac_mdc: gmac-mdc {
+			nexell,pins = "gpioe-20";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <3>;
+		};
+
+		gmac_mdio: gmac-mdio {
+			nexell,pins = "gpioe-21";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <3>;
+		};
+
+		gmac_rxclk: gmac-rxclk {
+			nexell,pins = "gpioe-18";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <3>;
+		};
+
+		gmac_txclk: gmac-txclk {
+			nexell,pins = "gpioe-24";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <2>;
+			nexell,pin-strength = <2>;
+		};
+	};
+
+	/* MMC0 */
+	sdmmc0_cclk: sdmmc0-cclk {
+		nexell,pins = "gpioa-29";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <2>;
+	};
+
+	sdmmc0_cmd: sdmmc0-cmd {
+		nexell,pins = "gpioa-31";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <1>;
+	};
+
+	sdmmc0_bus4: sdmmc0-bus-width4 {
+		nexell,pins = "gpiob-1", "gpiob-3", "gpiob-5", "gpiob-7";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <1>;
+	};
+	/* MMC1 */
+	sdmmc1_cclk: sdmmc1-cclk {
+		nexell,pins = "gpiod-22";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <2>;
+	};
+
+	sdmmc1_cmd: sdmmc1-cmd {
+		nexell,pins = "gpiod-23";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <1>;
+	};
+
+	sdmmc1_bus4: sdmmc1-bus-width4 {
+		nexell,pins = "gpiod-24", "gpiod-25", "gpiod-26", "gpiod-27";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <1>;
+	};
+
+	/* MMC2 */
+	sdmmc2_cclk: sdmmc2-cclk {
+		nexell,pins = "gpioc-18";
+		nexell,pin-function = <2>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <2>;
+	};
+
+	sdmmc2_cmd: sdmmc2-cmd {
+		nexell,pins = "gpioc-19";
+		nexell,pin-function = <2>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <1>;
+	};
+
+	sdmmc2_bus4: sdmmc2-bus-width4 {
+		nexell,pins = "gpioc-20", "gpioc-21", "gpioc-22", "gpioc-23";
+		nexell,pin-function = <2>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <1>;
+	};
+
+	sdmmc2_bus8: sdmmc2-bus-width8 {
+		nexell,pins = "gpioe-21", "gpioe-22", "gpioe-23", "gpioe-24";
+		nexell,pin-function = <2>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <1>;
+	};
+
+	/* serial */
+	serial0_pin:serial0 {
+		nexell,pins = "gpiod-14", "gpiod-18";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	serial1_pin:serial1 {
+		nexell,pins = "gpiod-15", "gpiod-19";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	serial1_flow:serial1_flow {
+		nexell,pins = "gpioc-5", "gpioc-6";
+		nexell,pin-function = <2>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	serial2_pin:serial2 {
+		nexell,pins = "gpiod-16", "gpiod-20";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	serial3_pin:serial3 {
+		nexell,pins = "gpiod-17", "gpiod-21";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	serial4_pin:serial4 {
+		nexell,pins = "gpiob-28", "gpiob-29";
+		nexell,pin-function = <3>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	serial5_pin:serial5 {
+		nexell,pins = "gpiob-30", "gpiob-31";
+		nexell,pin-function = <3>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	i2c0_pin:i2c0 {
+		nexell,pins = "gpiod-2", "gpiod-3";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	i2c1_pin:i2c1 {
+		nexell,pins = "gpiod-4", "gpiod-5";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	i2c2_pin:i2c2 {
+		nexell,pins = "gpiod-6", "gpiod-7";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	pwm0_pin:pwm0 {
+		nexell,pins = "gpiod-1";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <0>;
+		nexell,pin-strength = <0>;
+	};
+
+	pwm1_pin:pwm1 {
+		nexell,pins = "gpioc-13";
+		nexell,pin-function = <2>;
+		nexell,pin-pull = <0>;
+		nexell,pin-strength = <0>;
+	};
+
+	pwm2_pin:pwm2 {
+		nexell,pins = "gpioc-14";
+		nexell,pin-function = <2>;
+		nexell,pin-pull = <0>;
+		nexell,pin-strength = <0>;
+	};
+
+	pwm3_pin:pwm3 {
+		nexell,pins = "gpiod-0";
+		nexell,pin-function = <2>;
+		nexell,pin-pull = <0>;
+		nexell,pin-strength = <0>;
+	};
+
+	i2s0_bus:i2s0 {
+		nexell,pins = "gpiod-9", "gpiod-10", "gpiod-11",
+				"gpiod-12", "gpiod-13";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <0>;
+		nexell,pin-strength = <0>;
+	};
+
+	i2s1_bus:i2s1 {
+		nexell,pins = "gpioa-28", "gpioa-30", "gpiob-0",
+				"gpiob-6", "gpiob-9";
+		nexell,pin-function = <3>;
+		nexell,pin-pull = <0>;
+		nexell,pin-strength = <0>;
+	};
+
+	i2s2_bus:i2s2 {
+		i2s2_mclk: i2s2-mclk {
+			nexell,pins = "gpioa-28";
+			nexell,pin-function = <2>;
+			nexell,pin-pull = <0>;
+			nexell,pin-strength = <0>;
+		};
+
+		i2s2_other: i2s2-other {
+			nexell,pins = "gpiob-2", "gpiob-4",
+					"gpiob-8", "gpiob-10";
+			nexell,pin-function = <3>;
+			nexell,pin-pull = <0>;
+			nexell,pin-strength = <0>;
+		};
+	};
+
+	spi0_bus:spi0 {
+		nexell,pins = "gpioc-29", "gpioc-30", "gpioc-31", "gpiod-0";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	spi1_bus:spi1 {
+		nexell,pins = "gpioe-14", "gpioe-15", "gpioe-18", "gpioe-19";
+		nexell,pin-function = <2>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	spi2_bus:spi2 {
+		nexell,pins = "gpioc-9", "gpioc-10", "gpioc-11", "gpioc-12";
+		nexell,pin-function = <2>;
+		nexell,pin-pull = <1>;
+		nexell,pin-strength = <0>;
+	};
+
+	spdiftx_pin:spdiftx {
+		nexell,pins = "gpioc-25";
+		nexell,pin-function = <2>;
+		nexell,pin-pull = <0>;
+		nexell,pin-strength = <0>;
+	};
+
+	vid0_data_clk: vid0-data-clk {
+		nexell,pins = "gpiod-28", "gpiod-29", "gpiod-30", "gpiod-31", "gpioe-0", "gpioe-1", "gpioe-2", "gpioe-3", "gpioe-4";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	vid0_sync: vid0-sync {
+		nexell,pins = "gpioe-5", "gpioe-6";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	vid1_data_clk: vid1-data-clk {
+		nexell,pins = "gpioa-30", "gpiob-0", "gpiob-2", "gpiob-4", "gpiob-6", "gpiob-8", "gpiob-9", "gpiob-10", "gpioa-28";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	vid1_sync: vid1-sync {
+		nexell,pins = "gpioe-13", "gpioe-7";
+		nexell,pin-function = <2>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	vid2_data_clk: vid2-data-clk {
+		nexell,pins = "gpioc-17", "gpioc-18", "gpioc-19", "gpioc-20", "gpioc-21", "gpioc-22", "gpioc-23", "gpioc-24", "gpioc-14";
+		nexell,pin-function = <3>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	vid2_sync: vid2-sync {
+		nexell,pins = "gpioc-15", "gpioc-16";
+		nexell,pin-function = <3>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	dp_rgb_vclk: dp-rgb-vclk {
+		nexell,pins = "gpioa-0";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	dp_rgb_vsync: dp-rgb-vsync {
+		nexell,pins = "gpioa-25";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	dp_rgb_hsync: dp-rgb-hsync {
+		nexell,pins = "gpioa-26";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	dp_rgb_de: dp-rgb-de {
+		nexell,pins = "gpioa-27";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	dp_rgb_B: dp-rgb-B {
+		nexell,pins = "gpioa-1", "gpioa-2", "gpioa-3", "gpioa-4",
+			      "gpioa-5", "gpioa-6", "gpioa-7", "gpioa-8";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	dp_rgb_G: dp-rgb-G {
+		nexell,pins = "gpioa-9", "gpioa-10", "gpioa-11", "gpioa-12",
+			      "gpioa-13", "gpioa-14", "gpioa-15", "gpioa-16";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	dp_rgb_R: dp-rgb-R {
+		nexell,pins = "gpioa-17", "gpioa-18", "gpioa-19", "gpioa-20",
+			      "gpioa-21", "gpioa-22", "gpioa-23", "gpioa-24";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+};
