@@ -1,0 +1,19 @@
+config ARCH_S5P4418
+	bool "Nexell S5P4418D/Q"
+	select CPU_V7
+	select ARM_AMBA
+	select ARM_GIC
+	select ARM_VIC
+	select HAVE_SMP
+	select MIGHT_HAVE_CACHE_L2X0
+	select ARCH_HAS_CPUFREQ
+	select GENERIC_TIME
+	select GENERIC_CLOCKEVENTS
+	select ZONE_DMA
+	select SPARSE_IRQ
+	select COMMON_CLK
+	select ARCH_REQUIRE_GPIOLIB
+	select ARM_PATCH_PHYS_VIRT
+	select USE_OF
+	help
+	  Support for nexell S5P4418 dual/quard core (ARM Cortex A9) platform
