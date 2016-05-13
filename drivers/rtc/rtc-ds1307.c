@@ -851,6 +851,59 @@ out:
 	return;
 }
 
+static int ds1307_check_inittime(struct i2c_client *client)
+{
+	struct device *dev = &client->dev;
+	struct device_node *node = client->dev.of_node;
+	struct rtc_time hw_tm;
+	struct rtc_time init_tm;
+	int ret;
+
+	memset(&init_tm, 0, sizeof(struct rtc_time));
+	ret = of_property_read_u32(node, "init_time,year", &init_tm.tm_year);
+	if (ret < 0) {
+		dev_err(dev, "Cannot parse init_time,year from DT\n");
+		return ret;
+	}
+
+	ret = of_property_read_u32(node, "init_time,mon", &init_tm.tm_mon);
+	if (ret < 0) {
+		dev_err(dev, "Cannot parse init_time,mon from DT\n");
+		return ret;
+	}
+
+	ret = of_property_read_u32(node, "init_time,mday", &init_tm.tm_mday);
+	if (ret < 0) {
+		dev_err(dev, "Cannot parse init_time,mday from DT\n");
+		return ret;
+	}
+
+	ret = of_property_read_u32(node, "init_time,wday", &init_tm.tm_wday);
+	if (ret < 0) {
+		dev_err(dev, "Cannot parse init_time,wday from DT\n");
+		return ret;
+	}
+
+	ret = ds1307_get_time(dev, &hw_tm);
+	if (ret < 0) {
+		if (ret == -EINVAL)
+			return ds1307_set_time(dev, &init_tm);
+		else
+			return ret;
+	}
+
+	if (hw_tm.tm_year < init_tm.tm_year)
+		return ds1307_set_time(dev, &init_tm);
+
+	if (hw_tm.tm_mon < init_tm.tm_mon)
+		return ds1307_set_time(dev, &init_tm);
+
+	if (hw_tm.tm_mday < init_tm.tm_mday)
+		return ds1307_set_time(dev, &init_tm);
+
+	return 0;
+}
+
 static int ds1307_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
@@ -1134,10 +1187,15 @@ read_rtc:
 				bin2bcd(tmp));
 	}
 
+	/* Check init time */
+	if (!pdata && client->dev.of_node)
+		ds1307_check_inittime(client);
+
 	if (want_irq) {
 		device_set_wakeup_capable(&client->dev, true);
 		set_bit(HAS_ALARM, &ds1307->flags);
 	}
+
 	ds1307->rtc = devm_rtc_device_register(&client->dev, client->name,
 				rtc_ops, THIS_MODULE);
 	if (IS_ERR(ds1307->rtc)) {
