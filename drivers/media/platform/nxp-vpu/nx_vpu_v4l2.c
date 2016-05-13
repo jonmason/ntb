@@ -29,6 +29,8 @@
 #include <linux/videodev2.h>
 #include <linux/videodev2_nxp_media.h>
 
+#include <linux/soc/nexell/nx-media-device.h>
+
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-mem2mem.h>
 #include <media/videobuf2-dma-contig.h>
@@ -1176,9 +1178,9 @@ static int nx_vpu_probe(struct platform_device *pdev)
 	dev->vfd_enc = vfd;
 
 	v4l2_info(&dev->v4l2_dev, "encoder registered as /dev/video%d\n",
-		vfd->num);
+		NX_VPU_START);
 	video_set_drvdata(vfd, dev);
-	ret = video_register_device(vfd, VFL_TYPE_GRABBER, 0);
+	ret = video_register_device(vfd, VFL_TYPE_GRABBER, NX_VPU_START);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to register video device\n");
 		video_device_release(vfd);
@@ -1204,9 +1206,9 @@ static int nx_vpu_probe(struct platform_device *pdev)
 	dev->vfd_dec = vfd;
 
 	v4l2_info(&dev->v4l2_dev, "decoder registered as /dev/video%d\n",
-		vfd->num);
+		NX_VPU_START + 1);
 	video_set_drvdata(vfd, dev);
-	ret = video_register_device(vfd, VFL_TYPE_GRABBER, 0);
+	ret = video_register_device(vfd, VFL_TYPE_GRABBER, NX_VPU_START + 1);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to register video device\n");
 		video_device_release(vfd);
