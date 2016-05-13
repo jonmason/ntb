@@ -286,7 +286,7 @@ static struct v4l2_queryctrl controls[] = {
 		.step = 1,
 		.default_value = 0,
 	},
-	/*{
+	{
 		.id = V4L2_CID_MPEG_VIDEO_FORCE_I_FRAME,
 		.type = V4L2_CTRL_TYPE_BOOLEAN,
 		.name = "Flag of forced intra frame",
@@ -303,7 +303,7 @@ static struct v4l2_queryctrl controls[] = {
 		.maximum = 1,
 		.step = 1,
 		.default_value = 0,
-	},*/
+	},
 };
 #define NUM_CTRLS ARRAY_SIZE(controls)
 
@@ -615,10 +615,80 @@ static int vidioc_dqbuf(struct file *file, void *priv, struct v4l2_buffer *buf)
 	return vb2_dqbuf(&ctx->vq_strm, buf, file->f_flags & O_NONBLOCK);
 }
 
-static int get_ctrl_val(struct nx_vpu_ctx *ctx, struct v4l2_control *ctrl)
+static int get_ctrl_val(struct vpu_enc_ctx *enc_ctx, struct v4l2_control *ctrl)
 {
+	struct vpu_enc_seq_arg *seq_para = &enc_ctx->seq_para;
+
 	FUNC_IN();
-	NX_ErrMsg(("%s will be coded!!\n", __func__));
+
+	switch (ctrl->id) {
+	case V4L2_CID_MPEG_VIDEO_FPS_NUM:
+		ctrl->value = seq_para->frameRateNum;
+		break;
+	case V4L2_CID_MPEG_VIDEO_FPS_DEN:
+		ctrl->value = seq_para->frameRateDen;
+		break;
+	case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
+		ctrl->value = seq_para->gopSize;
+		break;
+	case V4L2_CID_MPEG_VIDEO_CYCLIC_INTRA_REFRESH_MB:
+		ctrl->value = seq_para->intraRefreshMbs;
+		break;
+	case V4L2_CID_MPEG_VIDEO_SEARCH_RANGE:
+		ctrl->value = seq_para->searchRange;
+		break;
+	case V4L2_CID_MPEG_VIDEO_FRAME_RC_ENABLE:
+		ctrl->value = (seq_para->bitrate > 0) ? (1) : (0);
+		break;
+	case V4L2_CID_MPEG_VIDEO_BITRATE:
+		ctrl->value = seq_para->bitrate;
+		break;
+	case V4L2_CID_MPEG_VIDEO_VBV_SIZE:
+		ctrl->value = seq_para->vbvBufferSize;
+		break;
+	case V4L2_CID_MPEG_VIDEO_RC_DELAY:
+		ctrl->value = seq_para->initialDelay;
+		break;
+	case V4L2_CID_MPEG_VIDEO_RC_GAMMA_FACTOR:
+		ctrl->value = seq_para->gammaFactor;
+		break;
+	case V4L2_CID_MPEG_VIDEO_FRAME_SKIP_MODE:
+		ctrl->value = !seq_para->disableSkip;
+		break;
+	case V4L2_CID_MPEG_VIDEO_H264_PROFILE:
+		ctrl->value = V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE;
+		break;
+	case V4L2_CID_MPEG_VIDEO_H264_I_FRAME_QP:
+	case V4L2_CID_MPEG_VIDEO_MPEG4_I_FRAME_QP:
+	case V4L2_CID_MPEG_VIDEO_H263_I_FRAME_QP:
+		ctrl->value = enc_ctx->userIQP;
+		break;
+	case V4L2_CID_MPEG_VIDEO_H264_P_FRAME_QP:
+	case V4L2_CID_MPEG_VIDEO_MPEG4_P_FRAME_QP:
+	case V4L2_CID_MPEG_VIDEO_H263_P_FRAME_QP:
+		ctrl->value = enc_ctx->userPQP;
+		break;
+	case V4L2_CID_MPEG_VIDEO_H264_MAX_QP:
+	case V4L2_CID_MPEG_VIDEO_MPEG4_MAX_QP:
+	case V4L2_CID_MPEG_VIDEO_H263_MAX_QP:
+		ctrl->value = seq_para->maxQP;
+		break;
+	case V4L2_CID_MPEG_VIDEO_H264_AUD_INSERT:
+		ctrl->value = seq_para->enableAUDelimiter;
+		break;
+	case V4L2_CID_MPEG_VIDEO_MPEG4_PROFILE:
+		ctrl->value = V4L2_MPEG_VIDEO_MPEG4_PROFILE_SIMPLE;
+		break;
+	case V4L2_CID_MPEG_VIDEO_H263_PROFILE:
+		ctrl->value = (seq_para->annexFlg) ?
+			(V4L2_MPEG_VIDEO_H263_PROFILE_P3) :
+			(V4L2_MPEG_VIDEO_H263_PROFILE_P0);
+		break;
+	default:
+		NX_ErrMsg(("Invalid control(ID = %x)\n", ctrl->id));
+		return -EINVAL;
+	}
+
 	return 0;
 }
 
@@ -634,10 +704,10 @@ static int vidioc_g_ctrl(struct file *file, void *priv,
 	return ret;
 }
 
-static int set_enc_param(struct nx_vpu_ctx *ctx, struct v4l2_control *ctrl)
+static int set_enc_param(struct vpu_enc_ctx *enc_ctx, struct v4l2_control *ctrl)
 {
 	int ret = 0;
-	struct vpu_enc_seq_arg *seq_para = &ctx->codec.enc.seq_para;
+	struct vpu_enc_seq_arg *seq_para = &enc_ctx->seq_para;
 
 	FUNC_IN();
 
@@ -658,7 +728,8 @@ static int set_enc_param(struct nx_vpu_ctx *ctx, struct v4l2_control *ctrl)
 		seq_para->searchRange = ctrl->value;
 		break;
 	case V4L2_CID_MPEG_VIDEO_FRAME_RC_ENABLE:
-		seq_para->disableSkip = !ctrl->value;
+		if (ctrl->value == 0)
+			seq_para->bitrate = 0;
 		break;
 	case V4L2_CID_MPEG_VIDEO_BITRATE:
 		seq_para->bitrate = ctrl->value;
@@ -678,12 +749,12 @@ static int set_enc_param(struct nx_vpu_ctx *ctx, struct v4l2_control *ctrl)
 	case V4L2_CID_MPEG_VIDEO_H264_I_FRAME_QP:
 	case V4L2_CID_MPEG_VIDEO_MPEG4_I_FRAME_QP:
 	case V4L2_CID_MPEG_VIDEO_H263_I_FRAME_QP:
-		ctx->codec.enc.userIQP = ctrl->value;
+		enc_ctx->userIQP = ctrl->value;
 		break;
 	case V4L2_CID_MPEG_VIDEO_H264_P_FRAME_QP:
 	case V4L2_CID_MPEG_VIDEO_MPEG4_P_FRAME_QP:
 	case V4L2_CID_MPEG_VIDEO_H263_P_FRAME_QP:
-		ctx->codec.enc.userPQP = ctrl->value;
+		enc_ctx->userPQP = ctrl->value;
 		break;
 	case V4L2_CID_MPEG_VIDEO_H264_MAX_QP:
 	case V4L2_CID_MPEG_VIDEO_MPEG4_MAX_QP:
@@ -705,12 +776,80 @@ static int set_enc_param(struct nx_vpu_ctx *ctx, struct v4l2_control *ctrl)
 	return ret;
 }
 
+static int set_enc_run_param(struct vpu_enc_ctx *enc_ctx,
+	struct v4l2_control *ctrl)
+{
+	int ret = 0;
+	struct vpu_enc_run_frame_arg *run_info = &enc_ctx->run_info;
+	struct vpu_enc_chg_para_arg *chg_para = &enc_ctx->chg_para;
+	struct vpu_enc_seq_arg *seq_para = &enc_ctx->chg_para;
+
+	FUNC_IN();
+
+	switch (ctrl->id) {
+	case V4L2_CID_MPEG_VIDEO_FORCE_I_FRAME:
+		run_info->forceIPicture = ctrl->value;
+		break;
+	case V4L2_CID_MPEG_VIDEO_FORCE_SKIP_FRAME:
+		run_info->forceSkipPicture = ctrl->value;
+		break;
+	case V4L2_CID_MPEG_VIDEO_H264_I_FRAME_QP:
+	case V4L2_CID_MPEG_VIDEO_H264_P_FRAME_QP:
+	case V4L2_CID_MPEG_VIDEO_MPEG4_I_FRAME_QP:
+	case V4L2_CID_MPEG_VIDEO_MPEG4_P_FRAME_QP:
+	case V4L2_CID_MPEG_VIDEO_H263_I_FRAME_QP:
+	case V4L2_CID_MPEG_VIDEO_H263_P_FRAME_QP:
+		if (ctrl->value > 0)
+			run_info->quantParam = ctrl->value;
+		else
+			run_info->quantParam = enc_ctx->userPQP;
+		break;
+	case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
+		chg_para->chgFlg |= VPU_BIT_CHG_GOP;
+		chg_para->gopSize = ctrl->value;
+		seq_para->gopSize = ctrl->value;
+		break;
+	case V4L2_CID_MPEG_VIDEO_BITRATE:
+		chg_para->chgFlg |= VPU_BIT_CHG_BITRATE;
+		chg_para->bitrate = ctrl->value;
+		seq_para->bitrate = ctrl->value;
+		break;
+	case V4L2_CID_MPEG_VIDEO_FPS_NUM:
+		chg_para->chgFlg |= VPU_BIT_CHG_FRAMERATE;
+		chg_para->frameRateNum = ctrl->value;
+		seq_para->frameRateNum = ctrl->value;
+		break;
+	case V4L2_CID_MPEG_VIDEO_FPS_DEN:
+		chg_para->chgFlg |= VPU_BIT_CHG_FRAMERATE;
+		chg_para->frameRateDen = ctrl->value;
+		seq_para->frameRateDen = ctrl->value;
+		break;
+	case V4L2_CID_MPEG_VIDEO_CYCLIC_INTRA_REFRESH_MB:
+		chg_para->chgFlg |= VPU_BIT_CHG_INTRARF;
+		chg_para->intraRefreshMbs = ctrl->value;
+		seq_para->intraRefreshMbs = ctrl->value;
+		break;
+	default:
+		NX_ErrMsg(("Invalid control(ID = %x)\n", ctrl->id));
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+
 static int vidioc_s_ctrl(struct file *file, void *priv, struct v4l2_control
 	*ctrl)
 {
+	struct nx_vpu_ctx *ctx = fh_to_ctx(file->private_data);
+	int ret = 0;
+
 	FUNC_IN();
-	NX_ErrMsg(("%s will be coded!!\n", __func__));
-	return 0;
+
+	ret = check_ctrl_val(ctx, ctrl);
+	if (ret != 0)
+		return ret;
+
+	return set_enc_run_param(&ctx->codec.enc, ctrl);
 }
 
 static int vidioc_g_ext_ctrls(struct file *file, void *priv,
@@ -773,7 +912,7 @@ static int vidioc_s_ext_ctrls(struct file *file, void *priv,
 			break;
 		}
 
-		ret = set_enc_param(ctx, &ctrl);
+		ret = set_enc_param(&ctx->codec.enc, &ctrl);
 		if (ret != 0) {
 			f->error_idx = i;
 			break;
@@ -1049,6 +1188,8 @@ static void get_stream_buffer(struct nx_vpu_ctx *ctx,
 {
 	struct nx_vpu_buf *dst_mb;
 
+	FUNC_IN();
+
 	/* spin_lock_irqsave(&ctx->dev->irqlock, flags); */
 
 	dst_mb = list_entry(ctx->strm_queue.next, struct nx_vpu_buf, list);
@@ -1166,11 +1307,6 @@ int vpu_enc_init(struct nx_vpu_ctx *ctx)
 		}
 	}
 
-	enc_ctx->gopSize = pSeqArg->gopSize;
-	enc_ctx->frameRateNum = pSeqArg->frameRateNum;
-	enc_ctx->frameRateDen = pSeqArg->frameRateDen;
-	enc_ctx->bitrate = pSeqArg->bitrate;
-	enc_ctx->enable_skip = !pSeqArg->disableSkip;
 	enc_ctx->gop_frm_cnt = 0;
 
 	ctx->is_initialized = 1;
@@ -1239,7 +1375,7 @@ int vpu_enc_encode_frame(struct nx_vpu_ctx *ctx)
 	int ret = 0;
 	unsigned long flags;
 	struct nx_vpu_buf *mb_entry;
-	struct vpu_enc_run_frame_arg runArg;
+	struct vpu_enc_run_frame_arg *pRunArg = &enc_ctx->run_info;
 	struct nx_memory_info stream_buf;
 
 	FUNC_IN();
@@ -1249,7 +1385,16 @@ int vpu_enc_encode_frame(struct nx_vpu_ctx *ctx)
 		return -EAGAIN;
 	}
 
-	memset(&runArg, 0, sizeof(runArg));
+	if (enc_ctx->chg_para.chgFlg) {
+		ret = NX_VpuEncChgParam(hInst, &enc_ctx->chg_para);
+		if (ret != VPU_RET_OK) {
+			NX_ErrMsg(("NX_VpuEncChgParam() failed.(Err=%d)\n",
+				ret));
+			return ret;
+		}
+
+		NX_DrvMemset(&enc_ctx->chg_para, 0, sizeof(enc_ctx->chg_para));
+	}
 
 	get_stream_buffer(ctx, &stream_buf);
 
@@ -1258,39 +1403,36 @@ int vpu_enc_encode_frame(struct nx_vpu_ctx *ctx)
 	mb_entry = list_entry(ctx->img_queue.next, struct nx_vpu_buf, list);
 	mb_entry->used = 1;
 
-	runArg.inImgBuffer.phyAddr[0] = nx_vpu_mem_plane_addr(ctx,
+	pRunArg->inImgBuffer.phyAddr[0] = nx_vpu_mem_plane_addr(ctx,
 		&mb_entry->vb, 0);
-	runArg.inImgBuffer.phyAddr[1] = nx_vpu_mem_plane_addr(ctx,
+	pRunArg->inImgBuffer.phyAddr[1] = nx_vpu_mem_plane_addr(ctx,
 		&mb_entry->vb, 1);
 	if (ctx->chromaInterleave == 0)
-		runArg.inImgBuffer.phyAddr[2] = nx_vpu_mem_plane_addr(ctx,
+		pRunArg->inImgBuffer.phyAddr[2] = nx_vpu_mem_plane_addr(ctx,
 			&mb_entry->vb, 2);
 
-	runArg.inImgBuffer.stride[0] = ctx->buf_width;
+	pRunArg->inImgBuffer.stride[0] = ctx->buf_width;
 
 	spin_unlock_irqrestore(&dev->irqlock, flags);
 
 	dev->curr_ctx = ctx->idx;
 
-	if ((enc_ctx->gop_frm_cnt >= enc_ctx->gopSize) ||
-		(enc_ctx->gop_frm_cnt == 0)) {
-		runArg.forceIPicture = 1;
-		enc_ctx->gop_frm_cnt = 1;
-		runArg.quantParam = enc_ctx->userIQP;
-	} else {
-		runArg.quantParam = enc_ctx->userPQP;
-		enc_ctx->gop_frm_cnt += 1;
-	}
+	if ((enc_ctx->gop_frm_cnt >= enc_ctx->seq_para.gopSize) ||
+		(enc_ctx->gop_frm_cnt == 0))
+		pRunArg->forceIPicture = 1;
 
-	ret = NX_VpuEncRunFrame(hInst, &runArg);
+	enc_ctx->gop_frm_cnt = (pRunArg->forceIPicture) ?
+		(1) : (enc_ctx->gop_frm_cnt + 1);
+
+	ret = NX_VpuEncRunFrame(hInst, pRunArg);
 	if (ret != VPU_RET_OK) {
 		NX_ErrMsg(("NX_VpuEncRunFrame() failed.(ErrorCode=%d)\n", ret));
 		return ret;
 	}
 
-	memcpy(stream_buf.virAddr, (void *)runArg.outStreamAddr,
-		runArg.outStreamSize);
-	ctx->strm_size = runArg.outStreamSize;
+	memcpy(stream_buf.virAddr, (void *)pRunArg->outStreamAddr,
+		pRunArg->outStreamSize);
+	ctx->strm_size = pRunArg->outStreamSize;
 
 	spin_lock_irqsave(&dev->irqlock, flags);
 

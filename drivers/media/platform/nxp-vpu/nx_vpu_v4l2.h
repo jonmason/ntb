@@ -78,19 +78,13 @@ struct vpu_enc_ctx {
 	int userIQP;
 	int userPQP;
 
-	int gopSize;			/* Group Of pictures' size */
-	int frameRateNum;		/* Framerate numerator */
-	int frameRateDen;		/* Framerate denominator */
-	int bitrate;
-	int enable_skip;		/* Enable skip frame */
-
-	/*int force_frame_type; */
-
 	struct nx_vid_memory_info *ref_recon_buf[2];
 	struct nx_memory_info *sub_sample_buf[2];
 
-	union vpu_enc_get_header_arg seq_info;	/* TBD */
-	struct vpu_enc_seq_arg seq_para;	/* TBD */
+	union vpu_enc_get_header_arg seq_info;
+	struct vpu_enc_seq_arg seq_para;
+	struct vpu_enc_run_frame_arg run_info;
+	struct vpu_enc_chg_para_arg chg_para;
 
 	int reconChromaInterleave;
 };

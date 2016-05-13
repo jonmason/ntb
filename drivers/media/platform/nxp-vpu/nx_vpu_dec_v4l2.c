@@ -333,31 +333,6 @@ static int vidioc_dqbuf(struct file *file, void *priv, struct v4l2_buffer *buf)
 	return ret;
 }
 
-/* Query a ctrl */
-static int vidioc_queryctrl(struct file *file, void *priv, struct v4l2_queryctrl
-	*qc)
-{
-	FUNC_IN();
-	NX_ErrMsg(("%s will be coded!!\n", __func__));
-	return 0;
-}
-
-static int vidioc_g_ctrl(struct file *file, void *priv, struct v4l2_control
-	*ctrl)
-{
-	FUNC_IN();
-	NX_ErrMsg(("%s will be coded!!\n", __func__));
-	return 0;
-}
-
-static int vidioc_s_ctrl(struct file *file, void *priv, struct v4l2_control
-	*ctrl)
-{
-	FUNC_IN();
-	NX_ErrMsg(("%s will be coded!!\n", __func__));
-	return 0;
-}
-
 static int vidioc_g_crop(struct file *file, void *priv, struct v4l2_crop *cr)
 {
 	struct nx_vpu_ctx *ctx = fh_to_ctx(file->private_data);
@@ -373,11 +348,36 @@ static int vidioc_g_crop(struct file *file, void *priv, struct v4l2_crop *cr)
 	return 0;
 }
 
+/* Query a ctrl */
+static int vidioc_queryctrl(struct file *file, void *priv, struct v4l2_queryctrl
+	*qc)
+{
+	FUNC_IN();
+	NX_ErrMsg(("%s will be coded as needed!\n", __func__));
+	return 0;
+}
+
+static int vidioc_g_ctrl(struct file *file, void *priv, struct v4l2_control
+	*ctrl)
+{
+	FUNC_IN();
+	NX_ErrMsg(("%s will be coded as needed!\n", __func__));
+	return 0;
+}
+
+static int vidioc_s_ctrl(struct file *file, void *priv, struct v4l2_control
+	*ctrl)
+{
+	FUNC_IN();
+	NX_ErrMsg(("%s will be coded as needed!\n", __func__));
+	return 0;
+}
+
 static int vidioc_g_ext_ctrls(struct file *file, void *priv,
 	struct v4l2_ext_controls *f)
 {
 	FUNC_IN();
-	NX_ErrMsg(("%s will be coded!!\n", __func__));
+	NX_ErrMsg(("%s will be coded as needed!\n", __func__));
 	return 0;
 }
 
@@ -646,6 +646,7 @@ int vpu_dec_open_instance(struct nx_vpu_ctx *ctx)
 		ctx->codec_mode = CODEC_STD_RV;
 		break;
 	case V4L2_PIX_FMT_FLV1:
+		/* Sorenson spark */
 		ctx->codec_mode = CODEC_STD_MPEG4;
 		openArg.mp4Class = 256;
 		break;

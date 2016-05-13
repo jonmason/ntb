@@ -776,7 +776,7 @@ static int VPU_EncOneFrameCommand(struct nx_vpu_codec_inst *pInst,
 	 *(MPEG-4/H.263 : 1~31, AVC : 0 ~51) */
 	VpuWriteReg(CMD_ENC_PIC_QS, runArg->quantParam);
 
-	if (runArg->skipPicture) {
+	if (runArg->forceSkipPicture) {
 		VpuWriteReg(CMD_ENC_PIC_OPTION, 1);
 	} else {
 		/* Registering Source Frame Buffer information */

@@ -156,7 +156,7 @@ struct vpu_enc_run_frame_arg {
 	int32_t enableRc;
 	int32_t forceIPicture;
 	int32_t quantParam;		/* User quantization Parameter */
-	int32_t skipPicture;
+	int32_t forceSkipPicture;
 
 	/* Output Parameter */
 	int32_t frameType;		/* I, P, B, SKIP,.. etc */
