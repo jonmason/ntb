@@ -1,0 +1,181 @@
+/*
+ * Copyright (C) 2016  Nexell Co., Ltd.
+ * Author: Youngbok, Park <ybpark@nexell.co.kr>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include "../skeleton.dtsi"
+
+#include <dt-bindings/tieoff/s5p4418-tieoff.h>
+#include <dt-bindings/soc/s5p4418-base.h>
+#include <dt-bindings/reset/nexell,s5p4418-reset.h>
+#include <dt-bindings/interrupt-controller/s5p4418-irq.h>
+
+/ {
+	model = "nexell soc";
+	compatible = "nexell,s5p4418";
+	#address-cells = <0x1>;
+	#size-cells = <0x1>;
+
+	aliases {
+		serial0 = &serial0;
+		pinctrl0 = &pinctrl_0;
+	};
+
+	cpus {
+		#address-cells = <0x2>;
+		#size-cells = <0x0>;
+
+		cpu0: cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a9";
+			reg = <0x0 0x0>;
+			cpu-release-addr = < 0x1 0xc0010230 >;
+		};
+		cpu-map {
+			cluster0 {
+				core0 {
+					cpu = <&cpu0>;
+				};
+			};
+		};
+	};
+
+	refclk:oscillator {
+		compatible = "nexell,s5p4418,pll";
+		reg = <0xc0010000 0x1000>;
+		ref-freuecny = <24000000>;
+	};
+
+	nx-v4l2 {
+		compatible = "nexell,nx-v4l2";
+		status = "disabled";
+	};
+
+	soc {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0xc0000000 0x300000>;
+		interrupt-parent = <&vic0>;
+		ranges;
+
+		#include "s5p4418-soc.dtsi"
+
+		gic:interrupt-controller@f0000000 {
+			compatible = "nexell,s5p4418-gic";
+			interrupt-controller;
+			#interrupt-cells = <3>;
+			reg	= <0xf0001000 0x1000>, <0xf0000100 0x100>;
+			interrupt-parent = <&gic>;
+		};
+
+		vic0:interrupt-controller@c0002000 {
+			compatible = "nexell,s5p4418-vic";
+			interrupt-controller;
+			reg = <0xc0002000 0x1000>,<0xc0003000 0x1000>;
+			#interrupt-cells = <1>;
+			valid-mask = <0xffffffff>;
+			valid-wakeup-mask =
+				< ((1<<IRQ_INTREQPWR) | (1<<IRQ_ALIVE)) >;
+		};
+
+		timer@c0017000 {
+			compatible = "nexell,s5p6818-timer";
+			reg = <PHYS_BASE_TIMER 0x1000>;
+			interrupts = <IRQ_TIMER1>;
+			clksource = <0>;
+			clkevent = <1>;
+			clocks =  <&timer0>, <&timer1>, <&pclk>;
+			clock-names = "timer0", "timer1", "pclk";
+		};
+
+		tieoff@c0011000 {
+			compatible = "nexell,tieoff";
+			reg = <PHYS_BASE_TIEOFF 0x1000>;
+		};
+
+		nexell_reset:reset@c0012000 {
+			#reset-cells = <1>;
+			compatible = "nexell,s5pxx18-reset";
+			reg = <0xC0012000 0x3>;
+			status = "okay";
+		};
+
+		serial0:serial@c00a1000 {
+			compatible = "arm,pl011","arm,primecell";
+			reg = <PHYS_BASE_UART0 0x1000>;
+			interrupts = <IRQ_UART0>;
+			clock-names = "uartclk", "apb_pclk";
+			clocks = <&uart0>, <&uart0>;
+			resets  = <&nexell_reset RESET_ID_UART0>;
+			reset-names = "uart-reset";
+			soc,tieoff = <NX_TIEOFF_UART0_USESMC 0>,
+					<NX_TIEOFF_UART0_SMCTXENB 0>,
+					<NX_TIEOFF_UART0_SMCRXENB 0> ;
+			pinctrl-names = "default";
+			pinctrl-0 = <&serial0_pin>;
+			status = "disabled";
+		};
+
+		dw_mmc_2:dw_mmc@c0069000 {
+			compatible = "nexell,s5p6818-dw-mshc";
+			interrupts = <IRQ_SDMMC2>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <PHYS_BASE_SDMMC2 0x1000>;
+			resets  = <&nexell_reset RESET_ID_SDMMC2>;
+			reset-names = "dw_mmc-reset";
+			clock-names = "biu","ciu";
+			clocks = <&sdhc2>, <&sdhc2>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&sdmmc2_cclk &sdmmc2_cmd &sdmmc2_bus4>;
+			fifo-detph = <0x20>;
+			status = "disabled";
+		};
+
+		dw_mmc_1:dw_mmc@c0068000 {
+			compatible = "nexell,s5p6818-dw-mshc";
+			interrupts = <IRQ_SDMMC1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <PHYS_BASE_SDMMC1 0x1000>;
+			resets  = <&nexell_reset RESET_ID_SDMMC1>;
+			reset-names = "dw_mmc-reset";
+			clock-names = "biu", "ciu";
+			clocks = <&sdhc1>, <&sdhc1>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&sdmmc1_cclk &sdmmc1_cmd &sdmmc1_bus4>;
+			fifo-detph = <0x20>;
+			status = "disabled";
+		};
+
+		dw_mmc_0:dw_mmc@c0062000 {
+			compatible = "nexell,s5p6818-dw-mshc";
+			interrupts = <IRQ_SDMMC0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <PHYS_BASE_SDMMC0 0x1000>;
+			resets  = <&nexell_reset RESET_ID_SDMMC0>;
+			reset-names = "dw_mmc-reset";
+			clock-names = "biu", "ciu";
+			clocks = <&sdhc0>, <&sdhc0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&sdmmc0_cclk &sdmmc0_cmd &sdmmc0_bus4>;
+			fifo-detph = <0x20>;
+			status = "disabled";
+		};
+	}; /*** soc ***/
+};
