@@ -32,6 +32,8 @@
 #include <media/videobuf2-dma-contig.h>
 #include <media/v4l2-subdev.h>
 
+#include <linux/soc/nexell/nx-media-device.h>
+
 #include "nx-v4l2.h"
 #include "nx-video.h"
 
@@ -42,6 +44,7 @@
 #define YUV_YSTRIDE(w)   (ALIGN(w/2, YUV_STRIDE_ALIGN_FACTOR) * 2)
 #define YUV_VSTRIDE(h)   ALIGN(h, YUV_VSTRIDE_ALIGN_FACTOR)
 
+static int video_device_number = NX_CAPTURE_START;
 /*
  * supported formats
  * V4L2_PIX_FMT_XXX : reference to include/linux/videodev2.h
@@ -1040,13 +1043,16 @@ struct nx_video *nx_video_create(char *name, u32 type,
 	spin_lock_init(&me->lock_consumer);
 
 	me->vdev.v4l2_dev = me->v4l2_dev;
-	ret = video_register_device(&me->vdev, VFL_TYPE_GRABBER, -1);
+	ret = video_register_device(&me->vdev, VFL_TYPE_GRABBER,
+				    video_device_number);
 	if (ret < 0) {
 		pr_err("[nx video] failed to video_register_device()\n");
 		goto free_vbq;
 	}
 
 	video_set_drvdata(&me->vdev, me);
+
+	video_device_number++;
 
 	return me;
 
