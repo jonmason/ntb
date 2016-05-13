@@ -2491,6 +2491,7 @@ static void dw_mci_notify_change(void *dev_id, int state)
 			dev_info(host->dev, "card inserted.\n");
 			host->pdata->quirks |=
 				DW_MCI_QUIRK_BROKEN_CARD_DETECTION;
+			dw_mci_handle_cd(host);
 		} else {
 			dev_info(host->dev, "card removed.\n");
 			host->pdata->quirks &=
