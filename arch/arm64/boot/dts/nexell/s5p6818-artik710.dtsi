@@ -210,6 +210,7 @@
 	bus-width = <4>;
 	cap-sd-highspeed;
 	cd-type-external;
+	broken-cd;
 	cd-type = <2>;
 	clock-frequency = <100000000>;
 	nexell,drive_dly = <0x0>;
