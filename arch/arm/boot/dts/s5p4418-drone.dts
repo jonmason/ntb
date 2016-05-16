@@ -133,6 +133,11 @@
 				status = "okay";
 			};
 		};
+
+		dwc2otg@c0040000 {
+			gpios = <&gpio_d 21 0>;
+			status = "okay";
+		};
 	};	/*** soc ***/
 
 	spdif_out: spdif-out {
