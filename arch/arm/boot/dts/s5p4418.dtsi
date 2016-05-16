@@ -177,5 +177,20 @@
 			fifo-detph = <0x20>;
 			status = "disabled";
 		};
+
+		spdiftx@c0059000 {
+			compatible = "nexell,nexell-spdif-tx";
+			reg = <PHYS_BASE_SPDIF_TX 0x1000>;
+			interrupts = <IRQ_SPDIFTX>;
+			dmas = <&pl08xdma1 6>;
+			dma-names = "tx";
+			resets = <&nexell_reset RESET_ID_SPDIFTX>;
+			reset-names = "spdiftx-reset";
+			clocks = <&spdiftx>;
+			clock-names = "spdif-tx";
+			pcm-bit = <16>;
+			sample_rate = <48000>;
+			status = "disabled";
+		};
 	}; /*** soc ***/
 };
