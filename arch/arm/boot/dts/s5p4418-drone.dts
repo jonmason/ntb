@@ -111,6 +111,10 @@
 		watchdog@c0019000 {
 			status = "okay";
 		};
+
+		rtc@c0010c00 {
+			status = "okay";
+		};
 	};	/*** soc ***/
 
 	spdif_out: spdif-out {
