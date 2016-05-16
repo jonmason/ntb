@@ -185,7 +185,7 @@ clocks {
 		#clock-cells = <0>;
 		clock-output-names = "pwm1";
 		cell-id = <CLK_ID_PWM_1>;
-		reg = <PHYS_BASE_CLK_13 0x1000>;
+		reg = <PHYS_BASE_CLK_3 0x1000>;
 		clk-step  = <1>;
 		clk-input = <CLK_INPUT_PWM>;
 	};
@@ -194,7 +194,7 @@ clocks {
 		#clock-cells = <0>;
 		clock-output-names = "pwm2";
 		cell-id = <CLK_ID_PWM_2>;
-		reg = <PHYS_BASE_CLK_3 0x1000>;
+		reg = <PHYS_BASE_CLK_4 0x1000>;
 		clk-step  = <1>;
 		clk-input = <CLK_INPUT_PWM>;
 	};
@@ -203,7 +203,7 @@ clocks {
 		#clock-cells = <0>;
 		clock-output-names = "pwm3";
 		cell-id = <CLK_ID_PWM_3>;
-		reg = <PHYS_BASE_CLK_3 0x1000>;
+		reg = <PHYS_BASE_CLK_5 0x1000>;
 		clk-step  = <1>;
 		clk-input = <CLK_INPUT_PWM>;
 	};
