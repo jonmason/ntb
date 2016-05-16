@@ -537,7 +537,7 @@ config USB_OHCI_SH
 
 config USB_OHCI_EXYNOS
 	tristate "OHCI support for Samsung S5P/EXYNOS SoC Series"
-	depends on ARCH_S5PV210 || ARCH_EXYNOS || ARCH_S5P6818
+	depends on ARCH_S5PV210 || ARCH_EXYNOS || ARCH_S5P4418 || ARCH_S5P6818
 	help
 	 Enable support for the Samsung Exynos SOC's on-chip OHCI controller.
 
