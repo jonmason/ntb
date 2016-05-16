@@ -39,7 +39,7 @@
 #define EHCI_INSNREG00_ENABLE_DMA_BURST	\
 	(EHCI_INSNREG00_ENA_INCR16 | EHCI_INSNREG00_ENA_INCR8 |	\
 	 EHCI_INSNREG00_ENA_INCR4 | EHCI_INSNREG00_ENA_INCRX_ALIGN)
-#if defined(CONFIG_ARCH_S5P6818)
+#if defined(CONFIG_ARCH_S5P4418) || defined(CONFIG_ARCH_S5P6818)
 #define EHCI_INSNREG08(base)			(base + 0xb0)
 #endif
 
@@ -320,7 +320,7 @@ static const struct dev_pm_ops exynos_ehci_pm_ops = {
 	.resume		= exynos_ehci_resume,
 };
 
-#if defined(CONFIG_ARCH_S5P6818)
+#if defined(CONFIG_ARCH_S5P4418) || defined(CONFIG_ARCH_S5P6818)
 int hsic_port_power(struct usb_hcd *hcd, int portnum, bool enable)
 {
 	if (portnum == 1) {
@@ -357,7 +357,7 @@ static struct platform_driver exynos_ehci_driver = {
 };
 static const struct ehci_driver_overrides exynos_overrides __initdata = {
 	.extra_priv_size = sizeof(struct exynos_ehci_hcd),
-#if defined(CONFIG_ARCH_S5P6818)
+#if defined(CONFIG_ARCH_S5P4418) || defined(CONFIG_ARCH_S5P6818)
 	.port_power = hsic_port_power,
 #endif
 };
