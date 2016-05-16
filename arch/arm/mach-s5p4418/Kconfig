@@ -18,5 +18,6 @@ config ARCH_S5P4418
 	select ARCH_REQUIRE_GPIOLIB
 	select ARM_PATCH_PHYS_VIRT
 	select USE_OF
+	select HAVE_S3C2410_WATCHDOG if WATCHDOG
 	help
 	  Support for nexell S5P4418 dual/quard core (ARM Cortex A9) platform
