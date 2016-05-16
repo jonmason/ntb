@@ -1,6 +1,6 @@
 config DRM_NX
 	tristate "DRM Support for NEXELL Display Controller"
-	depends on DRM && ARCH_S5P6818
+	depends on DRM && (ARCH_S5P6818 || ARCH_S5P4418)
 	select DRM_KMS_HELPER
 	select DRM_KMS_CMA_HELPER
 	help
