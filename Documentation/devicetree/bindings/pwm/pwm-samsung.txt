@@ -16,6 +16,7 @@ Required properties:
 			  Exynos4210 rev0 SoCs
     samsung,exynos4210-pwm - for 32-bit timers present on Exynos4210,
                           Exynos4x12, Exynos5250 and Exynos5420 SoCs
+    nexell,s5p4418-pwm - for 32-bit timers present on Nexell S5P4418 SoCs
     nexell,s5p6818-pwm - for 32-bit timers present on Nexell S5P6818 SoCs
 - reg: base address and size of register area
 - interrupts: list of timer interrupts (one interrupt per timer, starting at
@@ -50,6 +51,22 @@ Example:
 		samsung,pwm-outputs = <0>, <1>;
 		#pwm-cells = <3>;
 	}
+
+Nexell, s5p4418-pwm Example:
+	pwm:pwm@c0018000 {
+		compatible = "nexell,s5p4418-pwm";
+		reg = <PHYS_BASE_PWM 0x1000>;
+		reset-names = "pwm-reset";
+		resets  = <&nexell_reset RESET_ID_PWM>;
+		clock-names = "timers", "pwm-tclk0", "pwm-tclk1",
+		    "pwm-tclk2", "pwm-tclk3";
+		clocks =  <&pclk>, <&pwm0>, <&pwm1>, <&pwm2>, <&pwm3>;
+		#pwm-cells = <3>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwm0_pin &pwm1_pin &pwm2_pin &pwm3_pin>;
+		samsung,pwm-outputs = <0>, <1>, <2>, <3>;
+		status = "disabled";
+	};
 
 Nexell, s5p6818-pwm Example:
 	pwm:pwm@c0018000 {
