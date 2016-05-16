@@ -303,7 +303,7 @@ static int panel_lcd_bind(struct device *dev,
 	struct platform_driver *pdrv = to_platform_driver(dev->driver);
 	enum dp_panel_type panel_type = panel_get_type(ctx->display);
 	int pipe = ctx->crtc_pipe;
-	int err;
+	int err = 0;
 
 	ctx->connector = nx_drm_connector_create_and_attach(drm,
 			ctx->display, pipe, panel_type, ctx);
