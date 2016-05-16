@@ -1614,7 +1614,7 @@ config RTC_DRV_XGENE
 
 config RTC_DRV_NX
 	tristate "Nexell RTC"
-	depends on ARCH_S5P6818
+	depends on ARCH_S5P4418 || ARCH_S5P6818
 	help
 	  Driver for the internal RTC (Realtime Clock) module found on
 	  Nexell's processor.
