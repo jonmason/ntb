@@ -75,15 +75,24 @@ struct i2s_register {
 
 #define	CSR_BLC_POS			13
 #define	CSR_CDCLKCON_POS		12
+#if defined(CONFIG_ARCH_S5P4418)
+#define	CSR_IMS_POS			10
+#elif defined(CONFIG_ARCH_S5P6818)
 #define	CSR_IMS_POS			11
+#endif
 #define	CSR_TXR_POS			8
 #define	CSR_LRP_POS			7
 #define	CSR_SDF_POS			5
 #define	CSR_RFS_POS			3
 #define	CSR_BFS_POS			1
 
+#if defined(CONFIG_ARCH_S5P4418)
+#define	IMS_BIT_EXTCLK			(1<<0)
+#define	IMS_BIT_SLAVE			(3<<0)
+#elif defined(CONFIG_ARCH_S5P6818)
 #define	IMS_BIT_EXTCLK			(0<<0)
 #define	IMS_BIT_SLAVE			(1<<0)
+#endif
 
 #define BLC_8BIT			1
 #define BLC_16BIT			0
@@ -358,7 +367,7 @@ static int nx_i2s_check_param(struct nx_i2s_snd_param *par, struct device *dev)
 	int LRP, IMS, BLC = BLC_16BIT, BFS = 0, RFS = RATIO_256;
 	int SDF = 0, OEN = 0;
 
-	IMS = par->master_mode ? 0 : IMS_BIT_SLAVE;
+	IMS = par->master_mode ? IMS_BIT_EXTCLK : IMS_BIT_SLAVE;
 	/* 0:I2S, 1:Left 2:Right justfied */
 	SDF = par->trans_mode & 0x03;
 	LRP = par->LR_pol_inv ? 1 : 0;
