@@ -192,5 +192,17 @@
 			sample_rate = <48000>;
 			status = "disabled";
 		};
+
+		watchdog@c0019000 {
+			compatible = "nexell,nexell-wdt";
+			reg = <PHYS_BASE_WDT 0x1000>;
+			interrupts = <IRQ_WDT>;
+			resets = <&nexell_reset RESET_ID_WDT>,
+			       <&nexell_reset RESET_ID_WDT_POR>;
+			reset-names = "wdt-reset","wdt-por-reset";
+			clocks = <&pclk>;
+			clock-names = "watchdog";
+			status = "disabled";
+		};
 	}; /*** soc ***/
 };
