@@ -211,5 +211,37 @@
 			interrupts = <IRQ_RTC>;
 			status = "disabled";
 		};
+
+		nexell_usbphy: nexell-usbphy@c0012000 {
+			compatible = "nexell,nexell-usb2-phy";
+			reg = <PHYS_BASE_TIEOFF 0x100>;
+			clocks = <&usbhost>;
+			clock-names = "phy";
+			#phy-cells = <1>;
+			status = "disabled";
+		};
+
+		ehci@c0030000 {
+			compatible = "nexell,nexell-ehci";
+			reg = <PHYS_BASE_EHCI 0x10000>;
+			interrupts = <IRQ_USB20HOST>;
+			clocks = <&usbhost>;
+			clock-names = "usbhost";
+			resets = <&nexell_reset RESET_ID_USB20HOST>;
+			reset-names = "usbhost-reset";
+			status = "disabled";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			port@0 {
+				reg = <0>;
+				phys = <&nexell_usbphy 1>;
+				status = "disabled";
+			};
+			port@1 {
+				reg = <1>;
+				phys = <&nexell_usbphy 2>;
+				status = "disabled";
+			};
+		};
 	}; /*** soc ***/
 };
