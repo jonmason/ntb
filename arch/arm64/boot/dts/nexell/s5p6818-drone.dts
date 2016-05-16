@@ -363,8 +363,8 @@
 
 &dp_drm_lcd {
 	remote-endpoint = <&lcd_panel>;
-	encoder-port = <0>;
 	panel-type = "rgb";
+	status = "okay";
 
 	dp_control {
 		clk_src_lv0 = <0>;
