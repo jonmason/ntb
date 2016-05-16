@@ -247,7 +247,7 @@ config PHY_SAMSUNG_USB2
 	depends on USB_EHCI_EXYNOS || USB_OHCI_EXYNOS || USB_DWC2
 	select GENERIC_PHY
 	select MFD_SYSCON
-	default ARCH_EXYNOS || ARCH_S5P6818
+	default ARCH_EXYNOS || ARCH_S5P4418 || ARCH_S5P6818
 	help
 	  Enable this to support the Samsung USB 2.0 PHY driver for Samsung
 	  SoCs. This driver provides the interface for USB 2.0 PHY. Support
@@ -282,7 +282,7 @@ config PHY_EXYNOS5250_USB2
 config PHY_NX_USB2
 	bool "Nexell USB 2.0 PHY driver"
 	depends on PHY_SAMSUNG_USB2
-	default ARCH_S5P6818
+	default ARCH_S5P4418 || ARCH_S5P6818
 
 config PHY_EXYNOS5_USBDRD
 	tristate "Exynos5 SoC series USB DRD PHY driver"
