@@ -138,6 +138,10 @@
 			gpios = <&gpio_d 21 0>;
 			status = "okay";
 		};
+
+		pwm:pwm@c0018000 {
+			status = "okay";
+		};
 	};	/*** soc ***/
 
 	spdif_out: spdif-out {
