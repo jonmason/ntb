@@ -107,6 +107,10 @@
 			sample_rate = <48000>;
 			status = "okay";
 		};
+
+		watchdog@c0019000 {
+			status = "okay";
+		};
 	};	/*** soc ***/
 
 	spdif_out: spdif-out {
