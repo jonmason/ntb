@@ -235,6 +235,7 @@ static int nx_drm_crtc_page_flip(struct drm_crtc *crtc,
 			crtc_w, crtc_h);
 
 	if (ret) {
+		DRM_DEBUG("fail : plane update for page flip %d\n", ret);
 		crtc->primary->fb = old_fb;
 		spin_lock_irq(&dev->event_lock);
 		nx_crtc->event = NULL;
@@ -282,10 +283,12 @@ int nx_drm_crtc_enable_vblank(struct drm_device *drm, unsigned int pipe)
 	struct nx_drm_priv *priv = drm->dev_private;
 	struct nx_drm_crtc *nx_crtc = to_nx_crtc(priv->crtcs[pipe]);
 
-	DRM_DEBUG_KMS("enter crtc.%d\n", pipe);
+	DRM_DEBUG_KMS("enter pipe.%d\n", pipe);
 
 	if (nx_crtc->dpms_mode != DRM_MODE_DPMS_ON)
 		return -EPERM;
+
+	nx_drm_dp_crtc_irq_on(&nx_crtc->crtc, pipe);
 
 	return 0;
 }
@@ -295,10 +298,9 @@ void nx_drm_crtc_disable_vblank(struct drm_device *drm, unsigned int pipe)
 	struct nx_drm_priv *priv = drm->dev_private;
 	struct nx_drm_crtc *nx_crtc = to_nx_crtc(priv->crtcs[pipe]);
 
-	DRM_DEBUG_KMS("enter crtc.%d\n", pipe);
+	DRM_DEBUG_KMS("enter pipe.%d\n", pipe);
 
-	if (nx_crtc->dpms_mode != DRM_MODE_DPMS_ON)
-		return;
+	nx_drm_dp_crtc_irq_off(&nx_crtc->crtc, pipe);
 }
 
 #ifdef DEBUG_FPS_TIME
@@ -316,18 +318,37 @@ static irqreturn_t nx_drm_crtc_interrupt(int irq, void *arg)
 {
 	struct drm_device *drm = arg;
 	struct nx_drm_priv *priv;
-	int i;
+	int no;
 
 	priv = drm->dev_private;
 
-	for (i = 0; i < priv->num_crtcs; i++) {
-		struct drm_crtc *crtc = priv->crtcs[i];
+	for (no = 0; no < priv->num_crtcs; no++) {
+		struct drm_crtc *crtc = priv->crtcs[no];
+		struct nx_drm_crtc *nx_crtc = to_nx_crtc(crtc);
 
 		if (crtc) {
-			if (irq == to_nx_crtc(crtc)->pipe_irq) {
-				int pipe = to_nx_crtc(crtc)->pipe;
+			if (irq == nx_crtc->pipe_irq) {
+				struct drm_pending_vblank_event *event = NULL;
+				int pipe = nx_crtc->pipe;
 
-				drm_handle_vblank(drm, i);
+				if (nx_crtc->dpms_mode == DRM_MODE_DPMS_OFF) {
+					nx_drm_dp_crtc_irq_done(crtc, pipe);
+					break;
+				}
+
+				drm_handle_vblank(drm, no);
+
+				spin_lock(&drm->event_lock);
+
+				event = nx_crtc->event;
+				if (event) {
+					drm_send_vblank_event(drm, no, event);
+					drm_vblank_put(drm, no);
+				}
+				nx_crtc->event = NULL;
+
+				spin_unlock(&drm->event_lock);
+
 				DUMP_FPS_TIME(pipe);
 
 				/* clear hw pend */

@@ -452,6 +452,20 @@ void nx_drm_dp_crtc_commit(struct drm_crtc *crtc)
 	nx_soc_dp_rgb_set_enable(layer, true, true);
 }
 
+void nx_drm_dp_crtc_irq_on(struct drm_crtc *crtc, int pipe)
+{
+	struct dp_control_dev dpc = { .module = pipe };
+
+	nx_soc_dp_device_irq_on(&dpc, true);
+}
+
+void nx_drm_dp_crtc_irq_off(struct drm_crtc *crtc, int pipe)
+{
+	struct dp_control_dev dpc = { .module = pipe };
+
+	nx_soc_dp_device_irq_on(&dpc, false);
+}
+
 void nx_drm_dp_crtc_irq_done(struct drm_crtc *crtc, int pipe)
 {
 	struct dp_control_dev dpc = { .module = pipe };

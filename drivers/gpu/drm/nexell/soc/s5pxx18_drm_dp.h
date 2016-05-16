@@ -85,6 +85,8 @@ int nx_drm_dp_crtc_mode_set(struct drm_crtc *crtc,
 
 void nx_drm_dp_crtc_commit(struct drm_crtc *crtc);
 void nx_drm_dp_crtc_dpms(struct drm_crtc *crtc, int mode);
+void nx_drm_dp_crtc_irq_on(struct drm_crtc *crtc, int pipe);
+void nx_drm_dp_crtc_irq_off(struct drm_crtc *crtc, int pipe);
 void nx_drm_dp_crtc_irq_done(struct drm_crtc *crtc, int pipe);
 
 void nx_drm_dp_plane_init(struct drm_device *drm, struct drm_crtc *crtc,

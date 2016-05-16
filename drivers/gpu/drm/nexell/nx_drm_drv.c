@@ -107,6 +107,8 @@ static int nx_drm_load(struct drm_device *drm, unsigned long flags)
 	if (ret)
 		goto err_mode_config_cleanup;
 
+	drm->vblank_disable_allowed = true;
+
 	/* init kms poll for handling hpd */
 	drm_kms_helper_poll_init(drm);
 
