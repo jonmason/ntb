@@ -102,6 +102,21 @@
 			status = "okay";
 		};
 
+		spdiftx@c0059000 {
+			pcm-bit = <16>;
+			sample_rate = <48000>;
+			status = "okay";
+		};
+	};	/*** soc ***/
+
+	spdif_out: spdif-out {
+		compatible = "linux,spdif-dit";
+	};
+
+	spdif-transceiver {
+		compatible = "nexell,spdif-transceiver";
+		sample_rate = <48000>;
+		format = "S16";
 	};
 };
 
