@@ -142,6 +142,16 @@
 		pwm:pwm@c0018000 {
 			status = "okay";
 		};
+
+		i2s_0:i2s@c0055000 {
+			master-mode = <1>;
+			mclk-in = <0>;
+			trans-mode = <0>;
+			frame-bit = <32>;
+			sample-rate = <48000>;
+			pre-supply-mclk = <1>;
+			status = "okay";
+		};
 	};	/*** soc ***/
 
 	spdif_out: spdif-out {
