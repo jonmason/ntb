@@ -468,7 +468,7 @@ amba {
 	pl08xdma0:pl08xdma@c0000000 {
 		compatible = "arm,pl080", "arm,primecell";
 		reg = <PHYS_BASE_DMA0 0x1000>;
-		interrupts = <0 IRQ_DMA0 0>;
+		interrupts = <IRQ_DMA0>;
 		#dma-cells = <1>;
 
 		/* ID and bus config */
@@ -479,7 +479,7 @@ amba {
 		master_mem_buses = <PL08X_AHB1>;
 		memcpy_bus_id = "memcpy";
 		memcpy_cctl = <PRIMECELL_MEMORU_CCTL>;
-		status = "disabled";
+
 		/* slave channels */
 		ch0 {
 			slave_bus_id = PL08X_DMA_NAME_UART1_TX;
@@ -581,7 +581,7 @@ amba {
 	pl08xdma1:pl08xdma@c0001000 {
 		compatible = "arm,pl080", "arm,primecell";
 		reg = <PHYS_BASE_DMA1 0x1000>;
-		interrupts = <0 IRQ_DMA1 0>;
+		interrupts = <IRQ_DMA1>;
 		#dma-cells = <1>;
 
 		/* ID and bus config */
@@ -685,4 +685,3 @@ amba {
 		};
 	};
 };
-
