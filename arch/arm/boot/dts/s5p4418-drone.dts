@@ -152,6 +152,21 @@
 			pre-supply-mclk = <1>;
 			status = "okay";
 		};
+
+		i2c0_gpio:i2c@c00a4000 {
+			compatible = "i2c-gpio";
+			gpios = <&gpio_d 3 0 /* sda */
+				&gpio_d 2 0 /* scl */
+				>;
+			i2c-gpio,delay-us = <10>;    /* ~100 kHz */
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			es8316: es8316@11 {
+				compatible = "everest,es8316";
+				reg = <0x11>;
+			};
+		};
 	};	/*** soc ***/
 
 	spdif_out: spdif-out {
@@ -162,6 +177,19 @@
 		compatible = "nexell,spdif-transceiver";
 		sample_rate = <48000>;
 		format = "S16";
+	};
+
+	sound {
+		compatible = "nexell,nexell-es8316";
+		ch = <0>;
+		sample-rate = <48000>;
+		format = "S16";
+		hpin-support = <1>;
+		hpin-gpio = <&gpio_b 27 0>;
+		hpin-level = <1>;
+		amp-gpio = <&gpio_d 19 0>;
+		i2s-controller = <&i2s_0>;
+		audio-codec = <&es8316>;
 	};
 };
 
