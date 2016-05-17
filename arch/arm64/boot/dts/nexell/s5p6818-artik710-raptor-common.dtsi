@@ -576,9 +576,7 @@
        };
 };
 
-&dp_drm_lcd {
-	panel-type = "mipi";
-
+&dp_drm_mipi {
 	hs_bitrate = <960>;
 	lp_bitrate = <100>;
 	status = "ok";
@@ -621,7 +619,6 @@
 };
 
 &dp_drm_hdmi {
-	panel-type = "hdmi";
 	ddc-i2c-bus = <&i2c_gpio7>;
 	enable-gpios = <&gpio_a 21 0>;
 	status = "ok";
