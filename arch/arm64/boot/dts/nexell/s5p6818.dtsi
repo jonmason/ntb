@@ -792,8 +792,18 @@
 			};
 		};
 
-		dp_drm_lcd: display_drm_lcd {
-			compatible = "nexell,s5p6818-drm-lcd";
+		dp_drm_rgb: display_drm_rgb {
+			compatible = "nexell,s5p6818-drm-rgb";
+			reg = <0xc0101000 0x100>;
+			resets = <&nexell_reset RESET_ID_DISP_TOP>;
+			reset-names = "rsc-display-top";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		dp_drm_mipi: display_drm_mipi {
+			compatible = "nexell,s5p6818-drm-mipi";
 			reg = <0xc0101000 0x100>;
 			resets = <&nexell_reset RESET_ID_DISP_TOP>;
 			reset-names = "rsc-display-top";
@@ -801,7 +811,7 @@
 			#size-cells = <0>;
 			status = "disabled";
 
-			dp_mipi {
+			dp-resource {
 				reg_base = <0xc00d0000>;
 				clk_base = <0xc0105000 2>;
 
@@ -826,7 +836,7 @@
 			#size-cells = <0>;
 			status = "disabled";
 
-			hdmi {
+			dp-resource {
 				reg_base = <0xc0000000 0x300000>;
 				clk_base = <0xc0109000 4>, <0xc0105000 2>;
 				resets = <&nexell_reset RESET_ID_HDMI_VIDEO>,
