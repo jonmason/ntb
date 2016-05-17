@@ -337,7 +337,7 @@
 		height-mm = <158>;
 
 		port {
-			lcd_panel: endpoint {
+			rgb_panel: endpoint {
 			};
 		};
 	};
@@ -361,9 +361,8 @@
 	};
 };
 
-&dp_drm_lcd {
-	remote-endpoint = <&lcd_panel>;
-	panel-type = "rgb";
+&dp_drm_rgb {
+	remote-endpoint = <&rgb_panel>;
 	status = "okay";
 
 	dp_control {
