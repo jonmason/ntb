@@ -1,20 +1,20 @@
-Device-Tree bindings for Nexell DRM generic panel output driver
+Device-Tree bindings for Nexell DRM generic RGB panel output driver
 
 Required properties for display soc panel driver:
- - compatible: value should be "nexell,s5p6818-lcd-panel".
- - remote-endpoint: the lcd-panel node can contain one 'port' child node
+ - compatible: value should be "nexell,s5p6818-drm-mipi".
+ - remote-endpoint: the mipi lcd-panel node can contain one 'port' child node
     with one child 'endpoint' node, according to the bindings defined in [2]. This
     node should describe panel's video bus.
  - width-mm: physical panel width [mm]
  - height-mm: physical panel height [mm]
- - display-timings: typical videomode of lcd panel. Multiple video modes
+ - display-timing: typical videomode of lcd panel. Multiple video modes
     can be listed if the panel supports multiple timings, but the 'native-mode'
     should be the preferred/default resolution.  Refer to
     Documentation/devicetree/bindings/video/display-timing.txt for display
     timing binding details.
 
- - panel-type: lcd type "rgb", "lvds", "mipi"
- - panel-mpu: support mpu type RGB LCD
+ - hs_bitrate: mipi high speed bitrate (1000, ... Mhz) to mipi data         
+ - lp_bitrate: mipi low power bitrate (150, 100, 80 Mhz) to setup data
 
   - dp_control: sub node to config display port hw parameters.
    - clk_src_lv0: select display clock source of clock generator '0'
@@ -49,20 +49,20 @@ SOC specific portion:
 / {
 	...
 	soc {
-		dp_drm_lcd: display_drm_lcd {
-    			compatible = "nexell,s5p6818-drm-lcd";
+		dp_drm_mipi: display_drm_mipi {
+    			compatible = "nexell,s5p6818-drm-mipi";
 		};
 	};
 };
 
 Board Specific portion:
 
-&dp_drm_lcd {
-	remote-endpoint = <&lcd_panel>;
-	panel-type = "rgb";
-	panel-mpu = <0>;
+&dp_drm_mipi {
+	remote-endpoint = <&mipi_panel>;
+	hs_bitrate = <960>;
+	lp_bitrate = <100>;
 
-	panel-timing {
+	display-timing {
 	        clock-frequency = <65000000>;
         	hactive = <1024>;
 	        hsync-len = <20>;

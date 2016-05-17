@@ -2,7 +2,9 @@ config DRM_NX
 	tristate "DRM Support for NEXELL Display Controller"
 	depends on DRM && (ARCH_S5P6818 || ARCH_S5P4418)
 	select DRM_KMS_HELPER
+	select DRM_KMS_FB_HELPER
 	select DRM_KMS_CMA_HELPER
+	select VIDEOMODE_HELPERS
 	help
 	  Choose this option if you have a Nexell soc chipset.
 	  This driver provides kernel mode setting and buffer
@@ -12,7 +14,6 @@ config DRM_NX
 config DRM_NX_FBDEV
 	bool "Enable legacy fbdev support"
 	depends on DRM_NX
-	select DRM_KMS_FB_HELPER
 	select FB_CFB_FILLRECT
 	select FB_CFB_COPYAREA
 	select FB_CFB_IMAGEBLIT
@@ -22,19 +23,19 @@ config DRM_NX_FBDEV
 	  support, Note that this support also provide the linux console
 	  support.
 
-config DRM_NX_LCD
-	bool "LCD support"
+config DRM_NX_RGB
+	bool "RGB LCD support"
 	depends on DRM_NX
 	select DRM_PANEL
-	select VIDEOMODE_HELPERS
 	help
-	 This selects support for LCD (RGB/LVDS/MiPi) display out.
-	 If you want to enable LCD (RGB/LVDS/MiPi) display,
+	 This selects support for RGB LCD display out.
+	 If you want to enable RGB LCD display,
 	 you should selet this option.
 
 config DRM_NX_MIPI_DSI
 	bool "MiPi DSI support"
-	depends on DRM_NX_LCD
+	depends on DRM_NX
+	select DRM_PANEL
 	select DRM_MIPI_DSI
 	help
 	 This selects support for MiPi-DSI display device.
@@ -44,7 +45,6 @@ config DRM_NX_MIPI_DSI
 config DRM_NX_HDMI
 	bool "HDMI support"
 	depends on DRM_NX
-	select VIDEOMODE_HELPERS
 	help
 	 This selects support for HDMI display out.
 	 If you want to enable HDMI display,

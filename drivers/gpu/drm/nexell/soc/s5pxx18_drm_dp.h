@@ -124,26 +124,26 @@ int nx_drm_dp_lcd_disable(struct nx_drm_device *display,
 int nx_drm_dp_mipi_transfer(struct mipi_dsi_host *host,
 			const struct mipi_dsi_msg *msg);
 
-int nx_drm_dp_panel_type_parse(struct device *dev,
-			struct device_node *np, struct nx_drm_device *display);
-void nx_drm_dp_panel_type_free(struct device *dev,
+int nx_drm_dp_panel_drv_res_parse(struct device *dev,
+			void **base, struct reset_control **reset);
+void nx_drm_dp_panel_drv_res_free(struct device *dev,
+			void *base, struct reset_control *reset);
+int nx_drm_dp_panel_dev_res_parse(struct device *dev,
+			struct device_node *node, struct nx_drm_res *res,
+			enum dp_panel_type panel_type);
+void nx_drm_dp_panel_dev_res_free(struct device *dev,
+			struct nx_drm_res *res);
+
+int nx_drm_dp_panel_device_parse(struct device *dev,
+			struct device_node *np, enum dp_panel_type type,
+			struct nx_drm_device *display);
+void nx_drm_dp_panel_device_free(struct device *dev,
 			struct nx_drm_device *display);
 
 void nx_drm_dp_panel_ctrl_dump(struct nx_drm_device *display);
 
 int nx_drm_dp_crtc_drv_parse(struct platform_device *pdev, int pipe,
 			int *irqno, struct reset_control **reset);
-
-int nx_drm_dp_panel_drv_parse(struct platform_device *pdev,
-			void **base, struct reset_control **reset);
-void nx_drm_dp_panel_drv_free(struct platform_device *pdev,
-			void *base, struct reset_control *reset);
-
-int nx_drm_dp_panel_res_parse(struct platform_device *pdev,
-			struct device_node *node, struct nx_drm_res *res,
-			enum dp_panel_type panel_type);
-void nx_drm_dp_panel_res_free(struct platform_device *pdev,
-			struct nx_drm_res *res);
 
 void nx_drm_dp_output_dev_sel(struct nx_drm_device *display);
 

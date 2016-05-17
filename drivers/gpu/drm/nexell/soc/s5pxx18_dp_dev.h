@@ -119,7 +119,7 @@ struct dp_ctrl_info {
 /* this enumerates display type. */
 enum dp_panel_type {
 	dp_panel_type_none,
-	dp_panel_type_lcd,
+	dp_panel_type_rgb,
 	dp_panel_type_lvds,
 	dp_panel_type_mipi,
 	dp_panel_type_hdmi,
@@ -155,7 +155,6 @@ struct dp_mipi_dev {
 	unsigned int hs_bandctl;
 	unsigned int lp_pllpms;
 	unsigned int lp_bandctl;
-
 };
 
 struct dp_lvds_dev {

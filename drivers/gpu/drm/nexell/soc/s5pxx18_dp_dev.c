@@ -574,7 +574,7 @@ int nx_soc_dp_device_prepare(struct dp_control_dev *dpc)
 
 	enum nx_dpc_dither r_dither, g_dither, b_dither;
 	int rgb_mode = 0;
-	bool lcd_rgb = dpc->panel_type == dp_panel_type_lcd ?
+	bool lcd_rgb = dpc->panel_type == dp_panel_type_rgb ?
 			true : false;
 
 	/* set delay mask */
@@ -730,7 +730,7 @@ void nx_soc_dp_device_top_mux(struct dp_control_dev *dpc)
 	/*
 	 * Mux RGB LCD
 	 */
-	if (dp_panel_type_lcd == dpc->panel_type) {
+	if (dp_panel_type_rgb == dpc->panel_type) {
 		/*
 		 *  0 : Primary MLC  , 1 : Primary MPU,
 		 *  2 : Secondary MLC, 3 : ResConv(LCDIF)

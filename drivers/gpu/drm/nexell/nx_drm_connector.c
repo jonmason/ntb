@@ -90,6 +90,8 @@ static enum drm_connector_status nx_drm_connector_detect(
 	struct nx_drm_ops *ops = display->ops;
 	enum drm_connector_status status = connector_status_disconnected;
 
+	DRM_DEBUG_KMS("enter connector id:%d\n", connector->base.id);
+
 	if (ops && ops->is_connected) {
 		if (ops->is_connected(display->dev, connector))
 			status = connector_status_connected;
@@ -168,7 +170,7 @@ struct drm_connector *nx_drm_connector_create_and_attach(
 	BUG_ON(!display);
 
 	switch (panel_type) {
-	case dp_panel_type_lcd:
+	case dp_panel_type_rgb:
 		con_type = DRM_MODE_CONNECTOR_VGA;
 		enc_type = DRM_MODE_ENCODER_TMDS;
 		break;

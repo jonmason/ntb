@@ -460,15 +460,22 @@ static int panel_hdmi_parse_dt(struct platform_device *pdev,
 	struct nx_drm_panel *panel = &ctx->display->panel;
 	int err;
 
-	DRM_DEBUG_KMS("enter\n");
-
-	err = panel_hdmi_parse_dt_hdmi(pdev, ctx);
-	if (0 > err)
-		return err;
+	DRM_INFO("Load HDMI panel\n");
 
 	parse_read_prop(node, "crtc-pipe", ctx->crtc_pipe);
 
-	err = nx_drm_dp_panel_type_parse(dev, node, display);
+	/*
+	 * parse panel output for HDMI
+	 */
+	err = nx_drm_dp_panel_device_parse(dev,
+				node, dp_panel_type_hdmi, display);
+	if (0 > err)
+		return err;
+
+	/*
+	 * parse HDMI configs
+	 */
+	err = panel_hdmi_parse_dt_hdmi(pdev, ctx);
 	if (0 > err)
 		return err;
 
@@ -487,21 +494,16 @@ static int panel_hdmi_parse_dt(struct platform_device *pdev,
 static int panel_hdmi_setup(struct platform_device *pdev,
 			struct hdmi_context *ctx)
 {
-	struct device_node *np;
-	struct device_node *node = pdev->dev.of_node;
+	struct device *dev = &pdev->dev;
+	struct device_node *node = dev->of_node;
 	struct nx_drm_res *res = &ctx->display->res;
 	int err;
 
-	nx_drm_dp_panel_drv_parse(pdev, &ctx->base, &ctx->reset);
-
-	np = of_find_node_by_name(node, "hdmi");
-	if (!np) {
-		DRM_ERROR("fail : not found 'hdmi' node (%s)\n",
-			node->full_name);
+	err = nx_drm_dp_panel_drv_res_parse(dev, &ctx->base, &ctx->reset);
+	if (0 > err)
 		return -EINVAL;
-	}
 
-	err = nx_drm_dp_panel_res_parse(pdev, np, res, dp_panel_type_hdmi);
+	err = nx_drm_dp_panel_dev_res_parse(dev, node, res, dp_panel_type_hdmi);
 	if (0 > err)
 		return -EINVAL;
 
@@ -559,6 +561,7 @@ static int panel_hdmi_remove(struct platform_device *pdev)
 {
 	struct hdmi_resource *hdmi;
 	struct hdmi_context *ctx = dev_get_drvdata(&pdev->dev);
+	struct device *dev = &pdev->dev;
 
 	if (!ctx)
 		return 0;
@@ -572,9 +575,9 @@ static int panel_hdmi_remove(struct platform_device *pdev)
 	if (hdmi->ddc_adpt)
 		put_device(&hdmi->ddc_adpt->dev);
 
-	nx_drm_dp_panel_res_free(pdev, &ctx->display->res);
-	nx_drm_dp_panel_drv_free(pdev, ctx->base, ctx->reset);
-	nx_drm_dp_panel_type_free(&pdev->dev, ctx->display);
+	nx_drm_dp_panel_dev_res_free(dev, &ctx->display->res);
+	nx_drm_dp_panel_drv_res_free(dev, ctx->base, ctx->reset);
+	nx_drm_dp_panel_device_free(dev, ctx->display);
 
 	devm_kfree(&pdev->dev, ctx);
 

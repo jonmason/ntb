@@ -35,7 +35,7 @@ static void nx_drm_output_poll_changed(struct drm_device *drm)
 	struct nx_drm_priv *priv = drm->dev_private;
 	struct nx_framebuffer_dev *nx_fbdev = priv->fbdev;
 
-	DRM_DEBUG_KMS("enter :%p\n", nx_fbdev);
+	DRM_DEBUG_KMS("enter : fbdev %s\n", nx_fbdev ? "exist" : "non exist");
 
 	mutex_lock(&priv->lock);
 
@@ -248,12 +248,14 @@ static int match_dev(struct device *dev, void *data)
 	return dev == (struct device *)data;
 }
 
+#ifdef CHECK_DRIVER_NAME
 static int match_drv(struct device_driver *drv, void *data)
 {
 	const char *t = data, *f = drv->name;
 
 	return strstr(f, t) ? 1 : 0;
 }
+#endif
 
 static int match_component(struct device *dev, void *data)
 {
@@ -267,10 +269,21 @@ static int nx_drm_probe(struct platform_device *pdev)
 {
 	struct component_match *match = NULL;
 	const char *const dev_names[] = {
-		"display_drm_lcd",	/* node name (x:name) */
+		/* node name (x:name) */
+#ifdef CONFIG_DRM_NX_RGB
+		"display_drm_rgb",
+#endif
+#ifdef CONFIG_DRM_NX_LVDS
+		"display_drm_lvds",
+#endif
+#ifdef CONFIG_DRM_NX_MIPI_DSI
+		"display_drm_mipi",
+#endif
+#ifdef CONFIG_DRM_NX_HDMI
 		"display_drm_hdmi",
+#endif
 	};
-	bool found = false;
+	int found = 0;
 	int i;
 
 	DRM_DEBUG_DRIVER("enter %s\n", dev_name(&pdev->dev));
@@ -284,14 +297,17 @@ static int nx_drm_probe(struct platform_device *pdev)
 			DRM_INFO("not found device name: %s\n", dev_names[i]);
 			continue;
 		}
+
+		#ifdef CHECK_DRIVER_NAME
 		if (!bus_for_each_drv(dev->bus, NULL,
 			(void *)dev_names[i], match_drv)) {
 			DRM_INFO("not found driver: %s\n", dev_names[i]);
 			continue;
 		}
+		#endif
 
 		component_match_add(&pdev->dev, &match, match_dev, dev);
-		found = true;
+		found++;
 	}
 
 	if (!found)

@@ -52,7 +52,7 @@ struct lcd_context {
 	void *base;
 	struct nx_drm_device *display;
 	struct mutex lock;
-	bool panel_timing;
+	bool local_timing;
 	struct gpio_desc *enable_gpio;
 	struct mipi_resource mipi_res;
 };
@@ -60,6 +60,13 @@ struct lcd_context {
 #define ctx_to_mipi(c)	(struct mipi_resource *)(&c->mipi_res)
 #define host_to_mipi(h)	container_of(h, struct mipi_resource, mipi_host)
 #define mipi_to_ctx(d)	container_of(d, struct lcd_context, mipi_res)
+
+static const char *const panel_type_name[] = {
+	[dp_panel_type_none] = "unknown",
+	[dp_panel_type_rgb]  = "RGB",
+	[dp_panel_type_lvds] = "LVDS",
+	[dp_panel_type_mipi] = "MIPI",
+};
 
 static inline enum dp_panel_type panel_get_type(
 			struct nx_drm_device *display)
@@ -76,7 +83,7 @@ static bool panel_lcd_is_connected(struct device *dev,
 	struct nx_drm_panel *panel = &ctx->display->panel;
 	struct device_node *panel_node = panel->panel_node;
 
-	DRM_DEBUG_KMS("enter panel node %s\n",
+	DRM_DEBUG_KMS("enter panel %s\n",
 		panel_node ? "exist" : "not exist");
 
 	if (panel_node) {
@@ -88,14 +95,11 @@ static bool panel_lcd_is_connected(struct device *dev,
 		}
 	}
 
-	if (!panel_node && false == ctx->panel_timing) {
+	if (!panel_node && false == ctx->local_timing) {
 		enum dp_panel_type panel_type = panel_get_type(ctx->display);
 
-		DRM_ERROR("not exist %s panel node and display timing !\n",
-			dp_panel_type_lcd  == panel_type ? "RGB"  :
-			dp_panel_type_lvds == panel_type ? "LVDS" :
-			dp_panel_type_mipi == panel_type ? "MiPi" :
-			"unknown");
+		DRM_ERROR("not exist %s panel & timing %s !\n",
+			panel_type_name[panel_type], dev_name(dev));
 
 		return false;
 	}
@@ -291,10 +295,6 @@ static struct nx_drm_ops panel_lcd_ops = {
 	.dpms = panel_lcd_dmps,
 };
 
-static struct nx_drm_device lcd_dp_dev = {
-	.ops = &panel_lcd_ops,
-};
-
 static int panel_lcd_bind(struct device *dev,
 			struct device *master, void *data)
 {
@@ -304,6 +304,8 @@ static int panel_lcd_bind(struct device *dev,
 	enum dp_panel_type panel_type = panel_get_type(ctx->display);
 	int pipe = ctx->crtc_pipe;
 	int err = 0;
+
+	DRM_INFO("Bind %s panel\n", panel_type_name[panel_type]);
 
 	ctx->connector = nx_drm_connector_create_and_attach(drm,
 			ctx->display, pipe, panel_type, ctx);
@@ -363,82 +365,73 @@ static const struct component_ops panel_comp_ops = {
 		v = _v;	\
 	}
 
+static const struct of_device_id panel_lcd_of_match[];
+
 static int panel_lcd_parse_dt(struct platform_device *pdev,
 			struct lcd_context *ctx)
 {
+	const struct of_device_id *id;
+	enum dp_panel_type panel_type = dp_panel_type_none;
 	struct device *dev = &pdev->dev;
 	struct nx_drm_panel *panel = &ctx->display->panel;
 	struct nx_drm_device *display = ctx->display;
 	struct device_node *node = dev->of_node;
-	struct device_node *np, *tmp;
+	struct device_node *np;
 	struct display_timing timing;
 	int err;
 
 	DRM_DEBUG_KMS("enter\n");
 
+	/*
+	 * get panel type with of id
+	 */
+	id = of_match_node(panel_lcd_of_match, pdev->dev.of_node);
+	panel_type = (enum dp_panel_type)id->data;
+
+	DRM_INFO("Load %s panel\n", panel_type_name[panel_type]);
+
+	parse_read_prop(node, "crtc-pipe", ctx->crtc_pipe);
+	/*
+	 * parse panel output for RGB/LVDS/MiPi-DSI
+	 */
+	err = nx_drm_dp_panel_device_parse(dev, node, panel_type, display);
+	if (0 > err)
+		return err;
+
+	/*
+	 * get panel timing from local.
+	 */
 	np = of_graph_get_remote_port_parent(node);
 	panel->panel_node = np;
 	if (!np) {
 		DRM_INFO("not use remote panel node (%s) !\n",
 			node->full_name);
-		np = node;
-	}
 
-	DRM_DEBUG_KMS("panel node (%s)\n", np->full_name);
-
-	/*
-	 * parse panel info
-	 */
-	ctx->enable_gpio =
+		/*
+		 * parse panel info
+		 */
+		ctx->enable_gpio =
 			devm_gpiod_get_optional(dev, "enable", GPIOD_OUT_LOW);
 
-	parse_read_prop(np, "width-mm", panel->width_mm);
-	parse_read_prop(np, "height-mm", panel->height_mm);
+		parse_read_prop(node, "width-mm", panel->width_mm);
+		parse_read_prop(node, "height-mm", panel->height_mm);
 
-	/*
-	 * parse display timing (sync)
-	 * refer to "drivers/video/of_display_timing.c"
-	 * -> of_parse_display_timing
-	 */
-	err = of_get_display_timing(np, "panel-timing", &timing);
-	if (0 == err) {
-		videomode_from_timing(&timing, &panel->vm);
-		ctx->panel_timing = true;
-	}
-
-	/*
-	 * if not exist dp-control at remote endpoint,
-	 * get from lcd_panel node.
-	 */
-	tmp = of_find_node_by_name(np, "dp_control");
-	if (!tmp) {
-		np = node;
-		DRM_DEBUG_KMS("panel's control node (%s)\n",
-			np->full_name);
-	}
-
-	/*
-	 * parse display panel info
-	 */
-	if (np != node)  {
-		np = of_find_node_by_name(node, "port");
-		if (!np) {
-			DRM_ERROR("fail : not find panel's port node (%s) !\n",
-				node->full_name);
-			return -EINVAL;
+		/*
+		 * parse display timing (sync)
+		 * refer to "drivers/video/of_display_timing.c"
+		 * -> of_parse_display_timing
+		 */
+		err = of_get_display_timing(node, "display-timing", &timing);
+		if (0 == err) {
+			videomode_from_timing(&timing, &panel->vm);
+			ctx->local_timing = true;
 		}
 	}
-
-	parse_read_prop(np, "crtc-pipe", ctx->crtc_pipe);
-
-	err = nx_drm_dp_panel_type_parse(dev, np, display);
-	if (0 > err)
-		return err;
 
 	/*
 	 * parse display control config
 	 */
-	np = of_find_node_by_name(np, "dp_control");
+	np = of_find_node_by_name(node, "dp_control");
 	if (!np) {
 		DRM_ERROR("fail : not find panel's control node (%s) !\n",
 			node->full_name);
@@ -454,33 +447,19 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 static int panel_lcd_setup(struct platform_device *pdev,
 			struct lcd_context *ctx)
 {
-	struct device_node *np;
+	enum dp_panel_type panel_type;
 	struct device *dev = &pdev->dev;
 	struct device_node *node = dev->of_node;
-	enum dp_panel_type panel_type;
-	struct nx_drm_res *res;
+	struct nx_drm_res *res = &ctx->display->res;
 	int err;
 
 	panel_type = panel_get_type(ctx->display);
 
-	nx_drm_dp_panel_drv_parse(pdev, &ctx->base, &ctx->reset);
+	err = nx_drm_dp_panel_drv_res_parse(dev, &ctx->base, &ctx->reset);
+	if (0 > err)
+		return -EINVAL;
 
-	if (dp_panel_type_mipi == panel_type) {
-
-		np = of_find_node_by_name(node, "dp_mipi");
-		if (!np) {
-			DRM_ERROR("fail : not found 'dp_mipi' node(%s)\n",
-				node->full_name);
-			return -EINVAL;
-		}
-		res = &ctx->display->res;
-	}
-
-	/* No need for RGB LCD */
-	if (!res)
-		return 0;
-
-	err = nx_drm_dp_panel_res_parse(pdev, np, res, panel_type);
+	err = nx_drm_dp_panel_dev_res_parse(dev, node, res, panel_type);
 	if (0 > err)
 		return -EINVAL;
 
@@ -492,16 +471,19 @@ static int panel_lcd_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct lcd_context *ctx;
 	enum dp_panel_type panel_type;
+	size_t size;
 	int err;
 
 	DRM_DEBUG_KMS("enter (%s)\n", dev_name(dev));
 
-	ctx = devm_kzalloc(dev, sizeof(*ctx), GFP_KERNEL);
+	size = sizeof(*ctx) + sizeof(struct nx_drm_device);
+	ctx = devm_kzalloc(dev, size, GFP_KERNEL);
 	if (IS_ERR(ctx))
 		return -ENOMEM;
 
-	ctx->display = &lcd_dp_dev;
+	ctx->display = (void *)ctx + sizeof(*ctx);
 	ctx->display->dev = dev;
+	ctx->display->ops = &panel_lcd_ops;
 
 	mutex_init(&ctx->lock);
 
@@ -540,13 +522,14 @@ err_parse:
 static int panel_lcd_remove(struct platform_device *pdev)
 {
 	struct lcd_context *ctx = dev_get_drvdata(&pdev->dev);
+	struct device *dev = &pdev->dev;
 
 	if (!ctx)
 		return 0;
 
-	nx_drm_dp_panel_res_free(pdev, &ctx->display->res);
-	nx_drm_dp_panel_drv_free(pdev, ctx->base, ctx->reset);
-	nx_drm_dp_panel_type_free(&pdev->dev, ctx->display);
+	nx_drm_dp_panel_dev_res_free(dev, &ctx->display->res);
+	nx_drm_dp_panel_drv_res_free(dev, ctx->base, ctx->reset);
+	nx_drm_dp_panel_device_free(dev, ctx->display);
 
 	devm_kfree(&pdev->dev, ctx);
 
@@ -572,7 +555,18 @@ static const struct dev_pm_ops panel_lcd_pm = {
 };
 
 static const struct of_device_id panel_lcd_of_match[] = {
-	{.compatible = "nexell,s5p6818-drm-lcd"},
+#ifdef CONFIG_DRM_NX_RGB
+	{
+		.compatible = "nexell,s5p6818-drm-rgb",
+		.data = (void *)dp_panel_type_rgb
+	},
+#endif
+#ifdef CONFIG_DRM_NX_MIPI_DSI
+	{
+		.compatible = "nexell,s5p6818-drm-mipi",
+		.data = (void *)dp_panel_type_mipi
+	},
+#endif
 	{}
 };
 MODULE_DEVICE_TABLE(of, panel_lcd_of_match);

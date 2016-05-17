@@ -33,6 +33,14 @@
 
 #define	display_to_dpc(d)	(&d->ctrl.dpc)
 
+static const char *const panel_type_name[] = {
+	[dp_panel_type_none] = "unknown",
+	[dp_panel_type_rgb]  = "RGB",
+	[dp_panel_type_lvds] = "LVDS",
+	[dp_panel_type_mipi] = "MIPI",
+	[dp_panel_type_hdmi] = "HDMI",
+};
+
 static int convert_dp_rgb_format(uint32_t pixel_format,
 			uint32_t bpp, uint32_t depth, uint32_t *format)
 {
@@ -111,20 +119,183 @@ static uint32_t convert_dp_vid_format(uint32_t fourcc,
 		v = _v;	\
 	}
 
-int nx_drm_dp_panel_type_parse(struct device *dev,
-			struct device_node *np, struct nx_drm_device *display)
-{
-	struct dp_control_dev *dpc = display_to_dpc(display);
-	const char *name;
 
-	if (of_property_read_string(np, "panel-type", &name)) {
-		DRM_ERROR("not defined 'panel-type' (%s:%s) !!!\n",
-			np->name, np->full_name);
-		DRM_ERROR("'panel-type' = 'rgb, lvds, mipi'\n");
+int nx_drm_dp_panel_drv_res_parse(struct device *dev,
+			void **base, struct reset_control **reset)
+{
+	struct device_node *node = dev->of_node;
+	const char *string;
+	int err;
+
+	*base = of_iomap(node, 0);
+	if (!*base) {
+		DRM_ERROR("fail : %s of_iomap\n", dev_name(dev));
 		return -EINVAL;
 	}
 
-	if (!strcmp("rgb", name)) {
+	DRM_DEBUG_KMS("base  : 0x%lx\n", (unsigned long)*base);
+
+	err = of_property_read_string(node, "reset-names", &string);
+	if (!err) {
+		*reset = devm_reset_control_get(dev, string);
+		if (*reset) {
+			bool stat = reset_control_status(*reset);
+
+			if (stat)
+				reset_control_reset(*reset);
+		}
+		DRM_DEBUG_KMS("reset : %s\n", string);
+	}
+
+	nx_soc_dp_device_top_base(0, *base);
+
+	return 0;
+}
+
+void nx_drm_dp_panel_drv_res_free(struct device *dev,
+			void *base, struct reset_control *reset)
+{
+	if (base)
+		iounmap(base);
+}
+
+int nx_drm_dp_panel_dev_res_parse(struct device *dev,
+			struct device_node *node, struct nx_drm_res *res,
+			enum dp_panel_type panel_type)
+{
+	struct device_node *np;
+	const __be32 *list;
+	const char *strings[8];
+	u32 addr;
+	int size, i = 0;
+	bool reset;
+	int clks_len = ARRAY_SIZE(res->clk_ids);
+	int tieoffs_len = ARRAY_SIZE(res->tieoffs);
+	int resets_len = ARRAY_SIZE(res->resets);
+
+	np = of_find_node_by_name(node, "dp-resource");
+	if (!np) {
+		DRM_INFO("%s no output resource[%s] ...\n",
+			panel_type_name[panel_type], node->full_name);
+		return 0;
+	}
+
+	/*
+	 * register base
+	 */
+	if (!of_property_read_u32(np, "reg_base", &addr)) {
+		list = of_get_property(np, "reg_base", &size);
+		addr = be32_to_cpu(*list++);
+		size = PAGE_ALIGN(be32_to_cpu(*list++));
+
+		res->vir_base = ioremap(addr, size);
+		if (!res->vir_base)
+			return -EINVAL;
+
+		DRM_DEBUG_KMS("base  :  0x%x (0x%x) %p\n",
+			addr, size, res->vir_base);
+	}
+
+	/*
+	 * clock gen base : 2 contents
+	 */
+	list = of_get_property(np, "clk_base", &size);
+	size /= 8;
+	if (size > clks_len) {
+		DRM_ERROR("error: over clks dt size %d (%d)\n",
+			size, clks_len);
+		return -EINVAL;
+	}
+
+	for (i = 0; size > i; i++) {
+		addr = be32_to_cpu(*list++);
+		res->clk_bases[i] = ioremap(addr, PAGE_SIZE);
+		res->clk_ids[i] = be32_to_cpu(*list++);
+		DRM_DEBUG_KMS("clock : [%d] clk 0x%x, %d\n",
+			i, addr, res->clk_ids[i]);
+	}
+	res->num_clks = size;
+
+	/*
+	 * tieoffs : 2 contents
+	 */
+	list = of_get_property(np, "soc,tieoff", &size);
+	size /= 8;
+	if (size > tieoffs_len) {
+		DRM_ERROR("error: over tieoff dt size %d (%d)\n",
+			size, tieoffs_len);
+		return -EINVAL;
+	}
+	res->num_tieoffs = size;
+
+	for (i = 0; size > i; i++) {
+		res->tieoffs[i][0] = be32_to_cpu(*list++);
+		res->tieoffs[i][1] = be32_to_cpu(*list++);
+		DRM_DEBUG_KMS("tieoff: [%d] res->tieoffs <0x%x %d>\n",
+			i, res->tieoffs[i][0], res->tieoffs[i][1]);
+	}
+
+	for (i = 0; size > i; i += 2)
+		nx_tieoff_set(res->tieoffs[i][0], res->tieoffs[i][1]);
+
+	/*
+	 * resets
+	 */
+	size = of_property_read_string_array(np,
+			"reset-names", strings, resets_len);
+	for (i = 0; size > i; i++) {
+		res->resets[i] = of_reset_control_get(np, strings[i]);
+		DRM_DEBUG_KMS("reset : [%d] %s\n", i, strings[i]);
+	}
+	res->num_resets = size;
+
+	for (i = 0; size > i; i++) {
+		reset = reset_control_status(res->resets[i]);
+		if (reset)
+			reset_control_assert(res->resets[i]);
+	}
+
+	for (i = 0; size > i; i++)
+		reset_control_deassert(res->resets[i]);
+
+	/*
+	 * set base
+	 */
+	for (i = 0; res->num_clks > i; i++)
+		nx_soc_dp_device_clk_base(
+				res->clk_ids[i], res->clk_bases[i]);
+
+#ifdef CONFIG_DRM_NX_MIPI_DSI
+	if (dp_panel_type_mipi == panel_type)
+		nx_soc_dp_device_mipi_base(0, res->vir_base);
+#endif
+
+	return 0;
+}
+
+void nx_drm_dp_panel_dev_res_free(struct device *dev,
+			struct nx_drm_res *res)
+{
+	int i, size;
+
+	if (res->vir_base)
+		iounmap(res->vir_base);
+
+	size = res->num_clks;
+
+	for (i = 0; size > i; i++) {
+		if (res->clk_bases[i])
+			iounmap(res->clk_bases[i]);
+	}
+}
+
+int nx_drm_dp_panel_device_parse(struct device *dev,
+			struct device_node *np, enum dp_panel_type type,
+			struct nx_drm_device *display)
+{
+	struct dp_control_dev *dpc = display_to_dpc(display);
+
+	if (dp_panel_type_rgb == type) {
 
 		struct dp_rgb_dev *out;
 		u32 mpu_lcd = 0;
@@ -136,10 +307,10 @@ int nx_drm_dp_panel_type_parse(struct device *dev,
 		parse_read_prop(np, "panel-mpu", mpu_lcd);
 		out->mpu_lcd = mpu_lcd ? true : false;
 
-		dpc->panel_type = dp_panel_type_lcd;
+		dpc->panel_type = dp_panel_type_rgb;
 		dpc->dp_output = out;
 
-	} else if (!strcmp("lvds", name)) {
+	} else if (dp_panel_type_lvds == type) {
 
 		struct dp_lvds_dev *out;
 
@@ -150,11 +321,10 @@ int nx_drm_dp_panel_type_parse(struct device *dev,
 		dpc->panel_type = dp_panel_type_lvds;
 		dpc->dp_output = out;
 
-	} else if (!strcmp("mipi", name)) {
+	} else if (dp_panel_type_mipi == type) {
 
 		struct dp_mipi_dev *out;
-		u32 lp_rate = 0;
-		u32 hs_rate = 0;
+		u32 lp_rate = 0, hs_rate = 0;
 
 		if (!IS_ENABLED(CONFIG_DRM_NX_MIPI_DSI)) {
 			DRM_ERROR("not selected mipi panel configs !\n");
@@ -174,7 +344,7 @@ int nx_drm_dp_panel_type_parse(struct device *dev,
 		dpc->panel_type = dp_panel_type_mipi;
 		dpc->dp_output = out;
 
-	} else if (!strcmp("hdmi", name)) {
+	} else if (dp_panel_type_hdmi == type) {
 
 		struct dp_hdmi_dev *out;
 
@@ -186,15 +356,14 @@ int nx_drm_dp_panel_type_parse(struct device *dev,
 		dpc->dp_output = out;
 
 	} else {
-		DRM_ERROR("%s not support 'panel-type' !!!\n", name);
-		DRM_ERROR("'panel-type' = 'rgb, lvds, mipi'\n");
+		DRM_ERROR("not support panel type [%d] !!!\n", type);
 		return -EINVAL;
 	}
 
 	return 0;
 }
 
-void nx_drm_dp_panel_type_free(struct device *dev,
+void nx_drm_dp_panel_device_free(struct device *dev,
 			struct nx_drm_device *display)
 {
 	struct dp_control_dev *dpc = display_to_dpc(display);
@@ -254,12 +423,7 @@ void nx_drm_dp_panel_ctrl_dump(struct nx_drm_device *display)
 	    panel->vm.vback_porch, panel->vm.vfront_porch);
 	DRM_DEBUG_KMS("flags:0x%x\n", panel->vm.flags);
 
-	DRM_DEBUG_KMS("CTRL (%s)\n",
-		dp_panel_type_lcd  == dpc->panel_type ? "RGB"  :
-		dp_panel_type_lvds == dpc->panel_type ? "LVDS" :
-		dp_panel_type_mipi == dpc->panel_type ? "MiPi" :
-		dp_panel_type_hdmi == dpc->panel_type ? "HDMI" :
-		"unknown");
+	DRM_DEBUG_KMS("CTRL (%s)\n", panel_type_name[dpc->panel_type]);
 	DRM_DEBUG_KMS("cs0:%d, cd0:%d, cs1:%d, cd1:%d\n",
 	    ctrl->clk_src_lv0, ctrl->clk_div_lv0,
 	    ctrl->clk_src_lv1, ctrl->clk_div_lv1);
@@ -739,166 +903,6 @@ void nx_drm_dp_encoder_unprepare(struct drm_encoder *encoder)
 	struct dp_control_dev *dpc = display_to_dpc(display);
 
 	nx_soc_dp_device_irq_on(dpc, false);
-}
-
-int nx_drm_dp_panel_drv_parse(struct platform_device *pdev,
-			void **base, struct reset_control **reset)
-{
-	struct device *dev = &pdev->dev;
-	struct device_node *node = dev->of_node;
-	const char *string;
-	int err;
-
-	*base = of_iomap(node, 0);
-	if (!*base)
-		return -EINVAL;
-
-	DRM_DEBUG_KMS("base  : 0x%lx\n", (unsigned long)*base);
-
-	err = of_property_read_string(node, "reset-names", &string);
-	if (!err) {
-		*reset = devm_reset_control_get(dev, string);
-		if (*reset) {
-			bool stat = reset_control_status(*reset);
-
-			if (stat)
-				reset_control_reset(*reset);
-		}
-		DRM_DEBUG_KMS("reset : %s\n", string);
-	}
-
-	nx_soc_dp_device_top_base(0, *base);
-
-	return 0;
-}
-
-void nx_drm_dp_panel_drv_free(struct platform_device *pdev,
-			void *base, struct reset_control *reset)
-{
-	if (base)
-		iounmap(base);
-}
-
-int nx_drm_dp_panel_res_parse(struct platform_device *pdev,
-			struct device_node *node, struct nx_drm_res *res,
-			enum dp_panel_type panel_type)
-{
-	const __be32 *list;
-	const char *strings[8];
-	u32 addr;
-	int size, i = 0;
-	bool reset;
-	int clks_len = ARRAY_SIZE(res->clk_ids);
-	int tieoffs_len = ARRAY_SIZE(res->tieoffs);
-	int resets_len = ARRAY_SIZE(res->resets);
-
-	/*
-	 * register base
-	 */
-	if (!of_property_read_u32(node, "reg_base", &addr)) {
-		list = of_get_property(node, "reg_base", &size);
-		addr = be32_to_cpu(*list++);
-		size = PAGE_ALIGN(be32_to_cpu(*list++));
-
-		res->vir_base = ioremap(addr, size);
-		if (!res->vir_base)
-			return -EINVAL;
-
-		DRM_DEBUG_KMS("base  :  0x%x (0x%x) %p\n",
-			addr, size, res->vir_base);
-	}
-
-	/*
-	 * clock gen base : 2 contents
-	 */
-	list = of_get_property(node, "clk_base", &size);
-	size /= 8;
-	if (size > clks_len) {
-		DRM_ERROR("error : over clks dt size %d (%d)\n",
-			size, clks_len);
-		return -EINVAL;
-	}
-
-	for (i = 0; size > i; i++) {
-		addr = be32_to_cpu(*list++);
-		res->clk_bases[i] = ioremap(addr, PAGE_SIZE);
-		res->clk_ids[i] = be32_to_cpu(*list++);
-		DRM_DEBUG_KMS("clock : [%d] clk 0x%x, %d\n",
-			i, addr, res->clk_ids[i]);
-	}
-	res->num_clks = size;
-
-	/*
-	 * tieoffs : 2 contents
-	 */
-	list = of_get_property(node, "soc,tieoff", &size);
-	size /= 8;
-	if (size > tieoffs_len) {
-		DRM_ERROR("error : over tieoff dt size %d (%d)\n",
-			size, tieoffs_len);
-		return -EINVAL;
-	}
-	res->num_tieoffs = size;
-
-	for (i = 0; size > i; i++) {
-		res->tieoffs[i][0] = be32_to_cpu(*list++);
-		res->tieoffs[i][1] = be32_to_cpu(*list++);
-		DRM_DEBUG_KMS("tieoff: [%d] res->tieoffs <0x%x %d>\n",
-			i, res->tieoffs[i][0], res->tieoffs[i][1]);
-	}
-
-	for (i = 0; size > i; i += 2)
-		nx_tieoff_set(res->tieoffs[i][0], res->tieoffs[i][1]);
-
-	/*
-	 * resets
-	 */
-	size = of_property_read_string_array(node,
-			"reset-names", strings, resets_len);
-	for (i = 0; size > i; i++) {
-		res->resets[i] = of_reset_control_get(node, strings[i]);
-		DRM_DEBUG_KMS("reset : [%d] %s\n", i, strings[i]);
-	}
-	res->num_resets = size;
-
-	for (i = 0; size > i; i++) {
-		reset = reset_control_status(res->resets[i]);
-		if (reset)
-			reset_control_assert(res->resets[i]);
-	}
-
-	for (i = 0; size > i; i++)
-		reset_control_deassert(res->resets[i]);
-
-	/*
-	 * set base
-	 */
-	for (i = 0; res->num_clks > i; i++)
-		nx_soc_dp_device_clk_base(
-				res->clk_ids[i], res->clk_bases[i]);
-
-#ifdef CONFIG_DRM_NX_MIPI_DSI
-	if (dp_panel_type_mipi == panel_type)
-		nx_soc_dp_device_mipi_base(0, res->vir_base);
-#endif
-
-	return 0;
-}
-
-void nx_drm_dp_panel_res_free(struct platform_device *pdev,
-			struct nx_drm_res *res)
-{
-	int i, size;
-
-	if (res->vir_base)
-		iounmap(res->vir_base);
-
-	size = res->num_clks;
-
-	for (i = 0; size > i; i++) {
-		if (res->clk_bases[i])
-			iounmap(res->clk_bases[i]);
-	}
 }
 
 int nx_drm_dp_lcd_prepare(struct nx_drm_device *display,
