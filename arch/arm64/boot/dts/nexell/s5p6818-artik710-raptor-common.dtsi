@@ -244,6 +244,10 @@
 				>;
 			};
 		};
+
+		scaler@c0066000 {
+			status = "okay";
+		};
 	};	/*** soc ***/
 
 	i2c_gpio6:i2c@6 {
