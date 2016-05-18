@@ -430,9 +430,9 @@ clocks {
 		clock-output-names = "crypto";
 	};
 
-	scaler_clock:scaler@c00b6000 {
+	scaler:scaler@c00b6000 {
 		#clock-cells = <0>;
-		clock-output-names = "scaler-clock";
+		clock-output-names = "scaler";
 		cell-id = <CLK_ID_CRYPTO>;
 		reg = <PHYS_BASE_CLK_35 0x1000>;
 		clk-step  = <1>;
