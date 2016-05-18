@@ -122,16 +122,6 @@ void nx_soc_dp_device_clk_base(int id, void __iomem *base)
 	nx_disp_top_clkgen_set_clock_pclk_mode(id, nx_pclkmode_always);
 }
 
-#ifdef CONFIG_DRM_NX_MIPI_DSI
-void nx_soc_dp_device_mipi_base(int module, void __iomem *base)
-{
-	BUG_ON(!base);
-	pr_debug("%s: dev mipi\n", __func__);
-
-	nx_mipi_set_base_address(module, base);
-}
-#endif
-
 void nx_soc_dp_plane_top_setup(struct dp_plane_top *top)
 {
 	int module = top->module;
@@ -723,47 +713,3 @@ void nx_soc_dp_device_irq_done(struct dp_control_dev *dpc)
 	nx_dpc_clear_interrupt_pending_all(module);
 }
 
-void nx_soc_dp_device_top_mux(struct dp_control_dev *dpc)
-{
-	int module = dpc->module;
-
-	/*
-	 * Mux RGB LCD
-	 */
-	if (dp_panel_type_rgb == dpc->panel_type) {
-		/*
-		 *  0 : Primary MLC  , 1 : Primary MPU,
-		 *  2 : Secondary MLC, 3 : ResConv(LCDIF)
-		*/
-		struct dp_rgb_dev *rgb = dpc->dp_output;
-		int pin = 0;
-
-		BUG_ON(!rgb);
-
-		switch (module) {
-		case 0:
-			pin = rgb->mpu_lcd ? 1 : 0;
-			break;
-		case 1:
-			pin = rgb->mpu_lcd ? 3 : 2;
-			break;
-		default:
-			pr_err("fail : %s not support module %d\n",
-				__func__, module);
-			return;
-		}
-
-		nx_disp_top_set_primary_mux(pin);
-		return;
-	}
-
-	/*
-	 * Mux MiPi-DSI
-	 */
-	if (dp_panel_type_mipi == dpc->panel_type) {
-		nx_disp_top_set_mipimux(1, module);
-		return;
-	}
-
-	pr_debug("%s: dev.%d\n", __func__, module);
-}

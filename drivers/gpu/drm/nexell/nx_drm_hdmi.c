@@ -491,7 +491,7 @@ static int panel_hdmi_parse_dt(struct platform_device *pdev,
 	return 0;
 }
 
-static int panel_hdmi_setup(struct platform_device *pdev,
+static int panel_hdmi_driver_setup(struct platform_device *pdev,
 			struct hdmi_context *ctx)
 {
 	struct device *dev = &pdev->dev;
@@ -506,9 +506,6 @@ static int panel_hdmi_setup(struct platform_device *pdev,
 	err = nx_drm_dp_panel_dev_res_parse(dev, node, res, dp_panel_type_hdmi);
 	if (0 > err)
 		return -EINVAL;
-
-	if (res->vir_base)
-		nx_dp_hdmi_set_base(0, res->vir_base);
 
 	return 0;
 }
@@ -535,11 +532,11 @@ static int panel_hdmi_probe(struct platform_device *pdev)
 	hdmi->hpd_gpio = -1;
 	hdmi->hpd_irq = INVALID_IRQ;
 
-	err = panel_hdmi_parse_dt(pdev, ctx);
+	err = panel_hdmi_driver_setup(pdev, ctx);
 	if (0 > err)
 		goto err_parse;
 
-	err = panel_hdmi_setup(pdev, ctx);
+	err = panel_hdmi_parse_dt(pdev, ctx);
 	if (0 > err)
 		goto err_parse;
 

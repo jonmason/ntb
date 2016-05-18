@@ -32,6 +32,15 @@ config DRM_NX_RGB
 	 If you want to enable RGB LCD display,
 	 you should selet this option.
 
+config DRM_NX_LVDS
+	bool "LVDS LCD support"
+	depends on DRM_NX
+	select DRM_PANEL
+	help
+	 This selects support for LVDS LCD display out.
+	 If you want to enable LVDS LCD display,
+	 you should selet this option.
+
 config DRM_NX_MIPI_DSI
 	bool "MiPi DSI support"
 	depends on DRM_NX

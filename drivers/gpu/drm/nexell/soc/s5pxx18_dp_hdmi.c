@@ -760,7 +760,8 @@ bool nx_dp_hdmi_is_connected(void)
 	return state ? true : false;
 }
 
-void nx_dp_hdmi_set_base(int module, void __iomem *base)
+void nx_dp_hdmi_set_base(struct dp_control_dev *dpc,
+				void __iomem *base)
 {
 	u32 mask = (1 << 6) | (1 << 3) | (1 << 2);
 

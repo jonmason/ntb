@@ -148,8 +148,6 @@ void nx_drm_dp_panel_ctrl_dump(struct nx_drm_device *display);
 int nx_drm_dp_crtc_drv_parse(struct platform_device *pdev, int pipe,
 			int *irqno, struct reset_control **reset);
 
-void nx_drm_dp_output_dev_sel(struct nx_drm_device *display);
-
 int  nx_drm_dp_panel_ctrl_parse(struct device_node *np,
 			struct nx_drm_device *display);
 

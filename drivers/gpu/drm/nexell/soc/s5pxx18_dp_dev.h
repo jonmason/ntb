@@ -25,6 +25,7 @@
 #include "s5pxx18_soc_disptop.h"
 #include "s5pxx18_soc_disp.h"
 #include "s5pxx18_soc_mipi.h"
+#include "s5pxx18_soc_lvds.h"
 #include "s5pxx18_soc_disptop_clk.h"
 
 /*
@@ -126,6 +127,8 @@ enum dp_panel_type {
 	dp_panel_type_vidi,
 };
 
+struct dp_control_ops;
+
 struct dp_control_dev {
 	int module;
 	void *base;
@@ -133,6 +136,15 @@ struct dp_control_dev {
 	struct dp_ctrl_info ctrl;
 	enum dp_panel_type panel_type;
 	void *dp_output;
+	struct dp_control_ops *ops;
+};
+
+struct dp_control_ops {
+	void (*set_base)(struct dp_control_dev *dpc, void *base);
+	int  (*prepare)(struct dp_control_dev *dpc, unsigned int flags);
+	int  (*unprepare)(struct dp_control_dev *dpc);
+	int  (*enable)(struct dp_control_dev *dpc, unsigned int flags);
+	int  (*disable)(struct dp_control_dev *dpc);
 };
 
 enum {
@@ -157,13 +169,20 @@ struct dp_mipi_dev {
 	unsigned int lp_bandctl;
 };
 
+enum dp_lvds_format {
+	dp_lvds_format_vesa = 0,
+	dp_lvds_format_jeida = 1,
+	dp_lvds_format_loc = 2,
+};
+
 struct dp_lvds_dev {
 	unsigned int lvds_format;	/* 0:VESA, 1:JEIDA, 2: Location */
 	int pol_inv_hs;		/* hsync polarity invert for VESA, JEIDA */
 	int pol_inv_vs;		/* bsync polarity invert for VESA, JEIDA */
 	int pol_inv_de;		/* de polarity invert for VESA, JEIDA */
 	int pol_inv_ck;		/* input clock(pixel clock) polarity invert */
-
+	void *reset_control;
+	int num_resets;
 };
 
 struct dp_hdmi_dev {
@@ -270,8 +289,8 @@ struct dp_plane_layer {
 void nx_soc_dp_device_dpc_base(int module, void __iomem *base);
 void nx_soc_dp_device_mlc_base(int module, void __iomem *base);
 void nx_soc_dp_device_top_base(int module, void __iomem *base);
-void nx_soc_dp_device_mipi_base(int module, void __iomem *base);
-void nx_soc_dp_device_clk_base(int module, void __iomem *base);
+void nx_soc_dp_device_clk_base(int id, void __iomem *base);
+void nx_soc_dp_device_lvds_base(void __iomem *base);
 
 void nx_soc_dp_plane_top_setup(struct dp_plane_top *top);
 void nx_soc_dp_plane_top_set_format(struct dp_plane_top *top,
@@ -317,14 +336,25 @@ void nx_soc_dp_device_power_on(struct dp_control_dev *dpc, bool on);
 void nx_soc_dp_device_irq_on(struct dp_control_dev *dpc, bool on);
 void nx_soc_dp_device_irq_done(struct dp_control_dev *dpc);
 
-void nx_soc_dp_device_top_mux(struct dp_control_dev *dpc);
-
+#ifdef CONFIG_DRM_NX_MIPI_DSI
+void nx_soc_dp_mipi_set_base(struct dp_control_dev *dpc,
+			void __iomem *base);
 int nx_soc_dp_mipi_set_prepare(struct dp_control_dev *dpc, unsigned int flags);
+int nx_soc_dp_mipi_set_unprepare(struct dp_control_dev *dpc);
 int nx_soc_dp_mipi_set_enable(struct dp_control_dev *dpc, unsigned int flags);
-int nx_soc_dp_mipi_set_unprepare(struct dp_control_dev *dpc,
-			unsigned int flags);
-int nx_soc_dp_mipi_set_disable(struct dp_control_dev *dpc, unsigned int flags);
+int nx_soc_dp_mipi_set_disable(struct dp_control_dev *dpc);
+
 int nx_soc_dp_mipi_tx_transfer(struct dp_mipi_xfer *xfer);
 int nx_soc_dp_mipi_rx_transfer(struct dp_mipi_xfer *xfer);
+#endif
+
+#ifdef CONFIG_DRM_NX_LVDS
+void nx_soc_dp_lvds_set_base(struct dp_control_dev *dpc,
+			void __iomem *base);
+int nx_soc_dp_lvds_set_prepare(struct dp_control_dev *dpc, unsigned int flags);
+int nx_soc_dp_lvds_set_unprepare(struct dp_control_dev *dpc);
+int nx_soc_dp_lvds_set_enable(struct dp_control_dev *dpc, unsigned int flags);
+int nx_soc_dp_lvds_set_disable(struct dp_control_dev *dpc);
+#endif
 
 #endif /* __S5PXX18_DP_DEV_H__ */

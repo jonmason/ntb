@@ -156,6 +156,15 @@ static int dp_mipi_phy_pll(int bitrate, unsigned int *pllpms,
 	return 0;
 }
 
+void nx_soc_dp_mipi_set_base(struct dp_control_dev *dpc,
+			void __iomem *base)
+{
+	BUG_ON(!base);
+	pr_debug("%s: dev mipi\n", __func__);
+
+	nx_mipi_set_base_address(0, base);
+}
+
 int nx_soc_dp_mipi_set_prepare(struct dp_control_dev *dpc,
 			unsigned int flags)
 {
@@ -237,6 +246,8 @@ int nx_soc_dp_mipi_set_enable(struct dp_control_dev *dpc,
 					  HFP, HBP, HS, VFP, VBP, VS, 0);
 
 	nx_mipi_dsi_set_size(index, width, height);
+
+	/* set mux */
 	nx_disp_top_set_mipimux(1, module);
 
 	/*  0 is spdif, 1 is mipi vclk */
@@ -255,18 +266,16 @@ int nx_soc_dp_mipi_set_enable(struct dp_control_dev *dpc,
 	return 0;
 }
 
-int nx_soc_dp_mipi_set_unprepare(struct dp_control_dev *dpc,
-			unsigned int flags)
+int nx_soc_dp_mipi_set_unprepare(struct dp_control_dev *dpc)
 {
 	return 0;
 }
 
-int nx_soc_dp_mipi_set_disable(struct dp_control_dev *dpc,
-			unsigned int flags)
+int nx_soc_dp_mipi_set_disable(struct dp_control_dev *dpc)
 {
 	int clkid = dp_clock_mipi;
 
-	pr_debug("%s: flags=0x%x\n", __func__, flags);
+	pr_debug("%s\n", __func__);
 
 	/* SPDIF and MIPI */
 	nx_disp_top_clkgen_set_clock_divisor_enable(clkid, 0);

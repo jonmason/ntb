@@ -198,10 +198,6 @@ bool panel_lcd_mode_fixup(struct device *dev,
 
 static void panel_lcd_commit(struct device *dev)
 {
-	struct lcd_context *ctx = dev_get_drvdata(dev);
-	struct nx_drm_device *display = ctx->display;
-
-	nx_drm_dp_output_dev_sel(display);
 }
 
 static void panel_lcd_enable(struct device *dev, struct drm_panel *panel)
@@ -387,10 +383,8 @@ static const struct component_ops panel_comp_ops = {
 static const struct of_device_id panel_lcd_of_match[];
 
 static int panel_lcd_parse_dt(struct platform_device *pdev,
-			struct lcd_context *ctx)
+			struct lcd_context *ctx, enum dp_panel_type panel_type)
 {
-	const struct of_device_id *id;
-	enum dp_panel_type panel_type = dp_panel_type_none;
 	struct device *dev = &pdev->dev;
 	struct nx_drm_panel *panel = &ctx->display->panel;
 	struct nx_drm_device *display = ctx->display;
@@ -401,15 +395,8 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 
 	DRM_DEBUG_KMS("enter\n");
 
-	/*
-	 * get panel type with of id
-	 */
-	id = of_match_node(panel_lcd_of_match, pdev->dev.of_node);
-	panel_type = (enum dp_panel_type)id->data;
-
-	DRM_INFO("Load %s panel\n", panel_type_name[panel_type]);
-
 	parse_read_prop(node, "crtc-pipe", ctx->crtc_pipe);
+
 	/*
 	 * parse panel output for RGB/LVDS/MiPi-DSI
 	 */
@@ -463,33 +450,42 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 	return 0;
 }
 
-static int panel_lcd_setup(struct platform_device *pdev,
-			struct lcd_context *ctx)
+static int panel_lcd_driver_setup(struct platform_device *pdev,
+			struct lcd_context *ctx, enum dp_panel_type *panel_type)
 {
-	enum dp_panel_type panel_type;
+	const struct of_device_id *id;
+	enum dp_panel_type type;
 	struct device *dev = &pdev->dev;
 	struct device_node *node = dev->of_node;
 	struct nx_drm_res *res = &ctx->display->res;
 	int err;
 
-	panel_type = panel_get_type(ctx->display);
+	/*
+	 * get panel type with of id
+	 */
+	id = of_match_node(panel_lcd_of_match, pdev->dev.of_node);
+	type = (enum dp_panel_type)id->data;
+
+	DRM_INFO("Load %s panel\n", panel_type_name[type]);
 
 	err = nx_drm_dp_panel_drv_res_parse(dev, &ctx->base, &ctx->reset);
 	if (0 > err)
 		return -EINVAL;
 
-	err = nx_drm_dp_panel_dev_res_parse(dev, node, res, panel_type);
+	err = nx_drm_dp_panel_dev_res_parse(dev, node, res, type);
 	if (0 > err)
 		return -EINVAL;
+
+	*panel_type = type;
 
 	return 0;
 }
 
 static int panel_lcd_probe(struct platform_device *pdev)
 {
-	struct device *dev = &pdev->dev;
 	struct lcd_context *ctx;
 	enum dp_panel_type panel_type;
+	struct device *dev = &pdev->dev;
 	size_t size;
 	int err;
 
@@ -506,11 +502,11 @@ static int panel_lcd_probe(struct platform_device *pdev)
 
 	mutex_init(&ctx->lock);
 
-	err = panel_lcd_parse_dt(pdev, ctx);
+	err = panel_lcd_driver_setup(pdev, ctx, &panel_type);
 	if (0 > err)
 		goto err_parse;
 
-	err = panel_lcd_setup(pdev, ctx);
+	err = panel_lcd_parse_dt(pdev, ctx, panel_type);
 	if (0 > err)
 		goto err_parse;
 
@@ -578,6 +574,12 @@ static const struct of_device_id panel_lcd_of_match[] = {
 	{
 		.compatible = "nexell,s5p6818-drm-rgb",
 		.data = (void *)dp_panel_type_rgb
+	},
+#endif
+#ifdef CONFIG_DRM_NX_LVDS
+	{
+		.compatible = "nexell,s5p6818-drm-lvds",
+		.data = (void *)dp_panel_type_lvds
 	},
 #endif
 #ifdef CONFIG_DRM_NX_MIPI_DSI

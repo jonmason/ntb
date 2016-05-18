@@ -30,6 +30,7 @@
 #include "../nx_drm_connector.h"
 
 #include "s5pxx18_drm_dp.h"
+#include "s5pxx18_dp_hdmi.h"
 
 #define	display_to_dpc(d)	(&d->ctrl.dpc)
 
@@ -113,12 +114,37 @@ static uint32_t convert_dp_vid_format(uint32_t fourcc,
 	return 0;
 }
 
+#ifdef CONFIG_DRM_NX_LVDS
+static struct dp_control_ops lvds_dp_ops = {
+	.set_base = nx_soc_dp_lvds_set_base,
+	.prepare = nx_soc_dp_lvds_set_prepare,
+	.unprepare = nx_soc_dp_lvds_set_unprepare,
+	.enable = nx_soc_dp_lvds_set_enable,
+	.disable = nx_soc_dp_lvds_set_disable,
+};
+#endif
+
+#ifdef CONFIG_DRM_NX_MIPI_DSI
+static struct dp_control_ops mipi_dp_ops = {
+	.set_base = nx_soc_dp_mipi_set_base,
+	.prepare = nx_soc_dp_mipi_set_prepare,
+	.unprepare = nx_soc_dp_mipi_set_unprepare,
+	.enable = nx_soc_dp_mipi_set_enable,
+	.disable = nx_soc_dp_mipi_set_disable,
+};
+#endif
+
+#ifdef CONFIG_DRM_NX_HDMI
+static struct dp_control_ops hdmi_dp_ops = {
+	.set_base = nx_dp_hdmi_set_base,
+};
+#endif
+
 #define parse_read_prop(n, s, v)	{ \
 	u32 _v;	\
 	if (!of_property_read_u32(n, s, &_v))	\
 		v = _v;	\
 	}
-
 
 int nx_drm_dp_panel_drv_res_parse(struct device *dev,
 			void **base, struct reset_control **reset)
@@ -265,11 +291,6 @@ int nx_drm_dp_panel_dev_res_parse(struct device *dev,
 		nx_soc_dp_device_clk_base(
 				res->clk_ids[i], res->clk_bases[i]);
 
-#ifdef CONFIG_DRM_NX_MIPI_DSI
-	if (dp_panel_type_mipi == panel_type)
-		nx_soc_dp_device_mipi_base(0, res->vir_base);
-#endif
-
 	return 0;
 }
 
@@ -294,11 +315,17 @@ int nx_drm_dp_panel_device_parse(struct device *dev,
 			struct nx_drm_device *display)
 {
 	struct dp_control_dev *dpc = display_to_dpc(display);
+	struct nx_drm_res *res = &display->res;
 
 	if (dp_panel_type_rgb == type) {
 
 		struct dp_rgb_dev *out;
 		u32 mpu_lcd = 0;
+
+		#ifndef CONFIG_DRM_NX_RGB
+		DRM_ERROR("not selected kernel config for RGB LCD !\n");
+		return -EINVAL;
+		#endif
 
 		out = devm_kzalloc(dev, sizeof(*out), GFP_KERNEL);
 		if (IS_ERR(out))
@@ -314,22 +341,33 @@ int nx_drm_dp_panel_device_parse(struct device *dev,
 
 		struct dp_lvds_dev *out;
 
+		#ifndef CONFIG_DRM_NX_LVDS
+		DRM_ERROR("not selected kernel config for LVDS LCD !\n");
+		return -EINVAL;
+		#endif
+
 		out = devm_kzalloc(dev, sizeof(*out), GFP_KERNEL);
 		if (IS_ERR(out))
 			return -ENOMEM;
 
+		out->reset_control = (void *)res->resets;
+		out->num_resets = res->num_resets;
 		dpc->panel_type = dp_panel_type_lvds;
 		dpc->dp_output = out;
+
+		#ifdef CONFIG_DRM_NX_LVDS
+		dpc->ops = &lvds_dp_ops;
+		#endif
 
 	} else if (dp_panel_type_mipi == type) {
 
 		struct dp_mipi_dev *out;
 		u32 lp_rate = 0, hs_rate = 0;
 
-		if (!IS_ENABLED(CONFIG_DRM_NX_MIPI_DSI)) {
-			DRM_ERROR("not selected mipi panel configs !\n");
-			return -EINVAL;
-		}
+		#ifndef CONFIG_DRM_NX_MIPI_DSI
+		DRM_ERROR("not selected kernel config for MiPi-DSI!\n");
+		return -EINVAL;
+		#endif
 
 		out = devm_kzalloc(dev, sizeof(*out), GFP_KERNEL);
 		if (IS_ERR(out))
@@ -344,9 +382,18 @@ int nx_drm_dp_panel_device_parse(struct device *dev,
 		dpc->panel_type = dp_panel_type_mipi;
 		dpc->dp_output = out;
 
+		#ifdef CONFIG_DRM_NX_MIPI_DSI
+		dpc->ops = &mipi_dp_ops;
+		#endif
+
 	} else if (dp_panel_type_hdmi == type) {
 
 		struct dp_hdmi_dev *out;
+
+		#ifndef CONFIG_DRM_NX_HDMI
+		DRM_ERROR("not selected kernel config for HDMI !\n");
+		return -EINVAL;
+		#endif
 
 		out = devm_kzalloc(dev, sizeof(*out), GFP_KERNEL);
 		if (IS_ERR(out))
@@ -355,10 +402,17 @@ int nx_drm_dp_panel_device_parse(struct device *dev,
 		dpc->panel_type = dp_panel_type_hdmi;
 		dpc->dp_output = out;
 
+		#ifdef CONFIG_DRM_NX_HDMI
+		dpc->ops = &hdmi_dp_ops;
+		#endif
+
 	} else {
 		DRM_ERROR("not support panel type [%d] !!!\n", type);
 		return -EINVAL;
 	}
+
+	if (dpc->ops && dpc->ops->set_base)
+		dpc->ops->set_base(dpc, res->vir_base);
 
 	return 0;
 }
@@ -908,60 +962,85 @@ void nx_drm_dp_encoder_unprepare(struct drm_encoder *encoder)
 int nx_drm_dp_lcd_prepare(struct nx_drm_device *display,
 			struct drm_panel *panel)
 {
-#ifdef CONFIG_DRM_NX_MIPI_DSI
 	struct dp_control_dev *dpc = display_to_dpc(display);
-	enum dp_panel_type type = dpc->panel_type;
+	struct dp_control_ops *ops = dpc->ops;
 
-	if (dp_panel_type_mipi == type)
-		nx_soc_dp_mipi_set_prepare(dpc, panel ? 1 : 0);
-#endif
+	DRM_DEBUG_KMS("%s\n", panel_type_name[dpc->panel_type]);
+
+	if (ops && ops->prepare)
+		ops->prepare(dpc, panel ? 1 : 0);
+
 	return 0;
 }
 
 int nx_drm_dp_lcd_enable(struct nx_drm_device *display,
 				struct drm_panel *panel)
 {
-#ifdef CONFIG_DRM_NX_MIPI_DSI
 	struct dp_control_dev *dpc = display_to_dpc(display);
-	enum dp_panel_type type = dpc->panel_type;
+	struct dp_control_ops *ops = dpc->ops;
+	int module = dpc->module;
 
-	if (dp_panel_type_mipi == type)
-		nx_soc_dp_mipi_set_enable(dpc, panel ? 1 : 0);
-#endif
+	DRM_DEBUG_KMS("%s\n", panel_type_name[dpc->panel_type]);
+
+	if (dp_panel_type_rgb == dpc->panel_type) {
+		/*
+		 *  0 : Primary MLC  , 1 : Primary MPU,
+		 *  2 : Secondary MLC, 3 : ResConv(LCDIF)
+		 */
+		struct dp_rgb_dev *rgb = dpc->dp_output;
+		int pin = 0;
+
+		BUG_ON(!rgb);
+
+		switch (module) {
+		case 0:
+			pin = rgb->mpu_lcd ? 1 : 0;
+			break;
+		case 1:
+			pin = rgb->mpu_lcd ? 3 : 2;
+			break;
+		default:
+			pr_err("fail : %s not support module %d\n",
+				__func__, module);
+			return -EINVAL;
+		}
+
+		nx_disp_top_set_primary_mux(pin);
+		return 0;
+	}
+
+	if (ops && ops->prepare)
+		ops->enable(dpc, panel ? 1 : 0);
+
 	return 0;
 }
 
 int nx_drm_dp_lcd_unprepare(struct nx_drm_device *display,
 				struct drm_panel *panel)
 {
-#ifdef CONFIG_DRM_NX_MIPI_DSI
 	struct dp_control_dev *dpc = display_to_dpc(display);
-	enum dp_panel_type type = dpc->panel_type;
+	struct dp_control_ops *ops = dpc->ops;
 
-	if (dp_panel_type_mipi == type)
-		nx_soc_dp_mipi_set_unprepare(dpc, panel ? 1 : 0);
-#endif
+	DRM_DEBUG_KMS("%s\n", panel_type_name[dpc->panel_type]);
+
+	if (ops && ops->unprepare)
+		ops->unprepare(dpc);
+
 	return 0;
 }
 
 int nx_drm_dp_lcd_disable(struct nx_drm_device *display,
 				struct drm_panel *panel)
 {
-#ifdef CONFIG_DRM_NX_MIPI_DSI
 	struct dp_control_dev *dpc = display_to_dpc(display);
-	enum dp_panel_type type = dpc->panel_type;
+	struct dp_control_ops *ops = dpc->ops;
 
-	if (dp_panel_type_mipi == type)
-		nx_soc_dp_mipi_set_disable(dpc, panel ? 1 : 0);
-#endif
+	DRM_DEBUG_KMS("%s\n", panel_type_name[dpc->panel_type]);
+
+	if (ops && ops->disable)
+		ops->disable(dpc);
+
 	return 0;
-}
-
-void nx_drm_dp_output_dev_sel(struct nx_drm_device *display)
-{
-	struct dp_control_dev *dpc = display_to_dpc(display);
-
-	nx_soc_dp_device_top_mux(dpc);
 }
 
 #ifdef CONFIG_DRM_NX_MIPI_DSI
