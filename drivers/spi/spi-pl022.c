@@ -43,7 +43,7 @@
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
 #include <linux/pinctrl/consumer.h>
-
+#include <linux/reset.h>
 /*
  * This macro is used to define some register default values.
  * reg is masked with mask, the OR:ed with an (again masked)
@@ -2113,6 +2113,28 @@ static int pl022_probe(struct amba_device *adev, const struct amba_id *id)
 	struct device_node *np = adev->dev.of_node;
 	int status = 0, i, num_cs;
 
+#ifdef CONFIG_RESET_CONTROLLER
+	if (of_device_is_compatible(adev->dev.of_node, "nexell,pl022")) {
+		struct reset_control *rst;
+		struct reset_control *prst;
+
+		prst = devm_reset_control_get(&adev->dev, "pre-reset");
+		if (IS_ERR(prst)) {
+			dev_err(&adev->dev, "failed to get pre-reset control\n");
+			return -EINVAL;
+		}
+		if (reset_control_status(prst))
+			reset_control_reset(prst);
+
+		rst = devm_reset_control_get(&adev->dev, "spi-reset");
+		if (IS_ERR(rst)) {
+			dev_err(&adev->dev, "failed to get reset control\n");
+			return -EINVAL;
+		}
+		if (reset_control_status(rst))
+			reset_control_reset(rst);
+	};
+#endif
 	dev_info(&adev->dev,
 		 "ARM PL022 driver, device ID: 0x%08x\n", adev->periphid);
 	if (!platform_info && IS_ENABLED(CONFIG_OF))
