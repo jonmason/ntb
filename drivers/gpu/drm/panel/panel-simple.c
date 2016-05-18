@@ -1096,6 +1096,28 @@ static const struct panel_desc shelly_sca07010_bfn_lnn = {
 	.bus_format = MEDIA_BUS_FMT_RGB666_1X18,
 };
 
+static const struct drm_display_mode dongguan_gst7d0038_mode = {
+	.clock = 51206,
+	.hdisplay = 1024,
+	.hsync_start = 1024,
+	.hsync_end = 1024 + 1 + 319,
+	.htotal = 1024 + 1 + 319,
+	.vdisplay = 600,
+	.vsync_start = 600,
+	.vsync_end = 600 + 1 + 34,
+	.vtotal = 600 + 1 + 34,
+	.vrefresh = 60,
+};
+
+static const struct panel_desc dongguan_gst7d0038 = {
+	.modes = &dongguan_gst7d0038_mode,
+	.num_modes = 1,
+	.size = {
+		.width = 154,
+		.height = 85,
+	},
+};
+
 static const struct of_device_id platform_of_match[] = {
 	{
 		.compatible = "ampire,am800480r3tmqwa1h",
@@ -1190,6 +1212,10 @@ static const struct of_device_id platform_of_match[] = {
 	}, {
 		.compatible = "shelly,sca07010-bfn-lnn",
 		.data = &shelly_sca07010_bfn_lnn,
+	}, {
+		.compatible = "dongguan,gst7d0038",
+		.data = &dongguan_gst7d0038,
+	}, {
 	}, {
 		/* sentinel */
 	}

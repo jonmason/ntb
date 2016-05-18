@@ -252,3 +252,4 @@ zyxel	ZyXEL Communications Corp.
 zarlink	Zarlink Semiconductor
 zii	Zodiac Inflight Innovations
 zte	ZTE Corp.
+dongguan Dong guan GT Display Co., Ltd.

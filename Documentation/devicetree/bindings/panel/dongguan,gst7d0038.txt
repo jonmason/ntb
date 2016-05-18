@@ -1,0 +1,7 @@
+Dong guan GT Display GST7D0038 7.0" TFT LCD panel
+
+Required properties:
+- compatible: should be "dongguan,gst7d0038"
+
+This binding is compatible with the simple-panel binding, which is specified
+in simple-panel.txt in this directory.
