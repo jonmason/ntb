@@ -90,8 +90,27 @@ static bool panel_lcd_is_connected(struct device *dev,
 		struct drm_panel *drm_panel = of_drm_find_panel(panel_node);
 
 		if (drm_panel) {
+			int ret;
+
 			panel->panel = drm_panel;
 			drm_panel_attach(drm_panel, connector);
+
+			if (panel->check_panel)
+				return panel->is_connected;
+
+			nx_drm_dp_lcd_prepare(ctx->display, drm_panel);
+			ret = drm_panel_prepare(drm_panel);
+			if (!ret) {
+				drm_panel_unprepare(drm_panel);
+				nx_drm_dp_lcd_unprepare(ctx->display,
+						drm_panel);
+				panel->is_connected = true;
+			} else {
+				drm_panel_detach(drm_panel);
+				panel->is_connected = false;
+			}
+			panel->check_panel = true;
+			return panel->is_connected;
 		}
 	}
 

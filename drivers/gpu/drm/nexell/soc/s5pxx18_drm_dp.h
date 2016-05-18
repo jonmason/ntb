@@ -51,6 +51,9 @@ struct nx_drm_panel {
 	int height_mm;
 	struct videomode vm;
 	int vrefresh;
+
+	bool check_panel;
+	bool is_connected;
 };
 
 struct nx_drm_res {
