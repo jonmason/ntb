@@ -877,7 +877,7 @@ static int _hw_init(struct nx_scaler *me)
 	nx_scaler_set_base_address(0, me->base);
 	me->irq = platform_get_irq(me->pdev, 0);
 
-	me->clk = clk_get(&me->pdev->dev, "scaler-clock");
+	me->clk = clk_get(&me->pdev->dev, "scaler");
 	if (IS_ERR(me->clk)) {
 		pr_err("%s: controller clock not found\n",
 			dev_name(&me->pdev->dev));
