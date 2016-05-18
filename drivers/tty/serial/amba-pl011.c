@@ -59,6 +59,7 @@
 #include <linux/sizes.h>
 #include <linux/io.h>
 #include <linux/acpi.h>
+#include <linux/reset.h>
 
 #define UART_NR			14
 
@@ -2367,6 +2368,20 @@ static int pl011_probe(struct amba_device *dev, const struct amba_id *id)
 			   GFP_KERNEL);
 	if (!uap)
 		return -ENOMEM;
+
+#ifdef CONFIG_RESET_CONTROLLER
+	if (of_device_is_compatible(dev->dev.of_node, "nexell,pl011")) {
+		struct reset_control *rst;
+
+		rst = devm_reset_control_get(&dev->dev, "uart-reset");
+		if (!rst) {
+			dev_err(&dev->dev, "failed to get reset control\n");
+			return -EINVAL;
+		}
+		if (reset_control_status(rst))
+			reset_control_reset(rst);
+	};
+#endif
 
 	uap->clk = devm_clk_get(&dev->dev, NULL);
 	if (IS_ERR(uap->clk))
