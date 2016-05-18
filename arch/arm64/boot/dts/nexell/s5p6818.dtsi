@@ -802,6 +802,23 @@
 			status = "disabled";
 		};
 
+		dp_drm_lvds: display_drm_lvds {
+			compatible = "nexell,s5p6818-drm-lvds";
+			reg = <0xc0101000 0x100>;
+			resets = <&nexell_reset RESET_ID_DISP_TOP>;
+			reset-names = "rsc-display-top";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+
+			dp-resource {
+				reg_base = <0xc010a000>;
+				clk_base = <0xc0108000 3>;
+				resets = <&nexell_reset RESET_ID_LVDS>;
+				reset-names = "rsc-lvds-phy";
+			};
+		};
+
 		dp_drm_mipi: display_drm_mipi {
 			compatible = "nexell,s5p6818-drm-mipi";
 			reg = <0xc0101000 0x100>;
