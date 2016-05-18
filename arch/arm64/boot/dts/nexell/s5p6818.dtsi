@@ -869,5 +869,16 @@
 		    interrupts = <0 IRQ_RTC 0>;
 		    status = "disabled";
 		};
+
+		scaler@c0066000 {
+			compatible = "nexell,scaler";
+			reg = <PHYS_BASE_SCALER 0x1000>;
+			interrupts = <0 IRQ_SCALER 0>;
+			clock-names = "scaler";
+			clocks = <&scaler>;
+			reset-names = "scaler-reset";
+			resets = <&nexell_reset RESET_ID_SCALER>;
+			status = "disabled";
+		};
 	}; /*** soc ***/
 };
