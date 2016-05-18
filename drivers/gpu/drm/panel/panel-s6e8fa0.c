@@ -168,12 +168,10 @@ static void s6e8fa0_read_mtp_id(struct s6e8fa0 *ctx)
 static void s6e8fa0_set_sequence(struct s6e8fa0 *ctx)
 {
 	s6e8fa0_set_maximum_return_packet_size(ctx, 3);
-	/* FIXME: We have to fix mipi read command to check panel status
 	s6e8fa0_read_mtp_id(ctx);
 
 	if (ctx->error != 0)
 		return;
-	*/
 
 	usleep_range(17000, 18000);
 
