@@ -771,7 +771,7 @@
 		};
 
 		dp_drm: display_drm {
-			compatible = "nexell,s5p6818-drm";
+			compatible = "nexell,s5pxx18-drm";
 			reg = <0xc0102800 0x100>, <0xc0102c00 0x100>,
 				<0xc0102000 0x100>, <0xc0102400 0x100>;
 			reg-names = "dpc.0", "dpc.1", "mlc.0", "mlc.1";
@@ -793,7 +793,7 @@
 		};
 
 		dp_drm_rgb: display_drm_rgb {
-			compatible = "nexell,s5p6818-drm-rgb";
+			compatible = "nexell,s5pxx18-drm-rgb";
 			reg = <0xc0101000 0x100>;
 			resets = <&nexell_reset RESET_ID_DISP_TOP>;
 			reset-names = "rsc-display-top";
@@ -803,7 +803,7 @@
 		};
 
 		dp_drm_lvds: display_drm_lvds {
-			compatible = "nexell,s5p6818-drm-lvds";
+			compatible = "nexell,s5pxx18-drm-lvds";
 			reg = <0xc0101000 0x100>;
 			resets = <&nexell_reset RESET_ID_DISP_TOP>;
 			reset-names = "rsc-display-top";
@@ -820,7 +820,7 @@
 		};
 
 		dp_drm_mipi: display_drm_mipi {
-			compatible = "nexell,s5p6818-drm-mipi";
+			compatible = "nexell,s5pxx18-drm-mipi";
 			reg = <0xc0101000 0x100>;
 			resets = <&nexell_reset RESET_ID_DISP_TOP>;
 			reset-names = "rsc-display-top";
@@ -844,7 +844,7 @@
 		};
 
 		dp_drm_hdmi: display_drm_hdmi{
-			compatible = "nexell,s5p6818-drm-hdmi";
+			compatible = "nexell,s5pxx18-drm-hdmi";
 			reg = <0xc0101000 0x100>;
 			interrupts = < 0 IRQ_HDMI 0 >;
 			resets = <&nexell_reset RESET_ID_DISP_TOP>;
