@@ -572,19 +572,19 @@ static const struct dev_pm_ops panel_lcd_pm = {
 static const struct of_device_id panel_lcd_of_match[] = {
 #ifdef CONFIG_DRM_NX_RGB
 	{
-		.compatible = "nexell,s5p6818-drm-rgb",
+		.compatible = "nexell,s5pxx18-drm-rgb",
 		.data = (void *)dp_panel_type_rgb
 	},
 #endif
 #ifdef CONFIG_DRM_NX_LVDS
 	{
-		.compatible = "nexell,s5p6818-drm-lvds",
+		.compatible = "nexell,s5pxx18-drm-lvds",
 		.data = (void *)dp_panel_type_lvds
 	},
 #endif
 #ifdef CONFIG_DRM_NX_MIPI_DSI
 	{
-		.compatible = "nexell,s5p6818-drm-mipi",
+		.compatible = "nexell,s5pxx18-drm-mipi",
 		.data = (void *)dp_panel_type_mipi
 	},
 #endif

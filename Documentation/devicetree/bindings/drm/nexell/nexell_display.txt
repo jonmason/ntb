@@ -1,7 +1,7 @@
 Device-Tree bindings for Nexell's DRM and display control driver
 
 Required properties for display controller driver:
- - compatible: value should be "nexell,s5p6818-dp_drm"
+ - compatible: value should be "nexell,s5pxx18-dp_drm"
  - reg: Physical base address and length of the controller's registers.
  - interrupts: The interrupt signals from the display controller.
  - resets: The reset signal to the display controller.
@@ -22,7 +22,7 @@ SOC specific portion:
 	soc {
 		...
 		dp_drm: display_drm {
-			compatible = "nexell,s5p6818-drm";
+			compatible = "nexell,s5pxx18-drm";
 			reg = <0xc0102800 0x100>, <0xc0102c00 0x100>,
 				  <0xc0102000 0x100>, <0xc0102400 0x100>;
 			reg-names = "dpc.0", "dpc.1", "mlc.0", "mlc.1";

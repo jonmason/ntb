@@ -600,7 +600,7 @@ static const struct dev_pm_ops panel_hdmi_pm = {
 };
 
 static const struct of_device_id panel_hdmi_of_match[] = {
-	{.compatible = "nexell,s5p6818-drm-hdmi"},
+	{.compatible = "nexell,s5pxx18-drm-hdmi"},
 	{}
 };
 MODULE_DEVICE_TABLE(of, panel_hdmi_of_match);

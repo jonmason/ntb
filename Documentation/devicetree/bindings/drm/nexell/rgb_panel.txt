@@ -1,7 +1,7 @@
 Device-Tree bindings for Nexell DRM generic RGB panel output driver
 
 Required properties for display soc panel driver:
- - compatible: value should be "nexell,s5p6818-drm-rgb".
+ - compatible: value should be "nexell,s5pxx18-drm-rgb".
  - remote-endpoint: the RGB lcd-panel node can contain one 'port' child node
     with one child 'endpoint' node, according to the bindings defined in [2]. This
     node should describe panel's video bus.
@@ -49,7 +49,7 @@ SOC specific portion:
 	...
 	soc {
 		dp_drm_rgb: display_drm_rgb {
-    			compatible = "nexell,s5p6818-drm-rgb";
+    			compatible = "nexell,s5pxx18-drm-rgb";
 		};
 	};
 };

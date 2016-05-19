@@ -1,7 +1,7 @@
 Device-Tree bindings for Nexell DRM generic hdmi output driver
 
 Required properties for display soc panel driver:
- - compatible: value should be "nexell,s5p6818-drm-hdmi".
+ - compatible: value should be "nexell,s5pxx18-drm-hdmi".
  - ddc-i2c-bus : phandle of an I2C controller used for DDC EDID probing
  - enable-gpios: GPIO pin to enable or disable the HDMI level shifter
 
@@ -18,7 +18,7 @@ SOC specific portion:
 	...
 	soc {
 		dp_drm_hdmi: display_drm_hdmi {
-    			compatible = "nexell,s5p6818-drm-hdmi";
+    			compatible = "nexell,s5pxx18-drm-hdmi";
     			reg = <0xc0101000 0x100>;
     			resets = <&nexell_reset RESET_ID_DISP_TOP>;
     			reset-names = "rsc-display-top";

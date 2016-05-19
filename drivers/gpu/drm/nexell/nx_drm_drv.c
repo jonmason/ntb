@@ -326,7 +326,7 @@ static int nx_drm_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id dt_of_match[] = {
-	{.compatible = "nexell,s5p6818-drm"},
+	{.compatible = "nexell,s5pxx18-drm"},
 	{}
 };
 MODULE_DEVICE_TABLE(of, dt_of_match);
