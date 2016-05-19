@@ -179,7 +179,10 @@ enum nxe2000_pwr_src {
 
 /* NXE2000 various variants */
 enum {
-	TYPE_NXE2000 = 0, /* Default */
+	TYPE_UNKNOWN = 0,
+	TYPE_NXE1500,
+	TYPE_NXE2000,
+	TYPE_MAX,
 };
 
 /* NXE2000 IRQ definitions */
@@ -381,6 +384,7 @@ struct nxe2000 {
 	int irq_base;
 	int chip_irq;
 	int chip_irq_type;
+	unsigned long version;
 
 	unsigned long group_irq_en[MAX_MAIN_INTERRUPT];
 

@@ -533,7 +533,9 @@ static struct mfd_cell nxe2000_devs[] = {
 
 #ifdef CONFIG_OF
 static const struct of_device_id nxe2000_pmic_dt_match[] = {
-	{ .compatible = "nexell,nxe2000", .data = NULL }, {},
+	{ .compatible = "nexell,nxe1500", .data = (void *)TYPE_NXE1500 },
+	{ .compatible = "nexell,nxe2000", .data = (void *)TYPE_NXE2000 },
+	{},
 };
 
 static struct nxe2000_platform_data *
@@ -587,6 +589,15 @@ static int nxe2000_i2c_probe(struct i2c_client *client,
 		if (!match) {
 			dev_err(&client->dev,
 				"%s() Error: No device match found\n",
+				__func__);
+			goto err_irq_init;
+		}
+
+		nxe2000->version = (unsigned long)match->data;
+		if ((nxe2000->version <= TYPE_UNKNOWN)
+			|| (nxe2000->version >= TYPE_MAX)) {
+			dev_err(&client->dev,
+				"%s() Error: No version match found\n",
 				__func__);
 			goto err_irq_init;
 		}
@@ -716,7 +727,8 @@ static int nxe2000_i2c_resume(struct device *dev)
 static SIMPLE_DEV_PM_OPS(nxe2000_pm, nxe2000_i2c_suspend, nxe2000_i2c_resume);
 
 static const struct i2c_device_id nxe2000_i2c_id[] = {
-	{"nxe2000", 0},
+	{"nxe1500", TYPE_NXE1500},
+	{"nxe2000", TYPE_NXE2000},
 	{}
 };
 MODULE_DEVICE_TABLE(i2c, nxe2000_i2c_id);
