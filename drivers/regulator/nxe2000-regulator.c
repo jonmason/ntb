@@ -351,6 +351,58 @@ static struct regulator_ops nxe2000_ops = {
 /* DCDC Enable Rising Time
 *  DCDC1 = 300us/1.3V
 *  DCDC2 = 300us/1.2V
+*  DCDC3 = 400us/1.5V
+*  DCDC4 = 400us/1.5V
+*/
+static struct nxe2000_regulator nxe1500_regulators[] = {
+	NXE2000_REG(dcdc1, DC1, 0x2C, 0, 0x2C, 1, 0x36, 0xFF, 0x3B, 0x16,
+			600, 3500, 12500, 0xE8, nxe2000_dcdc1_ops, 2, 300,
+			0x00, 0, 0x00, 0),
+
+	NXE2000_REG(dcdc2, DC2, 0x2E, 0, 0x2E, 1, 0x37, 0xFF, 0x3C, 0x17,
+			600, 3500, 12500, 0xE8, nxe2000_ops, 2, 300,
+			0x00, 0, 0x00, 0),
+
+	NXE2000_REG(dcdc3, DC3, 0x30, 0, 0x30, 1, 0x38, 0xFF, 0x3D, 0x18,
+			600, 3500, 12500, 0xE8, nxe2000_ops, 2, 400,
+			0x00, 0, 0x00, 0),
+
+	NXE2000_REG(dcdc4, DC4, 0x32, 0, 0x32, 1, 0x39, 0xFF, 0x3E, 0x19,
+			600, 3500, 12500, 0xE8, nxe2000_ops, 2, 400,
+			0x00, 0, 0x00, 0),
+
+	NXE2000_REG(ldo1, LDO1, 0x44, 0, 0x46, 0, 0x4C, 0x7F, 0x58, 0x1B,
+			900, 3500, 25000, 0x68, nxe2000_ops, 0, 500,
+			0x48, 0, 0x4A, 0),
+
+	NXE2000_REG(ldo2, LDO2, 0x44, 1, 0x46, 1, 0x4D, 0x7F, 0x59, 0x1C,
+			900, 3500, 25000, 0x68, nxe2000_ops, 0, 500,
+			0x48, 1, 0x4A, 1),
+
+	NXE2000_REG(ldo3, LDO3, 0x44, 2, 0x46, 2, 0x4E, 0x7F, 0x5A, 0x1D,
+			600, 3500, 25000, 0x68, nxe2000_ops, 0, 500,
+			0x48, 2, 0x4A, 2),
+
+	NXE2000_REG(ldo4, LDO4, 0x44, 3, 0x46, 3, 0x4F, 0x7F, 0x5B, 0x1E,
+			900, 3500, 25000, 0x68, nxe2000_ops, 0, 500,
+			0x48, 3, 0x4A, 3),
+
+	NXE2000_REG(ldo5, LDO5, 0x44, 4, 0x46, 4, 0x50, 0x7F, 0x5C, 0x1F,
+			900, 3500, 25000, 0x74, nxe2000_ops, 0, 500,
+			0x48, 4, 0x4A, 4),
+
+	NXE2000_REG(ldortc1, LDORTC1, 0x45, 4, 0x00, 0, 0x56, 0x7F, 0x00, 0x00,
+			1200, 3500, 25000, 0x48, nxe2000_ops, 0, 500,
+			0x00, 0, 0x00, 0),
+
+	NXE2000_REG(ldortc2, LDORTC2, 0x45, 5, 0x00, 0, 0x57, 0x7F, 0x00, 0x00,
+			900, 3500, 25000, 0x68, nxe2000_ops, 0, 500,
+			0x00, 0, 0x00, 0),
+};
+
+/* DCDC Enable Rising Time
+*  DCDC1 = 300us/1.3V
+*  DCDC2 = 300us/1.2V
 *  DCDC3 = 700us/3.3V
 *  DCDC4 = 400us/1.5V
 *  DCDC5 = 400us/1.5V
@@ -424,16 +476,26 @@ static struct nxe2000_regulator nxe2000_regulators[] = {
 			900, 3500, 25000, 0x68, nxe2000_ops, 0, 500,
 			0x00, 0, 0x00, 0),
 };
-static inline struct nxe2000_regulator *find_regulator_info(int id)
+static inline struct nxe2000_regulator *find_regulator_info(int version, int id)
 {
 	struct nxe2000_regulator *ri;
-	int i;
+	struct nxe2000_regulator *regulators_data;
+	int i, size;
 
-	for (i = 0; i < ARRAY_SIZE(nxe2000_regulators); i++) {
-		ri = &nxe2000_regulators[i];
+	if (version == TYPE_NXE1500) {
+		size = ARRAY_SIZE(nxe1500_regulators);
+		regulators_data = nxe1500_regulators;
+	} else {
+		size = ARRAY_SIZE(nxe2000_regulators);
+		regulators_data = nxe2000_regulators;
+	}
+
+	for (i = 0; i < size; i++) {
+		ri = &regulators_data[i];
 		if (ri->desc.id == id)
 			return ri;
 	}
+
 	return NULL;
 }
 
@@ -501,8 +563,17 @@ static int nxe2000_regulator_dt_parse_pdata(struct platform_device *pdev,
 	struct device_node *pmic_np, *regulators_np, *reg_np;
 	struct regulator_init_data *regu_initdata;
 	struct nxe2000_regulator_platform_data *rdata;
-	unsigned int i;
+	struct nxe2000_regulator *regulators_data;
+	unsigned int i, size;
 	u32 val;
+
+	if (iodev->version == TYPE_NXE1500) {
+		size = ARRAY_SIZE(nxe1500_regulators);
+		regulators_data = nxe1500_regulators;
+	} else {
+		size = ARRAY_SIZE(nxe2000_regulators);
+		regulators_data = nxe2000_regulators;
+	}
 
 	pmic_np = of_node_get(iodev->dev->of_node);
 	if (!pmic_np) {
@@ -531,11 +602,11 @@ static int nxe2000_regulator_dt_parse_pdata(struct platform_device *pdev,
 	pdata->regulators = rdata;
 
 	for_each_child_of_node(regulators_np, reg_np) {
-		for (i = 0; i < ARRAY_SIZE(nxe2000_regulators); i++)
+		for (i = 0; i < size; i++)
 			if (!of_node_cmp(reg_np->name,
-					 nxe2000_regulators[i].name))
+					 regulators_data[i].name))
 				break;
-		if (i == ARRAY_SIZE(nxe2000_regulators)) {
+		if (i == size) {
 			dev_warn(&pdev->dev,
 				 "Error : don't know how to configure regulator %s\n",
 				 reg_np->name);
@@ -543,7 +614,7 @@ static int nxe2000_regulator_dt_parse_pdata(struct platform_device *pdev,
 		}
 		rdata->id = i;
 		regu_initdata = of_get_regulator_init_data(
-		    &pdev->dev, reg_np, &nxe2000_regulators[i].desc);
+		    &pdev->dev, reg_np, &regulators_data[i].desc);
 		rdata->reg_node = reg_np;
 
 		if (!of_property_read_u32(reg_np, "nx,id", &val))
@@ -611,6 +682,7 @@ static int nxe2000_regulator_probe(struct platform_device *pdev)
 	struct nxe2000_platform_data *pdata = iodev->pdata;
 
 	struct nxe2000_regulator *nxe2000 = NULL;
+	struct nxe2000_regulator *regulators_data;
 	struct nxe2000_regulator_platform_data *tps_pdata;
 
 	struct regulator_config config = {};
@@ -627,10 +699,17 @@ static int nxe2000_regulator_probe(struct platform_device *pdev)
 	}
 
 	nxe2000_suspend_status = 0;
+
 	tps_pdata = pdata->regulators;
 
+	if (iodev->version == TYPE_NXE1500)
+		regulators_data = nxe1500_regulators;
+	else
+		regulators_data = nxe2000_regulators;
+
 	for (i = 0; i < pdata->num_regulators; i++) {
-		nxe2000 = find_regulator_info(tps_pdata->id);
+		nxe2000 = find_regulator_info((int)iodev->version,
+			tps_pdata->id);
 		if (nxe2000 == NULL) {
 			dev_err(&pdev->dev,
 				"%s() Error: invalid regulator ID specified\n",
@@ -664,15 +743,15 @@ static int nxe2000_regulator_probe(struct platform_device *pdev)
 		config.driver_data = nxe2000;
 		config.of_node = tps_pdata->reg_node;
 
-		nxe2000_regulators[i].rdev = devm_regulator_register(&pdev->dev,
+		regulators_data[i].rdev = devm_regulator_register(&pdev->dev,
 			&nxe2000->desc,
 			&config);
 
-		if (IS_ERR(nxe2000_regulators[i].rdev)) {
+		if (IS_ERR(regulators_data[i].rdev)) {
 			dev_err(&pdev->dev,
 				"%s() Error: regulator register failed\n",
 				__func__);
-			ret = PTR_ERR(nxe2000_regulators[i].rdev);
+			ret = PTR_ERR(regulators_data[i].rdev);
 		}
 		tps_pdata++;
 	}
