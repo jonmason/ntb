@@ -29,6 +29,27 @@
 	samsung,pwm-outputs = <0>, <1>;
 };
 
+&i2c_gpio3 {
+	compatible = "i2c-gpio";
+	gpios = <&gpio_c 16 0	/* sda */
+		&gpio_c 15 0	/* scl */
+		>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	touchscreen@4a {
+		compatible = "atmel,maxtouch";
+		reg = <0x4a>;
+		interrupt-parent = <&gpio_b>;
+		interrupts = <22 IRQ_TYPE_EDGE_FALLING>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&touchpanel_irq>;
+		skip-cfg-load;
+		switch-xy;
+	};
+};
+
 &i2c_gpio5 {
 	status = "disabled";
 };
@@ -43,6 +64,10 @@
 		reg = <0x32>;
 		interrupt-parent = <&alive_0>;
 		interrupts = <0x5 IRQ_TYPE_EDGE_FALLING>;
+	};
+
+	touchscreen@4a {
+		status = "disabled";
 	};
 };
 

@@ -399,23 +399,7 @@
 	};
 
 	i2c_gpio3: i2c@3 {
-		compatible = "i2c-gpio";
-		gpios = <&gpio_c 16 0	/* sda */
-			&gpio_c 15 0	/* scl */
-			>;
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		touchscreen@4a {
-			compatible = "atmel,maxtouch";
-			reg = <0x4a>;
-			interrupt-parent = <&gpio_b>;
-			interrupts = <22 IRQ_TYPE_EDGE_FALLING>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&touchpanel_irq>;
-			skip-cfg-load;
-			switch-xy;
-		};
+		status = "disabled";
 	};
 
 	i2c_gpio8: i2c@8 {
@@ -628,6 +612,23 @@
 
 &i2c_1 {
 	status = "okay";
+};
+
+&i2c_2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	touchscreen@4a {
+		compatible = "atmel,maxtouch";
+		reg = <0x4a>;
+		interrupt-parent = <&gpio_b>;
+		interrupts = <22 IRQ_TYPE_EDGE_FALLING>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&touchpanel_irq>;
+		skip-cfg-load;
+		switch-xy;
+	};
 };
 
 &pwm {
