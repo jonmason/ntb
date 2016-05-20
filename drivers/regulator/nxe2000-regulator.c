@@ -380,7 +380,7 @@ static struct nxe2000_regulator nxe1500_regulators[] = {
 			0x48, 1, 0x4A, 1),
 
 	NXE2000_REG(ldo3, LDO3, 0x44, 2, 0x46, 2, 0x4E, 0x7F, 0x5A, 0x1D,
-			600, 3500, 25000, 0x68, nxe2000_ops, 0, 500,
+			600, 3500, 25000, 0x74, nxe2000_ops, 0, 500,
 			0x48, 2, 0x4A, 2),
 
 	NXE2000_REG(ldo4, LDO4, 0x44, 3, 0x46, 3, 0x4F, 0x7F, 0x5B, 0x1E,
@@ -388,11 +388,11 @@ static struct nxe2000_regulator nxe1500_regulators[] = {
 			0x48, 3, 0x4A, 3),
 
 	NXE2000_REG(ldo5, LDO5, 0x44, 4, 0x46, 4, 0x50, 0x7F, 0x5C, 0x1F,
-			900, 3500, 25000, 0x74, nxe2000_ops, 0, 500,
+			900, 3500, 25000, 0x68, nxe2000_ops, 0, 500,
 			0x48, 4, 0x4A, 4),
 
 	NXE2000_REG(ldortc1, LDORTC1, 0x45, 4, 0x00, 0, 0x56, 0x7F, 0x00, 0x00,
-			1200, 3500, 25000, 0x48, nxe2000_ops, 0, 500,
+			1200, 3500, 25000, 0x5E, nxe2000_ops, 0, 500,
 			0x00, 0, 0x00, 0),
 
 	NXE2000_REG(ldortc2, LDORTC2, 0x45, 5, 0x00, 0, 0x57, 0x7F, 0x00, 0x00,
