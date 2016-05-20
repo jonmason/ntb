@@ -47,6 +47,7 @@
 		i2c7 = &i2c_gpio7;
 		i2c8 = &i2c_gpio8;
 		i2c9 = &i2c_gpio9;
+		i2c10 = &i2c_gpio10;
 	};
 
 	nx-v4l2 {
@@ -466,6 +467,25 @@
 			reg = <0x6b>;
 			ti,chg_current = <1000 1500 2000>;
 			gpios = <&gpio_a 10 0>;
+		};
+	};
+
+	i2c_gpio10: i2c@10 {
+		compatible = "i2c-gpio";
+		gpios = <&gpio_c 16 0	/* sda */
+			&gpio_c 15 0	/* scl */
+			>;
+
+		i2c-gpio,delay-us = <100>;	/* ~100kHz */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+
+		nxe2000@32 {
+			compatible = "nexell,nxe2000";
+			reg = <0x32>;
+			interrupt-parent = <&alive_0>;
+			interrupts = <0x5 IRQ_TYPE_EDGE_FALLING>;
 		};
 	};
 

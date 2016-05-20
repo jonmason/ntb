@@ -46,3 +46,6 @@
 	};
 };
 
+&i2c_gpio10 {
+	status = "disabled";
+};
