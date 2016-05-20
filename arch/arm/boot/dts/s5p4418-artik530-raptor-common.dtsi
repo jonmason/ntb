@@ -25,6 +25,10 @@
 	compatible = "samsung,artik530-raptor", "samsung,artik530",
 		   "nexell,s5p4418";
 
+	aliases {
+		i2c4 = &i2c_gpio4;
+	};
+
 	soc {
 		serial3:serial@c00a3000 {
 			status ="okay";
@@ -83,4 +87,23 @@
 			status = "okay";
 		};
 	};	/*** soc ***/
+
+	i2c_gpio4: i2c@4 {
+		compatible = "i2c-gpio";
+		gpios = <&gpio_b 30 0 /* sda */
+			&gpio_b 31 0 /* scl */
+			>;
+		i2c-gpio,delay-us = <100>;    /* ~100 kHz */
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		usb3503: usb3503@08 {
+			compatible = "smsc,usb3503";
+			reg = <0x08>;
+			intn-gpios = <&gpio_b 23 0>;
+			connect-gpios = <&gpio_a 18 0>;
+			reset-gpios = <&gpio_a 22 0>;
+			initial-mode = <1>;
+		};
+	};
 };
