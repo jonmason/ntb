@@ -60,5 +60,12 @@
 				status = "okay";
 			};
 		};
+
+		ohci@c0020000 {
+			status = "okay";
+			port@0 {
+				status = "okay";
+			};
+		};
 	};	/*** soc ***/
 };
