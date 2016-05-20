@@ -271,7 +271,9 @@ static int panel_hdmi_bind(struct device *dev,
 	struct hdmi_context *ctx = dev_get_drvdata(dev);
 	struct hdmi_resource *hdmi = &ctx->hdmi_res;
 	struct platform_driver *pdrv = to_platform_driver(dev->driver);
+	struct nx_drm_priv *priv = drm->dev_private;
 	int pipe = ctx->crtc_pipe;
+	bool plug;
 
 	DRM_DEBUG_KMS("enter\n");
 
@@ -281,6 +283,15 @@ static int panel_hdmi_bind(struct device *dev,
 		if (pdrv->remove)
 			pdrv->remove(to_platform_device(dev));
 		return 0;
+	}
+
+	/*
+	 * check connect boot status at boot time
+	 */
+	plug = nx_dp_hdmi_is_connected();
+	if (plug) {
+		ctx->plug = plug;
+		priv->force_detect = true;
 	}
 
 	/*
@@ -439,7 +450,7 @@ static int panel_hdmi_parse_dt_hdmi(struct platform_device *pdev,
 	hdmi->hpd_gpio = hpd_gpio;
 	hdmi->hpd_irq = hpd_irq;
 
-	DRM_INFO("irq %d install for hdp (%d)\n", hpd_irq, hpd_irq);
+	DRM_INFO("irq %d install for hdp\n", hpd_irq);
 
 	/*
 	 * Disable the interrupt until the connector has been
