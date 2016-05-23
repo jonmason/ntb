@@ -888,7 +888,7 @@ static int VPU_EncOneFrameCommand(struct nx_vpu_codec_inst *pInst,
 
 	pEncInfo->strmEndFlag = VpuReadReg(BIT_BIT_STREAM_PARAM);
 
-	runArg->frameType = ((picType&0x1) == 0) ? 1 : 0;
+	runArg->frameType = picType;
 	runArg->outStreamSize = size;
 	runArg->outStreamAddr = pEncInfo->strmBufVirAddr;
 
