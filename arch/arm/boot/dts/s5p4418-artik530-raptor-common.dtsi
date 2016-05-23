@@ -207,3 +207,10 @@
 		};
 	};
 };
+
+&pwm {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pwm2_pin>;
+	samsung,pwm-outputs = <2>;
+	status = "okay";
+};
