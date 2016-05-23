@@ -214,3 +214,7 @@
 	samsung,pwm-outputs = <2>;
 	status = "okay";
 };
+
+&serial4 {
+	status = "okay";
+};
