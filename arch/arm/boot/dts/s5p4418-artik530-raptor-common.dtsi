@@ -215,6 +215,11 @@
 	status = "okay";
 };
 
+&serial1 {
+	status = "okay";
+	pinctrl-0 = <&serial1_pin>, <&serial1_flow>;
+};
+
 &serial4 {
 	status = "okay";
 };
