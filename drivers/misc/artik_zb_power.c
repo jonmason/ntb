@@ -54,9 +54,11 @@ static int artik_zb_power_control(struct artik_zb_power_platform_data *pdata,
 		ret = regulator_bulk_enable(pdata->num_supplies,
 				pdata->supplies);
 		gpiod_set_value(pdata->reset_gpio, 1);
-		gpiod_set_value(pdata->bootloader_gpio, 1);
+		if (!IS_ERR_OR_NULL(pdata->bootloader_gpio))
+			gpiod_set_value(pdata->bootloader_gpio, 1);
 	} else {
-		gpiod_set_value(pdata->bootloader_gpio, 0);
+		if (!IS_ERR_OR_NULL(pdata->bootloader_gpio))
+			gpiod_set_value(pdata->bootloader_gpio, 0);
 		gpiod_set_value(pdata->reset_gpio, 0);
 		ret = regulator_bulk_disable(pdata->num_supplies,
 				pdata->supplies);
@@ -116,6 +118,11 @@ static const struct of_device_id artik_zb_power_match[] = {
 		.compatible = "samsung,artik_zb_power",
 		.data = zb_supply_names,
 	},
+	{
+		.compatible = "samsung,artik_zb_power_efr32",
+		.data = zb_supply_names,
+	},
+
 	{ },
 };
 MODULE_DEVICE_TABLE(of, artik_zb_power_match);
@@ -124,11 +131,19 @@ MODULE_DEVICE_TABLE(of, artik_zb_power_match);
 static int artik_zb_power_gpio_init(struct device *dev,
 		struct artik_zb_power_platform_data *pdata)
 {
+	struct device_node *np;
 	pdata->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
 	if (IS_ERR(pdata->reset_gpio)) {
 		dev_err(dev, "cannot get reset-gpios %ld\n",
 			PTR_ERR(pdata->reset_gpio));
 		return PTR_ERR(pdata->reset_gpio);
+	}
+
+	np = of_find_compatible_node(NULL, NULL,
+			  "samsung,artik_zb_power_efr32");
+	if (np) {
+		pdata->bootloader_gpio = NULL;
+		return 0;
 	}
 
 	pdata->bootloader_gpio = devm_gpiod_get(dev, "bootloader",
