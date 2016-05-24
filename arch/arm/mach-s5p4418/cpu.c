@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #include <linux/of_platform.h>
 #include <asm/mach/arch.h>
 
@@ -34,6 +33,8 @@ static const char * const cpu_dt_compat[] = {
  */
 
 DT_MACHINE_START(S5P4418, "s5p4418")
+	.l2c_aux_val	= 0x70470001,
+	.l2c_aux_mask	= 0xfc000fff,
 	.init_machine	= cpu_init_machine,
 	.dt_compat	= cpu_dt_compat,
 MACHINE_END
