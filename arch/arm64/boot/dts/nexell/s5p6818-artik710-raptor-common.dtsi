@@ -53,6 +53,11 @@
 		status = "okay";
 	};
 
+	nx-devfreq {
+		pll = <1>;
+		status = "okay";
+	};
+
 	soc {
 
 		clocks {
