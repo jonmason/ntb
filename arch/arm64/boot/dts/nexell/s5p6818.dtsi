@@ -183,6 +183,12 @@
 		status = "disabled";
 	};
 
+	nx-devfreq {
+		compatible = "nexell,s5pxx18-devfreq";
+		pll = <0>;
+		status = "disabled";
+	};
+
 	soc {
 		compatible = "simple-bus";
 		#address-cells = <1>;
