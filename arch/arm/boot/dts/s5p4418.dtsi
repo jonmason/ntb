@@ -119,6 +119,15 @@
 				< ((1<<IRQ_INTREQPWR) | (1<<IRQ_ALIVE)) >;
 		};
 
+		l2:l2-cache-controller@cf000000 {
+			compatible = "arm,pl310-cache";
+			reg = <0xcf000000 0x10000>;
+			cache-unified;
+			cache-level = <2>;
+			arm,tag-latency = <2 3 2>;
+			arm,data-latency = <2 3 2>;
+		};
+
 		timer@c0017000 {
 			compatible = "nexell,s5p6818-timer";
 			reg = <PHYS_BASE_TIMER 0x1000>;
