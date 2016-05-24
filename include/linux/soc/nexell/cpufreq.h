@@ -36,4 +36,6 @@ void nx_pll_set_rate(int PLL, int P, int M, int S);
 #define NX_BUS_CLK_MID_KHZ      260000
 #define NX_BUS_CLK_LOW_KHZ      210000
 
+void nx_bus_qos_update(int val);
+
 #endif

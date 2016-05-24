@@ -98,6 +98,14 @@ config ARM_TEGRA_DEVFREQ
          It reads ACTMON counters of memory controllers and adjusts the
          operating frequencies and voltages with OPP support.
 
+config ARM_S5Pxx18_DEVFREQ
+	tristate "Nexell S5Pxx18 Bus DEVFREQ Driver"
+	depends on ARCH_S5P6818 || ARCH_S5P4418
+	select DEVFREQ_GOV_SIMPLE_ONDEMAND
+	select PM_OPP
+	help
+	  This adds the DEVFREQ driver for Nexell S5Pxx18 Series SoC bus interface.
+
 source "drivers/devfreq/event/Kconfig"
 
 endif # PM_DEVFREQ
