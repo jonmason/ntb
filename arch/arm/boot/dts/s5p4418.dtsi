@@ -163,7 +163,7 @@
 			compatible = "arm,pl011","arm,primecell",
 				   "nexell,pl011";
 			reg = <PHYS_BASE_UART2 0x1000>;
-			interrupts = <IRQ_UART1>;
+			interrupts = <IRQ_UART2>;
 			clock-names = "uartclk", "apb_pclk";
 			clocks = <&uart2>, <&uart2>;
 			resets  = <&nexell_reset RESET_ID_UART2>;
@@ -183,7 +183,7 @@
 			interrupts = <IRQ_UART3>;
 			clock-names = "uartclk", "apb_pclk";
 			clocks = <&uart3>, <&uart3>;
-			resets  = <&nexell_reset RESET_ID_UART2>;
+			resets  = <&nexell_reset RESET_ID_UART3>;
 			reset-names = "uart-reset";
 			soc,tieoff = <NX_TIEOFF_UART3_USESMC 0>,
 					<NX_TIEOFF_UART3_SMCTXENB 0>,
@@ -200,7 +200,7 @@
 			interrupts = <IRQ_UART4>;
 			clock-names = "uartclk", "apb_pclk";
 			clocks = <&uart4>, <&uart4>;
-			resets  = <&nexell_reset RESET_ID_UART2>;
+			resets  = <&nexell_reset RESET_ID_UART4>;
 			reset-names = "uart-reset";
 			soc,tieoff = <NX_TIEOFF_UART4_USESMC 0>,
 					<NX_TIEOFF_UART4_SMCTXENB 0>,
@@ -217,11 +217,11 @@
 			interrupts = <IRQ_UART5>;
 			clock-names = "uartclk", "apb_pclk";
 			clocks = <&uart5>, <&uart5>;
-			resets  = <&nexell_reset RESET_ID_UART2>;
+			resets  = <&nexell_reset RESET_ID_UART5>;
 			reset-names = "uart-reset";
-			soc,tieoff = <NX_TIEOFF_UART4_USESMC 0>,
-					<NX_TIEOFF_UART4_SMCTXENB 0>,
-					<NX_TIEOFF_UART4_SMCRXENB 0> ;
+			soc,tieoff = <NX_TIEOFF_UART5_USESMC 0>,
+					<NX_TIEOFF_UART5_SMCTXENB 0>,
+					<NX_TIEOFF_UART5_SMCRXENB 0> ;
 			pinctrl-names = "default";
 			pinctrl-0 = <&serial5_pin>;
 			status = "disabled";
