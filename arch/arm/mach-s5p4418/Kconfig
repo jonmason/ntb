@@ -19,5 +19,7 @@ config ARCH_S5P4418
 	select ARM_PATCH_PHYS_VIRT
 	select USE_OF
 	select HAVE_S3C2410_WATCHDOG if WATCHDOG
+	select HAVE_ARM_SCU if SMP
+	select HAVE_ARM_TWD if SMP
 	help
 	  Support for nexell S5P4418 dual/quard core (ARM Cortex A9) platform
