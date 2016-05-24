@@ -46,22 +46,38 @@
 	};
 
 	cpus {
-		#address-cells = <0x2>;
+		#address-cells = <0x1>;
 		#size-cells = <0x0>;
+		enable-method = "nexell,s5p4418-smp";
 
 		cpu0: cpu@0 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a9";
-			reg = <0x0 0x0>;
-			cpu-release-addr = < 0x1 0xc0010230 >;
+			reg = <0xa00>;
 		};
-		cpu-map {
-			cluster0 {
-				core0 {
-					cpu = <&cpu0>;
-				};
-			};
+
+		cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a9";
+			reg = <0xa01>;
 		};
+
+		cpu@2 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a9";
+			reg = <0xa02>;
+		};
+
+		cpu@3 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a9";
+			reg = <0xa03>;
+		};
+	};
+
+	scu:0xf0000000 {
+		compatible = "arm,cortex-a9-scu";
+		reg = <0xf0000000 0x100>;
 	};
 
 	refclk:oscillator {
