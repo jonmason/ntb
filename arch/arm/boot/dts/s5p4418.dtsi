@@ -129,6 +129,14 @@
 			clock-names = "timer0", "timer1", "pclk";
 		};
 
+		twdtimer:timer@f0000600 {
+			interrupt-parent = <&gic>;
+			interrupts = <1 IRQ_GIC_PPI_PVT 0x304>;
+			compatible = "arm,cortex-a9-twd-timer";
+			reg = <0xf0000600 0x20>;
+			clocks = <&bclk>;
+		};
+
 		tieoff@c0011000 {
 			compatible = "nexell,tieoff";
 			reg = <PHYS_BASE_TIEOFF 0x1000>;
