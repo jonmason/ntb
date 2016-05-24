@@ -537,7 +537,8 @@ config NX_SCALER
 
 config ARTIK_ZB_POWER
         tristate "ARTIK Zigbee Power control driver"
-        depends on (SOC_EXYNOS3250 || SOC_EXYNOS5422 || ARCH_S5P6818)
+        depends on (SOC_EXYNOS3250 || SOC_EXYNOS5422 || ARCH_S5P6818 ||\
+	 ARCH_S5P4418)
         default n
         help
           This driver allows you can control zigbee powers for artik board.
