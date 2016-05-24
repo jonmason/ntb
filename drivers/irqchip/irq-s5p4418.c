@@ -818,9 +818,12 @@ static void __exception_irq_entry gic_handle_irq(struct pt_regs *regs)
 
 		if (likely(irqnr > 15 && irqnr < 1021)) {
 			writel_relaxed(irqstat, cpu_base + GIC_CPU_EOI);
-			vic_handle_irq(regs);
+			if (irqnr == 31)
+				vic_handle_irq(regs);
+			else
+				handle_domain_irq(gic->domain, irqnr, regs);
+
 			break;
-		continue;
 		}
 		if (irqnr < 16) {
 			writel_relaxed(irqstat, cpu_base + GIC_CPU_EOI);

@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _S5P6818_IRQ_H
-#define _S5P6818_IRQ_H
+#ifndef _S5P4418_IRQ_H
+#define _S5P4418_IRQ_H
 
 /*
  * GIC remmap hwirq to hwirq+16+ (0~16: For SGI, 16~31:PPI)
@@ -87,7 +87,7 @@
 #define IRQ_PHY_NR			(64)		/* GIC: GIC_DIST_CTR */
 
 /*
- * gpio interrupt Number 160 (64~224)
+ * gpio interrupt Number 160 (64~223)
  */
 #define IRQ_GPIO_START			IRQ_PHY_NR
 #define IRQ_GPIO_END			(IRQ_GPIO_START + 32 * 5)
@@ -101,7 +101,7 @@
 #define IRQ_GPIO_NR			(IRQ_GPIO_END-IRQ_GPIO_START)
 
 /*
- * ALIVE Interrupt Number 6 (224~230)
+ * ALIVE Interrupt Number 8 (224~231)
  */
 #define IRQ_ALIVE_START			IRQ_GPIO_END
 #define IRQ_ALIVE_END			(IRQ_ALIVE_START + 8)
@@ -112,19 +112,18 @@
 #define IRQ_ALIVE_3			(IRQ_ALIVE_START + 3)
 #define IRQ_ALIVE_4			(IRQ_ALIVE_START + 4)
 #define IRQ_ALIVE_5			(IRQ_ALIVE_START + 5)
-#define IRQ_ALIVE_6			(IRQ_ALIVE_START + 5)
-#define IRQ_ALIVE_7			(IRQ_ALIVE_START + 5)
+#define IRQ_ALIVE_6			(IRQ_ALIVE_START + 6)
+#define IRQ_ALIVE_7			(IRQ_ALIVE_START + 7)
 
 #define IRQ_ALIVE_NR			(IRQ_ALIVE_END-IRQ_ALIVE_START)
 /*
- * GIC Interrupt (230 ~ 262), must be align 32
+ * GIC PPI Interrupt
  */
-#define IRQ_GIC_START                   ((IRQ_ALIVE_NR & ~31) + 32)
-#define IRQ_GIC_PPI_START               (IRQ_GIC_START  +  16)
-#define IRQ_GIC_PPI_PVT                 (IRQ_GIC_START  +  29)
-#define IRQ_GIC_PPI_WDT                 (IRQ_GIC_START  +  30)
-#define IRQ_GIC_PPI_VIC                 (IRQ_GIC_START  +  31)
-#define IRQ_GIC_END                     (IRQ_GIC_START  +  32)
+#define IRQ_GIC_START			(0)
+#define IRQ_GIC_PPI_PVT			(IRQ_GIC_START + 13)
+#define IRQ_GIC_PPI_WDT			(IRQ_GIC_START + 14)
+#define IRQ_GIC_PPI_VIC			(IRQ_GIC_START + 15)
+#define IRQ_GIC_END			(IRQ_GIC_START + 16)
 
 /*
  * MAX(Physical+Virtual) Interrupt Number
