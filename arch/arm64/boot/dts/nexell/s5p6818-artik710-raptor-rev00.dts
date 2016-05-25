@@ -74,3 +74,7 @@
 &i2c_gpio10 {
 	status = "disabled";
 };
+
+&panel {
+	enable-gpios = <&gpio_c 17 0>;
+};
