@@ -190,8 +190,8 @@
 
 	i2c_gpio4: i2c@4 {
 		compatible = "i2c-gpio";
-		gpios = <&gpio_b 30 0 /* sda */
-			&gpio_b 31 0 /* scl */
+		gpios = <&gpio_d 18 0 /* sda */
+			&gpio_d 14 0 /* scl */
 			>;
 		i2c-gpio,delay-us = <100>;    /* ~100 kHz */
 		#address-cells = <1>;
