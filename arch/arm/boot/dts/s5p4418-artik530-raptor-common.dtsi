@@ -93,6 +93,50 @@
 			status = "okay";
 		};
 
+		pinctrl@C0010000 {
+			key_up:key_up {
+				nexell,pins = "gpioa-26";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+
+			key_down:key_down {
+				nexell,pins = "gpioa-27";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+
+			key_back:key_back {
+				nexell,pins = "gpioa-25";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+
+			key_pwr:key_pwr {
+				nexell,pins = "alive-0";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+
+			key_home:key_home {
+				nexell,pins = "gpiod-28";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+
+			key_menu:key_menu {
+				nexell,pins = "gpioa-0";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+		};
+
 		i2s_0:i2s@c0055000 {
 			master-mode = <1>;
 			mclk-in = <0>;
@@ -231,6 +275,52 @@
 			connect-gpios = <&gpio_a 18 0>;
 			reset-gpios = <&gpio_a 22 0>;
 			initial-mode = <1>;
+		};
+	};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&key_up &key_down &key_back
+				&key_pwr &key_home &key_menu>;
+
+		up {
+			label = "Up";
+			gpios = <&gpio_a 26 1>;
+			linux,code = <KEY_UP>;
+		};
+
+		down {
+			label = "Down";
+			gpios = <&gpio_a 27 1>;
+			linux,code = <KEY_DOWN>;
+		};
+
+		back {
+			label = "Back";
+			gpios = <&gpio_a 25 1>;
+			linux,code = <KEY_BACK>;
+		};
+
+		power {
+			label = "Power";
+			gpios = <&alive_0 0 1>;
+			linux,code = <KEY_POWER>;
+			gpio-key,wakeup;
+		};
+
+		home {
+			label = "Home";
+			gpios = <&gpio_d 28 1>;
+			linux,code = <KEY_HOME>;
+		};
+
+		menu {
+			label = "Menu";
+			gpios = <&gpio_a 0 1>;
+			linux,code = <KEY_MENU>;
 		};
 	};
 };
