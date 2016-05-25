@@ -120,9 +120,9 @@
 			#size-cells = <0x0>;
 
 			snps,phy-addr = <3>;
-			snps,reset-gpio = <&gpio_a 10 0>;
+			snps,reset-gpio = <&gpio_a 12 0>;
 			snps,reset-active-low;
-			snps,reset-delays-us = <0 10000 10000>;
+			snps,reset-delays-us = <0 10000 30000>;
 
 			mdio {
 				#address-cells = <1>;
