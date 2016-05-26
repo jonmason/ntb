@@ -586,9 +586,11 @@ static int nx_clipper_parse_dt(struct device *dev, struct nx_clipper *me)
 		}
 
 		/* optional */
-		of_property_read_u32(np, "data_order", &me->bus_fmt);
 		of_property_read_u32(np, "interlace", &me->interlace);
 	}
+
+	/* common property */
+	of_property_read_u32(np, "data_order", &me->bus_fmt);
 
 	me->regulator_nr = of_property_count_strings(np, "regulator_names");
 	if (me->regulator_nr > 0) {
@@ -970,12 +972,16 @@ static int nx_clipper_s_stream(struct v4l2_subdev *sd, int enable)
 		return -ENODEV;
 	}
 
-	ret = down_interruptible(&me->s_stream_sem);
-
 #ifdef CONFIG_VIDEO_NEXELL_CLIPPER
+	if (!hostname)
+		return -EEXIST;
+
 	if (!strncmp(hostname, "VIDEO", 5))
 		is_host_video = true;
+
 #endif
+
+	ret = down_interruptible(&me->s_stream_sem);
 
 	if (enable) {
 #ifdef CONFIG_VIDEO_NEXELL_CLIPPER
@@ -996,6 +1002,13 @@ static int nx_clipper_s_stream(struct v4l2_subdev *sd, int enable)
 #endif
 		if (!(NX_ATOMIC_READ(&me->state) &
 		      (STATE_MEM_RUNNING | STATE_CLIP_RUNNING))) {
+			if (me->crop.width == 0 || me->crop.height == 0) {
+				me->crop.left = 0;
+				me->crop.top = 0;
+				me->crop.width = me->width;
+				me->crop.height = me->height;
+			}
+
 			set_vip(me);
 			ret = enable_sensor_power(me, true);
 			if (ret) {
@@ -1177,6 +1190,7 @@ static int nx_clipper_set_fmt(struct v4l2_subdev *sd,
 	}
 #ifdef CONFIG_VIDEO_NEXELL_CLIPPER
 	else if (pad == 1) {
+		struct v4l2_subdev_format fmt;
 		/* set memory format */
 		u32 nx_mem_fmt;
 		int ret = nx_vip_find_nx_mem_format(format->format.code,
@@ -1189,6 +1203,12 @@ static int nx_clipper_set_fmt(struct v4l2_subdev *sd,
 		me->mem_fmt = nx_mem_fmt;
 		me->width = format->format.width;
 		me->height = format->format.height;
+
+		memset(&fmt, 0, sizeof(fmt));
+		fmt.format.width = me->width;
+		fmt.format.height = me->height;
+
+		return v4l2_subdev_call(remote, pad, set_fmt, NULL, &fmt);
 	}
 #endif
 	else {
@@ -1401,6 +1421,17 @@ static int init_sensor_media_entity(struct nx_clipper *me,
 	return 0;
 }
 
+static int setup_link(struct media_pad *src, struct media_pad *dst)
+{
+	struct media_link *link;
+
+	link = media_entity_find_link(src, dst);
+	if (link == NULL)
+		return -ENODEV;
+
+	return __media_entity_setup_link(link, MEDIA_LNK_FL_ENABLED);
+}
+
 static int register_sensor_subdev(struct nx_clipper *me)
 {
 	int ret;
@@ -1464,6 +1495,11 @@ static int register_sensor_subdev(struct nx_clipper *me)
 			goto error;
 		}
 
+		ret = setup_link(&mipi_csi->entity.pads[1],
+				 &me->subdev.entity.pads[0]);
+		if (ret)
+			BUG();
+
 		input = &mipi_csi->entity;
 		pad = 0;
 	} else {
@@ -1475,6 +1511,10 @@ static int register_sensor_subdev(struct nx_clipper *me)
 	if (ret < 0)
 		dev_err(&me->pdev->dev,
 			"failed to create link from sensor\n");
+
+	ret = setup_link(&sensor->entity.pads[0], &input->pads[pad]);
+	if (ret)
+		BUG();
 
 error:
 	if (client && ret < 0)
@@ -1517,6 +1557,11 @@ static int register_v4l2(struct nx_clipper *me)
 		BUG();
 
 	me->vbuf_obj.video = video;
+
+	ret = setup_link(&entity->pads[NX_CLIPPER_PAD_SOURCE_MEM],
+			 &video->vdev.entity.pads[0]);
+	if (ret)
+		BUG();
 #endif
 
 	return 0;

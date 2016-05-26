@@ -812,10 +812,12 @@ static int nx_csi_set_fmt(struct v4l2_subdev *sd,
 			  struct v4l2_subdev_format *format)
 {
 	struct nx_csi *me = v4l2_get_subdevdata(sd);
+	struct v4l2_subdev *remote = get_remote_subdev(me, NX_CSI_PAD_SINK);
 
 	me->width = format->format.width;
 	me->height = format->format.height;
-	return 0;
+
+	return v4l2_subdev_call(remote, pad, set_fmt, cfg, format);
 }
 
 static int nx_csi_s_stream(struct v4l2_subdev *sd, int enable)
