@@ -75,4 +75,6 @@ struct nx_pcm_runtime_data {
 #define	SNDDEV_STATUS_CAPT	(1<<3)
 #define	SNDDEV_STATUS_RUNNING	(SNDDEV_STATUS_PLAY | SNDDEV_STATUS_CAPT)
 
+extern struct snd_soc_platform_driver nx_pcm_platform;
+
 #endif

@@ -342,16 +342,12 @@ static int nx_pcm_dma_prepare_and_submit(struct snd_pcm_substream *substream)
 static int nx_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 {
 	struct nx_pcm_runtime_data *prtd = substream_to_prtd(substream);
-	int ret = 0;
 
 	dev_dbg(prtd->dev, "%s: %s cmd=%d\n", __func__,
 		 STREAM_STR(substream->stream), cmd);
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
-		ret = nx_pcm_dma_prepare_and_submit(substream);
-		if (ret)
-			return ret;
 		dma_async_issue_pending(prtd->dma_chan);
 		break;
 
@@ -411,7 +407,10 @@ static int nx_pcm_open(struct snd_pcm_substream *substream)
 		return ret;
 	}
 
-	hw->period_bytes_max = PERIOD_BYTES_MAX;
+	if (strstr(dev_name(prtd->dma_param->dev), "spdiftx"))
+		hw->period_bytes_max = 4096;
+	else
+		hw->period_bytes_max = PERIOD_BYTES_MAX;
 
 	return snd_soc_set_runtime_hwparams(substream, &nx_pcm_hardware);
 }
@@ -504,6 +503,7 @@ static struct snd_pcm_ops nx_pcm_ops = {
 	.trigger	= nx_pcm_trigger,
 	.pointer	= nx_pcm_pointer,
 	.mmap		= nx_pcm_mmap,
+	.prepare	= nx_pcm_dma_prepare_and_submit,
 };
 
 static int nx_pcm_preallocate_dma_buffer(struct snd_pcm *pcm, int stream)
@@ -593,7 +593,7 @@ static void nx_pcm_free(struct snd_pcm *pcm)
 	nx_pcm_release_dma_buffer(pcm, SNDRV_PCM_STREAM_PLAYBACK);
 }
 
-static struct snd_soc_platform_driver pcm_platform = {
+struct snd_soc_platform_driver nx_pcm_platform = {
 	.ops		= &nx_pcm_ops,
 	.pcm_new	= nx_pcm_new,
 	.pcm_free	= nx_pcm_free,
@@ -601,7 +601,7 @@ static struct snd_soc_platform_driver pcm_platform = {
 
 static int nx_pcm_probe(struct platform_device *pdev)
 {
-	int ret = snd_soc_register_platform(&pdev->dev, &pcm_platform);
+	int ret = snd_soc_register_platform(&pdev->dev, &nx_pcm_platform);
 
 	dev_info(&pdev->dev, "snd pcm: %s sound platform '%s'\n",
 	       ret?"fail":"register", pdev->name);
