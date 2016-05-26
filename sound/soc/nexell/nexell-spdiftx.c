@@ -455,11 +455,18 @@ static int nx_spdif_hw_params(struct snd_pcm_substream *substream,
 	return ret;
 }
 
+static int nx_spdif_set_dai_sysclk(struct snd_soc_dai *dai,
+				   int clk_id, unsigned int freq, int dir)
+{
+	return 0;
+}
+
 static struct snd_soc_dai_ops nx_spdif_ops = {
 	.startup	= nx_spdif_startup,
 	.shutdown	= nx_spdif_shutdown,
 	.trigger	= nx_spdif_trigger,
 	.hw_params	= nx_spdif_hw_params,
+	.set_sysclk	= nx_spdif_set_dai_sysclk,
 };
 
 /*
@@ -542,6 +549,12 @@ static int nx_spdif_probe(struct platform_device *pdev)
 	if (ret) {
 		dev_err(&pdev->dev, "fail, %s snd_soc_register_component ...\n",
 		       pdev->name);
+		goto err_out;
+	}
+
+	ret = snd_soc_register_platform(&pdev->dev, &nx_pcm_platform);
+	if (ret) {
+		dev_err(&pdev->dev, "fail, snd_soc_register_platform...\n");
 		goto err_out;
 	}
 
