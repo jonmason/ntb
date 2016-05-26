@@ -2,6 +2,9 @@ config ARCH_S5P4418
 	bool "Nexell S5P4418D/Q"
 	select CPU_V7
 	select ARM_AMBA
+	select ARM_ERRATA_754322
+	select ARM_ERRATA_764369 if SMP
+	select ARM_ERRATA_775420
 	select ARM_GIC
 	select ARM_VIC
 	select HAVE_SMP
