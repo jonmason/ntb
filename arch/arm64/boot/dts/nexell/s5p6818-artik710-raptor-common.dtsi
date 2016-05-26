@@ -186,7 +186,8 @@
 			};
 		};
 
-		spdiftx@c0059000 {
+		spdif_tx: spdiftx@c0059000 {
+			#sound-dai-cells = <1>;
 			pcm-bit = <16>;
 			sample_rate = <48000>;
 			status = "okay";
@@ -197,6 +198,7 @@
 		};
 
 		i2s_0:i2s@c0055000 {
+			#sound-dai-cells = <1>;
 			master-mode = <1>;
 			mclk-in = <0>;
 			trans-mode = <0>;
@@ -252,19 +254,46 @@
 		#size-cells = <0>;
 
 		alc5658: alc5658@1a {
+			#sound-dai-cells = <0>;
 			compatible = "realtek,rt5658";
 			reg = <0x1a>;
 		};
 	};
 
 	sound {
-		compatible = "nexell,nexell-alc5658";
-		ch = <0>;
-		sample-rate = <48000>;
-		format = "S16";
-		hpin-support = <0>;
-		nexell,i2s-controller = <&i2s_0>;
-		audio-codec = <&alc5658>;
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "s5p6818 Soc Audio";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,widgets =
+		    "Headphone", "Out Jack",
+		    "Microphone", "In Jack";
+		simple-audio-card,routing =
+		    "Out Jack", "HPOL",
+		    "Out Jack", "HPOR",
+		    "IN2P", "In Jack",
+		    "IN2P", "In Jack";
+		status = "okay";
+
+		simple-audio-card,dai-link@0 {
+		    format = "i2s";
+		    cpu {
+			sound-dai = <&i2s_0 0>;
+		    };
+
+		    codec {
+			sound-dai = <&alc5658>;
+		    };
+		};
+
+		simple-audio-card,dai-link@1 {
+		    cpu {
+			sound-dai = <&spdif_tx 0>;
+		    };
+
+		    codec {
+			sound-dai = <&spdif_out>;
+		    };
+		};
 	};
 
 	i2c_gpio4: i2c@4 {
@@ -346,13 +375,8 @@
 	};
 
 	spdif_out: spdif-out {
+		#sound-dai-cells = <0>;
 		compatible = "linux,spdif-dit";
-	};
-
-	spdif-transceiver {
-		compatible = "nexell,spdif-transceiver";
-		sample_rate = <48000>;
-		format = "S16";
 	};
 
 	i2c_gpio3: i2c@3 {
