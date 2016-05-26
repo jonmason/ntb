@@ -205,6 +205,7 @@
 		clipper_0:clipper0@c0063000 {
 			interface_type = <NX_CAPTURE_INTERFACE_MIPI_CSI>;
 			gpios = <&gpio_a 17 0 &gpio_a 3 0 &gpio_a 6 0>;
+			data_order = <NX_VIN_Y0CBY1CR>;
 			status = "okay";
 			sensor {
 				type = <NX_CAPTURE_SENSOR_I2C>;
