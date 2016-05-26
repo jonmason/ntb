@@ -2773,6 +2773,9 @@ static int dwc2_hsotg_ep_enable(struct usb_ep *ep,
 		if (hsotg->gadget.speed == USB_SPEED_HIGH)
 			hs_ep->interval = 1 << (desc->bInterval - 1);
 
+		if (hsotg->gadget.speed == USB_SPEED_HIGH)
+			hs_ep->interval = 1 << (desc->bInterval - 1);
+
 		epctrl |= DXEPCTL_EPTYPE_INTERRUPT;
 		break;
 
