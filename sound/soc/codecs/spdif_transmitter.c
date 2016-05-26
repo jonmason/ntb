@@ -44,15 +44,26 @@ static struct snd_soc_codec_driver soc_codec_spdif_dit = {
 	.num_dapm_routes = ARRAY_SIZE(dit_routes),
 };
 
+static int dit_set_dai_sysclk(struct snd_soc_dai *dai,
+				   int clk_id, unsigned int freq, int dir)
+{
+	return 0;
+}
+
+struct snd_soc_dai_ops dit_hifi_dai_ops = {
+	.set_sysclk = dit_set_dai_sysclk,
+};
+
 static struct snd_soc_dai_driver dit_stub_dai = {
 	.name		= "dit-hifi",
-	.playback 	= {
+	.playback	= {
 		.stream_name	= "Playback",
 		.channels_min	= 1,
 		.channels_max	= 384,
 		.rates		= STUB_RATES,
 		.formats	= STUB_FORMATS,
 	},
+	.ops = &dit_hifi_dai_ops,
 };
 
 static int spdif_dit_probe(struct platform_device *pdev)
