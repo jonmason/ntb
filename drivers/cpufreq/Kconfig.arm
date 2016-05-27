@@ -257,8 +257,8 @@ config ACPI_CPPC_CPUFREQ
 	  If in doubt, say N.
 
 config ARM_NEXELL_CPUFREQ
-	bool "SLsiAP CPU Frequency scaling support"
-	depends on ARCH_S5P6818
+	bool "Nexell CPU Frequency scaling support"
+	depends on ARCH_S5P6818 || ARCH_S5P4418
 	default y
 	help
 	  This adds the CPUFreq driver for Nexell SoC.
