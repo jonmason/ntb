@@ -136,6 +136,10 @@
 			};
 		};
 
+		adc:adc@c0053000 {
+			status = "okay";
+		};
+
 		i2s_0:i2s@c0055000 {
 			master-mode = <1>;
 			mclk-in = <0>;
