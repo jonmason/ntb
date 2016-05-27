@@ -126,6 +126,7 @@
 			cache-level = <2>;
 			arm,tag-latency = <2 3 2>;
 			arm,data-latency = <2 3 2>;
+			arm,filter-ranges = <0xC0000000 0xFF00000>;
 		};
 
 		timer@c0017000 {
