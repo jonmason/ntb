@@ -169,7 +169,7 @@ static int cw_update_config_info(struct cw_battery *cw_bat)
 
 	/* update new battery info */
 	for (i = 0; i < SIZE_BATINFO; i++) {
-		dev_err(&cw_bat->client->dev,
+		dev_dbg(&cw_bat->client->dev,
 			"cw_bat->plat_data.cw_bat_config_info[%d] = 0x%x\n",
 			i, plat_data->cw_bat_config_info[i]);
 		ret = cw_write(cw_bat->client, REG_BATINFO + i,
@@ -294,7 +294,7 @@ static int cw_init(struct cw_battery *cw_bat)
 
 	for (i = 0; i < 30; i++) {
 		ret = cw_read(cw_bat->client, REG_SOC, &reg_val);
-		dev_err(cw_bat->dev, "rkbat soc %d[%d]\n", reg_val, i);
+		dev_dbg(cw_bat->dev, "rkbat soc %d[%d]\n", reg_val, i);
 		if (ret < 0)
 			return ret;
 		else if (reg_val <= 0x64)
