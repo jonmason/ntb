@@ -57,6 +57,19 @@
 	};
 };
 
+&i2c_gpio5 {
+	rtc@68 {
+		compatible = "ti,bq32000";
+		trickle-resistor-ohms = <1120>;
+		reg = <0x68>;
+		/* If it's first boot, reset to 4/29/2016(Fri) UTC */
+		init_time,year = <116>;
+		init_time,mon = <3>;
+		init_time,mday = <29>;
+		init_time,wday = <5>;
+	};
+};
+
 &i2c_gpio10 {
 	status = "disabled";
 };

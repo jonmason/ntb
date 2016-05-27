@@ -362,9 +362,10 @@
 		i2c-gpio,delay-us = <100>;
 
 		rtc@68 {
-			compatible = "ti,bq32000";
-			trickle-resistor-ohms = <1120>;
+			compatible = "maxim,ds1337";
 			reg = <0x68>;
+			interrupt-parent = <&alive_0>;
+			interrupts = <0x2 IRQ_TYPE_EDGE_FALLING>;
 			/* If it's first boot, reset to 4/29/2016(Fri) UTC */
 			init_time,year = <116>;
 			init_time,mon = <3>;
