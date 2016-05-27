@@ -50,56 +50,75 @@
 #define ADC_TIMEOUT		(msecs_to_jiffies(100))
 
 
-/* PRESCALERCON */
-#define	APEN_BITP		(15)	/* 15  */
-#define	PRES_BITP		(0)	/* 9:0 */
+/* Register definitions for ADC_V1 */
+#define ADC_V1_CON(x)		((x) + 0x00)
+#define ADC_V1_DAT(x)		((x) + 0x04)
+#define ADC_V1_INTENB(x)	((x) + 0x08)
+#define ADC_V1_INTCLR(x)	((x) + 0x0c)
 
-/* ADCCON */
-#define DATA_SEL_VAL		(0)	/* 0:5clk, 1:4clk, 2:3clk, 3:2clk */
+/* Bit definitions for ADC_V1 */
+#define ADC_V1_CON_APEN		(1u << 14)
+#define ADC_V1_CON_APSV(x)	(((x) & 0xff) << 6)
+#define ADC_V1_CON_ASEL(x)	(((x) & 0x7) << 3)
+#define ADC_V1_CON_STBY		(1u << 2)
+#define ADC_V1_CON_ADEN		(1u << 0)
+#define ADC_V1_INTENB_ENB	(1u << 0)
+#define ADC_V1_INTCLR_CLR	(1u << 0)
+
+
+/* Register definitions for ADC_V2 */
+#define ADC_V2_CON(x)		((x) + 0x00)
+#define ADC_V2_DAT(x)		((x) + 0x04)
+#define ADC_V2_INTENB(x)	((x) + 0x08)
+#define ADC_V2_INTCLR(x)	((x) + 0x0c)
+#define ADC_V2_PRESCON(x)	((x) + 0x10)
+
+/* Bit definitions for ADC_V2 */
+#define ADC_V2_CON_DATA_SEL(x)	(((x) & 0xf) << 10)
+#define ADC_V2_CON_CLK_CNT(x)	(((x) & 0xf) << 6)
+#define ADC_V2_CON_ASEL(x)	(((x) & 0x7) << 3)
+#define ADC_V2_CON_STBY		(1u << 2)
+#define ADC_V2_CON_ADEN		(1u << 0)
+#define ADC_V2_INTENB_ENB	(1u << 0)
+#define ADC_V2_INTCLR_CLR	(1u << 0)
+#define ADC_V2_PRESCON_APEN	(1u << 15)
+#define ADC_V2_PRESCON_PRES(x)	(((x) & 0x3ff) << 0)
+
+#define ADC_V2_DATA_SEL_VAL	(0)	/* 0:5clk, 1:4clk, 2:3clk, 3:2clk */
 					/* 4:1clk: 5:not delayed, else: 4clk */
-#define CLK_CNT_VAL		(6)	/* 28nm ADC */
+#define ADC_V2_CLK_CNT_VAL	(6)	/* 28nm ADC */
 
-#define DATA_SEL_BITP		(10)	/* 13:10 */
-#define CLK_CNT_BITP		(6)	/* 9:6 */
-#define	ASEL_BITP		(3)
-#define	ADCON_STBY		(2)
-#define	ADEN_BITP		(0)
-
-/* ADCINTENB */
-#define	AIEN_BITP		(0)
-
-/* ADCINTCLR */
-#define	AICL_BITP		(0)
-
-
-/*
- * ADC register
- */
-struct adc_register {
-	u32 adccon;
-	u32 adcdat;
-	u32 adcintenb;
-	u32 adcintclr;	/* R: Interrupt Pendded, W: Pending Clear */
-	u32 adcprescon;
-};
 
 /*
  * ADC data
  */
 struct nexell_adc_info {
+	struct nexell_adc_data *data;
 	void __iomem *adc_base;
 	ulong clk_rate;
 	ulong sample_rate;
 	ulong max_sampele_rate;
 	ulong min_sampele_rate;
-	int		value;
-	int		prescale;
-	spinlock_t	lock;
+	int value;
+	int prescale;
+	spinlock_t lock;
 	struct completion completion;
 	int irq;
 	struct clk *clk;
 	struct iio_map *map;
 	struct reset_control *rst;
+};
+
+struct nexell_adc_data {
+	int version;
+
+	int (*adc_con)(struct nexell_adc_info *adc);
+	int (*read_polling)(struct nexell_adc_info *adc, int ch);
+	int (*read_val)(struct iio_dev *indio_dev,
+			struct iio_chan_spec const *chan,
+			int *val,
+			int *val2,
+			long mask);
 };
 
 static const char * const str_adc_label[] = {
@@ -137,89 +156,246 @@ static int nexell_adc_remove_devices(struct device *dev, void *c)
 	return 0;
 }
 
+
+static int setup_adc_con(struct nexell_adc_info *adc)
+{
+	if (adc->data->adc_con)
+		adc->data->adc_con(adc);
+
+	return 0;
+}
+
+static void nexell_adc_v1_ch_start(void __iomem *reg, int ch)
+{
+	unsigned int adcon = 0;
+
+	adcon = readl(ADC_V1_CON(reg)) & ~ADC_V1_CON_ASEL(7);
+	adcon &= ~ADC_V1_CON_ADEN;
+	adcon |= ADC_V1_CON_ASEL(ch);	/* channel */
+	writel(adcon, ADC_V1_CON(reg));
+	adcon  = readl(ADC_V1_CON(reg));
+
+	adcon |= ADC_V1_CON_ADEN;	/* start */
+	writel(adcon, ADC_V1_CON(reg));
+}
+
+static int nexell_adc_v1_read_polling(struct nexell_adc_info *adc, int ch)
+{
+	void __iomem *reg = adc->adc_base;
+	unsigned long wait = loops_per_jiffy * (HZ/10);
+
+	nexell_adc_v1_ch_start(reg, ch);
+
+	while (wait > 0) {
+		if (!(readl(ADC_V1_CON(reg)) & ADC_V1_CON_ADEN)) {
+			/* get value */
+			adc->value = readl(ADC_V1_DAT(reg)); /* get value */
+			/* pending clear */
+			writel(ADC_V1_INTCLR_CLR, ADC_V1_INTCLR(reg));
+			break;
+		}
+		wait--;
+	}
+	if (wait == 0)
+		return -ETIMEDOUT;
+
+	return 0;
+}
+
+static int nexell_adc_v1_adc_con(struct nexell_adc_info *adc)
+{
+	unsigned int adcon = 0;
+	void __iomem *reg = adc->adc_base;
+
+	adcon = ADC_V1_CON_APSV(adc->prescale);
+        adcon &= ~ADC_V1_CON_STBY;
+	writel(adcon, ADC_V1_CON(reg));
+	adcon |= ADC_V1_CON_APEN;
+	writel(adcon, ADC_V1_CON(reg));
+
+	/* *****************************************************
+	 * Turn-around invalid value after Power On
+	 * *****************************************************/
+	nexell_adc_v1_read_polling(adc, 0);
+	adc->value = 0;
+
+	writel(ADC_V1_INTCLR_CLR, ADC_V1_INTCLR(reg));
+	writel(ADC_V1_INTENB_ENB, ADC_V1_INTENB(reg));
+	init_completion(&adc->completion);
+
+	return 0;
+}
+
+static int nexell_adc_v1_read_val(struct iio_dev *indio_dev,
+		struct iio_chan_spec const *chan,
+		int *val,
+		int *val2,
+		long mask)
+{
+	struct nexell_adc_info *adc = iio_priv(indio_dev);
+	int ch = chan->channel;
+	int ret = 0;
+
+	reinit_completion(&adc->completion);
+
+	if (adc->data->read_polling)
+		ret = adc->data->read_polling(adc, ch);
+	if (ret < 0) {
+		dev_warn(&indio_dev->dev,
+				"Conversion timed out! resetting...\n");
+		reset_control_reset(adc->rst);
+		setup_adc_con(adc);
+		ret = -ETIMEDOUT;
+	}
+
+	return ret;
+}
+
+static const struct nexell_adc_data nexell_adc_s5p4418_data = {
+	.version	= 1,
+	.adc_con	= nexell_adc_v1_adc_con,
+	.read_polling	= nexell_adc_v1_read_polling,
+	.read_val	= nexell_adc_v1_read_val,
+};
+
+static void nexell_adc_v2_ch_start(void __iomem *reg, int ch)
+{
+	unsigned int adcon = 0;
+
+	adcon = readl(ADC_V2_CON(reg)) & ~ADC_V2_CON_ASEL(7);
+	adcon &= ~ADC_V2_CON_ADEN;
+	adcon |= ADC_V2_CON_ASEL(ch);	/* channel */
+	writel(adcon, ADC_V2_CON(reg));
+	adcon  = readl(ADC_V2_CON(reg));
+
+	adcon |= ADC_V2_CON_ADEN;	/* start */
+	writel(adcon, ADC_V2_CON(reg));
+}
+
+static int nexell_adc_v2_read_polling(struct nexell_adc_info *adc, int ch)
+{
+	void __iomem *reg = adc->adc_base;
+	unsigned long wait = loops_per_jiffy * (HZ/10);
+
+	nexell_adc_v2_ch_start(reg, ch);
+
+	while (wait > 0) {
+		if (readl(ADC_V2_INTCLR(reg)) & ADC_V2_INTCLR_CLR) {
+			/* pending clear */
+			writel(ADC_V2_INTCLR_CLR, ADC_V2_INTCLR(reg));
+			/* get value */
+			adc->value = readl(ADC_V2_DAT(reg)); /* get value */
+			break;
+		}
+		wait--;
+	}
+	if (wait == 0)
+		return -ETIMEDOUT;
+
+	return 0;
+}
+
+static int nexell_adc_v2_adc_con(struct nexell_adc_info *adc)
+{
+	unsigned int adcon = 0;
+	unsigned int pres = 0;
+	void __iomem *reg = adc->adc_base;
+
+	adcon = ADC_V2_CON_DATA_SEL(ADC_V2_DATA_SEL_VAL) |
+		ADC_V2_CON_CLK_CNT(ADC_V2_CLK_CNT_VAL);
+	adcon &= ~ADC_V2_CON_STBY;
+	writel(adcon, ADC_V2_CON(reg));
+
+	pres = ADC_V2_PRESCON_PRES(adc->prescale);
+	writel(pres, ADC_V2_PRESCON(reg));
+	pres |= ADC_V2_PRESCON_APEN;
+	writel(pres, ADC_V2_PRESCON(reg));
+
+	/* *****************************************************
+	 * Turn-around invalid value after Power On
+	 * *****************************************************/
+	nexell_adc_v2_read_polling(adc, 0);
+	adc->value = 0;
+
+	writel(ADC_V2_INTCLR_CLR, ADC_V2_INTCLR(reg));
+	writel(ADC_V2_INTENB_ENB, ADC_V2_INTENB(reg));
+	init_completion(&adc->completion);
+
+	return 0;
+}
+
+static int nexell_adc_v2_read_val(struct iio_dev *indio_dev,
+		struct iio_chan_spec const *chan,
+		int *val,
+		int *val2,
+		long mask)
+{
+	struct nexell_adc_info *adc = iio_priv(indio_dev);
+	void __iomem *reg = adc->adc_base;
+	int ch = chan->channel;
+	unsigned long timeout;
+	int ret = 0;
+
+	reinit_completion(&adc->completion);
+
+	nexell_adc_v2_ch_start(reg, ch);
+
+	timeout = wait_for_completion_timeout(&adc->completion, ADC_TIMEOUT);
+	if (timeout == 0) {
+		dev_warn(&indio_dev->dev,
+				"Conversion timed out! resetting...\n");
+		reset_control_reset(adc->rst);
+		setup_adc_con(adc);
+		ret = -ETIMEDOUT;
+	}
+
+	return ret;
+}
+
+static const struct nexell_adc_data const nexell_adc_s5p6818_data = {
+	.version	= 2,
+	.adc_con	= nexell_adc_v2_adc_con,
+	.read_polling	= nexell_adc_v2_read_polling,
+	.read_val	= nexell_adc_v2_read_val,
+};
+
+
 #ifdef CONFIG_OF
 static const struct of_device_id nexell_adc_match[] = {
-	{ .compatible = "nexell,s5p6818-adc" },
-	{},
+	{
+		.compatible = "nexell,s5p6818-adc",
+		.data = &nexell_adc_s5p6818_data,
+	}, {
+		.compatible = "nexell,s5p4418-adc",
+		.data = &nexell_adc_s5p4418_data,
+	},
+	{}
 };
 MODULE_DEVICE_TABLE(of, nexell_adc_match);
+
+static struct nexell_adc_data *nexell_adc_get_data(struct platform_device *pdev)
+{
+	const struct of_device_id *match;
+
+	match = of_match_node(nexell_adc_match, pdev->dev.of_node);
+	return (struct nexell_adc_data *)match->data;
+}
 #endif
 
 /*
  * ADC functions
  */
-static irqreturn_t nexell_adc_isr(int irq, void *dev_id)
+static irqreturn_t nexell_adc_v2_isr(int irq, void *dev_id)
 {
 	struct nexell_adc_info *adc = (struct nexell_adc_info *)dev_id;
-	struct adc_register *reg = adc->adc_base;
+	void __iomem *reg = adc->adc_base;
 
-	writel(1, &reg->adcintclr);
+	writel(ADC_V2_INTCLR_CLR, ADC_V2_INTCLR(reg)); /* pending clear */
+	adc->value = readl(ADC_V2_DAT(reg)); /* get value */
 
-	adc->value = readl(&reg->adcdat);
 	complete(&adc->completion);
 
 	return IRQ_HANDLED;
-}
-
-static void nx_adc_ch_start(struct adc_register *reg, int ch)
-{
-	unsigned int adcon = 0;
-
-	adcon  = readl(&reg->adccon) & ~(0x07 << ASEL_BITP);
-	adcon  = adcon & ~(0x01 << ADEN_BITP);
-	adcon |= ch << ASEL_BITP;	/* channel */
-	writel(adcon, &reg->adccon);
-	adcon  = readl(&reg->adccon);
-
-	adcon |=  1 << ADEN_BITP;	/* start */
-	writel(adcon, &reg->adccon);
-}
-
-static int __turn_around_invalid_first_read(struct nexell_adc_info *adc)
-{
-	struct adc_register *reg = adc->adc_base;
-	int value = 0;
-	unsigned long wait = loops_per_jiffy * (HZ/10);
-
-	nx_adc_ch_start(reg, 0);
-
-	while (wait > 0) {
-		if (readl(&reg->adcintclr) & (1 << AICL_BITP)) {
-			writel(0x1, &reg->adcintclr); /* pending clear */
-			value = readl(&reg->adcdat); /* get value */
-			break;
-		}
-		wait--;
-	}
-	return 0;
-}
-
-static int setup_adc_con(struct nexell_adc_info *adc)
-{
-	unsigned int adcon = 0;
-	unsigned int pres = 0;
-	struct adc_register *reg = adc->adc_base;
-
-	adcon = ((DATA_SEL_VAL & 0xf) << DATA_SEL_BITP) |
-		((CLK_CNT_VAL & 0xf)  << CLK_CNT_BITP) |
-		(0 << ADCON_STBY);
-	writel(adcon, &reg->adccon);
-
-	pres = ((adc->prescale & 0x3FF) << PRES_BITP);
-	writel(pres, &reg->adcprescon);
-	pres |= (1 << APEN_BITP);
-	writel(pres, &reg->adcprescon);
-
-	/* *****************************************************
-	 * Turn-around invalid value after Power On
-	 * *****************************************************/
-	__turn_around_invalid_first_read(adc);
-
-	writel(1, &reg->adcintclr);
-	writel(1, &reg->adcintenb);
-	init_completion(&adc->completion);
-
-	return 0;
 }
 
 static int nexell_adc_setup(struct nexell_adc_info *adc,
@@ -266,32 +442,24 @@ static int nexell_read_raw(struct iio_dev *indio_dev,
 		long mask)
 {
 	struct nexell_adc_info *adc = iio_priv(indio_dev);
-	struct adc_register *reg = adc->adc_base;
-	int ch = chan->channel;
-	unsigned long timeout;
 	int ret;
 
 	mutex_lock(&indio_dev->mlock);
-	reinit_completion(&adc->completion);
 
-	nx_adc_ch_start(reg, ch);
-
-	timeout = wait_for_completion_timeout(&adc->completion, ADC_TIMEOUT);
-	if (timeout == 0) {
-		dev_warn(&indio_dev->dev,
-				"Conversion timed out! resetting...\n");
-		reset_control_reset(adc->rst);
-		setup_adc_con(adc);
-		ret = -ETIMEDOUT;
-	} else {
-		*val = adc->value;
-		*val2 = 0;
-		ret = IIO_VAL_INT;
+	if (adc->data->read_val) {
+		ret = adc->data->read_val(indio_dev, chan, val, val2, mask);
+		if (ret < 0)
+			goto out;
 	}
 
-	mutex_unlock(&indio_dev->mlock);
+	*val = adc->value;
+	*val2 = 0;
+	ret = IIO_VAL_INT;
 
-	dev_dbg(&indio_dev->dev, "%s, ch=%d, val=0x%x\n", __func__, ch, *val);
+	dev_dbg(&indio_dev->dev, "ch=%d, val=0x%x\n", chan->channel, *val);
+
+out:
+	mutex_unlock(&indio_dev->mlock);
 
 	return ret;
 }
@@ -340,6 +508,12 @@ static int nexell_adc_probe(struct platform_device *pdev)
 
 	adc = iio_priv(iio);
 
+	adc->data = nexell_adc_get_data(pdev);
+	if (!adc->data) {
+		dev_err(&pdev->dev, "failed getting nexell ADC data\n");
+		return -EINVAL;
+	}
+
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	adc->adc_base = devm_ioremap_resource(&pdev->dev, mem);
 	if (IS_ERR(adc->adc_base))
@@ -366,21 +540,22 @@ static int nexell_adc_probe(struct platform_device *pdev)
 
 
 	/* setup: irq */
-	irq = platform_get_irq(pdev, 0);
-	if (irq < 0) {
-		dev_err(&pdev->dev, "failed get irq resource\n");
-		goto err_unprepare_clk;
+	if (adc->data->version == 2) {
+		irq = platform_get_irq(pdev, 0);
+		if (irq < 0) {
+			dev_err(&pdev->dev, "failed get irq resource\n");
+			goto err_unprepare_clk;
+		}
+
+		ret = devm_request_irq(&pdev->dev, irq, nexell_adc_v2_isr,
+				0, dev_name(&pdev->dev), adc);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "failed get irq (%d)\n", irq);
+			goto err_unprepare_clk;
+		}
+
+		adc->irq = irq;
 	}
-
-	ret = devm_request_irq(&pdev->dev, irq, nexell_adc_isr,
-			0, dev_name(&pdev->dev), adc);
-	if (ret < 0) {
-		dev_err(&pdev->dev, "failed get irq (%d)\n", irq);
-		goto err_unprepare_clk;
-	}
-
-	adc->irq = irq;
-
 
 	/* setup: adc */
 	ret = nexell_adc_setup(adc, pdev);

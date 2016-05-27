@@ -1,13 +1,14 @@
 Nexell's Analog to Digital Converter (ADC)
 
-The devicetree bindings are for the ADC driver written for Nexell's s5p6818 ADC.
+The devicetree bindings are for the ADC driver written for Nexell's ADC.
 
 When the sampling is done, interrupt is rised, and then read the value.
 Please refer to the datasheet for more information.
 
 
 Required properties:
-  - compatible: Should be "nexell,s5p6818-adc"
+  - compatible: Should be "nexell,<chip>-adc"
+    <chip> can be "s5p4418", "s5p6818"
   - reg: Should contain ADC registers location and length
   - interrupts: Should contain the IRQ line for the ADC
   - clocks : From common clock bindings - handles to clocks specified in
@@ -25,6 +26,18 @@ Example:
 		compatible = "nexell,s5p6818-adc";
 		reg = <PHYS_BASE_ADC 0x1000>;
 		interrupts = <0 IRQ_ADC 0>;
+		resets = <&nexell_reset RESET_ID_ADC>;
+		reset-names = "adc-reset";
+		clocks = <&pclk>;
+		clock-names = "adc";
+		sample_rate = <200000>;
+		#io-channel-cells = <1>;
+	};
+
+Example:
+	adc:adc@c0053000 {
+		compatible = "nexell,s5p4418-adc";
+		reg = <PHYS_BASE_ADC 0x1000>;
 		resets = <&nexell_reset RESET_ID_ADC>;
 		reset-names = "adc-reset";
 		clocks = <&pclk>;

@@ -407,7 +407,7 @@ config XILINX_XADC
 
 config NX_ADC
 	bool "Nexell ADC driver support"
-	depends on ARCH_S5P6818 && OF
+	depends on (ARCH_S5P6818 || ARCH_S5P4418) && OF
 	help
 	  This option enables support for Nexell s5pxx18 series
 	  of SoC for Analog Devices.
