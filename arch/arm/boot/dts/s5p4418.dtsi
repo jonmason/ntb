@@ -152,6 +152,11 @@
 			reg = <PHYS_BASE_TIEOFF 0x1000>;
 		};
 
+		dynamic-freq@bb000 {
+			compatible = "nexell,s5pxx18-cpufreq";
+			reg = <0xc00bb000 0x30000>;
+		};
+
 		nexell_reset:reset@c0012000 {
 			#reset-cells = <1>;
 			compatible = "nexell,s5pxx18-reset";
