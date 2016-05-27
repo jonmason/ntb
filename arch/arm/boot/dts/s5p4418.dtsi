@@ -309,6 +309,19 @@
 			status = "disabled";
 		};
 
+		adc:adc@c0053000 {
+			compatible = "nexell,s5p4418-adc";
+			reg = <PHYS_BASE_ADC 0x1000>;
+			interrupts = <0 IRQ_ADC 0>;
+			resets = <&nexell_reset RESET_ID_ADC>;
+			reset-names = "adc-reset";
+			clocks = <&pclk>;
+			clock-names = "adc";
+			sample_rate = <200000>;
+			#io-channel-cells = <1>;
+			status = "disabled";
+		};
+
 		spdiftx@c0059000 {
 			compatible = "nexell,nexell-spdif-tx";
 			reg = <PHYS_BASE_SPDIF_TX 0x1000>;
