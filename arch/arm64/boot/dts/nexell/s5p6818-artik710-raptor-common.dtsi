@@ -48,6 +48,7 @@
 		i2c8 = &i2c_gpio8;
 		i2c9 = &i2c_gpio9;
 		i2c10 = &i2c_gpio10;
+		i2c11 = &i2c_gpio11;
 	};
 
 	nx-v4l2 {
@@ -498,6 +499,18 @@
 			interrupt-parent = <&alive_0>;
 			interrupts = <0x5 IRQ_TYPE_EDGE_FALLING>;
 		};
+	};
+
+	i2c_gpio11: i2c@11 {
+		compatible = "i2c-gpio";
+		gpios = <&gpio_b 18 0	/* sda */
+			&gpio_b 11 0	/* scl */
+			>;
+
+		i2c-gpio,delay-us = <1>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
 	};
 
 	regulators {
