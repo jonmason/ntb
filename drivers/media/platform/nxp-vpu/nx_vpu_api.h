@@ -191,7 +191,6 @@ struct enc_jpeg_info {
 	int picHeight;
 	int alignedWidth;
 	int alignedHeight;
-	int seqInited;
 	int frameIdx;
 	int format;
 
@@ -212,6 +211,9 @@ struct enc_jpeg_info {
 	unsigned char huffBits[4][256];
 	unsigned char qMatTab[4][64];
 	unsigned char cInfoTab[4][6];
+
+	uint8_t jpegHeader[1024];
+	int32_t headerSize;
 };
 
 struct vpu_enc_info {
@@ -369,6 +371,43 @@ struct vpu_dec_info {
 	int streamEndian;
 	int frameDisplayFlag;
 	int clearDisplayIndexes;
+
+	/* Jpeg Specific Information */
+	int frmBufferValid[MAX_REG_FRAME];
+
+	unsigned int headerSize;
+	int thumbnailMode;
+	int decodeIdx;
+
+	int imgFormat;
+	int rstInterval;
+	int userHuffTable;
+
+	unsigned char huffBits[4][256];
+	unsigned char huffPtr[4][16];
+	unsigned int huffMin[4][16];
+	unsigned int huffMax[4][16];
+
+	unsigned char huffValue[4][162];
+	unsigned char infoTable[4][6];
+	unsigned char quantTable[4][64];
+
+	int huffDcIdx;
+	int huffAcIdx;
+	int qIdx;
+
+	int busReqNum;
+	int mcuBlockNum;
+	int compNum;
+	int compInfo[3];
+	int mcuWidth;
+	int mcuHeight;
+
+	int pagePtr;
+	int wordPtr;
+	int bitPtr;
+
+	int validFlg;
 };
 
 struct nx_vpu_codec_inst {
@@ -478,26 +517,27 @@ int NX_VpuDecFlush(struct nx_vpu_codec_inst *handle);
 int NX_VpuDecClrDspFlag(struct nx_vpu_codec_inst *handle,
 	struct vpu_dec_clr_dsp_flag_arg *pArg);
 
-#if 0
-/* Jpeg Encoder APIs */
-void JPU_DeinitInterrupt(void);
-int JPU_InitInterrupt(void);
+/* Jpeg Encoder Specific APIs */
+int JPU_EncRunFrame(struct nx_vpu_codec_inst *pInst,
+	struct vpu_enc_run_frame_arg *pRunArg);
 
-int JpuSetupTables(enc_jpeg_info *pJpgInfo, int quality);
-
-int VPU_EncMjpgDefParam(vpu_enc_info *pInfo);
-int NX_VpuJpegGetHeader(struct nx_vpu_codec_inst *handle,
-	union vpu_enc_get_header_arg *pArg);
-int NX_VpuJpegRunFrame(struct nx_vpu_codec_inst *handle,
-	struct vpu_enc_run_frame_arg *runArg);
-#endif
+/* Jpeg Decoder Specific APIs */
+int JPU_DecSetSeqInfo(struct nx_vpu_codec_inst *pInst,
+	struct vpu_dec_seq_init_arg *pSeqArg);
+int JPU_DecParseHeader(struct vpu_dec_info *pInfo, uint8_t *pbyStream,
+	int32_t iSize);
+int JPU_DecRegFrameBuf(struct nx_vpu_codec_inst *pInst,
+	struct vpu_dec_reg_frame_arg *pFrmArg);
+int JPU_DecRunFrame(struct nx_vpu_codec_inst *pInst,
+	struct vpu_dec_frame_arg *pRunArg);
 
 
 extern void nx_tieoff_set(u32 tieoff_index, u32 tieoff_value);
 extern u32 nx_tieoff_get(u32 tieoff_index);
 extern void vpu_soc_peri_reset_enter(void *pv);
 extern void vpu_soc_peri_reset_exit(void *pv);
-extern int VPU_WaitBitInterrupt(void *devHandle, int mSeconds);
 
+extern int VPU_WaitBitInterrupt(void *devHandle, int mSeconds);
+extern int JPU_WaitInterrupt(void *devHandle, int timeOut);
 
 #endif/* __NX_VPU_API_H__ */

@@ -287,6 +287,15 @@ static struct v4l2_queryctrl controls[] = {
 		.default_value = 0,
 	},
 	{
+		.id = V4L2_CID_JPEG_COMPRESSION_QUALITY,
+		.type = V4L2_CTRL_TYPE_INTEGER,
+		.name = "Parameter for Jpeg Quality",
+		.minimum = 0,
+		.maximum = 100,
+		.step = 1,
+		.default_value = 0,
+	},
+	{
 		.id = V4L2_CID_MPEG_VIDEO_FORCE_I_FRAME,
 		.type = V4L2_CTRL_TYPE_BOOLEAN,
 		.name = "Flag of forced intra frame",
@@ -385,11 +394,11 @@ static int vidioc_g_fmt(struct file *file, void *priv, struct v4l2_format *f)
 		pix_fmt_mp->pixelformat = ctx->img_fmt->fourcc;
 		pix_fmt_mp->num_planes = ctx->img_fmt->num_planes;
 
-		pix_fmt_mp->plane_fmt[0].bytesperline = ctx->buf_width;
+		pix_fmt_mp->plane_fmt[0].bytesperline = ctx->buf_y_width;
 		pix_fmt_mp->plane_fmt[0].sizeimage = ctx->luma_size;
-		pix_fmt_mp->plane_fmt[1].bytesperline = ctx->buf_width / 2;
+		pix_fmt_mp->plane_fmt[1].bytesperline = ctx->buf_c_width;
 		pix_fmt_mp->plane_fmt[1].sizeimage = ctx->chroma_size;
-		pix_fmt_mp->plane_fmt[2].bytesperline = ctx->buf_width / 2;
+		pix_fmt_mp->plane_fmt[2].bytesperline = ctx->buf_c_width;
 		pix_fmt_mp->plane_fmt[2].sizeimage = ctx->chroma_size;
 
 	} else {
@@ -495,8 +504,6 @@ static int vidioc_s_fmt(struct file *file, void *priv, struct v4l2_format *f)
 		ctx->img_fmt = fmt;
 		ctx->width = pix_fmt_mp->width;
 		ctx->height = pix_fmt_mp->height;
-		ctx->chromaInterleave = (fmt->fourcc == V4L2_PIX_FMT_YUV420M) ?
-			(0) : (1);
 		enc_ctx->reconChromaInterleave = RECON_CHROMA_INTERLEAVE;
 
 		enc_ctx->seq_para.srcWidth = ctx->width;
@@ -505,22 +512,46 @@ static int vidioc_s_fmt(struct file *file, void *priv, struct v4l2_format *f)
 		enc_ctx->seq_para.refChromaInterleave
 			= enc_ctx->reconChromaInterleave;
 
-		ctx->buf_width = ALIGN(ctx->width, 32);
+		ctx->buf_y_width = ALIGN(ctx->width, 32);
 		ctx->buf_height = ALIGN(ctx->height, 16);
-		ctx->luma_size = ctx->buf_width * ctx->buf_height;
+		ctx->luma_size = ctx->buf_y_width * ctx->buf_height;
 
-		if (ctx->chromaInterleave == 0)
-			ctx->chroma_size = ctx->luma_size >> 2;
-		else
+		switch (fmt->fourcc) {
+		case V4L2_PIX_FMT_NV12M:
+			ctx->buf_c_width = ctx->buf_y_width >> 1;
 			ctx->chroma_size = ctx->luma_size >> 1;
+			ctx->chromaInterleave = 1;
+			break;
+		case V4L2_PIX_FMT_YUV420M:
+			ctx->buf_c_width = ctx->buf_y_width >> 1;
+			ctx->chroma_size = ctx->luma_size >> 2;
+			ctx->chromaInterleave = 0;
+			break;
+		case V4L2_PIX_FMT_YUV422M:
+			ctx->buf_c_width = ctx->buf_y_width >> 1;
+			ctx->chroma_size = ctx->luma_size >> 1;
+			ctx->chromaInterleave = 0;
+			break;
+		case V4L2_PIX_FMT_YUV444M:
+			ctx->buf_c_width = ctx->buf_y_width;
+			ctx->chroma_size = ctx->luma_size;
+			ctx->chromaInterleave = 0;
+			break;
+		case V4L2_PIX_FMT_GREY:
+			ctx->buf_c_width = 0;
+			ctx->chroma_size = 0;
+			break;
+		default:
+			return -EINVAL;
+		}
 
-		pix_fmt_mp->plane_fmt[0].bytesperline = ctx->buf_width;
+		pix_fmt_mp->plane_fmt[0].bytesperline = ctx->buf_y_width;
 		pix_fmt_mp->plane_fmt[0].sizeimage = ctx->luma_size;
-		pix_fmt_mp->plane_fmt[1].bytesperline = ctx->buf_width / 2;
+		pix_fmt_mp->plane_fmt[1].bytesperline = ctx->buf_c_width;
 		pix_fmt_mp->plane_fmt[1].sizeimage = ctx->chroma_size;
 		if (ctx->chromaInterleave == 0) {
 			pix_fmt_mp->plane_fmt[2].bytesperline
-				= ctx->buf_width / 2;
+				= ctx->buf_c_width;
 			pix_fmt_mp->plane_fmt[2].sizeimage = ctx->chroma_size;
 		}
 	} else {
@@ -684,6 +715,9 @@ static int get_ctrl_val(struct vpu_enc_ctx *enc_ctx, struct v4l2_control *ctrl)
 			(V4L2_MPEG_VIDEO_H263_PROFILE_P3) :
 			(V4L2_MPEG_VIDEO_H263_PROFILE_P0);
 		break;
+	case V4L2_CID_JPEG_COMPRESSION_QUALITY:
+		ctrl->value = seq_para->quality;
+		break;
 	default:
 		NX_ErrMsg(("Invalid control(ID = %x)\n", ctrl->id));
 		return -EINVAL;
@@ -699,7 +733,7 @@ static int vidioc_g_ctrl(struct file *file, void *priv,
 	int ret = 0;
 
 	FUNC_IN();
-	ret = get_ctrl_val(ctx, ctrl);
+	ret = get_ctrl_val(&ctx->codec.enc, ctrl);
 
 	return ret;
 }
@@ -768,6 +802,9 @@ static int set_enc_param(struct vpu_enc_ctx *enc_ctx, struct v4l2_control *ctrl)
 		if (ctrl->value == V4L2_MPEG_VIDEO_H263_PROFILE_P3)
 			seq_para->annexFlg = 1;
 		break;
+	case V4L2_CID_JPEG_COMPRESSION_QUALITY:
+		seq_para->quality = ctrl->value;
+		break;
 	default:
 		NX_ErrMsg(("Invalid control(ID = %x)\n", ctrl->id));
 		ret = -EINVAL;
@@ -782,7 +819,7 @@ static int set_enc_run_param(struct vpu_enc_ctx *enc_ctx,
 	int ret = 0;
 	struct vpu_enc_run_frame_arg *run_info = &enc_ctx->run_info;
 	struct vpu_enc_chg_para_arg *chg_para = &enc_ctx->chg_para;
-	struct vpu_enc_seq_arg *seq_para = &enc_ctx->chg_para;
+	struct vpu_enc_seq_arg *seq_para = &enc_ctx->seq_para;
 
 	FUNC_IN();
 
@@ -829,6 +866,9 @@ static int set_enc_run_param(struct vpu_enc_ctx *enc_ctx,
 		chg_para->intraRefreshMbs = ctrl->value;
 		seq_para->intraRefreshMbs = ctrl->value;
 		break;
+	case V4L2_CID_JPEG_COMPRESSION_QUALITY:
+		seq_para->quality = ctrl->value;
+		break;
 	default:
 		NX_ErrMsg(("Invalid control(ID = %x)\n", ctrl->id));
 		ret = -EINVAL;
@@ -863,7 +903,8 @@ static int vidioc_g_ext_ctrls(struct file *file, void *priv,
 
 	FUNC_IN();
 
-	if (f->ctrl_class != V4L2_CTRL_CLASS_MPEG)
+	if ((f->ctrl_class != V4L2_CTRL_CLASS_MPEG) &&
+		(f->ctrl_class != V4L2_CID_JPEG_CLASS_BASE))
 		return -EINVAL;
 
 	for (i = 0; i < f->count; i++) {
@@ -871,7 +912,7 @@ static int vidioc_g_ext_ctrls(struct file *file, void *priv,
 
 		ctrl.id = ext_ctrl->id;
 
-		ret = get_ctrl_val(ctx, &ctrl);
+		ret = get_ctrl_val(&ctx->codec.enc, &ctrl);
 		if (ret == 0) {
 			ext_ctrl->value = ctrl.value;
 		} else {
@@ -897,7 +938,8 @@ static int vidioc_s_ext_ctrls(struct file *file, void *priv,
 
 	FUNC_IN();
 
-	if (f->ctrl_class != V4L2_CTRL_CLASS_MPEG)
+	if ((f->ctrl_class != V4L2_CTRL_CLASS_MPEG) &&
+		(f->ctrl_class != V4L2_CID_JPEG_CLASS_BASE))
 		return -EINVAL;
 
 	for (i = 0; i < f->count; i++) {
@@ -936,7 +978,8 @@ static int vidioc_try_ext_ctrls(struct file *file, void *priv,
 
 	FUNC_IN();
 
-	if (f->ctrl_class != V4L2_CTRL_CLASS_MPEG)
+	if ((f->ctrl_class != V4L2_CTRL_CLASS_MPEG) &&
+		(f->ctrl_class != V4L2_CID_JPEG_CLASS_BASE))
 		return -EINVAL;
 
 	for (i = 0; i < f->count; i++) {
@@ -1143,6 +1186,9 @@ int vpu_enc_open_instance(struct nx_vpu_ctx *ctx)
 	case V4L2_PIX_FMT_H263:
 		ctx->codec_mode = CODEC_STD_H263;
 		break;
+	case V4L2_PIX_FMT_MJPEG:
+		ctx->codec_mode = CODEC_STD_MJPG;
+		break;
 	default:
 		NX_ErrMsg(("Invalid codec type (%x)!!!\n",
 			ctx->strm_fmt->fourcc));
@@ -1262,7 +1308,39 @@ int vpu_enc_init(struct nx_vpu_ctx *ctx)
 		pSeqArg->frameRateNum = 1;
 		pSeqArg->frameRateDen = 1;
 		pSeqArg->gopSize = 1;
-		/*pseqArg.quality = pstParam->jpgQuality; */
+
+		switch (ctx->img_fmt->fourcc) {
+		case V4L2_PIX_FMT_YUV420M:
+			pSeqArg->imgFormat = IMG_FORMAT_420;
+			pSeqArg->chromaInterleave = 0;
+			break;
+		case V4L2_PIX_FMT_YUV422M:
+			pSeqArg->imgFormat = IMG_FORMAT_422;
+			pSeqArg->chromaInterleave = 0;
+			break;
+		case V4L2_PIX_FMT_YUV444M:
+			pSeqArg->imgFormat = IMG_FORMAT_444;
+			pSeqArg->chromaInterleave = 0;
+			break;
+		case V4L2_PIX_FMT_GREY:
+			pSeqArg->imgFormat = IMG_FORMAT_400;
+			break;
+		case V4L2_PIX_FMT_NV12M:
+			pSeqArg->imgFormat = IMG_FORMAT_420;
+			pSeqArg->chromaInterleave = 1;
+			break;
+		case V4L2_PIX_FMT_NV16M:
+			pSeqArg->imgFormat = IMG_FORMAT_422;
+			pSeqArg->chromaInterleave = 1;
+			break;
+		case V4L2_PIX_FMT_NV24M:
+			pSeqArg->imgFormat = IMG_FORMAT_444;
+			pSeqArg->chromaInterleave = 1;
+			break;
+		default:
+			NX_ErrMsg(("Color format is not supported!!"));
+			return -EINVAL;
+		}
 	}
 
 	ret = NX_VpuEncSetSeqParam(ctx->hInst, pSeqArg);
@@ -1405,24 +1483,30 @@ int vpu_enc_encode_frame(struct nx_vpu_ctx *ctx)
 
 	pRunArg->inImgBuffer.phyAddr[0] = nx_vpu_mem_plane_addr(ctx,
 		&mb_entry->vb, 0);
-	pRunArg->inImgBuffer.phyAddr[1] = nx_vpu_mem_plane_addr(ctx,
-		&mb_entry->vb, 1);
-	if (ctx->chromaInterleave == 0)
-		pRunArg->inImgBuffer.phyAddr[2] = nx_vpu_mem_plane_addr(ctx,
-			&mb_entry->vb, 2);
 
-	pRunArg->inImgBuffer.stride[0] = ctx->buf_width;
+	if (ctx->chroma_size > 0) {
+		pRunArg->inImgBuffer.phyAddr[1] = nx_vpu_mem_plane_addr(ctx,
+			&mb_entry->vb, 1);
+
+		if (ctx->chromaInterleave == 0)
+			pRunArg->inImgBuffer.phyAddr[2] = nx_vpu_mem_plane_addr(
+				ctx, &mb_entry->vb, 2);
+	}
+
+	pRunArg->inImgBuffer.stride[0] = ctx->buf_y_width;
 
 	spin_unlock_irqrestore(&dev->irqlock, flags);
 
 	dev->curr_ctx = ctx->idx;
 
-	if ((enc_ctx->gop_frm_cnt >= enc_ctx->seq_para.gopSize) ||
-		(enc_ctx->gop_frm_cnt == 0))
-		pRunArg->forceIPicture = 1;
+	if (ctx->codec_mode != V4L2_PIX_FMT_MJPEG) {
+		if ((enc_ctx->gop_frm_cnt >= enc_ctx->seq_para.gopSize) ||
+			(enc_ctx->gop_frm_cnt == 0))
+			pRunArg->forceIPicture = 1;
 
-	enc_ctx->gop_frm_cnt = (pRunArg->forceIPicture) ?
-		(1) : (enc_ctx->gop_frm_cnt + 1);
+		enc_ctx->gop_frm_cnt = (pRunArg->forceIPicture) ?
+			(1) : (enc_ctx->gop_frm_cnt + 1);
+	}
 
 	ret = NX_VpuEncRunFrame(hInst, pRunArg);
 	if (ret != VPU_RET_OK) {
@@ -1504,15 +1588,14 @@ int alloc_encoder_memory(struct nx_vpu_ctx *ctx)
 				goto Error_Exit;
 			}
 		}
+	}
 
-		ctx->bit_stream_buf = nx_alloc_memory(drv, STREAM_BUF_SIZE,
-			4096);
-		if (0 == ctx->bit_stream_buf) {
-			NX_ErrMsg(("bit_stream_buf allocation failed.\n"));
-			NX_ErrMsg(("  size = %d, align = %d)\n",
-				STREAM_BUF_SIZE, 16));
-			goto Error_Exit;
-		}
+	ctx->bit_stream_buf = nx_alloc_memory(drv, STREAM_BUF_SIZE, 4096);
+	if (0 == ctx->bit_stream_buf) {
+		NX_ErrMsg(("bit_stream_buf allocation failed.\n"));
+		NX_ErrMsg(("  size = %d, align = %d)\n",
+			STREAM_BUF_SIZE, 16));
+		goto Error_Exit;
 	}
 
 	return 0;

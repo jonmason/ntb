@@ -237,18 +237,53 @@ int nx_vpu_try_run(struct nx_vpu_v4l2 *dev)
  *----------------------------------------------------------------------------*/
 static struct nx_vpu_fmt formats[] = {
 	{
-		.name = "4:2:0 3 Planes",
+		.name = "YUV 4:2:0 3 Planes",
 		.fourcc = V4L2_PIX_FMT_YUV420M,
 		.num_planes = 3,
 	},
 	{
-		.name = "4:2:0 2 Planes Y/CbCr",
+		.name = "YUV 4:2:2 3 Planes",
+		.fourcc = V4L2_PIX_FMT_YUV422M,
+		.num_planes = 3,
+	},
+	{
+		.name = "YUV 4:4:4 3 Planes",
+		.fourcc = V4L2_PIX_FMT_YUV444M,
+		.num_planes = 3,
+	},
+	{
+		.name = "Grey 1 Planes",
+		.fourcc = V4L2_PIX_FMT_GREY,
+		.num_planes = 1,
+	},
+	{
+		.name = "YUV 4:2:0 2 Planes Y/CbCr",
 		.fourcc = V4L2_PIX_FMT_NV12M,
 		.num_planes = 2,
 	},
 	{
-		.name = "4:2:0 2 Planes Y/CrCb",
+		.name = "YUV 4:2:0 2 Planes Y/CrCb",
 		.fourcc = V4L2_PIX_FMT_NV21M,
+		.num_planes = 2,
+	},
+	{
+		.name = "YUV 4:2:2 2 Planes Y/CbCr",
+		.fourcc = V4L2_PIX_FMT_NV16M,
+		.num_planes = 2,
+	},
+	{
+		.name = "YUV 4:2:2 2 Planes Y/CrCb",
+		.fourcc = V4L2_PIX_FMT_NV61M,
+		.num_planes = 2,
+	},
+	{
+		.name = "YUV 4:4:4 2 Planes Y/CbCr",
+		.fourcc = V4L2_PIX_FMT_NV24M,
+		.num_planes = 2,
+	},
+	{
+		.name = "YUV 4:4:4 2 Planes Y/CrCb",
+		.fourcc = V4L2_PIX_FMT_NV42M,
 		.num_planes = 2,
 	},
 	{
@@ -709,7 +744,7 @@ void nx_vpu_cleanup_queue(struct list_head *lh, struct vb2_queue *vq)
 
 
 /*-----------------------------------------------------------------------------
- *      Linux VPU Interrupt Handler
+ *      Linux VPU/JPU Interrupt Handler
  *----------------------------------------------------------------------------*/
 
 static irqreturn_t nx_vpu_irq(int irq, void *priv)
@@ -795,6 +830,72 @@ int VPU_WaitBitInterrupt(void *devHandle, int mSeconds)
 	}
 	return reason;
 #endif
+}
+
+static irqreturn_t nx_jpu_irq(int irq, void *priv)
+{
+	struct nx_vpu_v4l2 *dev = priv;
+	uint32_t val;
+
+	FUNC_IN();
+
+	val = VpuReadReg(MJPEG_PIC_STATUS_REG);
+	if (val != 0)
+		VpuWriteReg(MJPEG_PIC_STATUS_REG, val);
+	dev->jpu_intr_reason = val;
+
+	/* Reset the timeout watchdog */
+	atomic_set(&dev->jpu_event_present, 1);
+	wake_up_interruptible(&dev->jpu_wait_queue);
+
+	return IRQ_HANDLED;
+}
+
+int JPU_WaitInterrupt(void *devHandle, int timeOut)
+{
+	struct nx_vpu_v4l2 *dev = (struct nx_vpu_v4l2 *)devHandle;
+	uint32_t reason = 0;
+
+#ifdef ENABLE_INTERRUPT_MODE
+	if (0 == wait_event_interruptible_timeout(dev->jpu_wait_queue,
+		atomic_read(&dev->jpu_event_present),
+		msecs_to_jiffies(timeOut))) {
+		reason = VpuReadReg(MJPEG_PIC_STATUS_REG);
+		NX_ErrMsg(("JPU_WaitInterrupt() TimeOut!!!(reason = 0x%.8x)\n",
+			reason));
+		VPU_SWReset(SW_RESET_SAFETY);
+		return 0;
+	}
+
+	atomic_set(&dev->jpu_event_present, 0);
+	reason = dev->jpu_intr_reason;
+#else
+	while (timeOut > 0) {
+		DrvMSleep(1);
+
+		reason = VpuReadReg(MJPEG_PIC_STATUS_REG);
+		if ((reason & (1<<INT_JPU_DONE)) ||
+			(reason & (1<<INT_JPU_ERROR)) ||
+			(reason & (1<<INT_JPU_BBC_INTERRUPT)) ||
+			(reason & (1<<INT_JPU_BIT_BUF_EMPTY)))
+			break;
+
+		if (reason & (1<<INT_JPU_BIT_BUF_FULL)) {
+			NX_ErrMsg(("Stream Buffer Too Small!!!"));
+			VpuReadReg(MJPEG_PIC_STATUS_REG,
+				(1 << INT_JPU_BIT_BUF_FULL));
+			return reason;
+		}
+
+		timeOut--;
+		if (timeOut == 0) {
+			NX_ErrMsg(("JPU TimeOut!!!"));
+			break;
+		}
+	}
+#endif
+
+	return reason;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1104,18 +1205,33 @@ static int nx_vpu_probe(struct platform_device *pdev)
 		return -EBUSY;
 	}
 
+	/* For VPU interrupt */
 	irq = platform_get_irq(pdev, 0);
 	if (irq < 0) {
-		dev_err(&pdev->dev, "failed to get irq num\n");
+		dev_err(&pdev->dev, "failed to get vpu-irq num\n");
 		return -EBUSY;
 	}
 
 	ret = devm_request_irq(&pdev->dev, irq, nx_vpu_irq, 0, pdev->name, dev);
 	if (ret != 0) {
-		dev_err(&pdev->dev, "Failed to install irq (%d)\n", ret);
+		dev_err(&pdev->dev, "Failed to install vpu-irq (%d)\n", ret);
 		return ret;
 	}
 	init_waitqueue_head(&dev->vpu_wait_queue);
+
+	/* For JPU interrupt */
+	irq = platform_get_irq(pdev, 1);
+	if (irq < 0) {
+		dev_err(&pdev->dev, "failed to get jpu-irq num\n");
+		return -EBUSY;
+	}
+
+	ret = devm_request_irq(&pdev->dev, irq, nx_jpu_irq, 0, pdev->name, dev);
+	if (ret != 0) {
+		dev_err(&pdev->dev, "Failed to install jpu-irq (%d)\n", ret);
+		return ret;
+	}
+	init_waitqueue_head(&dev->jpu_wait_queue);
 
 	dev->coda_c = devm_reset_control_get(&pdev->dev, "vpu-c-reset");
 	if (IS_ERR(dev->coda_c)) {
@@ -1218,6 +1334,7 @@ static int nx_vpu_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, dev);
 
 	atomic_set(&dev->vpu_event_present, 0);
+	atomic_set(&dev->jpu_event_present, 0);
 
 	ret = NX_VpuParaInitialized(&pdev->dev);
 	if (ret < 0) {

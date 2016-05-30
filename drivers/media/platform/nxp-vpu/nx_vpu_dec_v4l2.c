@@ -70,6 +70,55 @@ static int nx_vpu_dec_ctx_ready(struct nx_vpu_ctx *ctx)
 	return 1;
 }
 
+/*-----------------------------------------------------------------------------
+ *      functions for Parameter controls
+ *----------------------------------------------------------------------------*/
+static struct v4l2_queryctrl controls[] = {
+	{
+		.id = V4L2_CID_MPEG_VIDEO_THUMBNAIL_MODE,
+		.type = V4L2_CTRL_TYPE_BOOLEAN,
+		.name = "Enable thumbnail",
+		.minimum = 0,
+		.maximum = 1,
+		.step = 1,
+		.default_value = 0,
+	},
+};
+#define NUM_CTRLS ARRAY_SIZE(controls)
+
+static struct v4l2_queryctrl *get_ctrl(int id)
+{
+	int i;
+
+	FUNC_IN();
+
+	for (i = 0; i < NUM_CTRLS; ++i)
+		if (id == controls[i].id)
+			return &controls[i];
+	return NULL;
+}
+
+static int check_ctrl_val(struct nx_vpu_ctx *ctx, struct v4l2_control *ctrl)
+{
+	struct v4l2_queryctrl *c;
+
+	FUNC_IN();
+
+	c = get_ctrl(ctrl->id);
+	if (!c)
+		return -EINVAL;
+	if (ctrl->value < c->minimum || ctrl->value > c->maximum
+	    || (c->step != 0 && ctrl->value % c->step != 0)) {
+		NX_ErrMsg(("Invalid control value\n"));
+		NX_ErrMsg(("value = %d, min = %d, max = %d, step = %d\n",
+			ctrl->value, c->minimum, c->maximum, c->step));
+		return -ERANGE;
+	}
+
+	return 0;
+}
+/* -------------------------------------------------------------------------- */
+
 
 /*-----------------------------------------------------------------------------
  *      functions for vidioc_queryctrl
@@ -93,13 +142,13 @@ static int vidioc_g_fmt_vid_cap_mplane(struct file *file, void *priv,
 	pix_mp->height = ctx->height;
 	pix_mp->field = ctx->codec.dec.interlace_flg[0];
 	pix_mp->num_planes = 3;
-	pix_mp->pixelformat = V4L2_PIX_FMT_YUV420M;
+	pix_mp->pixelformat = ctx->imgFourCC;
 
-	pix_mp->plane_fmt[0].bytesperline = ctx->buf_width;
+	pix_mp->plane_fmt[0].bytesperline = ctx->buf_y_width;
 	pix_mp->plane_fmt[0].sizeimage = ctx->luma_size;
-	pix_mp->plane_fmt[1].bytesperline = ctx->buf_width / 2;
+	pix_mp->plane_fmt[1].bytesperline = ctx->buf_c_width;
 	pix_mp->plane_fmt[1].sizeimage = ctx->chroma_size;
-	pix_mp->plane_fmt[2].bytesperline = ctx->buf_width / 2;
+	pix_mp->plane_fmt[2].bytesperline = ctx->buf_c_width;
 	pix_mp->plane_fmt[2].sizeimage = ctx->chroma_size;
 
 	pix_mp->reserved[0] = (__u8)ctx->codec.dec.frame_buffer_cnt;
@@ -368,9 +417,23 @@ static int vidioc_g_ctrl(struct file *file, void *priv, struct v4l2_control
 static int vidioc_s_ctrl(struct file *file, void *priv, struct v4l2_control
 	*ctrl)
 {
+	struct nx_vpu_ctx *ctx = fh_to_ctx(file->private_data);
+	int ret = 0;
+
 	FUNC_IN();
-	NX_ErrMsg(("%s will be coded as needed!\n", __func__));
-	return 0;
+
+	ret = check_ctrl_val(ctx, ctrl);
+	if (ret != 0)
+		return ret;
+
+	if (ctrl->id == V4L2_CID_MPEG_VIDEO_THUMBNAIL_MODE) {
+		ctx->codec.dec.thumbnailMode = ctrl->value;
+	} else {
+		NX_ErrMsg(("Invalid control(ID = %x)\n", ctrl->id));
+		return -EINVAL;
+	}
+
+	return ret;
 }
 
 static int vidioc_g_ext_ctrls(struct file *file, void *priv,
@@ -457,10 +520,8 @@ static void nx_vpu_dec_stop_streaming(struct vb2_queue *q)
 	FUNC_IN();
 
 	if (q->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-		if (ctx->codec_mode != CODEC_STD_MJPG) {
-			ctx->vpu_cmd = DEC_BUF_FLUSH;
-			nx_vpu_try_run(ctx->dev);
-		}
+		ctx->vpu_cmd = DEC_BUF_FLUSH;
+		nx_vpu_try_run(ctx->dev);
 
 		spin_lock_irqsave(&dev->irqlock, flags);
 
@@ -511,10 +572,12 @@ static void nx_vpu_dec_buf_queue(struct vb2_buffer *vb)
 		buf->planes.raw.y = nx_vpu_mem_plane_addr(ctx, vb, 0);
 		dec_ctx->frame_buf[idx].phyAddr[0] = buf->planes.raw.y;
 
-		buf->planes.raw.cb = nx_vpu_mem_plane_addr(ctx, vb, 1);
-		dec_ctx->frame_buf[idx].phyAddr[1] = buf->planes.raw.cb;
+		if (ctx->chroma_size > 0) {
+			buf->planes.raw.cb = nx_vpu_mem_plane_addr(ctx, vb, 1);
+			dec_ctx->frame_buf[idx].phyAddr[1] = buf->planes.raw.cb;
+		}
 
-		if (ctx->chromaInterleave == 0) {
+		if ((ctx->chroma_size > 0) && (ctx->chromaInterleave == 0)) {
 			buf->planes.raw.cr = nx_vpu_mem_plane_addr(ctx, vb, 2);
 			dec_ctx->frame_buf[idx].phyAddr[2] = buf->planes.raw.cr;
 		}
@@ -656,11 +719,9 @@ int vpu_dec_open_instance(struct nx_vpu_ctx *ctx)
 	case V4L2_PIX_FMT_VP8:
 		ctx->codec_mode = CODEC_STD_VP8;
 		break;
-#if 0
-	case V4L2_PIX_FMT_MJPEG:		/* TBD */
+	case V4L2_PIX_FMT_MJPEG:
 		ctx->codec_mode = CODEC_STD_MJPG;
 		break;
-#endif
 	default:
 		NX_ErrMsg(("Invalid codec type(fourcc = %x)!!!\n",
 			ctx->strm_fmt->fourcc));
@@ -685,7 +746,6 @@ int vpu_dec_open_instance(struct nx_vpu_ctx *ctx)
 	openArg.instIndex = ctx->idx;
 	openArg.instanceBuf = *ctx->instance_buf;
 	openArg.streamBuf = *ctx->bit_stream_buf;
-	/*openArg.chromaInterleave; */
 
 	ret = NX_VpuDecOpen(&openArg, dev, &hInst);
 	if ((VPU_RET_OK != ret) || (0 == hInst)) {
@@ -762,13 +822,15 @@ int vpu_dec_parse_vfg(struct nx_vpu_ctx *ctx)
 	seqArg.outWidth = ctx->width;
 	seqArg.outHeight = ctx->height;
 
+	seqArg.thumbnailMode = dec_ctx->thumbnailMode;
+
 	ret = NX_VpuDecSetSeqInfo(ctx->hInst, &seqArg);
 	if (ret != VPU_RET_OK)
 		NX_ErrMsg(("NX_VpuDecSetSeqInfo() failed.(ErrorCode=%d)\n",
 			ret));
 
 	if (seqArg.minFrameBufCnt < 1 ||
-		seqArg.minFrameBufCnt > VPU_MAX_BUFFERS - 2)
+		seqArg.minFrameBufCnt > VPU_MAX_BUFFERS)
 		NX_ErrMsg(("Min FrameBufCnt Error(%d)!!!\n",
 			seqArg.minFrameBufCnt));
 
@@ -779,10 +841,40 @@ int vpu_dec_parse_vfg(struct nx_vpu_ctx *ctx)
 	dec_ctx->interlace_flg[0] = (seqArg.interlace == 0) ?
 		(V4L2_FIELD_NONE) : (V4L2_FIELD_INTERLACED);
 	dec_ctx->frame_buf_delay = seqArg.frameBufDelay;
-	ctx->buf_width = ALIGN(ctx->width, 32);
+	ctx->buf_y_width = ALIGN(ctx->width, 32);
 	ctx->buf_height = ALIGN(ctx->height, 16);
-	ctx->luma_size = ctx->buf_width * ctx->buf_height;
-	ctx->chroma_size = ctx->luma_size >> 2;
+	ctx->luma_size = ctx->buf_y_width * ctx->buf_height;
+
+	switch (seqArg.imgFormat) {
+	case IMG_FORMAT_420:
+		ctx->imgFourCC = V4L2_PIX_FMT_YUV420M;
+		ctx->buf_c_width = ctx->buf_y_width >> 1;
+		ctx->chroma_size = ctx->luma_size >> 2;
+		break;
+	case IMG_FORMAT_422:
+		ctx->imgFourCC = V4L2_PIX_FMT_YUV422M;
+		ctx->buf_c_width = ctx->buf_y_width >> 1;
+		ctx->chroma_size = ctx->luma_size >> 1;
+		break;
+	/* case IMG_FORMAT_224:
+		ctx->imgFourCC = ;
+		ctx->buf_c_width = ctx->buf_y_width;
+		ctx->chroma_size = ctx->luma_size >> 1;
+		break; */
+	case IMG_FORMAT_444:
+		ctx->imgFourCC = V4L2_PIX_FMT_YUV444M;
+		ctx->buf_c_width = ctx->buf_y_width;
+		ctx->chroma_size = ctx->luma_size;
+		break;
+	case IMG_FORMAT_400:
+		ctx->imgFourCC = V4L2_PIX_FMT_GREY;
+		ctx->buf_c_width = 0;
+		ctx->chroma_size = 0;
+		break;
+	default:
+		NX_ErrMsg(("Image format is not supported!!\n"));
+		return -EINVAL;
+	}
 
 	dec_ctx->start_Addr = 0;
 	dec_ctx->end_Addr = seqArg.strmReadPos;
@@ -827,15 +919,27 @@ int vpu_dec_init(struct nx_vpu_ctx *ctx)
 		return -EAGAIN;
 	}
 
-	ret = alloc_decoder_memory(ctx);
-	if (ret) {
-		NX_ErrMsg(("Failed to allocate decoder buffers.\n"));
-		return -ENOMEM;
-	}
-
 	NX_DrvMemset(&frameArg, 0, sizeof(frameArg));
 
 	frameArg.chromaInterleave = ctx->chromaInterleave;
+
+	if (ctx->codec_mode != CODEC_STD_MJPG) {
+		ret = alloc_decoder_memory(ctx);
+		if (ret) {
+			NX_ErrMsg(("Failed to allocate decoder buffers.\n"));
+			return -ENOMEM;
+		}
+
+		if (dec_ctx->slice_buf)
+			frameArg.sliceBuffer = *dec_ctx->slice_buf;
+		if (dec_ctx->col_mv_buf)
+			frameArg.colMvBuffer = *dec_ctx->col_mv_buf;
+		if (dec_ctx->pv_slice_buf)
+			frameArg.pvbSliceBuffer = *dec_ctx->pv_slice_buf;
+
+		frameArg.sramAddr = ctx->dev->sram_base_addr;
+		frameArg.sramSize = ctx->dev->sram_size;
+	}
 
 	for (i = 0; i < dec_ctx->dpb_queue_cnt; i++) {
 		frameArg.frameBuffer[i].phyAddr[0]
@@ -847,19 +951,9 @@ int vpu_dec_init(struct nx_vpu_ctx *ctx)
 			frameArg.frameBuffer[i].phyAddr[2]
 				= dec_ctx->frame_buf[i].phyAddr[2];
 
-		frameArg.frameBuffer[i].stride[0] = ctx->buf_width;
+		frameArg.frameBuffer[i].stride[0] = ctx->buf_y_width;
 	}
 	frameArg.numFrameBuffer = dec_ctx->dpb_queue_cnt;
-
-	if (dec_ctx->slice_buf)
-		frameArg.sliceBuffer = *dec_ctx->slice_buf;
-	if (dec_ctx->col_mv_buf)
-		frameArg.colMvBuffer = *dec_ctx->col_mv_buf;
-	if (dec_ctx->pv_slice_buf)
-		frameArg.pvbSliceBuffer = *dec_ctx->pv_slice_buf;
-
-	frameArg.sramAddr = ctx->dev->sram_base_addr;
-	frameArg.sramSize = ctx->dev->sram_size;
 
 	ret = NX_VpuDecRegFrameBuf(ctx->hInst, &frameArg);
 	if (ret != VPU_RET_OK)
@@ -915,6 +1009,16 @@ static void put_dec_info(struct nx_vpu_ctx *ctx,
 				((pDecArg->outHeight + 15) >> 4);
 			dec_ctx->cur_reliable = (totalMbNum -
 				pDecArg->numOfErrMBs) * 100 / totalMbNum;
+		} else {
+			int32_t PosX = ((pDecArg->numOfErrMBs >> 12) & 0xFFF) *
+				pDecArg->mcuWidth;
+			int32_t PosY = (pDecArg->numOfErrMBs & 0xFFF) *
+				pDecArg->mcuHeight;
+			int32_t PosRst = ((pDecArg->numOfErrMBs >> 24) & 0xF) *
+				pDecArg->mcuWidth * pDecArg->mcuHeight;
+			dec_ctx->cur_reliable = (PosRst + (PosY *
+				pDecArg->outWidth) + PosX) * 100 /
+				(pDecArg->outWidth * pDecArg->outHeight);
 		}
 	}
 

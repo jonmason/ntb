@@ -35,6 +35,8 @@
 
 /*--------------------------------------------------------------------------- */
 /* Decoder Functions */
+static int FillBuffer(struct nx_vpu_codec_inst *pInst, unsigned char *stream,
+	int size);
 static int VPU_DecSeqInitCommand(struct nx_vpu_codec_inst *pInst,
 	struct vpu_dec_seq_init_arg *pArg);
 static int VPU_DecSeqComplete(struct nx_vpu_codec_inst *pInst,
@@ -200,12 +202,206 @@ int NX_VpuDecOpen(struct vpu_open_arg *openArg, void *dev,
 	return VPU_RET_OK;
 }
 
-static int FillBuffer(struct nx_vpu_codec_inst *handle, unsigned char *stream,
+int NX_VpuDecSetSeqInfo(struct nx_vpu_codec_inst *handle,
+	struct vpu_dec_seq_init_arg *seqArg)
+{
+	enum nx_vpu_ret ret;
+
+	FUNC_IN();
+
+	if (handle->codecMode != MJPG_DEC) {
+		/* FillBuffer */
+		if (0 > FillBuffer(handle, (uint8_t *)seqArg->seqData,
+			seqArg->seqDataSize)) {
+			NX_ErrMsg(("FillBuffer Error!!!\n"));
+			return VPU_RET_ERROR;
+		}
+
+#if 0
+		if (pInfo->bitStreamMode != BS_MODE_PIC_END) {
+			int streamSize;
+
+			if (pInfo->writePos > pInfo->readPos)
+				streamSize = pInfo->writePos - pInfo->readPos;
+			else
+				streamSize = pInfo->strmBufSize -
+					(pInfo->readPos - pInfo->writePos);
+
+			if (streamSize < VPU_GBU_SIZE*2)
+				return VPU_RET_NEED_STREAM;
+		}
+#endif
+
+		ret = VPU_DecSeqInitCommand(handle, seqArg);
+		if (ret != VPU_RET_OK)
+			return ret;
+		ret = VPU_DecSeqComplete(handle, seqArg);
+	} else {
+		ret = JPU_DecSetSeqInfo(handle, seqArg);
+
+		/* Fill Data */
+		if (0 > FillBuffer(handle, (uint8_t *)seqArg->seqData,
+			seqArg->seqDataSize)) {
+			NX_ErrMsg(("FillBuffer Failed.\n"));
+			return VPU_RET_ERROR;
+		}
+	}
+
+	FUNC_OUT();
+	return ret;
+}
+
+int NX_VpuDecRegFrameBuf(struct nx_vpu_codec_inst *handle,
+	struct vpu_dec_reg_frame_arg *frmArg)
+{
+	if (handle->codecMode != MJPG_DEC)
+		return VPU_DecRegisterFrameBufCommand(handle, frmArg);
+	else
+		return JPU_DecRegFrameBuf(handle, frmArg);
+}
+
+int NX_VpuDecRunFrame(struct nx_vpu_codec_inst *handle,
+	struct vpu_dec_frame_arg *decArg)
+{
+	struct vpu_dec_info *pInfo = &handle->codecInfo.decInfo;
+	enum nx_vpu_ret ret;
+
+	UNUSED(pInfo);
+
+	if (handle->codecMode != MJPG_DEC) {
+		/* Fill Data */
+		if (0 > FillBuffer(handle, (uint8_t *)decArg->strmData,
+			decArg->strmDataSize)) {
+			NX_ErrMsg(("FillBuffer Failed.\n"));
+			return VPU_RET_ERROR;
+		}
+
+#if 0
+		if (pInfo->bitStreamMode != BS_MODE_PIC_END) {
+			int streamSize;
+
+			if (pInfo->writePos > pInfo->readPos)
+				streamSize = pInfo->writePos - pInfo->readPos;
+			else
+				streamSize = pInfo->strmBufSize -
+					(pInfo->readPos - pInfo->writePos);
+
+			if (streamSize < VPU_GBU_SIZE*2) {
+				decArg->indexFrameDecoded = -1;
+				decArg->indexFrameDisplay = -1;
+				return VPU_RET_NEED_STREAM;
+			}
+		}
+#endif
+
+		ret = VPU_DecStartOneFrameCommand(handle, decArg);
+		if (ret == VPU_RET_OK)
+			ret = VPU_DecGetOutputInfo(handle, decArg);
+	} else {
+		if (pInfo->headerSize == 0) {
+			ret = JPU_DecParseHeader(pInfo,
+				(uint8_t *)decArg->strmData,
+				decArg->strmDataSize);
+			if (ret < 0) {
+				NX_ErrMsg(("JpgHeader is failed(Error = %d)!\n",
+					ret));
+				return -1;
+			}
+		}
+
+		/* Fill Data */
+		if (0 > FillBuffer(handle, (uint8_t *)decArg->strmData,
+			decArg->strmDataSize)) {
+			NX_ErrMsg(("FillBuffer Failed.\n"));
+			return VPU_RET_ERROR;
+		}
+
+		if (pInfo->validFlg > 0) {
+			ret = JPU_DecRunFrame(handle, decArg);
+			pInfo->validFlg -= 1;
+		} else {
+			ret = -1;
+		}
+	}
+
+	return ret;
+}
+
+int NX_VpuDecFlush(struct nx_vpu_codec_inst *handle)
+{
+	unsigned int val;
+	struct vpu_dec_info *pDecInfo = &handle->codecInfo.decInfo;
+
+	if (handle->codecMode != MJPG_DEC) {
+		val = pDecInfo->frameDisplayFlag;
+		val &= ~pDecInfo->clearDisplayIndexes;
+		VpuWriteReg(pDecInfo->frameDisplayFlagRegAddr, val);
+		pDecInfo->clearDisplayIndexes = 0;
+		pDecInfo->writePos = pDecInfo->readPos;
+		VpuBitIssueCommand(handle, DEC_BUF_FLUSH);
+
+		if (VPU_RET_OK != VPU_WaitVpuBusy(VPU_BUSY_CHECK_TIMEOUT,
+			BIT_BUSY_FLAG))
+			return VPU_RET_ERR_TIMEOUT;
+
+		pDecInfo->frameDisplayFlag = VpuReadReg(
+			pDecInfo->frameDisplayFlagRegAddr);
+		pDecInfo->frameDisplayFlag = 0;
+		/* Clear End of Stream */
+		pDecInfo->streamEndflag &= ~(1 << 2);
+		pDecInfo->readPos = pDecInfo->strmBufPhyAddr;
+		pDecInfo->writePos = pDecInfo->strmBufPhyAddr;
+		NX_DrvMemset((unsigned char *)pDecInfo->strmBufVirAddr, 0,
+			pDecInfo->strmBufSize);
+	} else {
+		int i;
+
+		for (i = 0 ; i < pDecInfo->numFrameBuffer ; i++)
+			pDecInfo->frmBufferValid[i] = 0;
+	}
+
+	return VPU_RET_OK;
+}
+
+int NX_VpuDecClrDspFlag(struct nx_vpu_codec_inst *handle,
+	struct vpu_dec_clr_dsp_flag_arg *pArg)
+{
+	struct vpu_dec_info *pInfo = &handle->codecInfo.decInfo;
+
+	if (handle->codecMode != MJPG_DEC)
+		pInfo->clearDisplayIndexes |= (1<<pArg->indexFrameDisplay);
+	else
+		pInfo->frmBufferValid[pArg->indexFrameDisplay] = 0;
+
+	return VPU_RET_OK;
+}
+
+int NX_VpuDecClose(struct nx_vpu_codec_inst *handle,
+	void *vpu_event_present)
+{
+	enum nx_vpu_ret ret;
+
+	if (handle->codecMode == MJPG_DEC)
+		return VPU_RET_OK;
+
+	ret = VPU_DecCloseCommand(handle, vpu_event_present);
+	if (ret != VPU_RET_OK)
+		NX_ErrMsg(("NX_VpuDecClose() failed.(%d)\n", ret));
+
+	return ret;
+}
+
+
+/*----------------------------------------------------------------------------
+ *		Decoder Specific Static Functions
+ */
+
+static int FillBuffer(struct nx_vpu_codec_inst *pInst, unsigned char *stream,
 	int size)
 {
 	uint32_t vWriteOffset, vReadOffset;/* Virtual Read/Write Position */
 	int32_t bufSize;
-	struct vpu_dec_info *pDecInfo = &handle->codecInfo.decInfo;
+	struct vpu_dec_info *pDecInfo = &pInst->codecInfo.decInfo;
 
 	/* EOS */
 	if (size == 0)
@@ -214,13 +410,18 @@ static int FillBuffer(struct nx_vpu_codec_inst *handle, unsigned char *stream,
 		return -1;
 
 	if (pDecInfo->codecStd == CODEC_STD_MJPG) {
+		stream += pDecInfo->headerSize;
+		size -= pDecInfo->headerSize;
+
 		pDecInfo->writePos = pDecInfo->strmBufPhyAddr;
 		pDecInfo->readPos  = pDecInfo->strmBufPhyAddr;
+
+		pDecInfo->validFlg += 1;
 	}
 
 	vWriteOffset = pDecInfo->writePos - pDecInfo->strmBufPhyAddr;
-	vReadOffset  = pDecInfo->readPos  - pDecInfo->strmBufPhyAddr;
-	bufSize      = pDecInfo->strmBufSize;
+	vReadOffset = pDecInfo->readPos - pDecInfo->strmBufPhyAddr;
+	bufSize  = pDecInfo->strmBufSize;
 
 	if (bufSize < vWriteOffset || bufSize < vReadOffset) {
 		NX_ErrMsg(("%s, stream_buffer(Addr=x0%08x, size=%d)\n",
@@ -265,156 +466,6 @@ static int FillBuffer(struct nx_vpu_codec_inst *handle, unsigned char *stream,
 	pDecInfo->writePos = vWriteOffset + pDecInfo->strmBufPhyAddr;
 	return 0;
 }
-
-int NX_VpuDecSetSeqInfo(struct nx_vpu_codec_inst *handle,
-	struct vpu_dec_seq_init_arg *seqArg)
-{
-	enum nx_vpu_ret ret;
-
-	FUNC_IN();
-
-	/* FillBuffer */
-	if (0 > FillBuffer(handle, (uint8_t *)seqArg->seqData,
-		seqArg->seqDataSize)) {
-		NX_ErrMsg(("FillBuffer Error!!!\n"));
-		return VPU_RET_ERROR;
-	}
-
-#if 0
-	if (pInfo->bitStreamMode != BS_MODE_PIC_END) {
-		int streamSize;
-
-		if (pInfo->writePos > pInfo->readPos)
-			streamSize = pInfo->writePos - pInfo->readPos;
-		else
-			streamSize = pInfo->strmBufSize - (pInfo->readPos
-				- pInfo->writePos);
-
-		if (streamSize < VPU_GBU_SIZE*2)
-			return VPU_RET_NEED_STREAM;
-	}
-#endif
-
-	if (handle->codecMode != MJPG_DEC) {
-		ret = VPU_DecSeqInitCommand(handle, seqArg);
-		if (ret != VPU_RET_OK)
-			return ret;
-		ret = VPU_DecSeqComplete(handle, seqArg);
-	}
-
-	FUNC_OUT();
-	return ret;
-}
-
-int NX_VpuDecRegFrameBuf(struct nx_vpu_codec_inst *handle,
-	struct vpu_dec_reg_frame_arg *frmArg)
-{
-	return VPU_DecRegisterFrameBufCommand(handle, frmArg);
-}
-
-int NX_VpuDecRunFrame(struct nx_vpu_codec_inst *handle,
-	struct vpu_dec_frame_arg *decArg)
-{
-	struct vpu_dec_info *pInfo = &handle->codecInfo.decInfo;
-	enum nx_vpu_ret ret;
-
-	UNUSED(pInfo);
-
-	/* Fill Data */
-	if (0 > FillBuffer(handle, (uint8_t *)decArg->strmData,
-		decArg->strmDataSize)) {
-		NX_ErrMsg(("FillBuffer Failed.\n"));
-		return VPU_RET_ERROR;
-	}
-
-#if 0
-	if (pInfo->bitStreamMode != BS_MODE_PIC_END) {
-		int streamSize;
-
-		if (pInfo->writePos > pInfo->readPos)
-			streamSize = pInfo->writePos - pInfo->readPos;
-		else
-			streamSize = pInfo->strmBufSize - (pInfo->readPos -
-				pInfo->writePos);
-
-		if (streamSize < VPU_GBU_SIZE*2) {
-			decArg->indexFrameDecoded = -1;
-			decArg->indexFrameDisplay = -1;
-			return VPU_RET_NEED_STREAM;
-		}
-	}
-#endif
-
-	if (handle->codecMode != MJPG_DEC) {
-		ret = VPU_DecStartOneFrameCommand(handle, decArg);
-		if (ret == VPU_RET_OK)
-			ret = VPU_DecGetOutputInfo(handle, decArg);
-	} /*else {
-		extern nx_vpu_ret JPU_DecStartOneFrameCommand(
-			struct nx_vpu_codec_inst *pInst,
-			struct vpu_dec_frame_arg *pArg);
-		ret = JPU_DecStartOneFrameCommand(handle, decArg);
-	}*/
-
-	return ret;
-}
-
-int NX_VpuDecFlush(struct nx_vpu_codec_inst *handle)
-{
-	unsigned int val;
-	struct vpu_dec_info *pDecInfo = &handle->codecInfo.decInfo;
-
-	val = pDecInfo->frameDisplayFlag;
-	val &= ~pDecInfo->clearDisplayIndexes;
-	VpuWriteReg(pDecInfo->frameDisplayFlagRegAddr, val);
-	pDecInfo->clearDisplayIndexes = 0;
-	pDecInfo->writePos = pDecInfo->readPos;
-	VpuBitIssueCommand(handle, DEC_BUF_FLUSH);
-
-	if (VPU_RET_OK != VPU_WaitVpuBusy(VPU_BUSY_CHECK_TIMEOUT,
-		BIT_BUSY_FLAG))
-		return VPU_RET_ERR_TIMEOUT;
-
-	pDecInfo->frameDisplayFlag = VpuReadReg(
-		pDecInfo->frameDisplayFlagRegAddr);
-	pDecInfo->frameDisplayFlag = 0;
-	/* Clear End of Stream */
-	pDecInfo->streamEndflag &= ~(1 << 2);
-	pDecInfo->readPos = pDecInfo->strmBufPhyAddr;
-	pDecInfo->writePos = pDecInfo->strmBufPhyAddr;
-	NX_DrvMemset((unsigned char *)pDecInfo->strmBufVirAddr, 0,
-		pDecInfo->strmBufSize);
-	return VPU_RET_OK;
-}
-
-int NX_VpuDecClrDspFlag(struct nx_vpu_codec_inst *handle,
-	struct vpu_dec_clr_dsp_flag_arg *pArg)
-{
-	struct vpu_dec_info *pInfo = &handle->codecInfo.decInfo;
-
-	pInfo->clearDisplayIndexes |= (1<<pArg->indexFrameDisplay);
-	return VPU_RET_OK;
-}
-
-int NX_VpuDecClose(struct nx_vpu_codec_inst *handle,
-	void *vpu_event_present)
-{
-	enum nx_vpu_ret ret;
-
-	if (handle->codecMode == MJPG_DEC)
-		return VPU_RET_OK;
-
-	ret = VPU_DecCloseCommand(handle, vpu_event_present);
-	if (ret != VPU_RET_OK)
-		NX_ErrMsg(("NX_VpuDecClose() failed.(%d)\n", ret));
-
-	return ret;
-}
-
-
-/*----------------------------------------------------------------------------
- *		Decoder Specific Static Functions
- */
 
 static int VPU_DecSeqComplete(struct nx_vpu_codec_inst *pInst,
 	struct vpu_dec_seq_init_arg *pArg)

@@ -58,10 +58,14 @@ struct nx_vpu_v4l2 {
 	wait_queue_head_t vpu_wait_queue;
 	wait_queue_head_t jpu_wait_queue;
 
+	atomic_t vpu_event_present;
+	atomic_t jpu_event_present;
+
+	uint32_t jpu_intr_reason;
+
 	struct nx_vpu_ctx *ctx[NX_MAX_VPU_INSTANCE];
 	int curr_ctx;
 	unsigned long ctx_work_bits;
-	atomic_t vpu_event_present;
 
 	void *alloc_ctx;
 
@@ -115,6 +119,9 @@ struct vpu_dec_ctx {
 	unsigned int dpb_queue_cnt;
 
 	int crop_left, crop_right, crop_top, crop_bot;
+
+	/* for Jpeg */
+	int32_t thumbnailMode;
 };
 
 struct nx_vpu_ctx {
@@ -133,7 +140,8 @@ struct nx_vpu_ctx {
 	int width;
 	int height;
 
-	int buf_width;
+	int buf_y_width;
+	int buf_c_width;
 	int buf_height;
 
 	int luma_size;
@@ -141,7 +149,10 @@ struct nx_vpu_ctx {
 
 	int chromaInterleave;
 
+	uint32_t imgFourCC;
+
 	unsigned int strm_size;
+	unsigned int strm_buf_size;
 
 	struct nx_memory_info *instance_buf;
 	struct nx_memory_info *bit_stream_buf;
@@ -154,9 +165,6 @@ struct nx_vpu_ctx {
 	unsigned long src_ctrls_avail;
 	unsigned long dst_ctrls_avail;
 #endif
-
-	size_t img_buf_size;
-	size_t strm_buf_size;
 
 	struct nx_vpu_fmt *img_fmt;
 	struct nx_vpu_fmt *strm_fmt;

@@ -105,6 +105,7 @@ struct vpu_enc_seq_arg {
 
 	/* JPEG Specific */
 	int32_t quality;
+	uint32_t imgFormat;
 
 	/* H.263 Only */
 	int32_t annexFlg;
@@ -264,8 +265,13 @@ struct vpu_dec_seq_init_arg {
 	int32_t enableUserData;
 	struct nx_memory_info userDataBuffer;
 
+	/* Jpeg */
+	int32_t thumbnailMode;
+
 	uint64_t strmReadPos;
 	uint64_t strmWritePos;
+
+	uint32_t imgFormat;
 };
 
 struct vpu_dec_reg_frame_arg {
@@ -383,36 +389,13 @@ struct vpu_dec_frame_arg {
 	int32_t iRet;
 
 	/* Jpeg Info */
-	int32_t rstInterval;
-	int32_t userHuffTable;
-
-	uint8_t *huffBits;
-	uint8_t *huffPtr;
-	uint32_t *huffMin;
-	uint32_t *huffMax;
-	uint8_t *huffValue;
-	uint8_t *infoTable;
-	uint8_t *quantTable;
-
-	int32_t huffAcIdx;
-	int32_t huffDcIdx;
-
-	int32_t busReqNum;
-	int32_t mcuBlockNum;
-	int32_t compNum;
-	int32_t *compInfo;
-
-	int32_t width;
-	int32_t height;
-
-	int32_t pagePtr;
-	int32_t wordPtr;
-	int32_t bitPtr;
-
 	/* 0:No scaling, 1:1/2 down scaling, 2:1/4 down scaling,
 		3:1/8 down scaling */
 	int32_t downScaleWidth;
 	int32_t downScaleHeight;
+
+	int32_t mcuWidth;
+	int32_t mcuHeight;
 
 	struct nx_vid_memory_info *hCurrFrameBuffer;
 };

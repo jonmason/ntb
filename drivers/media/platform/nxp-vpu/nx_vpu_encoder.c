@@ -172,29 +172,32 @@ int NX_VpuEncSetSeqParam(struct nx_vpu_codec_inst *handle,
 	NX_DbgMsg(INFO_MSG, ("Stream_buffer : 0x%llx, 0x%llx))\n",
 		encInfo->strmBufPhyAddr, encInfo->strmBufVirAddr));
 
-	/*if (CODEC_STD_MJPG == encInfo->codecStd) {
-		enc_jpeg_info *pJpgInfo = &encInfo->enc_codec_para.jpgEncInfo;
+	if (CODEC_STD_MJPG == encInfo->codecStd) {
+		struct enc_jpeg_info *pJpgInfo =
+			&encInfo->enc_codec_para.jpgEncInfo;
 
-		if (seqArg->quality == 0 || seqArg->quality<0 ||
-			seqArg->quality>100)
-			encInfo->jpegQuality = 90;
-		else
-			encInfo->jpegQuality = seqArg->quality;
-
-		if(0 != encInfo->rotateAngle) {
+		if (0 != encInfo->rotateAngle) {
 			pJpgInfo->rotationEnable = 1;
 			pJpgInfo->rotationAngle = encInfo->rotateAngle;
 		}
+
 		if (0 != encInfo->mirrorDirection) {
 			pJpgInfo->mirrorEnable = 1;
 			pJpgInfo->mirrorDirection = encInfo->mirrorDirection;
 		}
 
-		JpuSetupTables(pJpgInfo, encInfo->jpegQuality);
+		if (seqArg->quality == 0 || seqArg->quality < 0 ||
+			seqArg->quality > 100)
+			encInfo->jpegQuality = 90;
+		else
+			encInfo->jpegQuality = seqArg->quality;
 
-		handle->isInitialized = 1;
+		pJpgInfo->format = seqArg->imgFormat;
+		pJpgInfo->picWidth = encInfo->srcWidth;
+		pJpgInfo->picHeight = encInfo->srcHeight;
+
 		return VPU_RET_OK;
-	}*/
+	}
 
 	return VPU_EncSeqCommand(handle);
 }
@@ -205,6 +208,9 @@ int NX_VpuEncSetFrame(struct nx_vpu_codec_inst *handle,
 {
 	int i;
 	struct vpu_enc_info *pEncInfo = &handle->codecInfo.encInfo;
+
+	if (CODEC_STD_MJPG == pEncInfo->codecStd)
+		return VPU_RET_OK;
 
 	pEncInfo->minFrameBuffers = frmArg->numFrameBuffer;
 	for (i = 0 ; i < pEncInfo->minFrameBuffers ; i++)
@@ -265,13 +271,19 @@ GET_HEADER_EXIT:
 int NX_VpuEncRunFrame(struct nx_vpu_codec_inst *handle,
 	struct vpu_enc_run_frame_arg *runArg)
 {
-	return VPU_EncOneFrameCommand(handle, runArg);
+	if (handle->codecMode != MJPG_ENC)
+		return VPU_EncOneFrameCommand(handle, runArg);
+	else
+		return JPU_EncRunFrame(handle, runArg);
 }
 
 int NX_VpuEncChgParam(struct nx_vpu_codec_inst *handle,
 	struct vpu_enc_chg_para_arg *chgArg)
 {
-	return VPU_EncChangeParameterCommand(handle, chgArg);
+	if (handle->codecMode != MJPG_ENC)
+		return VPU_EncChangeParameterCommand(handle, chgArg);
+	else
+		return -1;
 }
 
 
@@ -342,9 +354,13 @@ static void VPU_EncDefaultParam(struct vpu_enc_info *pEncInfo)
 		pH263Param->h263AnnexTEnable = 0;
 
 		pEncInfo->userQpMax = 31;
-	} /*else if (CODEC_STD_MJPG == pEncInfo->codecStd) {
-		VPU_EncMjpgDefParam(pEncInfo);
-	}*/
+	} else if (CODEC_STD_MJPG == pEncInfo->codecStd) {
+		struct enc_jpeg_info *pJpgInfo =
+			&pEncInfo->enc_codec_para.jpgEncInfo;
+		pJpgInfo->format = IMG_FORMAT_420;
+		pJpgInfo->frameIdx = 0;
+		pJpgInfo->rstIntval = 60;
+	}
 
 	/* Motion Estimation */
 	pEncInfo->MEUseZeroPmv = 0;
@@ -549,8 +565,8 @@ static int VPU_EncSeqCommand(struct nx_vpu_codec_inst *pInst)
 	return VPU_RET_OK;
 }
 
-static int VPU_EncSetFrameBufCommand(struct nx_vpu_codec_inst
-	*pInst, uint32_t sramAddr, uint32_t sramSize)
+static int VPU_EncSetFrameBufCommand(struct nx_vpu_codec_inst *pInst,
+	uint32_t sramAddr, uint32_t sramSize)
 {
 	int i;
 	unsigned char frameAddr[22][3][4];
@@ -898,8 +914,8 @@ static int VPU_EncOneFrameCommand(struct nx_vpu_codec_inst *pInst,
 	return VPU_RET_OK;
 }
 
-static int VPU_EncChangeParameterCommand(struct nx_vpu_codec_inst
-	*pInst, struct vpu_enc_chg_para_arg *chgArg)
+static int VPU_EncChangeParameterCommand(struct nx_vpu_codec_inst *pInst,
+	struct vpu_enc_chg_para_arg *chgArg)
 {
 	int ret;
 
