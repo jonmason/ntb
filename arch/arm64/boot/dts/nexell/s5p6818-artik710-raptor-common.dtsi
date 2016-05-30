@@ -304,7 +304,7 @@
 		gpios = <&gpio_b 30 0 /* sda */
 			&gpio_b 31 0 /* scl */
 			>;
-		i2c-gpio,delay-us = <100>;    /* ~100 kHz */
+		i2c-gpio,delay-us = <1>;    /* ~100 kHz */
 		#address-cells = <1>;
 		#size-cells = <0>;
 
@@ -369,7 +369,7 @@
 		gpios = <&gpio_a 13 0	/* sda */
 			&gpio_a 9 0		/* scl */
 			>;
-		i2c-gpio,delay-us = <100>;	/* ~100kHz */
+		i2c-gpio,delay-us = <1>;	/* ~100kHz */
 		#address-cells = <1>;
 		#size-cells = <0>;
 		status = "okay";
@@ -403,7 +403,7 @@
 		gpios = <&gpio_a 19 0	/* sda */
 			&gpio_a 20 0	/* scl */
 			>;
-		i2c-gpio,delay-us = <100>;	/* ~100kHz */
+		i2c-gpio,delay-us = <1>;	/* ~100kHz */
 		#address-cells = <1>;
 		#size-cells = <0>;
 		status = "okay";
@@ -422,7 +422,7 @@
 			&gpio_c 15 0	/* scl */
 			>;
 
-		i2c-gpio,delay-us = <100>;	/* ~100kHz */
+		i2c-gpio,delay-us = <1>;	/* ~100kHz */
 		#address-cells = <1>;
 		#size-cells = <0>;
 		status = "okay";
