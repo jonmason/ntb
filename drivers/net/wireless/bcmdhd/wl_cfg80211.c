@@ -8766,6 +8766,12 @@ wl_cfg80211_stop_ap(
 				}
 			}
 		} else if (is_rsdb_supported == 0) {
+			if ((err = wldev_ioctl(dev, WLC_SET_AP, &ap,
+				sizeof(s32), true)) < 0) {
+				WL_ERR(("setting AP mode failed %d \n", err));
+				err = -ENOTSUPP;
+				goto exit;
+			}
 			err = wldev_ioctl(dev, WLC_SET_INFRA, &infra, sizeof(s32), true);
 			if (err < 0) {
 				WL_ERR(("SET INFRA error %d\n", err));
