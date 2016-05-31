@@ -55,8 +55,8 @@ static int VPU_DecCloseCommand(struct nx_vpu_codec_inst *pInst,
  *			Decoder APIs
  */
 
-int NX_VpuDecOpen(struct vpu_open_arg *openArg, void *dev,
-	struct nx_vpu_codec_inst **handle)
+int NX_VpuDecOpen(struct vpu_open_arg *pOpenArg, void *devHandle,
+	struct nx_vpu_codec_inst **ppInst)
 {
 	int val;
 	struct vpu_dec_info *pDecInfo;
@@ -64,67 +64,67 @@ int NX_VpuDecOpen(struct vpu_open_arg *openArg, void *dev,
 
 	FUNC_IN();
 
-	*handle = 0;
+	*ppInst = 0;
 	if (!NX_VpuIsInitialized())
 		return VPU_RET_ERR_INIT;
 
-	hInst = NX_VpuGetInstance(openArg->instIndex);
+	hInst = NX_VpuGetInstance(pOpenArg->instIndex);
 	if (!hInst)
 		return VPU_RET_ERR_INST;
 
-	if (openArg->codecStd == CODEC_STD_MPEG4) {
+	if (pOpenArg->codecStd == CODEC_STD_MPEG4) {
 		hInst->codecMode = MP4_DEC;
 		hInst->auxMode = MP4_AUX_MPEG4;
-	} else if (openArg->codecStd == CODEC_STD_AVC) {
+	} else if (pOpenArg->codecStd == CODEC_STD_AVC) {
 		hInst->codecMode = AVC_DEC;
 		hInst->auxMode = AVC_AUX_AVC;
-	} else if (openArg->codecStd == CODEC_STD_VC1) {
+	} else if (pOpenArg->codecStd == CODEC_STD_VC1) {
 		hInst->codecMode = VC1_DEC;
-	} else if (openArg->codecStd == CODEC_STD_MPEG2) {
+	} else if (pOpenArg->codecStd == CODEC_STD_MPEG2) {
 		hInst->codecMode = MP2_DEC;
 		hInst->auxMode = 0;
-	} else if (openArg->codecStd == CODEC_STD_H263) {
+	} else if (pOpenArg->codecStd == CODEC_STD_H263) {
 		hInst->codecMode = MP4_DEC;
 		hInst->auxMode = 0;
-	} else if (openArg->codecStd == CODEC_STD_DIV3) {
+	} else if (pOpenArg->codecStd == CODEC_STD_DIV3) {
 		hInst->codecMode = DV3_DEC;
 		hInst->auxMode = MP4_AUX_DIVX3;
-	} else if (openArg->codecStd == CODEC_STD_RV) {
+	} else if (pOpenArg->codecStd == CODEC_STD_RV) {
 		hInst->codecMode = RV_DEC;
-	} else if (openArg->codecStd == CODEC_STD_AVS) {
+	} else if (pOpenArg->codecStd == CODEC_STD_AVS) {
 		hInst->codecMode = AVS_DEC;
-	} else if (openArg->codecStd == CODEC_STD_MJPG) {
+	} else if (pOpenArg->codecStd == CODEC_STD_MJPG) {
 		hInst->codecMode = MJPG_DEC;
-	} else if (openArg->codecStd == CODEC_STD_THO) {
+	} else if (pOpenArg->codecStd == CODEC_STD_THO) {
 		hInst->codecMode = VPX_DEC;
 		hInst->auxMode = VPX_AUX_THO;
-	} else if (openArg->codecStd == CODEC_STD_VP3) {
+	} else if (pOpenArg->codecStd == CODEC_STD_VP3) {
 		hInst->codecMode = VPX_DEC;
 		hInst->auxMode = VPX_AUX_THO;
-	} else if (openArg->codecStd == CODEC_STD_VP8) {
+	} else if (pOpenArg->codecStd == CODEC_STD_VP8) {
 		hInst->codecMode = VPX_DEC;
 		hInst->auxMode = VPX_AUX_VP8;
 	} else {
 		NX_ErrMsg(("NX_VpuDecOpen() failed!!!\n"));
 		NX_ErrMsg(("Cannot support codec standard (%d)\n",
-			openArg->codecStd));
+			pOpenArg->codecStd));
 		return VPU_RET_ERR_PARAM;
 	}
 
 	/* Set Base Information */
 	hInst->inUse = 1;
-	hInst->instIndex = openArg->instIndex;
-	hInst->devHandle = dev;
+	hInst->instIndex = pOpenArg->instIndex;
+	hInst->devHandle = devHandle;
 
-	hInst->instBufPhyAddr = (uint64_t)openArg->instanceBuf.phyAddr;
-	hInst->instBufVirAddr = (uint64_t)openArg->instanceBuf.virAddr;
-	hInst->instBufSize    = openArg->instanceBuf.size;
+	hInst->instBufPhyAddr = (uint64_t)pOpenArg->instanceBuf.phyAddr;
+	hInst->instBufVirAddr = (uint64_t)pOpenArg->instanceBuf.virAddr;
+	hInst->instBufSize    = pOpenArg->instanceBuf.size;
 	pDecInfo = &hInst->codecInfo.decInfo;
 
 	/* Clrear Instnace Information */
 	NX_DrvMemset(&hInst->codecInfo, 0, sizeof(hInst->codecInfo));
-	pDecInfo->codecStd = openArg->codecStd;
-	pDecInfo->mp4Class = openArg->mp4Class;
+	pDecInfo->codecStd = pOpenArg->codecStd;
+	pDecInfo->mp4Class = pOpenArg->mp4Class;
 
 	if (hInst->codecMode != MJPG_DEC) {
 		pDecInfo->streamRdPtrRegAddr = BIT_RD_PTR;
@@ -136,9 +136,9 @@ int NX_VpuDecOpen(struct vpu_open_arg *openArg, void *dev,
 		pDecInfo->frameDisplayFlagRegAddr = 0;
 	}
 
-	pDecInfo->strmBufPhyAddr = (uint64_t)openArg->streamBuf.phyAddr;
-	pDecInfo->strmBufVirAddr = (uint64_t)openArg->streamBuf.virAddr;
-	pDecInfo->strmBufSize    = openArg->streamBuf.size;
+	pDecInfo->strmBufPhyAddr = (uint64_t)pOpenArg->streamBuf.phyAddr;
+	pDecInfo->strmBufVirAddr = (uint64_t)pOpenArg->streamBuf.virAddr;
+	pDecInfo->strmBufSize    = pOpenArg->streamBuf.size;
 	NX_DrvMemset((unsigned char *)pDecInfo->strmBufVirAddr, 0,
 		pDecInfo->strmBufSize);
 
@@ -187,7 +187,7 @@ int NX_VpuDecOpen(struct vpu_open_arg *openArg, void *dev,
 		VpuWriteReg(MJPEG_BBC_STRM_CTRL_REG, 0);
 	}
 
-	*handle = hInst;
+	*ppInst = hInst;
 
 	NX_DbgMsg(INFO_MSG, ("===================================\n"));
 	NX_DbgMsg(INFO_MSG, (" VPU Open Information:\n"));
@@ -202,17 +202,17 @@ int NX_VpuDecOpen(struct vpu_open_arg *openArg, void *dev,
 	return VPU_RET_OK;
 }
 
-int NX_VpuDecSetSeqInfo(struct nx_vpu_codec_inst *handle,
-	struct vpu_dec_seq_init_arg *seqArg)
+int NX_VpuDecSetSeqInfo(struct nx_vpu_codec_inst *pInst,
+	struct vpu_dec_seq_init_arg *pSeqArg)
 {
 	enum nx_vpu_ret ret;
 
 	FUNC_IN();
 
-	if (handle->codecMode != MJPG_DEC) {
+	if (pInst->codecMode != MJPG_DEC) {
 		/* FillBuffer */
-		if (0 > FillBuffer(handle, (uint8_t *)seqArg->seqData,
-			seqArg->seqDataSize)) {
+		if (0 > FillBuffer(pInst, (uint8_t *)pSeqArg->seqData,
+			pSeqArg->seqDataSize)) {
 			NX_ErrMsg(("FillBuffer Error!!!\n"));
 			return VPU_RET_ERROR;
 		}
@@ -232,16 +232,16 @@ int NX_VpuDecSetSeqInfo(struct nx_vpu_codec_inst *handle,
 		}
 #endif
 
-		ret = VPU_DecSeqInitCommand(handle, seqArg);
+		ret = VPU_DecSeqInitCommand(pInst, pSeqArg);
 		if (ret != VPU_RET_OK)
 			return ret;
-		ret = VPU_DecSeqComplete(handle, seqArg);
+		ret = VPU_DecSeqComplete(pInst, pSeqArg);
 	} else {
-		ret = JPU_DecSetSeqInfo(handle, seqArg);
+		ret = JPU_DecSetSeqInfo(pInst, pSeqArg);
 
 		/* Fill Data */
-		if (0 > FillBuffer(handle, (uint8_t *)seqArg->seqData,
-			seqArg->seqDataSize)) {
+		if (0 > FillBuffer(pInst, (uint8_t *)pSeqArg->seqData,
+			pSeqArg->seqDataSize)) {
 			NX_ErrMsg(("FillBuffer Failed.\n"));
 			return VPU_RET_ERROR;
 		}
@@ -251,27 +251,27 @@ int NX_VpuDecSetSeqInfo(struct nx_vpu_codec_inst *handle,
 	return ret;
 }
 
-int NX_VpuDecRegFrameBuf(struct nx_vpu_codec_inst *handle,
-	struct vpu_dec_reg_frame_arg *frmArg)
+int NX_VpuDecRegFrameBuf(struct nx_vpu_codec_inst *pInst,
+	struct vpu_dec_reg_frame_arg *pFrmArg)
 {
-	if (handle->codecMode != MJPG_DEC)
-		return VPU_DecRegisterFrameBufCommand(handle, frmArg);
+	if (pInst->codecMode != MJPG_DEC)
+		return VPU_DecRegisterFrameBufCommand(pInst, pFrmArg);
 	else
-		return JPU_DecRegFrameBuf(handle, frmArg);
+		return JPU_DecRegFrameBuf(pInst, pFrmArg);
 }
 
-int NX_VpuDecRunFrame(struct nx_vpu_codec_inst *handle,
-	struct vpu_dec_frame_arg *decArg)
+int NX_VpuDecRunFrame(struct nx_vpu_codec_inst *pInst,
+	struct vpu_dec_frame_arg *pRunArg)
 {
-	struct vpu_dec_info *pInfo = &handle->codecInfo.decInfo;
+	struct vpu_dec_info *pInfo = &pInst->codecInfo.decInfo;
 	enum nx_vpu_ret ret;
 
 	UNUSED(pInfo);
 
-	if (handle->codecMode != MJPG_DEC) {
+	if (pInst->codecMode != MJPG_DEC) {
 		/* Fill Data */
-		if (0 > FillBuffer(handle, (uint8_t *)decArg->strmData,
-			decArg->strmDataSize)) {
+		if (0 > FillBuffer(pInst, (uint8_t *)pRunArg->strmData,
+			pRunArg->strmDataSize)) {
 			NX_ErrMsg(("FillBuffer Failed.\n"));
 			return VPU_RET_ERROR;
 		}
@@ -287,21 +287,21 @@ int NX_VpuDecRunFrame(struct nx_vpu_codec_inst *handle,
 					(pInfo->readPos - pInfo->writePos);
 
 			if (streamSize < VPU_GBU_SIZE*2) {
-				decArg->indexFrameDecoded = -1;
-				decArg->indexFrameDisplay = -1;
+				pRunArg->indexFrameDecoded = -1;
+				pRunArg->indexFrameDisplay = -1;
 				return VPU_RET_NEED_STREAM;
 			}
 		}
 #endif
 
-		ret = VPU_DecStartOneFrameCommand(handle, decArg);
+		ret = VPU_DecStartOneFrameCommand(pInst, pRunArg);
 		if (ret == VPU_RET_OK)
-			ret = VPU_DecGetOutputInfo(handle, decArg);
+			ret = VPU_DecGetOutputInfo(pInst, pRunArg);
 	} else {
 		if (pInfo->headerSize == 0) {
 			ret = JPU_DecParseHeader(pInfo,
-				(uint8_t *)decArg->strmData,
-				decArg->strmDataSize);
+				(uint8_t *)pRunArg->strmData,
+				pRunArg->strmDataSize);
 			if (ret < 0) {
 				NX_ErrMsg(("JpgHeader is failed(Error = %d)!\n",
 					ret));
@@ -310,14 +310,14 @@ int NX_VpuDecRunFrame(struct nx_vpu_codec_inst *handle,
 		}
 
 		/* Fill Data */
-		if (0 > FillBuffer(handle, (uint8_t *)decArg->strmData,
-			decArg->strmDataSize)) {
+		if (0 > FillBuffer(pInst, (uint8_t *)pRunArg->strmData,
+			pRunArg->strmDataSize)) {
 			NX_ErrMsg(("FillBuffer Failed.\n"));
 			return VPU_RET_ERROR;
 		}
 
 		if (pInfo->validFlg > 0) {
-			ret = JPU_DecRunFrame(handle, decArg);
+			ret = JPU_DecRunFrame(pInst, pRunArg);
 			pInfo->validFlg -= 1;
 		} else {
 			ret = -1;
@@ -327,18 +327,18 @@ int NX_VpuDecRunFrame(struct nx_vpu_codec_inst *handle,
 	return ret;
 }
 
-int NX_VpuDecFlush(struct nx_vpu_codec_inst *handle)
+int NX_VpuDecFlush(struct nx_vpu_codec_inst *pInst)
 {
 	unsigned int val;
-	struct vpu_dec_info *pDecInfo = &handle->codecInfo.decInfo;
+	struct vpu_dec_info *pDecInfo = &pInst->codecInfo.decInfo;
 
-	if (handle->codecMode != MJPG_DEC) {
+	if (pInst->codecMode != MJPG_DEC) {
 		val = pDecInfo->frameDisplayFlag;
 		val &= ~pDecInfo->clearDisplayIndexes;
 		VpuWriteReg(pDecInfo->frameDisplayFlagRegAddr, val);
 		pDecInfo->clearDisplayIndexes = 0;
 		pDecInfo->writePos = pDecInfo->readPos;
-		VpuBitIssueCommand(handle, DEC_BUF_FLUSH);
+		VpuBitIssueCommand(pInst, DEC_BUF_FLUSH);
 
 		if (VPU_RET_OK != VPU_WaitVpuBusy(VPU_BUSY_CHECK_TIMEOUT,
 			BIT_BUSY_FLAG))
@@ -363,12 +363,12 @@ int NX_VpuDecFlush(struct nx_vpu_codec_inst *handle)
 	return VPU_RET_OK;
 }
 
-int NX_VpuDecClrDspFlag(struct nx_vpu_codec_inst *handle,
+int NX_VpuDecClrDspFlag(struct nx_vpu_codec_inst *pInst,
 	struct vpu_dec_clr_dsp_flag_arg *pArg)
 {
-	struct vpu_dec_info *pInfo = &handle->codecInfo.decInfo;
+	struct vpu_dec_info *pInfo = &pInst->codecInfo.decInfo;
 
-	if (handle->codecMode != MJPG_DEC)
+	if (pInst->codecMode != MJPG_DEC)
 		pInfo->clearDisplayIndexes |= (1<<pArg->indexFrameDisplay);
 	else
 		pInfo->frmBufferValid[pArg->indexFrameDisplay] = 0;
@@ -376,15 +376,15 @@ int NX_VpuDecClrDspFlag(struct nx_vpu_codec_inst *handle,
 	return VPU_RET_OK;
 }
 
-int NX_VpuDecClose(struct nx_vpu_codec_inst *handle,
+int NX_VpuDecClose(struct nx_vpu_codec_inst *pInst,
 	void *vpu_event_present)
 {
 	enum nx_vpu_ret ret;
 
-	if (handle->codecMode == MJPG_DEC)
+	if (pInst->codecMode == MJPG_DEC)
 		return VPU_RET_OK;
 
-	ret = VPU_DecCloseCommand(handle, vpu_event_present);
+	ret = VPU_DecCloseCommand(pInst, vpu_event_present);
 	if (ret != VPU_RET_OK)
 		NX_ErrMsg(("NX_VpuDecClose() failed.(%d)\n", ret));
 

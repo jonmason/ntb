@@ -250,7 +250,7 @@ const struct v4l2_ioctl_ops *get_dec_ioctl_ops(void);
 
 int nx_vpu_dec_open(struct nx_vpu_ctx *ctx);
 int vpu_dec_open_instance(struct nx_vpu_ctx *ctx);
-int vpu_dec_parse_vfg(struct nx_vpu_ctx *ctx);
+int vpu_dec_parse_vid_cfg(struct nx_vpu_ctx *ctx);
 int vpu_dec_init(struct nx_vpu_ctx *ctx);
 int vpu_dec_decode_slice(struct nx_vpu_ctx *ctx);
 

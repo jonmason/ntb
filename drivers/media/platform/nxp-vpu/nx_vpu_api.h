@@ -469,11 +469,7 @@ void NX_VPU_HwOn(void *, void *);
 void NX_VPU_HWOff(void *);
 int NX_VPU_GetCurPowerState(void);
 void NX_VPU_Clock(int on);
-int VPU_SWReset(int resetMode);
 
-int NX_VpuParaInitialized(void *dev);
-
-int VPU_WaitVpuBusy(int mSeconds, unsigned int busyFlagReg);
 int NX_VpuInit(void *pv, void *baseAddr, void *firmVirAddr,
 	uint32_t firmPhyAddr);
 int NX_VpuDeInit(void *);
@@ -481,40 +477,44 @@ int NX_VpuDeInit(void *);
 int NX_VpuSuspend(void *dev);
 int NX_VpuResume(void);
 
+int VPU_WaitVpuBusy(int mSeconds, unsigned int busyFlagReg);
+
+int VPU_SWReset(int resetMode);
+
 struct nx_vpu_codec_inst *NX_VpuGetInstance(int index);
 int NX_VpuIsInitialized(void);
-
+int NX_VpuParaInitialized(void *dev);
 int swap_endian(unsigned char *data, int len);
 
 /* Encoder Specific APIs */
-int NX_VpuEncOpen(struct vpu_open_arg *openArg, void *devHandle,
-	struct nx_vpu_codec_inst **handle);
-int NX_VpuEncClose(struct nx_vpu_codec_inst *handle,
+int NX_VpuEncOpen(struct vpu_open_arg *pOpenArg, void *devHandle,
+	struct nx_vpu_codec_inst **ppInst);
+int NX_VpuEncClose(struct nx_vpu_codec_inst *pInst,
 	void *vpu_event_present);
-int NX_VpuEncSetSeqParam(struct nx_vpu_codec_inst *handle,
-	struct vpu_enc_seq_arg *seqArg);
-int NX_VpuEncSetFrame(struct nx_vpu_codec_inst *handle,
-	struct vpu_enc_set_frame_arg *frmArg);
-int NX_VpuEncGetHeader(struct nx_vpu_codec_inst *handle,
-	union vpu_enc_get_header_arg *header);
-int NX_VpuEncRunFrame(struct nx_vpu_codec_inst *handle,
-	struct vpu_enc_run_frame_arg *runArg);
-int NX_VpuEncChgParam(struct nx_vpu_codec_inst *handle,
-	struct vpu_enc_chg_para_arg *chgArg);
+int NX_VpuEncSetSeqParam(struct nx_vpu_codec_inst *pInst,
+	struct vpu_enc_seq_arg *pSeqArg);
+int NX_VpuEncSetFrame(struct nx_vpu_codec_inst *pInst,
+	struct vpu_enc_set_frame_arg *pFrmArg);
+int NX_VpuEncGetHeader(struct nx_vpu_codec_inst *pInst,
+	union vpu_enc_get_header_arg *pHeader);
+int NX_VpuEncRunFrame(struct nx_vpu_codec_inst *pInst,
+	struct vpu_enc_run_frame_arg *pRunArg);
+int NX_VpuEncChgParam(struct nx_vpu_codec_inst *pInst,
+	struct vpu_enc_chg_para_arg *pChgArg);
 
 /* Decoder Specific APIs */
-int NX_VpuDecOpen(struct vpu_open_arg *openArg, void *devHandle,
-	struct nx_vpu_codec_inst **handle);
-int NX_VpuDecClose(struct nx_vpu_codec_inst *handle,
+int NX_VpuDecOpen(struct vpu_open_arg *pOpenArg, void *devHandle,
+	struct nx_vpu_codec_inst **ppInst);
+int NX_VpuDecClose(struct nx_vpu_codec_inst *pInst,
 	void *vpu_event_present);
-int NX_VpuDecSetSeqInfo(struct nx_vpu_codec_inst *handle,
-	struct vpu_dec_seq_init_arg *seqArg);
-int NX_VpuDecRegFrameBuf(struct nx_vpu_codec_inst *handle,
-	struct vpu_dec_reg_frame_arg *frmArg);
-int NX_VpuDecRunFrame(struct nx_vpu_codec_inst *handle,
-	struct vpu_dec_frame_arg *pArg);
-int NX_VpuDecFlush(struct nx_vpu_codec_inst *handle);
-int NX_VpuDecClrDspFlag(struct nx_vpu_codec_inst *handle,
+int NX_VpuDecSetSeqInfo(struct nx_vpu_codec_inst *pInst,
+	struct vpu_dec_seq_init_arg *pSeqArg);
+int NX_VpuDecRegFrameBuf(struct nx_vpu_codec_inst *pInst,
+	struct vpu_dec_reg_frame_arg *pFrmArg);
+int NX_VpuDecRunFrame(struct nx_vpu_codec_inst *pInst,
+	struct vpu_dec_frame_arg *pRunArg);
+int NX_VpuDecFlush(struct nx_vpu_codec_inst *pInst);
+int NX_VpuDecClrDspFlag(struct nx_vpu_codec_inst *pInst,
 	struct vpu_dec_clr_dsp_flag_arg *pArg);
 
 /* Jpeg Encoder Specific APIs */

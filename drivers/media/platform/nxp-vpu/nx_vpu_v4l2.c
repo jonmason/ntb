@@ -157,7 +157,7 @@ int nx_vpu_try_run(struct nx_vpu_v4l2 *dev)
 
 	case SEQ_INIT:
 		if (ctx->is_initialized == 0) {
-			ret = vpu_dec_parse_vfg(ctx);
+			ret = vpu_dec_parse_vid_cfg(ctx);
 			if (ret != 0) {
 				dev_err(err, "vpu_dec_parse_vfg() is ");
 				dev_err(err, "failed, ret = %d\n", ret);

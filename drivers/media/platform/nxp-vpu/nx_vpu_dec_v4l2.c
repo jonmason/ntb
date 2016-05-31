@@ -768,7 +768,7 @@ err_exit:
 	return ret;
 }
 
-int vpu_dec_parse_vfg(struct nx_vpu_ctx *ctx)
+int vpu_dec_parse_vid_cfg(struct nx_vpu_ctx *ctx)
 {
 	int ret;
 	struct vpu_dec_ctx *dec_ctx = &ctx->codec.dec;

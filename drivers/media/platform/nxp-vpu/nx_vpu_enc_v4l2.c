@@ -1594,7 +1594,7 @@ int alloc_encoder_memory(struct nx_vpu_ctx *ctx)
 	if (0 == ctx->bit_stream_buf) {
 		NX_ErrMsg(("bit_stream_buf allocation failed.\n"));
 		NX_ErrMsg(("  size = %d, align = %d)\n",
-			STREAM_BUF_SIZE, 16));
+			STREAM_BUF_SIZE, 4096));
 		goto Error_Exit;
 	}
 
