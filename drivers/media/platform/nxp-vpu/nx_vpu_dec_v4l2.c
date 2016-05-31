@@ -201,7 +201,8 @@ static int vidioc_try_fmt(struct file *file, void *priv,
 		return -EINVAL;
 	}
 
-	if (fmt->num_planes != pix_fmt_mp->num_planes) {
+	if ((fmt->num_planes != pix_fmt_mp->num_planes) &&
+		(1 != pix_fmt_mp->num_planes)) {
 		NX_ErrMsg(("failed to try format(num of planes error(%d, %d)\n",
 			fmt->num_planes, pix_fmt_mp->num_planes));
 		return -EINVAL;
@@ -231,13 +232,8 @@ static int vidioc_s_fmt_vid_cap_mplane(struct file *file, void *priv,
 	}
 
 	ctx->img_fmt = find_format(f);
-
-	if (ctx->img_fmt->num_planes != pix_fmt_mp->num_planes) {
-		NX_ErrMsg(("failed to set output format(number of plane)\n"));
-		return -EINVAL;
-	}
-
-	ctx->chromaInterleave = (pix_fmt_mp->num_planes == 3) ? (0) : (1);
+	ctx->img_fmt->num_planes = f->fmt.pix_mp.num_planes;
+	ctx->chromaInterleave = (pix_fmt_mp->num_planes != 2) ? (0) : (1);
 
 	return 0;
 }
@@ -572,14 +568,20 @@ static void nx_vpu_dec_buf_queue(struct vb2_buffer *vb)
 		buf->planes.raw.y = nx_vpu_mem_plane_addr(ctx, vb, 0);
 		dec_ctx->frame_buf[idx].phyAddr[0] = buf->planes.raw.y;
 
-		if (ctx->chroma_size > 0) {
+		if (ctx->img_fmt->num_planes > 1) {
 			buf->planes.raw.cb = nx_vpu_mem_plane_addr(ctx, vb, 1);
 			dec_ctx->frame_buf[idx].phyAddr[1] = buf->planes.raw.cb;
+		} else if (ctx->chroma_size > 0) {
+			dec_ctx->frame_buf[idx].phyAddr[1] = ctx->luma_size +
+				dec_ctx->frame_buf[idx].phyAddr[0];
 		}
 
-		if ((ctx->chroma_size > 0) && (ctx->chromaInterleave == 0)) {
+		if (ctx->img_fmt->num_planes > 2) {
 			buf->planes.raw.cr = nx_vpu_mem_plane_addr(ctx, vb, 2);
 			dec_ctx->frame_buf[idx].phyAddr[2] = buf->planes.raw.cr;
+		} else if (ctx->chroma_size > 0 && ctx->chromaInterleave == 0) {
+			dec_ctx->frame_buf[idx].phyAddr[2] = ctx->chroma_size +
+				dec_ctx->frame_buf[idx].phyAddr[1];
 		}
 
 		list_add_tail(&buf->list, &ctx->codec.dec.dpb_queue);

@@ -696,13 +696,20 @@ int nx_vpu_buf_prepare(struct vb2_buffer *vb)
 
 		NX_DbgMsg(INFO_MSG, ("plane size: %ld, luma size: %d\n",
 			vb2_plane_size(vb, 0), ctx->luma_size));
-		NX_DbgMsg(INFO_MSG, ("plane size: %ld, chroma size: %d\n",
-			vb2_plane_size(vb, 1), ctx->chroma_size));
 
-		if (vb2_plane_size(vb, 0) < ctx->luma_size ||
-			vb2_plane_size(vb, 1) < ctx->chroma_size) {
-			NX_ErrMsg(("plane size is too small for image\n"));
+		if (vb2_plane_size(vb, 0) < ctx->luma_size) {
+			NX_ErrMsg(("plane size is too small for luma\n"));
 			return -EINVAL;
+		}
+
+		if (ctx->img_fmt->num_planes > 1) {
+			NX_DbgMsg(INFO_MSG, ("plane size:%ld, chroma size:%d\n",
+				vb2_plane_size(vb, 1), ctx->chroma_size));
+
+			if (vb2_plane_size(vb, 1) < ctx->chroma_size) {
+				NX_ErrMsg(("plane size is small for chroma\n"));
+				return -EINVAL;
+			}
 		}
 	} else if (vq->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		ret = check_vb_with_fmt(ctx->strm_fmt, vb);

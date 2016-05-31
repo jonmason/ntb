@@ -439,7 +439,8 @@ static int vidioc_try_fmt(struct file *file, void *priv, struct v4l2_format *f)
 			return -EINVAL;
 		}
 
-		if (fmt->num_planes != pix_fmt_mp->num_planes) {
+		if ((fmt->num_planes != pix_fmt_mp->num_planes) &&
+			(1 != pix_fmt_mp->num_planes)) {
 			NX_ErrMsg(("failed to try input format(%d, %d)\n",
 				fmt->num_planes, pix_fmt_mp->num_planes));
 			return -EINVAL;
@@ -495,11 +496,7 @@ static int vidioc_s_fmt(struct file *file, void *priv, struct v4l2_format *f)
 			return -EINVAL;
 		}
 
-		if (fmt->num_planes != pix_fmt_mp->num_planes) {
-			NX_ErrMsg(("failed to set output format\n"));
-			ret = -EINVAL;
-			goto ERROR_EXIT;
-		}
+		fmt->num_planes = f->fmt.pix_mp.num_planes;
 
 		ctx->img_fmt = fmt;
 		ctx->width = pix_fmt_mp->width;
@@ -1450,7 +1447,7 @@ int vpu_enc_encode_frame(struct nx_vpu_ctx *ctx)
 	struct vpu_enc_ctx *enc_ctx = &ctx->codec.enc;
 	struct nx_vpu_v4l2 *dev = ctx->dev;
 	struct nx_vpu_codec_inst *hInst = ctx->hInst;
-	int ret = 0;
+	int ret = 0, i;
 	unsigned long flags;
 	struct nx_vpu_buf *mb_entry;
 	struct vpu_enc_run_frame_arg *pRunArg = &enc_ctx->run_info;
@@ -1481,19 +1478,20 @@ int vpu_enc_encode_frame(struct nx_vpu_ctx *ctx)
 	mb_entry = list_entry(ctx->img_queue.next, struct nx_vpu_buf, list);
 	mb_entry->used = 1;
 
-	pRunArg->inImgBuffer.phyAddr[0] = nx_vpu_mem_plane_addr(ctx,
-		&mb_entry->vb, 0);
-
-	if (ctx->chroma_size > 0) {
-		pRunArg->inImgBuffer.phyAddr[1] = nx_vpu_mem_plane_addr(ctx,
-			&mb_entry->vb, 1);
-
-		if (ctx->chromaInterleave == 0)
-			pRunArg->inImgBuffer.phyAddr[2] = nx_vpu_mem_plane_addr(
-				ctx, &mb_entry->vb, 2);
+	for (i = 0 ; i < ctx->img_fmt->num_planes ; i++) {
+		pRunArg->inImgBuffer.phyAddr[i] = nx_vpu_mem_plane_addr(ctx,
+			&mb_entry->vb, i);
+		pRunArg->inImgBuffer.stride[i] = (i == 0) ?
+			(ctx->buf_y_width) : (ctx->buf_c_width);
 	}
 
-	pRunArg->inImgBuffer.stride[0] = ctx->buf_y_width;
+	if ((ctx->img_fmt->num_planes == 1) && (ctx->chroma_size > 0)) {
+		pRunArg->inImgBuffer.phyAddr[1] = ctx->luma_size +
+			pRunArg->inImgBuffer.phyAddr[0];
+		if (ctx->chromaInterleave == 0)
+			pRunArg->inImgBuffer.phyAddr[2] = ctx->chroma_size +
+				pRunArg->inImgBuffer.phyAddr[1];
+	}
 
 	spin_unlock_irqrestore(&dev->irqlock, flags);
 
