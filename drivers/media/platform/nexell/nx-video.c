@@ -226,6 +226,75 @@ static int set_plane_size(struct nx_video_frame *frame, unsigned int sizes[])
 	return 0;
 }
 
+static int set_plane_size_mmap(struct nx_video_frame *frame,
+			       unsigned int sizes[])
+{
+	u32 y_stride = ALIGN(frame->width, 32);
+	u32 y_size = y_stride * frame->height;
+
+	switch (frame->format.pixelformat) {
+	case V4L2_PIX_FMT_YUYV:
+		frame->size[0] = y_size << 1;
+		frame->stride[0] = y_stride << 1;
+
+		sizes[0] = frame->size[0];
+		break;
+
+	case V4L2_PIX_FMT_YUV420:
+		frame->size[0] = y_size;
+		frame->size[1] = frame->size[2] =
+			ALIGN(y_stride >> 1, 16) * (frame->height >> 1);
+		frame->stride[0] = y_stride;
+		frame->stride[1] = frame->stride[2] = ALIGN(y_stride >> 1, 16);
+
+		sizes[0] = frame->size[0];
+		sizes[0] += frame->size[1] * 2;
+		break;
+
+	case V4L2_PIX_FMT_NV16:
+		frame->size[0] = frame->size[1] = y_size;
+		frame->stride[0] = frame->stride[1] = y_stride;
+
+		sizes[0] = frame->size[0] * 2;
+		break;
+
+	case V4L2_PIX_FMT_NV21:
+		frame->size[0] = y_size;
+		frame->size[1] = y_stride * (frame->height >> 1);
+		frame->stride[0] = y_stride;
+		frame->stride[1] = y_stride;
+
+		sizes[0] = frame->size[0];
+		sizes[0] += frame->size[1];
+		break;
+
+	case V4L2_PIX_FMT_YUV422P:
+		frame->size[0] = y_size;
+		frame->size[1] = frame->size[2] = y_size >> 1;
+		frame->stride[0] = y_stride;
+		frame->stride[1] = frame->stride[2] = ALIGN(y_stride >> 1, 16);
+
+		sizes[0] = frame->size[0];
+		sizes[0] += frame->size[1] * 2;
+		break;
+
+	case V4L2_PIX_FMT_YUV444:
+		frame->size[0] = frame->size[1] = frame->size[2] = y_size;
+		frame->stride[0] = frame->stride[1] = frame->stride[2] =
+			y_stride;
+
+		sizes[0] = frame->size[0] * 3;
+		break;
+
+	default:
+		pr_err("[nx video] unknown format(%d)\n",
+		       frame->format.pixelformat);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static struct v4l2_subdev *get_remote_subdev(struct nx_video *me, u32 type,
 					     u32 *pad)
 {
@@ -371,10 +440,18 @@ static int nx_vb2_queue_setup(struct vb2_queue *q,
 		return -EINVAL;
 	}
 
-	ret = set_plane_size(frame, sizes);
-	if (ret < 0) {
-		pr_err("[nx video] failed to set_plane_size()\n");
-		return ret;
+	if (q->memory == V4L2_MEMORY_MMAP) {
+		ret = set_plane_size_mmap(frame, sizes);
+		if (ret < 0) {
+			pr_err("[nx video] failed to set_plane_size_mmap()\n");
+			return ret;
+		}
+	} else {
+		ret = set_plane_size(frame, sizes);
+		if (ret < 0) {
+			pr_err("[nx video] failed to set_plane_size()\n");
+			return ret;
+		}
 	}
 
 	*num_planes = (unsigned int)(frame->format.num_planes);
@@ -477,11 +554,21 @@ static void nx_vb2_buf_queue(struct vb2_buffer *vb)
 	c->queue(buf, c->priv);
 }
 
+static void nx_vb2_buf_finish(struct vb2_buffer *vb)
+{
+	struct vb2_queue *q;
+
+	q = vb->vb2_queue;
+	if (q->memory == V4L2_MEMORY_MMAP)
+		vb->planes[0].bytesused = vb->planes[0].length;
+}
+
 static struct vb2_ops nx_vb2_ops = {
 	.queue_setup    = nx_vb2_queue_setup,
 	.buf_init       = nx_vb2_buf_init,
 	.buf_cleanup    = nx_vb2_buf_cleanup,
 	.buf_queue      = nx_vb2_buf_queue,
+	.buf_finish	= nx_vb2_buf_finish,
 };
 
 /*
@@ -501,7 +588,7 @@ static int nx_video_querycap(struct file *file, void *fh,
 
 	switch (me->type) {
 	case NX_VIDEO_TYPE_CAPTURE:
-		cap->device_caps =
+		cap->device_caps = V4L2_CAP_VIDEO_CAPTURE |
 			V4L2_CAP_VIDEO_CAPTURE_MPLANE | V4L2_CAP_STREAMING;
 		break;
 	case NX_VIDEO_TYPE_OUT:
@@ -795,6 +882,72 @@ static int nx_video_s_ctrl(struct file *file, void *fh,
 	return v4l2_subdev_call(subdev, core, s_ctrl, ctrl);
 }
 
+static int nx_video_g_input(struct file *file, void *fh, unsigned int *i)
+{
+	*i = 0;
+	return 0;
+}
+
+static int nx_video_s_input(struct file *file, void *fh, unsigned int i)
+{
+	return 0;
+}
+
+static int nx_video_enum_input(struct file *file, void *fh,
+			       struct v4l2_input *inp)
+{
+	struct nx_video *me;
+
+	me = file->private_data;
+
+	if (inp->index != 0)
+		return -EINVAL;
+
+	if (me->type == NX_VIDEO_TYPE_CAPTURE) {
+		inp->type = V4L2_INPUT_TYPE_CAMERA;
+		strcpy(inp->name, "Camera");
+		return 0;
+	}
+
+	return -EINVAL;
+}
+
+static int nx_video_g_parm(struct file *file, void *fh,
+			   struct v4l2_streamparm *a)
+{
+	struct nx_video *me;
+
+	me = file->private_data;
+
+	if (me->type == NX_VIDEO_TYPE_CAPTURE) {
+		memset(a, 0, sizeof(*a));
+		a->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+		a->parm.output.capability = V4L2_CAP_TIMEPERFRAME;
+		a->parm.output.timeperframe.denominator = 1;
+		a->parm.output.timeperframe.numerator = 30;
+
+		return 0;
+	}
+
+	return -EINVAL;
+}
+
+static int nx_video_s_parm(struct file *file, void *fh,
+			   struct v4l2_streamparm *a)
+{
+	struct nx_video *me;
+
+	me = file->private_data;
+
+	if (me->type == NX_VIDEO_TYPE_CAPTURE) {
+		if (a->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+			return -EINVAL;
+		return 0;
+	}
+
+	return -EINVAL;
+}
+
 static struct v4l2_ioctl_ops nx_video_ioctl_ops = {
 	.vidioc_querycap                = nx_video_querycap,
 	.vidioc_enum_fmt_vid_cap_mplane = nx_video_enum_format,
@@ -818,6 +971,11 @@ static struct v4l2_ioctl_ops nx_video_ioctl_ops = {
 	.vidioc_g_crop                  = nx_video_get_crop,
 	.vidioc_s_crop                  = nx_video_set_crop,
 	.vidioc_s_ctrl                  = nx_video_s_ctrl,
+	.vidioc_g_input			= nx_video_g_input,
+	.vidioc_s_input			= nx_video_s_input,
+	.vidioc_enum_input		= nx_video_enum_input,
+	.vidioc_g_parm			= nx_video_g_parm,
+	.vidioc_s_parm			= nx_video_s_parm,
 };
 
 /*
@@ -1053,7 +1211,7 @@ struct nx_video *nx_video_create(char *name, u32 type,
 		V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE :
 		V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
 	/* nx video supports only DMABUF */
-	vbq->io_modes = VB2_DMABUF;
+	vbq->io_modes = VB2_DMABUF | VB2_MMAP;
 	vbq->drv_priv = me;
 	vbq->ops      = &nx_vb2_ops;
 	vbq->mem_ops  = &vb2_dma_contig_memops;
