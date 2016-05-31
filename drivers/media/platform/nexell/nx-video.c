@@ -612,8 +612,12 @@ static int nx_video_querycap(struct file *file, void *fh,
 static int nx_video_enum_format(struct file *file, void *fh,
 				struct v4l2_fmtdesc *f)
 {
-	/* TODO */
-	pr_debug("%s\n", __func__);
+	if (f->index >= ARRAY_SIZE(supported_formats))
+		return -EINVAL;
+
+	strlcpy(f->description, supported_formats[f->index].name,
+		sizeof(f->description));
+	f->pixelformat = supported_formats[f->index].pixelformat;
 	return 0;
 }
 
