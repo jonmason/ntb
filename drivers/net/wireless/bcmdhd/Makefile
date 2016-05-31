@@ -717,6 +717,11 @@ ifeq ($(GGSM_WIFI_5GHz_CHANNELS),true)
   DHDCFLAGS += -DCUSTOMER_SET_COUNTRY
 endif
 
+# For ARTIK feature
+ifneq ($(CONFIG_ARCH_S5P6818),)
+# For support WPA and WPA2 mixed mode
+DHDCFLAGS :=$(filter-out -DSUPPORT_SOFTAP_WPAWPA2_MIXED,$(DHDCFLAGS))
+endif
 
 ifeq ($(CONFIG_OF),y)
 ifneq ($(CONFIG_MACH_UNIVERSAL5433),)
