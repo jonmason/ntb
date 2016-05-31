@@ -104,6 +104,11 @@ struct vpu_dec_ctx {
 	int interlace_flg[VPU_MAX_BUFFERS];
 	int reliable_0_100[VPU_MAX_BUFFERS];
 	struct timeval timeStamp[VPU_MAX_BUFFERS];
+	int multiResolution[VPU_MAX_BUFFERS];
+	int upSampledWidth[VPU_MAX_BUFFERS];
+	int upSampledHeight[VPU_MAX_BUFFERS];
+
+	struct timeval savedTimeStamp;
 
 	unsigned int start_Addr;
 	unsigned int end_Addr;

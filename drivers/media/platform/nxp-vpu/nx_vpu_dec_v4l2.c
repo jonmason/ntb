@@ -657,6 +657,25 @@ int nx_vpu_dec_open(struct nx_vpu_ctx *ctx)
 	return 0;
 }
 
+static void decoder_flush_disp_info(struct vpu_dec_ctx *dec_ctx)
+{
+	int32_t i;
+
+	for (i = 0 ; i < VPU_MAX_BUFFERS ; i++) {
+		dec_ctx->timeStamp[i].tv_sec = -10;
+		dec_ctx->timeStamp[i].tv_usec = -10;
+		dec_ctx->frm_type[i] = -1;
+		dec_ctx->multiResolution[i] = -0;
+		dec_ctx->interlace_flg[i] = -1;
+		dec_ctx->reliable_0_100[i] = 0;
+		dec_ctx->upSampledWidth[i] = 0;
+		dec_ctx->upSampledHeight[i] = 0;
+	}
+
+	dec_ctx->savedTimeStamp.tv_sec = -1;
+	dec_ctx->savedTimeStamp.tv_usec = -1;
+}
+
 int vpu_dec_open_instance(struct nx_vpu_ctx *ctx)
 {
 	struct nx_vpu_v4l2 *dev = ctx->dev;
@@ -754,6 +773,8 @@ int vpu_dec_open_instance(struct nx_vpu_ctx *ctx)
 			openArg.codecStd, openArg.isEncoder, hInst));
 		goto err_exit;
 	}
+
+	decoder_flush_disp_info(&ctx->codec.dec);
 
 	ctx->hInst = (void *)hInst;
 	dev->cur_num_instance++;
