@@ -563,7 +563,7 @@
 		spi_2:spi@c005f000 {
 			compatible = "arm,pl022","arm,primecell","nexell,pl022";
 			reg = <PHYS_BASE_SSP2 0x1000>;
-			interrupts = <IRQ_SSP0>;
+			interrupts = <IRQ_SSP2>;
 			dmas = <&pl08xdma0 10>, <&pl08xdma0 11>;
 			arm,primecell-periphid = <0x00041022>;
 			dma-names = "tx", "rx";
