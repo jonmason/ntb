@@ -241,6 +241,13 @@ struct devfreq_simple_ondemand_data {
 };
 #endif
 
+#if IS_ENABLED(CONFIG_ARM_S5Pxx18_DEVFREQ)
+struct devfreq_notifier_block {
+	struct notifier_block nb;
+	struct devfreq *df;
+};
+#endif
+
 #else /* !CONFIG_PM_DEVFREQ */
 static inline struct devfreq *devfreq_add_device(struct device *dev,
 					  struct devfreq_dev_profile *profile,
