@@ -876,17 +876,19 @@ int vpu_dec_parse_vid_cfg(struct nx_vpu_ctx *ctx)
 	case IMG_FORMAT_420:
 		ctx->imgFourCC = V4L2_PIX_FMT_YUV420M;
 		ctx->buf_c_width = ctx->buf_y_width >> 1;
-		ctx->chroma_size = ctx->luma_size >> 2;
+		ctx->chroma_size = ctx->buf_c_width *
+			ALIGN(ctx->buf_height/2, 16);
 		break;
 	case IMG_FORMAT_422:
 		ctx->imgFourCC = V4L2_PIX_FMT_YUV422M;
 		ctx->buf_c_width = ctx->buf_y_width >> 1;
-		ctx->chroma_size = ctx->luma_size >> 1;
+		ctx->chroma_size = ctx->buf_c_width * ctx->buf_height;
 		break;
 	/* case IMG_FORMAT_224:
 		ctx->imgFourCC = ;
 		ctx->buf_c_width = ctx->buf_y_width;
-		ctx->chroma_size = ctx->luma_size >> 1;
+		ctx->chroma_size = ctx->buf_c_width *
+			ALIGN(ctx->buf_height/2, 16);
 		break; */
 	case IMG_FORMAT_444:
 		ctx->imgFourCC = V4L2_PIX_FMT_YUV444M;

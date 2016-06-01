@@ -517,17 +517,18 @@ static int vidioc_s_fmt(struct file *file, void *priv, struct v4l2_format *f)
 		switch (fmt->fourcc) {
 		case V4L2_PIX_FMT_NV12M:
 			ctx->buf_c_width = ctx->buf_y_width >> 1;
-			ctx->chroma_size = ctx->luma_size >> 1;
+			ctx->chroma_size = ctx->buf_c_width * ctx->buf_height;
 			ctx->chromaInterleave = 1;
 			break;
 		case V4L2_PIX_FMT_YUV420M:
 			ctx->buf_c_width = ctx->buf_y_width >> 1;
-			ctx->chroma_size = ctx->luma_size >> 2;
+			ctx->chroma_size = ctx->buf_c_width *
+				ALIGN(ctx->buf_height/2, 16);
 			ctx->chromaInterleave = 0;
 			break;
 		case V4L2_PIX_FMT_YUV422M:
 			ctx->buf_c_width = ctx->buf_y_width >> 1;
-			ctx->chroma_size = ctx->luma_size >> 1;
+			ctx->chroma_size = ctx->buf_c_width * ctx->buf_height;
 			ctx->chromaInterleave = 0;
 			break;
 		case V4L2_PIX_FMT_YUV444M:
