@@ -54,6 +54,7 @@ struct nx_vip {
 
 	bool clipper_enable;
 	bool decimator_enable;
+	char irq_name[12];
 };
 
 static struct nx_vip *_nx_vip_object[NUMBER_OF_VIP_MODULE];
@@ -434,7 +435,6 @@ static int nx_vip_probe(struct platform_device *pdev)
 {
 	int ret;
 	struct nx_vip *me;
-	char irq_names[12] = {0, };
 
 	me = devm_kzalloc(&pdev->dev, sizeof(*me), GFP_KERNEL);
 	if (!me) {
@@ -464,9 +464,9 @@ static int nx_vip_probe(struct platform_device *pdev)
 	nx_vip_clock_enable(me->module, true);
 	nx_vip_reset(me->module);
 
-	sprintf(irq_names, "nx-vip%d", me->module);
+	sprintf(me->irq_name, "nx-vip%d", me->module);
 	ret = devm_request_irq(&pdev->dev, me->irq, &vip_irq_handler,
-			       IRQF_SHARED, irq_names, me);
+			       IRQF_SHARED, me->irq_name, me);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to devm_request_irq for vip %d\n",
 			me->module);
