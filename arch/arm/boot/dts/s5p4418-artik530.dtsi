@@ -34,6 +34,9 @@
 			uart3:uart@c00ab000 { clock-frequency = <147500000>; };
 			uart4:uart@c006e000 { clock-frequency = <147500000>; };
 			uart5:uart@c0084000 { clock-frequency = <147500000>; };
+			spi0:spi@c00ac000  { clock-frequency = <100000000>; }
+			spi1:spi@c00ad000  { clock-frequency = <100000000>; }
+			spi2:spi@c00a7000  { clock-frequency = <100000000>; }
 		};
 
 		dw_mmc_2:dw_mmc@c0069000 {
