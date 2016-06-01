@@ -212,7 +212,7 @@ struct nx_vpu_buf {
 
 dma_addr_t nx_vpu_mem_plane_addr(struct nx_vpu_ctx *c, struct vb2_buffer *v,
 	unsigned int n);
-int nx_vpu_try_run(struct nx_vpu_v4l2 *dev);
+int nx_vpu_try_run(struct nx_vpu_ctx *ctx);
 
 struct nx_vpu_fmt *find_format(struct v4l2_format *f);
 

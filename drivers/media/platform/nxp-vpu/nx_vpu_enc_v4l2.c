@@ -486,7 +486,7 @@ static int vidioc_s_fmt(struct file *file, void *priv, struct v4l2_format *f)
 
 		ctx->strm_buf_size = pix_fmt_mp->plane_fmt[0].sizeimage;
 		pix_fmt_mp->plane_fmt[0].bytesperline = 0;
-		ret = nx_vpu_try_run(dev);
+		ret = nx_vpu_try_run(ctx);
 	} else if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		struct vpu_enc_ctx *enc_ctx = &ctx->codec.enc;
 
@@ -1033,7 +1033,7 @@ static int nx_vpu_enc_start_streaming(struct vb2_queue *q, unsigned int count)
 	FUNC_IN();
 
 	if (nx_vpu_enc_ctx_ready(ctx))
-		ret = nx_vpu_try_run(ctx->dev);
+		ret = nx_vpu_try_run(ctx);
 
 	return ret;
 }
@@ -1099,7 +1099,7 @@ static void nx_vpu_enc_buf_queue(struct vb2_buffer *vb)
 	spin_unlock_irqrestore(&dev->irqlock, flags);
 
 	if (nx_vpu_enc_ctx_ready(ctx))
-		nx_vpu_try_run(dev);
+		nx_vpu_try_run(ctx);
 }
 
 static struct vb2_ops nx_vpu_enc_qops = {

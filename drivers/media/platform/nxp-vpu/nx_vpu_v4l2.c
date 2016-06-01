@@ -60,53 +60,13 @@ dma_addr_t nx_vpu_mem_plane_addr(struct nx_vpu_ctx *c, struct vb2_buffer *v,
 #endif
 }
 
-#if 0
-/* TBD */
-static inline int nx_vpu_get_new_ctx(struct nx_vpu_v4l2 *dev)
+int nx_vpu_try_run(struct nx_vpu_ctx *ctx)
 {
-	int new_ctx;
-	int cnt;
-
-	FUNC_IN();
-
-	/* printk("curr_ctx = %d\n", dev->curr_ctx); */
-	new_ctx = (dev->curr_ctx + 1) % NX_MAX_VPU_INSTANCE;
-	cnt = 0;
-	while (!test_bit(new_ctx, &dev->ctx_work_bits)) {
-		new_ctx = (new_ctx + 1) % NX_MAX_VPU_INSTANCE;
-		if (++cnt > NX_MAX_VPU_INSTANCE) {
-			NX_ErrMsg(("new ctx error\n"));
-			return -EAGAIN;
-		}
-	}
-
-	return new_ctx;
-}
-#endif
-
-int nx_vpu_try_run(struct nx_vpu_v4l2 *dev)
-{
-	struct nx_vpu_ctx *ctx;
-	int new_ctx;
+	struct nx_vpu_v4l2 *dev = ctx->dev;
 	unsigned int ret = 0;
 	void *err = (void *)(&dev->plat_dev->dev);
 
 	FUNC_IN();
-
-	/* Choose the context to run */
-#if 0
-	/* TBD */
-	new_ctx = nx_vpu_get_new_ctx(dev);
-#else
-	new_ctx = dev->curr_ctx;
-#endif
-	if (new_ctx < 0) {
-		/* No contexts to run */
-		dev_err(err, "No ctx is scheduled to be run.\n");
-		return -1;
-	}
-
-	ctx = dev->ctx[new_ctx];
 
 	NX_DbgMsg(INFO_MSG, ("cmd = %x\n", ctx->vpu_cmd));
 
@@ -1017,7 +977,7 @@ static int nx_vpu_close(struct file *file)
 
 	if (ctx->is_initialized) {
 		ctx->vpu_cmd = SEQ_END;
-		nx_vpu_try_run(dev);
+		nx_vpu_try_run(ctx);
 
 		if (ctx->is_encoder)
 			free_encoder_memory(ctx);

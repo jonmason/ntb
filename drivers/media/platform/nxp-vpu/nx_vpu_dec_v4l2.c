@@ -246,7 +246,6 @@ static int vidioc_s_fmt_vid_cap_mplane(struct file *file, void *priv,
 static int vidioc_s_fmt_vid_out_mplane(struct file *file, void *priv,
 	struct v4l2_format *f)
 {
-	struct nx_vpu_v4l2 *dev = video_drvdata(file);
 	struct nx_vpu_ctx *ctx = fh_to_ctx(file->private_data);
 	int ret = 0;
 	struct v4l2_pix_format_mplane *pix_fmt_mp = &f->fmt.pix_mp;
@@ -270,7 +269,7 @@ static int vidioc_s_fmt_vid_out_mplane(struct file *file, void *priv,
 		ctx->strm_buf_size = pix_fmt_mp->plane_fmt[0].sizeimage;
 
 	ctx->vpu_cmd = GET_DEC_INSTANCE;
-	ret = nx_vpu_try_run(dev);
+	ret = nx_vpu_try_run(ctx);
 
 	return ret;
 }
@@ -506,7 +505,7 @@ static int nx_vpu_dec_start_streaming(struct vb2_queue *q, unsigned int count)
 
 	if ((dec_ctx->flush) || (nx_vpu_dec_ctx_ready(ctx))) {
 		dec_ctx->eos_tag = count;
-		ret = nx_vpu_try_run(ctx->dev);
+		ret = nx_vpu_try_run(ctx);
 	}
 
 	return ret;
@@ -522,7 +521,7 @@ static void nx_vpu_dec_stop_streaming(struct vb2_queue *q)
 
 	if (q->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		ctx->vpu_cmd = DEC_BUF_FLUSH;
-		nx_vpu_try_run(ctx->dev);
+		nx_vpu_try_run(ctx);
 
 		spin_lock_irqsave(&dev->irqlock, flags);
 
@@ -599,7 +598,7 @@ static void nx_vpu_dec_buf_queue(struct vb2_buffer *vb)
 	spin_unlock_irqrestore(&dev->irqlock, flags);
 
 	if (nx_vpu_dec_ctx_ready(ctx))
-		nx_vpu_try_run(dev);
+		nx_vpu_try_run(ctx);
 }
 
 static struct vb2_ops nx_vpu_dec_qops = {
