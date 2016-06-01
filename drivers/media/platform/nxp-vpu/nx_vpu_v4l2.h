@@ -129,6 +129,12 @@ struct vpu_dec_ctx {
 	int32_t thumbnailMode;
 };
 
+struct nx_vpu_fmt {
+	char *name;
+	unsigned int fourcc;
+	unsigned int num_planes;
+};
+
 struct nx_vpu_ctx {
 	struct nx_vpu_v4l2 *dev;
 	struct v4l2_fh fh;
@@ -171,7 +177,7 @@ struct nx_vpu_ctx {
 	unsigned long dst_ctrls_avail;
 #endif
 
-	struct nx_vpu_fmt *img_fmt;
+	struct nx_vpu_fmt img_fmt;
 	struct nx_vpu_fmt *strm_fmt;
 
 	struct vb2_queue vq_img;
@@ -187,12 +193,6 @@ struct nx_vpu_ctx {
 		struct vpu_enc_ctx enc;
 		struct vpu_dec_ctx dec;
 	} codec;
-};
-
-struct nx_vpu_fmt {
-	char *name;
-	unsigned int fourcc;
-	unsigned int num_planes;
 };
 
 struct nx_vpu_buf {

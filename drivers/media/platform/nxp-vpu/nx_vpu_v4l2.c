@@ -603,8 +603,8 @@ int nx_vpu_queue_setup(struct vb2_queue *vq,
 		int cnt = (ctx->is_encoder) ? (1) :
 			(ctx->codec.dec.frame_buffer_cnt);
 
-		if (ctx->img_fmt)
-			*plane_count = ctx->img_fmt->num_planes;
+		if (ctx->img_fmt.num_planes)
+			*plane_count = ctx->img_fmt.num_planes;
 		else
 			*plane_count = (ctx->chromaInterleave) ? (2) : (3);
 
@@ -660,7 +660,7 @@ int nx_vpu_buf_init(struct vb2_buffer *vb)
 	FUNC_IN();
 
 	if (vq->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-		ret = check_vb_with_fmt(ctx->img_fmt, vb);
+		ret = check_vb_with_fmt(&ctx->img_fmt, vb);
 		if (ret < 0)
 			return ret;
 
@@ -690,7 +690,7 @@ int nx_vpu_buf_prepare(struct vb2_buffer *vb)
 	FUNC_IN();
 
 	if (vq->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-		ret = check_vb_with_fmt(ctx->img_fmt, vb);
+		ret = check_vb_with_fmt(&ctx->img_fmt, vb);
 		if (ret < 0)
 			return ret;
 
@@ -702,7 +702,7 @@ int nx_vpu_buf_prepare(struct vb2_buffer *vb)
 			return -EINVAL;
 		}
 
-		if (ctx->img_fmt->num_planes > 1) {
+		if (ctx->img_fmt.num_planes > 1) {
 			NX_DbgMsg(INFO_MSG, ("plane size:%ld, chroma size:%d\n",
 				vb2_plane_size(vb, 1), ctx->chroma_size));
 

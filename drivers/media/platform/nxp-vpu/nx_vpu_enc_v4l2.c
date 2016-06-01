@@ -391,8 +391,8 @@ static int vidioc_g_fmt(struct file *file, void *priv, struct v4l2_format *f)
 		pix_fmt_mp->width = ctx->width;
 		pix_fmt_mp->height = ctx->height;
 		pix_fmt_mp->field = V4L2_FIELD_NONE;
-		pix_fmt_mp->pixelformat = ctx->img_fmt->fourcc;
-		pix_fmt_mp->num_planes = ctx->img_fmt->num_planes;
+		pix_fmt_mp->pixelformat = ctx->img_fmt.fourcc;
+		pix_fmt_mp->num_planes = ctx->img_fmt.num_planes;
 
 		pix_fmt_mp->plane_fmt[0].bytesperline = ctx->buf_y_width;
 		pix_fmt_mp->plane_fmt[0].sizeimage = ctx->luma_size;
@@ -496,9 +496,10 @@ static int vidioc_s_fmt(struct file *file, void *priv, struct v4l2_format *f)
 			return -EINVAL;
 		}
 
-		fmt->num_planes = f->fmt.pix_mp.num_planes;
+		ctx->img_fmt.name = fmt->name;
+		ctx->img_fmt.fourcc = fmt->fourcc;
+		ctx->img_fmt.num_planes = f->fmt.pix_mp.num_planes;
 
-		ctx->img_fmt = fmt;
 		ctx->width = pix_fmt_mp->width;
 		ctx->height = pix_fmt_mp->height;
 		enc_ctx->reconChromaInterleave = RECON_CHROMA_INTERLEAVE;
@@ -1306,7 +1307,7 @@ int vpu_enc_init(struct nx_vpu_ctx *ctx)
 		pSeqArg->frameRateDen = 1;
 		pSeqArg->gopSize = 1;
 
-		switch (ctx->img_fmt->fourcc) {
+		switch (ctx->img_fmt.fourcc) {
 		case V4L2_PIX_FMT_YUV420M:
 			pSeqArg->imgFormat = IMG_FORMAT_420;
 			pSeqArg->chromaInterleave = 0;
@@ -1478,14 +1479,14 @@ int vpu_enc_encode_frame(struct nx_vpu_ctx *ctx)
 	mb_entry = list_entry(ctx->img_queue.next, struct nx_vpu_buf, list);
 	mb_entry->used = 1;
 
-	for (i = 0 ; i < ctx->img_fmt->num_planes ; i++) {
+	for (i = 0 ; i < ctx->img_fmt.num_planes ; i++) {
 		pRunArg->inImgBuffer.phyAddr[i] = nx_vpu_mem_plane_addr(ctx,
 			&mb_entry->vb, i);
 		pRunArg->inImgBuffer.stride[i] = (i == 0) ?
 			(ctx->buf_y_width) : (ctx->buf_c_width);
 	}
 
-	if ((ctx->img_fmt->num_planes == 1) && (ctx->chroma_size > 0)) {
+	if ((ctx->img_fmt.num_planes == 1) && (ctx->chroma_size > 0)) {
 		pRunArg->inImgBuffer.phyAddr[1] = ctx->luma_size +
 			pRunArg->inImgBuffer.phyAddr[0];
 		if (ctx->chromaInterleave == 0)
