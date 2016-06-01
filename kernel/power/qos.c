@@ -122,12 +122,27 @@ static struct pm_qos_object memory_bandwidth_pm_qos = {
 };
 
 
+static BLOCKING_NOTIFIER_HEAD(bus_throughput_notifier);
+static struct pm_qos_constraints bus_tput_constraints = {
+	.list = PLIST_HEAD_INIT(bus_tput_constraints.list),
+	.target_value = PM_QOS_BUS_THROUGHPUT_DEFAULT_VALUE,
+	.default_value = PM_QOS_BUS_THROUGHPUT_DEFAULT_VALUE,
+	.type = PM_QOS_MAX,
+	.notifiers = &bus_throughput_notifier,
+};
+static struct pm_qos_object bus_throughput_pm_qos = {
+	.constraints = &bus_tput_constraints,
+	.name = "bus_throughput",
+};
+
+
 static struct pm_qos_object *pm_qos_array[] = {
 	&null_pm_qos,
 	&cpu_dma_pm_qos,
 	&network_lat_pm_qos,
 	&network_throughput_pm_qos,
 	&memory_bandwidth_pm_qos,
+	&bus_throughput_pm_qos,
 };
 
 static ssize_t pm_qos_power_write(struct file *filp, const char __user *buf,
