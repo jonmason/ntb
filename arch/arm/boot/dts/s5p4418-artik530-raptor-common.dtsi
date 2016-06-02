@@ -42,6 +42,7 @@
 	aliases {
 		i2c0 = &i2c_gpio0;
 		i2c3 = &i2c_gpio3;
+		i2c4 = &i2c_gpio4;
 		i2c6 = &i2c_gpio6;
 		i2c7 = &i2c_gpio7;
 	};
@@ -276,6 +277,29 @@
 					1, 1, 0xF) };
 		}; /* regulators */
 	};	/*** soc ***/
+
+	i2c_gpio4: i2c@4 {
+		compatible = "i2c-gpio";
+		gpios = <&gpio_d 31 0	/* SDA */
+			&gpio_e 3 0	/* SCL */
+			>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		i2c-gpio,delay-us = <100>;
+		status = "okay";
+
+		rtc@68 {
+			compatible = "maxim,ds1337";
+			reg = <0x68>;
+			interrupt-parent = <&alive_0>;
+			interrupts = <0x2 IRQ_TYPE_EDGE_FALLING>;
+			/* If it's first boot, reset to 4/29/2016(Fri) UTC */
+			init_time,year = <116>;
+			init_time,mon = <3>;
+			init_time,mday = <29>;
+			init_time,wday = <5>;
+		};
+	};
 
 	i2c_gpio6:i2c@6 {
 		compatible = "i2c-gpio";
