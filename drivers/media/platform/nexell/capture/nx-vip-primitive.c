@@ -429,6 +429,7 @@ void nx_vip_set_hvsync(u32 module_index, int b_ext_sync, u32 avw, u32 avh,
 void nx_vip_set_hvsync_for_mipi(u32 module_index, u32 avw, u32 avh, u32 hsw,
 				u32 hfp, u32 hbp, u32 vsw, u32 vfp, u32 vbp)
 {
+#ifdef CONFIG_ARCH_S5P6818
 	int b_ext_sync = true;
 	int b_ext_dvalid = true;
 	int bypass_ext_dvalid = true;
@@ -438,6 +439,30 @@ void nx_vip_set_hvsync_for_mipi(u32 module_index, u32 avw, u32 avh, u32 hsw,
 			avh, hsw, hfp, 0, vsw, vfp, 0);
 	nx_vip_set_dvalid_mode(module_index, b_ext_dvalid, bypass_ext_dvalid,
 			       bypass_ext_sync);
+#else
+	const u32 drange = 1ul << 9;
+	const u32 extsyncenb = 1ul << 8;
+	register u32 temp;
+	register struct nx_vip_register_set *p_register;
+
+	p_register = __g_p_register[module_index];
+
+	temp = p_register->vip_config;
+	temp &= ~drange;
+	temp &= ~extsyncenb;
+	writel(temp, &p_register->vip_config);
+
+	temp = p_register->vip_syncctrl;
+	temp |= 0x300;
+	writel(temp, &p_register->vip_syncctrl);
+
+	writel(avw >> 1, &p_register->vip_imgwidth);
+	writel(avh, &p_register->vip_imgheight);
+	writel(vfp + 1, &p_register->vip_vbegin);
+	writel(vfp + vsw + 1, &p_register->vip_vend);
+	writel(hfp - 7, &p_register->vip_hbegin);
+	writel(hfp + hsw - 7, &p_register->vip_hend);
+#endif
 }
 
 void nx_vip_get_hvsync(u32 module_index, int *p_ext_sync, u32 *pavw, u32 *pavh,
@@ -708,7 +733,17 @@ void nx_vip_set_clipper_format(u32 module_index, u32 format)
 	register struct nx_vip_register_set *p_register;
 
 	p_register = __g_p_register[module_index];
+#ifdef CONFIG_ARCH_S5P4418
+	if (format == nx_vip_format_yuyv)
+		writel(1, &p_register->clip_yuyvenb);
+	else
+		writel(0, &p_register->clip_yuyvenb);
+#endif
 	writel((u16)format, &p_register->clip_format);
+
+#ifdef CONFIG_ARCH_S5P4418
+	writel(0, &p_register->clip_rotflip);
+#endif
 }
 
 void nx_vip_get_clipper_format(u32 module_index, u32 *p_format)
@@ -741,6 +776,7 @@ void nx_vip_set_clipper_addr(u32 module_index, u32 format, u32 width,
 			     u32 height, u32 lu_addr, u32 cb_addr, u32 cr_addr,
 			     u32 stride_y, u32 stride_cb_cr)
 {
+#ifdef CONFIG_ARCH_S5P6818
 	register struct nx_vip_register_set *p_register;
 
 	p_register = __g_p_register[module_index];
@@ -750,27 +786,119 @@ void nx_vip_set_clipper_addr(u32 module_index, u32 format, u32 width,
 	writel(stride_cb_cr, &p_register->clip_crstride);
 	writel(cb_addr, &p_register->clip_cbaddr);
 	writel(stride_cb_cr, &p_register->clip_cbstride);
+#else
+	register struct nx_vip_register_set *p_register;
+	register u32 segment, left, top;
+
+	p_register = __g_p_register[module_index];
+	segment = lu_addr >> 30;
+	left = lu_addr & 0x00007fff;
+	top = (lu_addr & 0x3fff8000) >> 15;
+
+	writel(segment, &p_register->clip_luseg);
+	writel(left, &p_register->clip_luleft);
+	writel(left + width, &p_register->clip_luright);
+	writel(top, &p_register->clip_lutop);
+	writel(top + height, &p_register->clip_lubottom);
+
+	if (format == nx_vip_format_420) {
+		width >>= 1;
+		height >>= 1;
+	} else if (format == nx_vip_format_422) {
+		width >>= 1;
+	}
+
+	segment = cb_addr >> 30;
+	left = cb_addr & 0x00007fff;
+	top = (cb_addr & 0x3fff8000) >> 15;
+
+	writel(segment, &p_register->clip_cbseg);
+	writel(left, &p_register->clip_cbleft);
+	writel(left + width, &p_register->clip_cbright);
+	writel(top, &p_register->clip_cbtop);
+	writel(top + height, &p_register->clip_cbbottom);
+
+	segment = cr_addr >> 30;
+	left = cr_addr & 0x00007fff;
+	top = (cr_addr & 0x3fff8000) >> 15;
+
+	writel(segment, &p_register->clip_crseg);
+	writel(left, &p_register->clip_crleft);
+	writel(left + width, &p_register->clip_crright);
+	writel(top, &p_register->clip_crtop);
+	writel(top + height, &p_register->clip_crbottom);
+
+	writel(stride_y, &p_register->clip_strideh);
+	writel(stride_cb_cr, &p_register->clip_stridel);
+#endif
 }
 
-void nx_vip_set_decimator_addr(u32 module_index, u32 nx_vip_format,
+void nx_vip_set_decimator_addr(u32 module_index, u32 format,
 			       u32 width, u32 height, u32 lu_addr, u32 cb_addr,
-			       u32 cr_addr, u32 ystride, u32 cbcrstride)
+			       u32 cr_addr, u32 stride_y, u32 stride_cb_cr)
 {
+#ifdef CONFIG_ARCH_S5P6818
 	register struct nx_vip_register_set *p_register;
 
 	p_register = __g_p_register[module_index];
 	writel(lu_addr, &p_register->deci_luaddr);
-	writel(ystride, &p_register->deci_lustride);
-	if (nx_vip_format_420 == nx_vip_format) {
+	writel(stride_y, &p_register->deci_lustride);
+	if (format == nx_vip_format_420) {
 		width >>= 1;
 		height >>= 1;
-	} else if (nx_vip_format_422 == nx_vip_format) {
+	} else if (format == nx_vip_format_422) {
 		width >>= 1;
 	}
 	writel(cr_addr, &p_register->deci_craddr);
-	writel(cbcrstride, &p_register->deci_crstride);
+	writel(stride_cb_cr, &p_register->deci_crstride);
 	writel(cb_addr, &p_register->deci_cbaddr);
-	writel(cbcrstride, &p_register->deci_cbstride);
+	writel(stride_cb_cr, &p_register->deci_cbstride);
+#else
+	register struct nx_vip_register_set *p_register;
+	register u32 segment, left, top;
+
+	p_register = __g_p_register[module_index];
+
+	segment = lu_addr >> 30;
+	left = lu_addr & 0x00007fff;
+	top = (lu_addr & 0x3fff8000) >> 15;
+
+	writel(segment, &p_register->deci_luseg);
+	writel(left, &p_register->deci_luleft);
+	writel(left + width, &p_register->deci_luright);
+	writel(top, &p_register->deci_lutop);
+	writel(top + height, &p_register->deci_lubottom);
+
+	if (format == nx_vip_format_420) {
+		width >>= 1;
+		height >>= 1;
+	} else if (format == nx_vip_format_422) {
+		width >>= 1;
+	}
+
+	segment = cb_addr >> 30;
+	left = cb_addr & 0x00007fff;
+	top = (cb_addr & 0x3fff8000) >> 15;
+
+	writel(segment, &p_register->deci_cbseg);
+	writel(left, &p_register->deci_cbleft);
+	writel(left + width, &p_register->deci_cbright);
+	writel(top, &p_register->deci_cbtop);
+	writel(top + height, &p_register->deci_cbbottom);
+
+	segment = cr_addr >> 30;
+	left = cr_addr & 0x00007fff;
+	top = (cr_addr & 0x3fff8000) >> 15;
+
+	writel(segment, &p_register->deci_crseg);
+	writel(left, &p_register->deci_crleft);
+	writel(left + width, &p_register->deci_crright);
+	writel(top, &p_register->deci_crtop);
+	writel(top + height, &p_register->deci_crbottom);
+
+	writel(stride_y, &p_register->clip_strideh);
+	writel(stride_cb_cr, &p_register->clip_stridel);
+#endif
 }
 
 int nx_vip_smoke_test(u32 module_index)
@@ -806,6 +934,7 @@ void nx_vip_dump_register(u32 module)
 		(struct nx_vip_register_set *)nx_vip_get_base_address(module);
 
 	pr_info("DUMP VIP %d Registers\n", module);
+#ifdef CONFIG_ARCH_S5P6818
 	pr_info(" VIP_CONFIG     = 0x%04x\r\n", p_reg->vip_config);
 	pr_info(" VIP_HVINT      = 0x%04x\r\n", p_reg->vip_hvint);
 	pr_info(" VIP_SYNCCTRL   = 0x%04x\r\n", p_reg->vip_syncctrl);
@@ -849,4 +978,72 @@ void nx_vip_dump_register(u32 module)
 	pr_info(" CLIP_CBSTRIDE  = 0x%04x\r\n", p_reg->clip_cbstride);
 	pr_info(" VIP_SCANMODE   = 0x%04x\r\n", p_reg->vip_scanmode);
 	pr_info(" VIP_VIP1       = 0x%04x\r\n", p_reg->vip_vip1);
+#else
+	pr_info(" VIP_CONFIG	 = 0x%04x\r\n", p_reg->vip_config);
+	pr_info(" VIP_INTCTRL	 = 0x%04x\r\n", p_reg->vip_hvint);
+	pr_info(" VIP_SYNCCTRL	 = 0x%04x\r\n", p_reg->vip_syncctrl);
+	pr_info(" VIP_SYNCMON	 = 0x%04x\r\n", p_reg->vip_syncmon);
+	pr_info(" VIP_VBEGIN	 = 0x%04x\r\n", p_reg->vip_vbegin);
+	pr_info(" VIP_VEND	 = 0x%04x\r\n", p_reg->vip_vend);
+	pr_info(" VIP_HBEGIN	 = 0x%04x\r\n", p_reg->vip_hbegin);
+	pr_info(" VIP_HEND	 = 0x%04x\r\n", p_reg->vip_hend);
+	pr_info(" VIP_FIFOCTRL	 = 0x%04x\r\n", p_reg->vip_fifoctrl);
+	pr_info(" VIP_HCOUNT	 = 0x%04x\r\n", p_reg->vip_hcount);
+	pr_info(" VIP_VCOUNT	 = 0x%04x\r\n", p_reg->vip_vcount);
+	pr_info(" VIP_CDENB	 = 0x%04x\r\n", p_reg->vip_cdenb);
+	pr_info(" VIP_ODINT	 = 0x%04x\r\n", p_reg->vip_odint);
+	pr_info(" VIP_IMGWIDTH	 = 0x%04x\r\n", p_reg->vip_imgwidth);
+	pr_info(" VIP_IMGHEIGHT	 = 0x%04x\r\n", p_reg->vip_imgheight);
+	pr_info(" CLIP_LEFT	 = 0x%04x\r\n", p_reg->clip_left);
+	pr_info(" CLIP_RIGHT	 = 0x%04x\r\n", p_reg->clip_right);
+	pr_info(" CLIP_TOP	 = 0x%04x\r\n", p_reg->clip_top);
+	pr_info(" CLIP_BOTTOM	 = 0x%04x\r\n", p_reg->clip_bottom);
+	pr_info(" DECI_TARGETW	 = 0x%04x\r\n", p_reg->deci_targetw);
+	pr_info(" DECI_TARGETH	 = 0x%04x\r\n", p_reg->deci_targeth);
+	pr_info(" DECI_DELTAW	 = 0x%04x\r\n", p_reg->deci_deltaw);
+	pr_info(" DECI_DELTAH	 = 0x%04x\r\n", p_reg->deci_deltah);
+	pr_info(" DECI_CLEARW	 = 0x%04x\r\n", p_reg->deci_clearw);
+	pr_info(" DECI_CLEARH	 = 0x%04x\r\n", p_reg->deci_clearh);
+	pr_info(" DECI_LUSEG	 = 0x%04x\r\n", p_reg->deci_luseg);
+	pr_info(" DECI_CRSEG	 = 0x%04x\r\n", p_reg->deci_crseg);
+	pr_info(" DECI_CBSEG	 = 0x%04x\r\n", p_reg->deci_cbseg);
+	pr_info(" DECI_FORMAT	 = 0x%04x\r\n", p_reg->deci_format);
+	pr_info(" DECI_ROTFLIP	 = 0x%04x\r\n", p_reg->deci_rotflip);
+	pr_info(" DECI_LULEFT	 = 0x%04x\r\n", p_reg->deci_luleft);
+	pr_info(" DECI_CRLEFT	 = 0x%04x\r\n", p_reg->deci_crleft);
+	pr_info(" DECI_CBLEFT	 = 0x%04x\r\n", p_reg->deci_cbleft);
+	pr_info(" DECI_LURIGHT	 = 0x%04x\r\n", p_reg->deci_luright);
+	pr_info(" DECI_CRRIGHT	 = 0x%04x\r\n", p_reg->deci_crright);
+	pr_info(" DECI_CBRIGHT	 = 0x%04x\r\n", p_reg->deci_cbright);
+	pr_info(" DECI_LUTOP	 = 0x%04x\r\n", p_reg->deci_lutop);
+	pr_info(" DECI_CRTOP	 = 0x%04x\r\n", p_reg->deci_crtop);
+	pr_info(" DECI_CBTOP	 = 0x%04x\r\n", p_reg->deci_cbtop);
+	pr_info(" DECI_LUBOTTOM	 = 0x%04x\r\n", p_reg->deci_lubottom);
+	pr_info(" DECI_CRBOTTOM	 = 0x%04x\r\n", p_reg->deci_crbottom);
+	pr_info(" DECI_CBBOTTOM	 = 0x%04x\r\n", p_reg->deci_cbbottom);
+	pr_info(" CLIP_LUSEG	 = 0x%04x\r\n", p_reg->clip_luseg);
+	pr_info(" CLIP_CRSEG	 = 0x%04x\r\n", p_reg->clip_crseg);
+	pr_info(" CLIP_CBSEG	 = 0x%04x\r\n", p_reg->clip_cbseg);
+	pr_info(" CLIP_FORMAT	 = 0x%04x\r\n", p_reg->clip_format);
+	pr_info(" CLIP_ROTFLIP	 = 0x%04x\r\n", p_reg->clip_rotflip);
+	pr_info(" CLIP_LULEFT	 = 0x%04x\r\n", p_reg->clip_luleft);
+	pr_info(" CLIP_CRLEFT	 = 0x%04x\r\n", p_reg->clip_crleft);
+	pr_info(" CLIP_CBLEFT	 = 0x%04x\r\n", p_reg->clip_cbleft);
+	pr_info(" CLIP_LURIGHT	 = 0x%04x\r\n", p_reg->clip_luright);
+	pr_info(" CLIP_CRRIGHT	 = 0x%04x\r\n", p_reg->clip_crright);
+	pr_info(" CLIP_CBRIGHT	 = 0x%04x\r\n", p_reg->clip_cbright);
+	pr_info(" CLIP_LUTOP	 = 0x%04x\r\n", p_reg->clip_lutop);
+	pr_info(" CLIP_CRTOP	 = 0x%04x\r\n", p_reg->clip_crtop);
+	pr_info(" CLIP_CBTOP	 = 0x%04x\r\n", p_reg->clip_cbtop);
+	pr_info(" CLIP_LUBOTTOM	 = 0x%04x\r\n", p_reg->clip_lubottom);
+	pr_info(" CLIP_CRBOTTOM	 = 0x%04x\r\n", p_reg->clip_crbottom);
+	pr_info(" CLIP_CBBOTTOM	 = 0x%04x\r\n", p_reg->clip_cbbottom);
+	pr_info(" VIP_SCANMODE	 = 0x%04x\r\n", p_reg->vip_scanmode);
+	pr_info(" CLIP_YUYVENB	 = 0x%04x\r\n", p_reg->clip_yuyvenb);
+	pr_info(" CLIP_BASEADDRH = 0x%04x\r\n", p_reg->clip_baseaddrh);
+	pr_info(" CLIP_BASEADDRL = 0x%04x\r\n", p_reg->clip_baseaddrl);
+	pr_info(" CLIP_STRIDEH = 0x%04x\r\n", p_reg->clip_strideh);
+	pr_info(" CLIP_STRIDEL = 0x%04x\r\n", p_reg->clip_stridel);
+	pr_info(" VIP_VIP1 = 0x%04x\r\n", p_reg->vip_vip1);
+#endif
 }

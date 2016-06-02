@@ -1,7 +1,7 @@
 config VIDEO_NEXELL
 	bool "Nexell S5Pxx18 SoC series V4l2 Subsystem driver"
 	depends on VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
-	depends on ARCH_S5P6818 || COMPILE_TEST
+	depends on ARCH_S5P6818 || ARCH_S5P4418 || COMPILE_TEST
 	depends on OF && COMMON_CLK
 	depends on RESET_CONTROLLER
 	select VIDEOBUF2_DMA_CONTIG

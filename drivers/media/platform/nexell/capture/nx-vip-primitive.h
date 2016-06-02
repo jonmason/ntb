@@ -22,6 +22,7 @@
 #define NUMBER_OF_VIP_MODULE	3
 
 struct nx_vip_register_set {
+#ifdef CONFIG_ARCH_S5P6818
 	u32 vip_config;
 	u32 vip_hvint;
 	u32 vip_syncctrl;
@@ -91,6 +92,75 @@ struct nx_vip_register_set {
 	u32 __reserved24;
 	u32 __reserved25;
 	u32 vip_vip1;
+#else
+	u32 vip_config;
+	u32 vip_hvint;
+	u32 vip_syncctrl;
+	u32 vip_syncmon;
+	u32 vip_vbegin;
+	u32 vip_vend;
+	u32 vip_hbegin;
+	u32 vip_hend;
+	u32 vip_fifoctrl;
+	u32 vip_hcount;
+	u32 vip_vcount;
+	u8  __reserved00[0x200-0x2c];
+	u32 vip_cdenb;
+	u32 vip_odint;
+	u32 vip_imgwidth;
+	u32 vip_imgheight;
+	u32 clip_left;
+	u32 clip_right;
+	u32 clip_top;
+	u32 clip_bottom;
+	u32 deci_targetw;
+	u32 deci_targeth;
+	u32 deci_deltaw;
+	u32 deci_deltah;
+	int32_t deci_clearw;
+	int32_t deci_clearh;
+	u32 deci_luseg;
+	u32 deci_crseg;
+	u32 deci_cbseg;
+	u32 deci_format;
+	u32 deci_rotflip;
+	u32 deci_luleft;
+	u32 deci_crleft;
+	u32 deci_cbleft;
+	u32 deci_luright;
+	u32 deci_crright;
+	u32 deci_cbright;
+	u32 deci_lutop;
+	u32 deci_crtop;
+	u32 deci_cbtop;
+	u32 deci_lubottom;
+	u32 deci_crbottom;
+	u32 deci_cbbottom;
+	u32 clip_luseg;
+	u32 clip_crseg;
+	u32 clip_cbseg;
+	u32 clip_format;
+	u32 clip_rotflip;
+	u32 clip_luleft;
+	u32 clip_crleft;
+	u32 clip_cbleft;
+	u32 clip_luright;
+	u32 clip_crright;
+	u32 clip_cbright;
+	u32 clip_lutop;
+	u32 clip_crtop;
+	u32 clip_cbtop;
+	u32 clip_lubottom;
+	u32 clip_crbottom;
+	u32 clip_cbbottom;
+	u32 vip_scanmode;
+	u32 clip_yuyvenb;
+	u32 clip_baseaddrh;
+	u32 clip_baseaddrl;
+	u32 clip_strideh;
+	u32 clip_stridel;
+	u32 vip_vip1;
+#endif
 };
 
 enum {

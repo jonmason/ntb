@@ -37,7 +37,6 @@ struct nx_v4l2_irq_entry {
 };
 
 /* macro functions for atomic operations */
-#ifdef CONFIG_ARM64
 #define NX_ATOMIC_SET(V, I) atomic_set(V, I)
 #define NX_ATOMIC_SET_MASK(MASK, PTR)  \
 	do { \
@@ -54,20 +53,6 @@ struct nx_v4l2_irq_entry {
 #define NX_ATOMIC_READ(PTR)    atomic_read(PTR)
 #define NX_ATOMIC_INC(PTR)     atomic_inc(PTR)
 #define NX_ATOMIC_DEC(PTR)     atomic_dec(PTR)
-#else
-#define NX_ATOMIC_SET(V, I) atomic_set(V, I)
-#define NX_ATOMIC_SET_MASK(MASK, PTR)  \
-	do { \
-		unsigned long oldval = atomic_read(PTR); \
-		unsigned long newval = oldval | MASK; \
-		atomic_cmpxchg(PTR, oldval, newval); \
-	} while (0)
-#define NX_ATOMIC_CLEAR_MASK(MASK, PTR) \
-	atomic_clear_mask(MASK, (unsigned long *)&((PTR)->counter))
-#define NX_ATOMIC_READ(PTR)    atomic_read(PTR)
-#define NX_ATOMIC_INC(PTR)     atomic_inc(PTR)
-#define NX_ATOMIC_DEC(PTR)     atomic_dec(PTR)
-#endif
 
 struct media_device *nx_v4l2_get_media_device(void);
 struct v4l2_device  *nx_v4l2_get_v4l2_device(void);

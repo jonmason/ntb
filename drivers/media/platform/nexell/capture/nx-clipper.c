@@ -521,6 +521,15 @@ static int nx_clipper_parse_dt(struct device *dev, struct nx_clipper *me)
 			return -EINVAL;
 		}
 		me->port = 1;
+#ifdef CONFIG_ARCH_S5P4418
+		me->h_frontporch = 8;
+		me->h_syncwidth = 7;
+		me->h_backporch = 7;
+		me->v_frontporch = 1;
+		me->v_syncwidth = 8;
+		me->v_backporch = 1;
+		me->clock_invert = 0;
+#else
 		me->h_frontporch = 4;
 		me->h_syncwidth = 4;
 		me->h_backporch = 4;
@@ -528,6 +537,7 @@ static int nx_clipper_parse_dt(struct device *dev, struct nx_clipper *me)
 		me->v_syncwidth = 1;
 		me->v_backporch = 1;
 		me->clock_invert = 0;
+#endif
 		me->bus_fmt = NX_VIN_CBY0CRY1;
 		me->interlace = 0;
 	} else {
