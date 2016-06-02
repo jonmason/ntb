@@ -22,6 +22,7 @@
 #include <dt-bindings/soc/s5p4418-base.h>
 #include <dt-bindings/reset/nexell,s5p4418-reset.h>
 #include <dt-bindings/interrupt-controller/s5p4418-irq.h>
+#include <dt-bindings/media/nexell-vip.h>
 
 / {
 	model = "nexell soc";
@@ -577,6 +578,59 @@
 			clock-names = "SSPCLK", "apb_pclk";
 			pinctrl-names = "default";
 			pinctrl-0 = <&spi2_bus>;
+			status = "disabled";
+		};
+
+		mipi_csi:mipi_csi@c00d0000 {
+			compatible = "nexell,mipi_csi";
+			reg = <PHYS_BASE_MIPI 0x1000>;
+			clock-names = "mipi";
+			clocks = <&mipi>;
+			reset-names = "mipi-reset", "mipi_csi-reset", "mipi_phy_s-reset";
+			resets = <&nexell_reset RESET_ID_MIPI>,
+				<&nexell_reset RESET_ID_MIPI_CSI>,
+				<&nexell_reset RESET_ID_MIPI_PHY_S>;
+			soc,tieoff = <NX_TIEOFF_MIPI0_NX_DPSRAM_1R1W_EMAA 3>;
+			data_lane = <2>;
+			swap_clocklane = <0>;
+			swap_datalane = <0>;
+			pllval = <750>;
+			status = "disabled";
+		};
+
+		vip_0:vip@c0063000 {
+			compatible = "nexell,vip";
+			reg = <PHYS_BASE_VIP0 0x1000>;
+			interrupts = <IRQ_VIP0>;
+			clock-names = "vip0";
+			clocks = <&vip0>;
+			reset-names = "vip0-reset";
+			resets = <&nexell_reset RESET_ID_VIP0>;
+			module = <0>;
+			status = "disabled";
+		};
+
+		vip_1:vip@c0064000 {
+			compatible = "nexell,vip";
+			reg = <PHYS_BASE_VIP1 0x1000>;
+			interrupts = <IRQ_VIP1>;
+			clock-names = "vip1";
+			clocks = <&vip1>;
+			reset-names = "vip1-reset";
+			resets = <&nexell_reset RESET_ID_VIP1>;
+			module = <1>;
+			status = "disabled";
+		};
+
+		clipper_0:clipper0@c0063000 {
+			compatible = "nexell,nx-clipper";
+			module = <0>;
+			status = "disabled";
+		};
+
+		clipper_1:clipper1@c0064000 {
+			compatible = "nexell,nx-clipper";
+			module = <1>;
 			status = "disabled";
 		};
 
