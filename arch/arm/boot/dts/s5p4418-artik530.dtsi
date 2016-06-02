@@ -61,4 +61,54 @@
 		reset-gpio = <&gpio_c 8 0>;
 		status = "okay";
 	};
+
+	sd8x-rfkill {
+		 compatible = "mrvl,sd8x-rfkill";
+		 sd-host = <&dw_mmc_1>;
+		 pd-gpio = <&gpio_d 30 0>; /* GPIOD30=WLAN_BT_PDN output*/
+		 status = "okay";
+	};
+
+	sd8xxx-wlan {
+		 drvdbg  = <0x37>;
+		 drv_mode = <0x5>;
+		 cfg80211_wext = <0xf>;
+		 sta_name = "wlan";
+		 wfd_name = "p2p";
+		 max_vir_bss = <1>;
+		 cal_data_cfg = "mrvl/WlanCalData_ext.conf";
+		 fw_name = "mrvl/sdsd8977_combo_v2.bin";
+		 reg_alpha2 = "US";
+		 p2p_enh = <1>;
+	};
+
+	sd8xxx-bt {
+		 init_cfg = "mrvl/bt_init_cfg.conf";
+		 cal_cfg = "mrvl/bt_cal_data.conf";
+	};
+};
+
+&dw_mmc_1 {
+	status = "okay";
+	num-slots = <1>;
+	cap-sd-highspeed;
+	broken-cd;
+	cap-sdio-irq;
+	enable-sdio-wakeup;
+	clock-frequency = <10000000>;
+	supports-detect-complete;
+
+	nexell,drive_dly = <0x0>;
+	nexell,drive_shift = <0x2>;
+	nexell,sample_dly = <0x00>;
+	nexell,sample_shift = <0x01>;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdmmc1_cclk &sdmmc1_cmd &sdmmc1_bus4>;
+
+	slot@0 {
+		reg = <0>;
+		bus-width = <4>;
+		disable-wp;
+	};
 };
