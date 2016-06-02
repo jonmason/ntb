@@ -105,6 +105,7 @@ struct idmac_desc {
 static bool dw_mci_reset(struct dw_mci *host);
 static bool dw_mci_ctrl_reset(struct dw_mci *host, u32 reset);
 static int dw_mci_card_busy(struct mmc_host *mmc);
+static void dw_mci_parse_custom_dt(struct dw_mci *host, unsigned int id);
 
 #if defined(CONFIG_DEBUG_FS)
 static int dw_mci_req_show(struct seq_file *s, void *v)
@@ -2633,6 +2634,7 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
 	else
 		clear_bit(DW_MMC_CARD_PRESENT, &slot->flags);
 
+	dw_mci_parse_custom_dt(host, id);
 	ret = mmc_add_host(mmc);
 	if (ret)
 		goto err_host_allocated;
@@ -2977,10 +2979,29 @@ static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 	return pdata;
 }
 
+static void dw_mci_parse_custom_dt(struct dw_mci *host, unsigned int id)
+{
+	struct device *dev = host->dev;
+	struct device_node *np = dev->of_node;
+
+	if (of_find_property(np, "supports-detect-complete", NULL)) {
+		 struct dw_mci_slot *slot = host->slot[id];
+		 if (!slot)
+			  return;
+		 slot->mmc->supports_detect_complete = true;
+		 dev_info(dev, "%s: supports detect complete\n",
+				   mmc_hostname(slot->mmc));
+	}
+}
 #else /* CONFIG_OF */
 static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 {
 	return ERR_PTR(-EINVAL);
+}
+
+static void dw_mci_parse_custom_dt(struct dw_mci *host, unsigned int id)
+{
+	return;
 }
 #endif /* CONFIG_OF */
 
