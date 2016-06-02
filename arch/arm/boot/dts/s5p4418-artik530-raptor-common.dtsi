@@ -40,12 +40,21 @@
 		   "nexell,s5p4418";
 
 	aliases {
+		i2c0 = &i2c_gpio0;
 		i2c3 = &i2c_gpio3;
 		i2c6 = &i2c_gpio6;
 		i2c7 = &i2c_gpio7;
 	};
 
+	nx-v4l2 {
+		status = "okay";
+	};
+
 	soc {
+
+		clocks {
+			vip0:vip@c00c1000 { clock-frequency = <300000000>;};
+		};
 
 		serial3:serial@c00a3000 {
 			status ="okay";
@@ -174,6 +183,16 @@
 			status = "okay";
 		};
 
+		i2c_gpio0:i2c@0 {
+			compatible = "i2c-gpio";
+			gpios = <&gpio_d 3 1 /* sda */
+				&gpio_d 2 1 /* scl */
+				>;
+			i2c-gpio,delay-us = <10>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
 		i2c_gpio3: i2c@3 {
 			compatible = "i2c-gpio";
 			gpios = <&gpio_c 16 0	/* SDA */
@@ -188,6 +207,38 @@
 				reg = <0x33>;
 				interrupt-parent = <&alive_0>;
 				interrupts = <0x5 IRQ_TYPE_EDGE_FALLING>;
+			};
+		};
+
+		vip_0:vip@c0063000 {
+			status = "okay";
+		};
+
+		mipi_csi:mipi_csi@c00d0000 {
+			data_lane = <2>;
+			pllval = <750>;
+			hssettle = <7>;
+			/* hssettle = <6>; */
+			status = "okay";
+		};
+
+		clipper_0:clipper0@c0063000 {
+			interface_type = <NX_CAPTURE_INTERFACE_MIPI_CSI>;
+			gpios = <&gpio_a 17 0 &gpio_a 3 0 &gpio_a 6 0>;
+			data_order = <NX_VIN_Y0CBY1CR>;
+			status = "okay";
+			sensor {
+				type = <NX_CAPTURE_SENSOR_I2C>;
+				i2c_name = "S5K4ECGA";
+				i2c_adapter = <0>;
+				addr = <0x56>;
+			};
+			power {
+				enable_seq = <
+					NX_ACTION_START NX_ACTION_TYPE_GPIO 2 1 2 NX_ACTION_END
+					NX_ACTION_START NX_ACTION_TYPE_GPIO 1 1 1 NX_ACTION_END
+					NX_ACTION_START NX_ACTION_TYPE_GPIO 0 1 1 NX_ACTION_END
+					>;
 			};
 		};
 
