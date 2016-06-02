@@ -1047,8 +1047,6 @@ static void nx_vpu_enc_stop_streaming(struct vb2_queue *q)
 
 	FUNC_IN();
 
-	ctx->vpu_cmd = SEQ_END;
-
 	spin_lock_irqsave(&dev->irqlock, flags);
 
 	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {

@@ -155,6 +155,7 @@ int nx_vpu_try_run(struct nx_vpu_ctx *ctx)
 			if (ret != 0)
 				dev_err(err, "dec_flush() is failed\n");
 		}
+		ctx->vpu_cmd = DEC_RUN;
 		break;
 
 	case SEQ_END:
