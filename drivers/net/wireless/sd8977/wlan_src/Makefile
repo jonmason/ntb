@@ -210,9 +210,15 @@ ifeq ($(CONFIG_T50), y)
 endif
 
 ifeq ($(CONFIG_SAMSUNG_SUPPORT), y)
+ifneq ($(CONFIG_ARCH_S5P4418),)
+	EXTRA_CFLAGS += -DCSA_MAC_FILE_PATH=\"/etc/wifi/.mac.info\"
+	EXTRA_CFLAGS += -DOPT_MAC_FILE_PATH=\"/etc/wifi/.mac.info\"
+	EXTRA_CFLAGS += -DPSM_FILE_PATH=\"/etc/wifi/.psm.info\"
+else
 	EXTRA_CFLAGS += -DCSA_MAC_FILE_PATH=\"/csa/.mac.info\"
 	EXTRA_CFLAGS += -DOPT_MAC_FILE_PATH=\"/opt/etc/.mac.info\"
 	EXTRA_CFLAGS += -DPSM_FILE_PATH=\"/opt/etc/.psm.info\"
+endif
 endif
 
 # add -Wno-packed-bitfield-compat when GCC version greater than 4.4
