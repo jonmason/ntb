@@ -42,9 +42,11 @@
 	aliases {
 		i2c3 = &i2c_gpio3;
 		i2c6 = &i2c_gpio6;
+		i2c7 = &i2c_gpio7;
 	};
 
 	soc {
+
 		serial3:serial@c00a3000 {
 			status ="okay";
 		};
@@ -274,6 +276,16 @@
 		};
 	};
 
+	i2c_gpio7:i2c@7 {
+		compatible = "i2c-gpio";
+		gpios = <&gpio_a 24 0 /* sda */
+			&gpio_a 23 0 /* scl */
+			>;
+		i2c-gpio,delay-us = <100>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+
 	sound {
 		compatible = "nexell,nexell-alc5658";
 		ch = <0>;
@@ -358,4 +370,70 @@
 			samsung,spi-feedback-delay = <0>;
 		};
 	};
+};
+
+&dp_drm {
+	status = "okay";
+	ports {
+		port@0 {
+			reg = <0>;
+			back_color = < 0x0 >;
+			color_key = < 0x0 >;
+			plane-names = "video", "primary", "rgb";
+		};
+		port@1 {
+			reg = <1>;
+			back_color = < 0x0 >;
+			color_key = < 0x0 >;
+			plane-names = "video", "primary";
+		};
+	};
+};
+
+&dp_drm_mipi {
+	hs_bitrate = <960>;
+	lp_bitrate = <100>;
+	status = "ok";
+
+	panel@0 {
+		compatible = "samsung,s6e8fa0";
+		reg = <0>;
+		vdd3-supply = <&VCC_LDO0>;
+		vci-supply = <&VCC_LDO1>;
+		reset-gpio = <&gpio_e 30 0>;
+		power-on-delay= <50>;
+		reset-delay = <100>;
+		init-delay = <100>;
+		display-timings {
+			timing-0 {
+				clock-frequency = <130361520>;
+				hactive = <1080>;
+				vactive = <1920>;
+				hfront-porch = <32>;
+				hback-porch = <16>;
+				hsync-len = <12>;
+				vfront-porch = <12>;
+				vback-porch = <3>;
+				vsync-len = <1>;
+			};
+		};
+	};
+
+	dp_control {
+		clk_src_lv0 = <0>;
+		clk_div_lv0 = <6>;
+		clk_src_lv1 = <7>;
+		clk_div_lv1 = <1>;
+		out_format = <3>;
+		vs_start_offset = <480>;
+		ev_start_offset = <480>;
+		vs_end_offset = <0>;
+		ev_end_offset = <0>;
+	};
+};
+
+&dp_drm_hdmi {
+	ddc-i2c-bus = <&i2c_gpio7>;
+	enable-gpios = <&gpio_a 21 0>;
+	status = "ok";
 };
