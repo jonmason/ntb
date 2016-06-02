@@ -27,7 +27,6 @@
 #include <linux/delay.h>
 #include <linux/platform_device.h>
 #include <linux/mmc/host.h>
-#include <linux/sd8x_rfkill.h>
 #include <linux/platform_data/pxa_sdhci.h>
 #include <linux/pm.h>
 #include <linux/pm_runtime.h>
@@ -39,6 +38,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/completion.h>
 #include "../../drivers/mmc/host/dw_mmc.h"
+#include "sd8x_rfkill.h"
 #define SD8X_DEV_NAME "sd8x-rfkill"
 
 /*
