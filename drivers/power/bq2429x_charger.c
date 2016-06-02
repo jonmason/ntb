@@ -112,18 +112,24 @@ static int bq24296_write(struct i2c_client *client,
 static ssize_t bat_param_read(struct device *dev,
 			      struct device_attribute *attr, char *buf)
 {
-	int i;
-	u8 buffer;
 	struct bq24296_device_info *di = bq24296_di;
+	int i = 0, ret = 0;
+	u8 buffer = 0;
 
 	for (i = 0; i < 11; i++) {
 		bq24296_read(di->client, i, &buffer, 1);
-		dev_dbg(dev, "reg %d value %x\n", i, buffer);
+		ret += snprintf(buf + ret, PAGE_SIZE - ret, "reg %02d value
+				%02x\n", i, buffer);
 	}
 
-	return 0;
+	return ret;
 }
 DEVICE_ATTR(battparam, 0664, bat_param_read, NULL);
+
+static const struct attribute *bq2429x_attrs[] = {
+	&dev_attr_battparam.attr,
+	NULL,
+};
 
 static int bq24296_update_reg(struct i2c_client *client,
 			      int reg, u8 value, u8 mask)
@@ -572,6 +578,10 @@ static int bq24296_battery_probe(struct i2c_client *client,
 
 	bq24296_int = 1;
 
+	ret = sysfs_create_files(&client->dev.kobj, bq2429x_attrs);
+	if (ret)
+		dev_err(di->dev, "bq24296 create sysfs failed.\n");
+
 	dev_info(di->dev, "bq24296_battery_probe ok\n");
 	return 0;
 
@@ -589,6 +599,7 @@ static int bq24296_battery_remove(struct i2c_client *client)
 	if (bq24296_pdata->chg_irq)
 		free_irq(bq24296_pdata->chg_irq, di);
 
+	sysfs_remove_files(&client->dev.kobj, bq2429x_attrs);
 	cancel_delayed_work_sync(&di->usb_detect_work);
 	destroy_workqueue(di->workqueue);
 
