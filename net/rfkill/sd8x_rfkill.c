@@ -516,6 +516,7 @@ static int sd8x_rfkill_probe_dt(struct platform_device *pdev)
 		return -EPROBE_DEFER;
     // point dw_mci's mmc_hot(host->slot[0]->mmc) structure to pdata->mmc
 	pdata->mmc = host->slot[0]->mmc;
+	pdata->mmc->caps &= ~MMC_CAP_NEEDS_POLL;
 
     pr_info("### sd8x_rfkill_probe_dt, host=%p \n", host );
 	/* get gpios from dt */
