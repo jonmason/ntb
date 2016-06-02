@@ -10,6 +10,11 @@ menuconfig RFKILL
 	  To compile this driver as a module, choose M here: the
 	  module will be called rfkill.
 
+config RFKILL_PM
+	bool "Power off on suspend"
+	depends on RFKILL && PM
+	default y
+
 # LED trigger support
 config RFKILL_LEDS
 	bool
@@ -43,3 +48,11 @@ config RFKILL_GPIO
 	  If you say yes here you get support of a generic gpio RFKILL
 	  driver. The platform should fill in the appropriate fields in the
 	  rfkill_gpio_platform_data structure and pass that to the driver.
+
+config SD8XXX_RFKILL
+	tristate "Rfkill power control for Marvell sd8xxx wlan/bt"
+	depends on RFKILL
+	default y
+	help
+	  Creates an rfkill entry in sysfs for power control of Marvell
+	  sd8xxx wlan/bt chips.
