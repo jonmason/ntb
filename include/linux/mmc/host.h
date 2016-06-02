@@ -334,6 +334,8 @@ struct mmc_host {
 	int			claim_cnt;	/* "claim" nesting count */
 
 	struct delayed_work	detect;
+	void			*detect_complete;
+	bool			supports_detect_complete;
 	int			detect_change;	/* card detect flag */
 	struct mmc_slot		slot;
 

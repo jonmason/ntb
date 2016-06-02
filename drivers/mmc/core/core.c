@@ -2629,6 +2629,11 @@ void mmc_rescan(struct work_struct *work)
 	mmc_release_host(host);
 
  out:
+	if (host->supports_detect_complete && host->detect_complete) {
+		complete(host->detect_complete);
+		pr_info("%s: set detect_complete\n", mmc_hostname(host));
+	}
+
 	if (host->caps & MMC_CAP_NEEDS_POLL)
 		mmc_schedule_delayed_work(&host->detect, HZ);
 }
@@ -2647,7 +2652,12 @@ void mmc_start_host(struct mmc_host *host)
 	mmc_release_host(host);
 
 	mmc_gpiod_request_cd_irq(host);
-	_mmc_detect_change(host, 0, false);
+	if (host->supports_detect_complete) {
+		pr_info("%s: skip _mmc_detect_change()\n", mmc_hostname(host));
+	} else {
+		_mmc_detect_change(host, 0, false);
+		pr_info("%s: run _mmc_detect_change()\n", mmc_hostname(host));
+	}
 }
 
 void mmc_stop_host(struct mmc_host *host)
