@@ -37,6 +37,7 @@
 #include <linux/of_platform.h>
 #include <linux/regulator/consumer.h>
 #include <linux/completion.h>
+#include <linux/version.h>
 #include "../../drivers/mmc/host/dw_mmc.h"
 #include "sd8x_rfkill.h"
 #define SD8X_DEV_NAME "sd8x-rfkill"
@@ -166,6 +167,25 @@ static int sd8x_pwr_ctrl(struct sd8x_rfkill_platform_data *pdata, int on)
 	return 0;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0))
+static void dw_mci_handle_cd(struct dw_mci *host)
+{
+	int i;
+
+	for (i = 0; i < host->num_slots; i++) {
+		struct dw_mci_slot *slot = host->slot[i];
+
+		if (!slot)
+			continue;
+
+		if (slot->mmc->ops->card_event)
+			slot->mmc->ops->card_event(slot->mmc);
+		mmc_detect_change(slot->mmc,
+			msecs_to_jiffies(host->pdata->detect_delay_ms));
+	}
+}
+#endif
+
 static int sd8x_pwr_on(struct sd8x_rfkill_platform_data *pdata)
 {
 	int ret = 0;
@@ -174,7 +194,9 @@ static int sd8x_pwr_on(struct sd8x_rfkill_platform_data *pdata)
 	unsigned long timeout;
 	struct dw_mci_slot *slot = mmc_priv(pdata->mmc);
 	struct dw_mci *host = slot->host;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0))
     unsigned long flags;
+#endif
     DECLARE_COMPLETION_ONSTACK(complete);
     
 	if (pdata->is_on)
@@ -219,9 +241,13 @@ static int sd8x_pwr_on(struct sd8x_rfkill_platform_data *pdata)
 
 		while (retry) {
 			pdata->mmc->detect_complete = &complete;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0))
 			spin_lock_irqsave(&host->lock, flags);
 			queue_work(host->card_workqueue, &host->card_work);
 			spin_unlock_irqrestore(&host->lock, flags);
+#else
+			dw_mci_handle_cd(host);
+#endif
 			wait_for_completion_timeout(&complete, timeout);
 			pdata->mmc->detect_complete = NULL;
 
@@ -292,7 +318,9 @@ static int sd8x_pwr_off(struct sd8x_rfkill_platform_data *pdata)
 	int ret = 0;
 	struct dw_mci_slot *slot = mmc_priv(pdata->mmc);
 	struct dw_mci *host = slot->host;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0))
     unsigned long flags;
+#endif
     DECLARE_COMPLETION_ONSTACK(complete);
 
 	if (!pdata->is_on)
@@ -325,9 +353,13 @@ static int sd8x_pwr_off(struct sd8x_rfkill_platform_data *pdata)
 		timeout = msecs_to_jiffies(timeout_secs * 1000);
 		host->pdata->quirks &= ~DW_MCI_QUIRK_BROKEN_CARD_DETECTION;
 		pdata->mmc->detect_complete = &complete;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0))
 		spin_lock_irqsave(&host->lock, flags);
 		queue_work(host->card_workqueue, &host->card_work);
 		spin_unlock_irqrestore(&host->lock, flags);
+#else
+		dw_mci_handle_cd(host);
+#endif
 		wait_for_completion_timeout(&complete, timeout);
 		pdata->mmc->detect_complete = NULL;
 	}
