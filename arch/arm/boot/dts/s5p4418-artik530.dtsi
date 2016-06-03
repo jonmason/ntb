@@ -95,7 +95,7 @@
 	broken-cd;
 	cap-sdio-irq;
 	enable-sdio-wakeup;
-	clock-frequency = <10000000>;
+	clock-frequency = <100000000>;
 	supports-detect-complete;
 
 	nexell,drive_dly = <0x0>;
