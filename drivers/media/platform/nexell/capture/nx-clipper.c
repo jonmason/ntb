@@ -492,6 +492,8 @@ static int parse_clock_dt(struct device_node *np, struct device *dev,
 	if (!IS_ERR(me->pwm)) {
 		unsigned int period = pwm_get_period(me->pwm);
 		pwm_config(me->pwm, period/2, period);
+	} else {
+		me->pwm = NULL;
 	}
 
 	return 0;
@@ -1066,18 +1068,23 @@ static int nx_clipper_s_stream(struct v4l2_subdev *sd, int enable)
 			unregister_irq_handler(me);
 			nx_video_clear_buffer(&me->vbuf_obj);
 			NX_ATOMIC_CLEAR_MASK(STATE_MEM_RUNNING, &me->state);
+
+			memset(&me->crop, 0, sizeof(me->crop));
 		}
 
 		if (!is_host_video)
 			if (NX_ATOMIC_READ(&me->state) == STATE_IDLE)
 				goto UP_AND_OUT;
-#endif
 
+#else
 		if (NX_ATOMIC_READ(&me->state) & STATE_CLIP_RUNNING) {
+#endif
 			v4l2_subdev_call(remote, video, s_stream, 0);
 			enable_sensor_power(me, false);
 			NX_ATOMIC_CLEAR_MASK(STATE_CLIP_RUNNING, &me->state);
+#ifndef CONFIG_VIDEO_NEXELL_CLIPPER
 		}
+#endif
 	}
 
 UP_AND_OUT:
