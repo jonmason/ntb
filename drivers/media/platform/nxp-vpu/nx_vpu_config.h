@@ -20,7 +20,7 @@
 #define __NX_VPU_CONFIG_H__
 
 
-#define	NX_MAX_VPU_INSTANCE		5
+#define	NX_MAX_VPU_INSTANCE		16
 
 /* VPU Clock Gating */
 #define	ENABLE_CLOCK_GATING
