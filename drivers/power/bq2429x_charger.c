@@ -118,8 +118,8 @@ static ssize_t bat_param_read(struct device *dev,
 
 	for (i = 0; i < 11; i++) {
 		bq24296_read(di->client, i, &buffer, 1);
-		ret += snprintf(buf + ret, PAGE_SIZE - ret, "reg %02d value
-				%02x\n", i, buffer);
+		ret += snprintf(buf + ret, PAGE_SIZE - ret,
+				"reg %02d value	%02x\n", i, buffer);
 	}
 
 	return ret;
