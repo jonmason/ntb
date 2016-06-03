@@ -635,7 +635,7 @@ static int nxe2000_regulator_dt_parse_pdata(struct platform_device *pdev,
 
 		regu_initdata->num_consumer_supplies = 1;
 		regu_initdata->constraints.valid_ops_mask =
-		    REGULATOR_CHANGE_VOLTAGE | REGULATOR_CHANGE_STATUS;
+			REGULATOR_CHANGE_VOLTAGE;
 
 		if (!of_property_read_u32(reg_np, "nx,init_enable", &val))
 			rdata->init_enable = val;
