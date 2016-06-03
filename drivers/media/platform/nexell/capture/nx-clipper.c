@@ -1111,6 +1111,44 @@ static int nx_clipper_s_crop(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int nx_clipper_g_parm(struct v4l2_subdev *sd,
+			     struct v4l2_streamparm *param)
+{
+	int err;
+	struct nx_clipper *me = v4l2_get_subdevdata(sd);
+	struct v4l2_subdev *remote = get_remote_source_subdev(me);
+
+	if (!remote) {
+		WARN_ON(1);
+		return -ENODEV;
+	}
+
+	err = v4l2_subdev_call(remote, video, g_parm, param);
+
+	if (err) {
+		param->parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
+		param->parm.capture.timeperframe.numerator = 1001;
+		param->parm.capture.timeperframe.denominator = 30000;
+		param->parm.capture.readbuffers = 1;
+	}
+
+	return 0;
+}
+
+static int nx_clipper_s_parm(struct v4l2_subdev *sd,
+			     struct v4l2_streamparm *param)
+{
+	struct nx_clipper *me = v4l2_get_subdevdata(sd);
+	struct v4l2_subdev *remote = get_remote_source_subdev(me);
+
+	if (!remote) {
+		WARN_ON(1);
+		return -ENODEV;
+	}
+
+	return v4l2_subdev_call(remote, video, s_parm, param);
+}
+
 /**
  * called by VIDIOC_SUBDEV_S_CROP
  */
@@ -1241,6 +1279,8 @@ static const struct v4l2_subdev_video_ops nx_clipper_video_ops = {
 	.s_stream = nx_clipper_s_stream,
 	.g_crop = nx_clipper_g_crop,
 	.s_crop = nx_clipper_s_crop,
+	.g_parm = nx_clipper_g_parm,
+	.s_parm = nx_clipper_s_parm,
 };
 
 static const struct v4l2_subdev_pad_ops nx_clipper_pad_ops = {

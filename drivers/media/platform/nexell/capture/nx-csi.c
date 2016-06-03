@@ -854,8 +854,36 @@ UP_AND_OUT:
 	return 0;
 }
 
+static int nx_csi_g_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *param)
+{
+	struct nx_csi *me = v4l2_get_subdevdata(sd);
+	struct v4l2_subdev *remote = get_remote_subdev(me, NX_CSI_PAD_SINK);
+
+	if (!remote) {
+		WARN_ON(1);
+		return -ENODEV;
+	}
+
+	return v4l2_subdev_call(remote, video, g_parm, param);
+}
+
+static int nx_csi_s_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *param)
+{
+	struct nx_csi *me = v4l2_get_subdevdata(sd);
+	struct v4l2_subdev *remote = get_remote_subdev(me, NX_CSI_PAD_SINK);
+
+	if (!remote) {
+		WARN_ON(1);
+		return -ENODEV;
+	}
+
+	return v4l2_subdev_call(remote, video, s_parm, param);
+}
+
 static struct v4l2_subdev_video_ops nx_csi_video_ops = {
 	.s_stream = nx_csi_s_stream,
+	.g_parm = nx_csi_g_parm,
+	.s_parm = nx_csi_s_parm,
 };
 
 static struct v4l2_subdev_pad_ops nx_csi_pad_ops = {

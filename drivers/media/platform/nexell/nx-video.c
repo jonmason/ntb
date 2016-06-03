@@ -923,14 +923,12 @@ static int nx_video_g_parm(struct file *file, void *fh,
 
 	me = file->private_data;
 
-	if (me->type == NX_VIDEO_TYPE_CAPTURE) {
-		memset(a, 0, sizeof(*a));
-		a->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-		a->parm.output.capability = V4L2_CAP_TIMEPERFRAME;
-		a->parm.output.timeperframe.denominator = 1;
-		a->parm.output.timeperframe.numerator = 30;
+	if (me->type == NX_VIDEO_TYPE_CAPTURE &&
+	    a->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+		struct v4l2_subdev *subdev;
 
-		return 0;
+		subdev = get_remote_subdev(me, a->type, NULL);
+		return v4l2_subdev_call(subdev, video, g_parm, a);
 	}
 
 	return -EINVAL;
@@ -943,10 +941,12 @@ static int nx_video_s_parm(struct file *file, void *fh,
 
 	me = file->private_data;
 
-	if (me->type == NX_VIDEO_TYPE_CAPTURE) {
-		if (a->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
-			return -EINVAL;
-		return 0;
+	if (me->type == NX_VIDEO_TYPE_CAPTURE &&
+	    a->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+		struct v4l2_subdev *subdev;
+
+		subdev = get_remote_subdev(me, a->type, NULL);
+		return v4l2_subdev_call(subdev, video, s_parm, a);
 	}
 
 	return -EINVAL;
