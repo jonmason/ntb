@@ -409,7 +409,7 @@ static int cw_get_capacity(struct cw_battery *cw_bat)
 
 	cw_capacity = reg_val[0];
 	if (cw_capacity == 0 && if_quickstart == 0) {
-		dev_info(cw_bat->dev, "the capacity is 0");
+		dev_dbg(cw_bat->dev, "the capacity is 0");
 
 		ret = cw_reset_reg_mode(cw_bat);
 		if (ret < 0)
