@@ -719,15 +719,29 @@ static int nx_video_set_format(struct file *file, void *fh,
 		}
 	}
 
+	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		set_plane_size_mmap(frame, &f->fmt.pix.sizeimage);
+
 	return 0;
 }
 
 static int nx_video_try_format(struct file *file, void *fh,
 			       struct v4l2_format *f)
 {
-	/* TODO */
-	pr_debug("%s\n", __func__);
-	return 0;
+	struct nx_video_format *format;
+	u32 pixelformat;
+
+	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+		pixelformat = f->fmt.pix_mp.pixelformat;
+	else
+		pixelformat = f->fmt.pix.pixelformat;
+
+	format = find_format(pixelformat, 0);
+
+	if (format->pixelformat == pixelformat)
+		return 0;
+	else
+		return -EINVAL;
 }
 
 static int nx_video_reqbufs(struct file *file, void *fh,
@@ -964,7 +978,7 @@ static struct v4l2_ioctl_ops nx_video_ioctl_ops = {
 	.vidioc_enum_fmt_vid_cap	= nx_video_enum_format,
 	.vidioc_g_fmt_vid_cap		= nx_video_get_format,
 	.vidioc_s_fmt_vid_cap		= nx_video_set_format,
-	.vidioc_try_fmt_vid_cap		= nx_video_set_format,
+	.vidioc_try_fmt_vid_cap		= nx_video_try_format,
 	.vidioc_reqbufs                 = nx_video_reqbufs,
 	.vidioc_querybuf                = nx_video_querybuf,
 	.vidioc_qbuf                    = nx_video_qbuf,
