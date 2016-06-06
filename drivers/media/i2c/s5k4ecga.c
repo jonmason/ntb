@@ -816,7 +816,7 @@ static int sensor_4ec_apply_set(struct v4l2_subdev *subdev,
 		addr = (regset->reg[set_idx][i] & 0xFFFF0000) >> 16;
 		val = regset->reg[set_idx][i] & 0x0000FFFF;
 		if (addr == 0xFFFF) {
-			cam_info("use delay (%d ms) in I2C Write\n",
+			cam_dbg("use delay (%d ms) in I2C Write\n",
 				val);
 			msleep(val);
 		} else {
@@ -1537,7 +1537,7 @@ static int sensor_4ec_read_sensor_version(struct v4l2_subdev *subdev,
 	BUG_ON(!client);
 	BUG_ON(!s5k4ec_state);
 
-	cam_info("E\n");
+	cam_dbg("E\n");
 
 	mutex_lock(&s5k4ec_state->i2c_lock);
 
@@ -1562,7 +1562,7 @@ static int sensor_4ec_read_sensor_version(struct v4l2_subdev *subdev,
 
 	mutex_unlock(&s5k4ec_state->i2c_lock);
 
-	cam_info("X\n");
+	cam_dbg("X\n");
 	return ret;
 }
 
@@ -1590,7 +1590,7 @@ static int sensor_4ec_init(struct v4l2_subdev *subdev, u32 val)
 	}
 
 	cam_info("Sensor Version 0x%04X\n", s5k4ec_state->sensor_version);
-	cam_info("setfile_index %d\n", s5k4ec_state->setfile_index);
+	cam_dbg("setfile_index %d\n", s5k4ec_state->setfile_index);
 
 #ifdef CONFIG_LOAD_FILE
 	ret = sensor_4ec_regs_table_init();
@@ -1708,19 +1708,19 @@ static int sensor_4ec_init(struct v4l2_subdev *subdev, u32 val)
 				*dst_ptr++ = src_value;
 			} while (src_ptr < end_src_ptr);
 		}
-		cam_info("finished creating table\n");
+		cam_dbg("finished creating table\n");
 
 		end_regset = regset;
-		cam_info("1st regset = %p, last regset = %p, count = %ld\n",
+		cam_dbg("1st regset = %p, last regset = %p, count = %ld\n",
 			reg_tbl,
 			regset, end_regset - reg_tbl);
-		cam_info("regset_data = %p, end = %p, dst_ptr = %p\n",
+		cam_dbg("regset_data = %p, end = %p, dst_ptr = %p\n",
 			regset_data,
 			regset_data + (init_reg_2_size * sizeof(u32)),
 			dst_ptr);
 
 		regset = reg_tbl;
-		cam_info("start writing init reg 2 bursts\n");
+		cam_dbg("start writing init reg 2 bursts\n");
 		do {
 			if (regset->size > 4) {
 				/* write the address packet */
@@ -1804,7 +1804,7 @@ static int sensor_4ec_init(struct v4l2_subdev *subdev, u32 val)
 
 	flush_work(&s5k4ec_state->set_focus_mode_work);
 
-	cam_info("(%d)\n", val);
+	cam_info("end\n");
 
 p_err:
 	return ret;
@@ -1817,7 +1817,7 @@ static int sensor_4ec_set_size(struct v4l2_subdev *subdev)
 	struct s5k4ec_state *s5k4ec_state;
 	u32 i;
 
-	cam_info("E\n");
+	cam_dbg("E\n");
 
 	s5k4ec_state = to_state(subdev);
 	if (unlikely(!s5k4ec_state)) {
@@ -1900,14 +1900,14 @@ static int sensor_4ec_s_format(struct v4l2_subdev *subdev,
 	BUG_ON(!subdev);
 	BUG_ON(!fmt);
 
-	cam_info("E\n");
-
 	s5k4ec_state = to_state(subdev);
 	if (unlikely(!s5k4ec_state)) {
 		cam_err("s5k4ec_state is NULL");
 		ret = -EINVAL;
 		goto p_err;
 	}
+
+	cam_info("%dx%d (0x%x)\n", fmt->width, fmt->height, fmt->code);
 
 	s5k4ec_state->fmt.width = fmt->width;
 	s5k4ec_state->fmt.height = fmt->height;
