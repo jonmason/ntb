@@ -402,6 +402,7 @@ struct s5k4ec_state {
 	struct i2c_client	*client;
 };
 
+static int sensor_4ec_set_framerate(struct v4l2_subdev *subdev);
 static int sensor_4ec_s_duration(struct v4l2_subdev *subdev, u64 duration);
 static int sensor_4ec_stream_on(struct v4l2_subdev *subdev);
 static int sensor_4ec_stream_off(struct v4l2_subdev *subdev);

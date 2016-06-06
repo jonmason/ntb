@@ -1767,7 +1767,6 @@ static int sensor_4ec_init(struct v4l2_subdev *subdev, u32 val)
 	s5k4ec_state->scene_mode = SCENE_MODE_NONE;
 	s5k4ec_state->sharpness = SHARPNESS_DEFAULT;
 	s5k4ec_state->white_balance = WHITE_BALANCE_AUTO;
-	s5k4ec_state->fps = FRAME_RATE_AUTO;
 	s5k4ec_state->ae_lock = AE_UNLOCK;
 	s5k4ec_state->awb_lock = AWB_UNLOCK;
 	s5k4ec_state->user_ae_lock = AE_UNLOCK;
@@ -1791,8 +1790,6 @@ static int sensor_4ec_init(struct v4l2_subdev *subdev, u32 val)
 		&regs_set.awb_lockunlock[s5k4ec_state->awb_lock]);
 	ret |= sensor_4ec_apply_set(subdev,
 		&regs_set.white_balance[s5k4ec_state->white_balance]);
-	ret |= sensor_4ec_apply_set(subdev,
-		&regs_set.fps[s5k4ec_state->fps]);
 	ret |= sensor_4ec_apply_set(subdev,
 		&regs_set.flash_init);
 	if (ret) {
@@ -1928,6 +1925,7 @@ static int sensor_4ec_s_stream(struct v4l2_subdev *subdev,
 
 	if (enable) {
 		sensor_4ec_init(subdev, 1);
+		sensor_4ec_set_framerate(subdev);
 		sensor_4ec_set_size(subdev);
 		ret = sensor_4ec_stream_on(subdev);
 		if (ret) {
@@ -3175,11 +3173,52 @@ static int sensor_4ec_s_duration(struct v4l2_subdev *subdev,
 		goto p_err;
 	}
 
-	cam_info("frame rate set\n");
 	s5k4ec_state->fps = framerate;
-	ret = sensor_4ec_apply_set(subdev, &regs_set.fps[framerate]);
-	if (ret)
-		cam_err("write cmd failed\n");
+
+p_err:
+	return ret;
+}
+
+static int sensor_4ec_set_framerate(struct v4l2_subdev *subdev)
+{
+	int ret = 0;
+	u32 framerate;
+	u32 frametime;
+	struct s5k4ec_state *s5k4ec_state;
+	struct i2c_client *client = to_client(subdev);
+
+	BUG_ON(!subdev);
+
+	s5k4ec_state = to_state(subdev);
+
+	framerate = s5k4ec_state->fps;
+
+	if (framerate > FRAME_RATE_30) {
+		cam_err("invalid(%d) value, forced set to MAX", framerate);
+		framerate = FRAME_RATE_30;
+	}
+
+	if (framerate == 0) {
+		cam_info("framerate=0, auto mode\n");
+		ret = sensor_4ec_apply_set(subdev,
+			&regs_set.fps[FRAME_RATE_AUTO]);
+		if (ret)
+			cam_err("write cmd failed\n");
+
+		return ret;
+	}
+
+	frametime = 10000 / (u32)framerate;
+	cam_info("framerate=%d, frametime=%d\n", framerate, frametime);
+
+	sensor_4ec_i2c_write16(client, 0x0028, 0x7000);
+
+	/* REG_0TC_PCFG_usFrTimeType */
+	sensor_4ec_i2c_write16(client, 0x002A, 0x02BE);
+	sensor_4ec_i2c_write16(client, 0x0F12, 2); /* fixed framerate */
+	sensor_4ec_i2c_write16(client, 0x0F12, 1); /* best framerate */
+	sensor_4ec_i2c_write16(client, 0x0F12, frametime);
+	sensor_4ec_i2c_write16(client, 0x0F12, frametime);
 
 p_err:
 	return ret;
