@@ -23,6 +23,7 @@
 #include <linux/slab.h>
 
 #include <uapi/linux/psci.h>
+#include <linux/suspend.h>
 
 #include <asm/compiler.h>
 #include <asm/cpu_ops.h>
@@ -96,8 +97,36 @@ free_mem:
 	return ret;
 }
 
+#ifdef CONFIG_SUSPEND
+static int psci_system_suspend(unsigned long unused)
+{
+	return invoke_psci_fn(PSCI_1_0_FN64_SYSTEM_SUSPEND,
+			      virt_to_phys(cpu_resume), 0, 0);
+}
+
+static int psci_system_suspend_enter(suspend_state_t state)
+{
+	return cpu_suspend(0, psci_system_suspend);
+}
+
+static const struct platform_suspend_ops psci_suspend_ops = {
+	.valid	= suspend_valid_only_mem,
+	.enter	=  psci_system_suspend_enter,
+};
+
+static void __init psci_init_system_suspend(void)
+{
+	if (!IS_ENABLED(CONFIG_SUSPEND))
+		return;
+	suspend_set_ops(&psci_suspend_ops);
+}
+#endif
+
 static int __init cpu_psci_cpu_init(unsigned int cpu)
 {
+#ifdef CONFIG_SUSPEND
+	psci_init_system_suspend();
+#endif
 	return 0;
 }
 
