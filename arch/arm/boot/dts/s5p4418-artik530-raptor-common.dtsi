@@ -46,6 +46,7 @@
 		i2c6 = &i2c_gpio6;
 		i2c7 = &i2c_gpio7;
 		i2c8 = &i2c_gpio8;
+		i2c9 = &i2c_gpio9;
 	};
 
 	nx-v4l2 {
@@ -360,6 +361,25 @@
 		};
 
 	};
+
+	i2c_gpio9: i2c@9 {
+		compatible = "i2c-gpio";
+		gpios = <&gpio_a 19 0	/* sda */
+			&gpio_a 20 0	/* scl */
+			>;
+		i2c-gpio,delay-us = <1>;	/* ~100kHz */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+
+		bq24296_charger@6b {
+			compatible = "ti,bq24296";
+			reg = <0x6b>;
+			ti,chg_current = <1000 1500 2000>;
+			gpios = <&gpio_a 10 0>;
+		};
+	};
+
 
 	sound {
 		compatible = "nexell,nexell-alc5658";
