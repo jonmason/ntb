@@ -30,6 +30,7 @@
 		#include "s5p4418-pinctrl.dtsi"
 		clocks {
 			uart0:uart@c00a9000 { clock-frequency = <147500000>; };
+			i2c0:i2c@c00ae000  { clock-frequency = <200000000>; };
 		};
 
 		serial0:serial@c00a1000 {
@@ -153,12 +154,8 @@
 			status = "okay";
 		};
 
-		i2c0_gpio:i2c@c00a4000 {
-			compatible = "i2c-gpio";
-			gpios = <&gpio_d 3 0 /* sda */
-				&gpio_d 2 0 /* scl */
-				>;
-			i2c-gpio,delay-us = <10>;    /* ~100 kHz */
+		i2c_0:i2c@c00a4000 {
+			status = "okay";
 			#address-cells = <1>;
 			#size-cells = <0>;
 
