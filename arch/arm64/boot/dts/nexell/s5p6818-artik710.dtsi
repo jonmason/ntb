@@ -118,7 +118,7 @@
 						type = "passive";
 					};
 					cpu-crit-0 {
-						temperature = <90000>;
+						temperature = <115000>;
 						hysteresis = <100000>;
 						type = "critical";
 					};
