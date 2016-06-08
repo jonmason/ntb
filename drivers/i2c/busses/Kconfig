@@ -993,6 +993,13 @@ config I2C_RCAR
 	  This driver can also be built as a module.  If so, the module
 	  will be called i2c-rcar.
 
+config I2C_NX
+	tristate "Nexell s5p4418 I2C interface"
+	depends on ARCH_S5P4418
+	help
+	  If you say yes to this option, support will be included for the
+	  Nexell s5p4418 I2C interface.
+
 comment "External I2C/SMBus adapter drivers"
 
 config I2C_DIOLAN_U2C
