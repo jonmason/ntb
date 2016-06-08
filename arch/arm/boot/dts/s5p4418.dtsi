@@ -40,6 +40,9 @@
 		i2s0	= &i2s_0;
 		i2s1	= &i2s_1;
 		i2s2	= &i2s_2;
+		i2c0	= &i2c_0;
+		i2c1	= &i2c_1;
+		i2c2	= &i2c_2;
 		spi0	= &spi_0;
 		spi1	= &spi_1;
 		spi2	= &spi_2;
@@ -282,6 +285,53 @@
 			status = "disabled";
 		};
 
+		i2c_0:i2c@c00a4000 {
+			compatible = "nexell,s5p4418-i2c";
+			reg = <PHYS_BASE_I2C0 0x100>;
+			interrupts = <IRQ_I2C0>;
+			clock-names = "i2c";
+			clocks = <&i2c0>;
+			resets  = <&nexell_reset RESET_ID_I2C0>;
+			reset-names = "i2c-reset";
+			gpios = <&gpio_d 3 0 /* sda */
+				&gpio_d 2 0 /* scl */>;
+			pinctrl-names = "default", "mode_gpio";
+			pinctrl-0 = <&i2c0_pin>;
+			pinctrl-1 = <&i2c0_pin_gpio>;
+			status = "disabled";
+		};
+
+		i2c_1:i2c@c00a5000 {
+			compatible = "nexell,s5p4418-i2c";
+			reg = <PHYS_BASE_I2C1 0x100>;
+			interrupts = <IRQ_I2C1>;
+			clock-names = "i2c";
+			clocks = <&i2c1>;
+			resets  = <&nexell_reset RESET_ID_I2C1>;
+			reset-names = "i2c-reset";
+			gpios = <&gpio_d 5 0 /* sda */
+				&gpio_d 4 0 /* scl */>;
+			pinctrl-names = "default", "mode_gpio";
+			pinctrl-0 = <&i2c1_pin>;
+			pinctrl-1 = <&i2c1_pin_gpio>;
+			status = "disabled";
+		};
+
+		i2c_2:i2c@c00a6000 {
+			compatible = "nexell,s5p4418-i2c";
+			reg = <PHYS_BASE_I2C2 0x100>;
+			interrupts = <IRQ_I2C2>;
+			clock-names = "i2c";
+			clocks = <&i2c2>;
+			resets  = <&nexell_reset RESET_ID_I2C2>;
+			reset-names = "i2c-reset";
+			gpios = <&gpio_d 7 0 /* sda */
+				&gpio_d 6 0 /* scl */>;
+			pinctrl-names = "default", "mode_gpio";
+			pinctrl-0 = <&i2c2_pin>;
+			pinctrl-1 = <&i2c2_pin_gpio>;
+			status = "disabled";
+		};
 
 		dw_mmc_2:dw_mmc@c0069000 {
 			compatible = "nexell,s5p6818-dw-mshc";
