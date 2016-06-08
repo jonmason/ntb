@@ -300,6 +300,13 @@ pinctrl@C0010000 {
 		nexell,pin-strength = <0>;
 	};
 
+	i2c0_pin_gpio:i2c0_gpio {
+		nexell,pins = "gpiod-2", "gpiod-3";
+		nexell,pin-function = <0>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
 	i2c1_pin:i2c1 {
 		nexell,pins = "gpiod-4", "gpiod-5";
 		nexell,pin-function = <1>;
@@ -307,9 +314,23 @@ pinctrl@C0010000 {
 		nexell,pin-strength = <0>;
 	};
 
+	i2c1_pin_gpio:i2c1_gpio {
+		nexell,pins = "gpiod-4", "gpiod-5";
+		nexell,pin-function = <0>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
 	i2c2_pin:i2c2 {
 		nexell,pins = "gpiod-6", "gpiod-7";
 		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	i2c2_pin_gpio:i2c2_gpio {
+		nexell,pins = "gpiod-6", "gpiod-7";
+		nexell,pin-function = <0>;
 		nexell,pin-pull = <2>;
 		nexell,pin-strength = <0>;
 	};
