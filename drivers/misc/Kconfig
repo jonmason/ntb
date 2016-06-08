@@ -543,6 +543,14 @@ config ARTIK_ZB_POWER
         help
           This driver allows you can control zigbee powers for artik board.
 
+config ARTIK_S3T9MF
+        tristate "ARTIK S3T9MF control driver"
+	depends on (SOC_EXYNOS3250 || SOC_EXYNOS5422 || ARCH_S5P6818 ||\
+ 	 ARCH_S5P4418)
+        default n
+        help
+          This driver allows you can control s3t9mf for artik board.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"

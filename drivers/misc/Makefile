@@ -58,3 +58,4 @@ obj-$(CONFIG_VEXPRESS_SYSCFG)	+= vexpress-syscfg.o
 obj-$(CONFIG_CXL_BASE)		+= cxl/
 obj-$(CONFIG_NX_SCALER)		+= nx-scaler.o
 obj-$(CONFIG_ARTIK_ZB_POWER)	+= artik_zb_power.o
+obj-$(CONFIG_ARTIK_S3T9MF)	+= s3t9mf.o
