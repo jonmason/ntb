@@ -2883,6 +2883,162 @@ static void _dwc2_hcd_clear_tt_buffer_complete(struct usb_hcd *hcd,
 	spin_unlock_irqrestore(&hsotg->lock, flags);
 }
 
+#if defined(CONFIG_PM) && (defined(CONFIG_ARCH_S5P4418) || \
+	defined(CONFIG_ARCH_S5P6818))
+struct dwc2_core_global_regs {
+	uint32_t gotgctl;
+	uint32_t gotgint;
+	uint32_t gahbcfg;
+	uint32_t gusbcfg;
+	uint32_t grstctl;
+	uint32_t gintmsk;
+	uint32_t grxfsiz;
+	uint32_t gnptxfsiz;
+	uint32_t gi2cctl;
+	uint32_t gpvndctl;
+	uint32_t ggpio;
+	uint32_t ghwcfg1;
+	uint32_t ghwcfg2;
+	uint32_t ghwcfg3;
+	uint32_t ghwcfg4;
+	uint32_t glpmcfg;
+	uint32_t gpwrdn;
+	uint32_t gdfifocfg;
+	uint32_t adpctl;
+	uint32_t hptxfsiz;
+	uint32_t dtxfsiz[15];
+};
+
+static struct dwc2_core_global_regs save_global_regs;
+
+static void dwc2_driver_suspend_regs(struct dwc2_hsotg *hsotg, int suspend)
+{
+	struct dwc2_core_global_regs *regs = &save_global_regs;
+	int idx;
+
+	dev_dbg(hsotg->dev, "%s %d suspend %d\n", __func__, __LINE__, suspend);
+
+	if (suspend) {
+		regs->gotgctl = readl(hsotg->regs + GOTGCTL);
+		regs->gotgint = readl(hsotg->regs + GOTGINT);
+		regs->gahbcfg = readl(hsotg->regs + GAHBCFG);
+		regs->gusbcfg = readl(hsotg->regs + GUSBCFG);
+		regs->grstctl = readl(hsotg->regs + GRSTCTL);
+		regs->gintmsk = readl(hsotg->regs + GINTMSK);
+		regs->grxfsiz = readl(hsotg->regs + GRXFSIZ);
+		regs->gnptxfsiz = readl(hsotg->regs + GNPTXFSIZ);
+		regs->gi2cctl = readl(hsotg->regs + GI2CCTL);
+		regs->gpvndctl = readl(hsotg->regs + GPVNDCTL);
+		regs->ggpio = readl(hsotg->regs + GGPIO);
+		regs->ghwcfg1 = readl(hsotg->regs + GHWCFG1);
+		regs->ghwcfg2 = readl(hsotg->regs + GHWCFG2);
+		regs->ghwcfg3 = readl(hsotg->regs + GHWCFG3);
+		regs->ghwcfg4 = readl(hsotg->regs + GHWCFG4);
+		regs->glpmcfg = readl(hsotg->regs + GLPMCFG);
+		regs->gpwrdn = readl(hsotg->regs + GPWRDN);
+		regs->gdfifocfg = readl(hsotg->regs + GDFIFOCFG);
+		regs->adpctl = readl(hsotg->regs + ADPCTL);
+		regs->hptxfsiz = readl(hsotg->regs + HPTXFSIZ);
+		for (idx = 1; idx < hsotg->num_of_eps; idx++)
+			regs->dtxfsiz[idx] = readl(hsotg->regs +
+						   DPTXFSIZN(idx));
+	} else {
+		writel(regs->gotgctl, hsotg->regs + GOTGCTL);
+		writel(regs->gotgint, hsotg->regs + GOTGINT);
+		writel(regs->gahbcfg, hsotg->regs + GAHBCFG);
+		writel(regs->gusbcfg, hsotg->regs + GUSBCFG);
+		writel(regs->grstctl, hsotg->regs + GRSTCTL);
+		writel(regs->gintmsk, hsotg->regs + GINTMSK);
+		writel(regs->grxfsiz, hsotg->regs + GRXFSIZ);
+		writel(regs->gnptxfsiz, hsotg->regs + GNPTXFSIZ);
+		writel(regs->gi2cctl, hsotg->regs + GI2CCTL);
+		writel(regs->gpvndctl, hsotg->regs + GPVNDCTL);
+		writel(regs->ggpio, hsotg->regs + GGPIO);
+		writel(regs->ghwcfg1, hsotg->regs + GHWCFG1);
+		writel(regs->ghwcfg2, hsotg->regs + GHWCFG2);
+		writel(regs->ghwcfg3, hsotg->regs + GHWCFG3);
+		writel(regs->ghwcfg4, hsotg->regs + GHWCFG4);
+		writel(regs->glpmcfg, hsotg->regs + GLPMCFG);
+		writel(regs->gpwrdn, hsotg->regs + GPWRDN);
+		writel(regs->gdfifocfg, hsotg->regs + GDFIFOCFG);
+		writel(regs->adpctl, hsotg->regs + ADPCTL);
+		writel(regs->hptxfsiz, hsotg->regs + HPTXFSIZ);
+		for (idx = 1; idx < hsotg->num_of_eps; idx++)
+			writel(regs->dtxfsiz[idx], hsotg->regs +
+			       DPTXFSIZN(idx));
+	}
+}
+
+static int dwc2_hcd_suspend(struct usb_hcd *hcd)
+{
+	struct dwc2_hsotg *hsotg = dwc2_hcd_to_hsotg(hcd);
+
+	dev_dbg(hsotg->dev, "%s %d\n", __func__, __LINE__);
+
+	dwc2_driver_suspend_regs(hsotg, 1);
+
+	if (hsotg->op_state == OTG_STATE_B_PERIPHERAL) {
+		dev_warn(hsotg->dev, "%s, usb device mode\n", __func__);
+		return 0;
+	}
+
+#ifdef CONFIG_USB_DWC2_PERIPHERAL
+	return 0;
+#endif
+
+	/*
+	 * Disable the global interrupt until all the interrupt handlers are
+	 * installed
+	 */
+	dwc2_disable_global_interrupts(hsotg);
+
+	/* Clear any pending interrupts */
+	writel(0xffffffff, hsotg->regs + GINTSTS);
+
+	return 0;
+}
+
+static int dwc2_hcd_resume(struct usb_hcd *hcd)
+{
+	struct dwc2_hsotg *hsotg = dwc2_hcd_to_hsotg(hcd);
+	u32 gotgctl;
+
+	dev_dbg(hsotg->dev, "%s %d\n", __func__, __LINE__);
+
+	dwc2_driver_suspend_regs(hsotg, 0);
+
+	if (hsotg->op_state == OTG_STATE_B_PERIPHERAL) {
+		dev_warn(hsotg->dev, "%s, usb device mode\n", __func__);
+		return 0;
+	}
+
+#ifdef CONFIG_USB_DWC2_PERIPHERAL
+	return 0;
+#endif
+
+	dwc2_core_init(hsotg, false, -1);
+	dwc2_enable_global_interrupts(hsotg);
+
+	gotgctl = readl(hsotg->regs + GOTGCTL);
+
+	/* B-Device connector (Device Mode) */
+	if (gotgctl & GOTGCTL_CONID_B) {
+		dev_dbg(hsotg->dev, "connId B\n");
+		hsotg->op_state = OTG_STATE_B_PERIPHERAL;
+		s3c_hsotg_core_init_disconnected(hsotg, false);
+		s3c_hsotg_core_connect(hsotg);
+	} else {
+		/* A-Device connector (Host Mode) */
+		dev_dbg(hsotg->dev, "connId A\n");
+		hsotg->op_state = OTG_STATE_A_HOST;
+		dwc2_hcd_start(hsotg);
+		mdelay(100);
+	}
+
+	return 0;
+}
+#endif
+
 static struct hc_driver dwc2_hc_driver = {
 	.description = "dwc2_hsotg",
 	.product_desc = "DWC OTG Controller",
@@ -2901,6 +3057,11 @@ static struct hc_driver dwc2_hc_driver = {
 
 	.hub_status_data = _dwc2_hcd_hub_status_data,
 	.hub_control = _dwc2_hcd_hub_control,
+#if defined(CONFIG_PM) && (defined(CONFIG_ARCH_S5P4418) || \
+	defined(CONFIG_ARCH_S5P6818))
+	.bus_suspend = dwc2_hcd_suspend,
+	.bus_resume = dwc2_hcd_resume,
+#endif
 	.clear_tt_buffer_complete = _dwc2_hcd_clear_tt_buffer_complete,
 
 	.bus_suspend = _dwc2_hcd_suspend,
@@ -3152,6 +3313,11 @@ int dwc2_hcd_init(struct dwc2_hsotg *hsotg, int irq)
 	dwc2_hcd_dump_state(hsotg);
 
 	dwc2_enable_global_interrupts(hsotg);
+
+#if defined(CONFIG_PM) && (defined(CONFIG_ARCH_S5P4418) || \
+	defined(CONFIG_ARCH_S5P6818))
+	pm_runtime_forbid(&hcd->self.root_hub->dev);
+#endif
 
 	return 0;
 
