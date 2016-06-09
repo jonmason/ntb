@@ -79,6 +79,7 @@
 #define NX_HOST_CON3_POR			BIT(8)
 #define NX_HOST_CON3_POR_ENB			BIT(7)
 #define NX_HOST_CON3_POR_MASK			(0x3 << 7)
+#define NX_HOST_OHCI_SUSP_LGCY			(0x1 << 3)
 
 /* USBHOST Configuration 4 Register */
 #define NX_HOST_CON4				0x24
@@ -260,6 +261,10 @@ static int nx_host_power_on(struct samsung_usb2_phy_instance *inst)
 
 	writel(reg1, (void *)(drv->reg_phy + NX_HOST_CON0));
 	writel(reg2, (void *)(drv->reg_phy + NX_HOST_CON4));
+
+	reg = readl((void *)(drv->reg_phy + NX_HOST_CON3));
+	reg |= NX_HOST_OHCI_SUSP_LGCY;
+	writel(reg, (void *)(drv->reg_phy + NX_HOST_CON3));
 
 	reg   = readl((void *)(drv->reg_phy + NX_HOST_CON3));
 	reg  &= ~NX_HOST_CON3_POR_MASK;
