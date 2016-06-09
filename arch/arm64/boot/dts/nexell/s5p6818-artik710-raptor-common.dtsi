@@ -59,6 +59,10 @@
 			vip0:vip@c00c1000 { clock-frequency = <300000000>;};
 		};
 
+		serial2:serial@c00a2000 {
+			status ="okay";
+		};
+
 		serial3:serial@c00a3000 {
 			status ="okay";
 		};
