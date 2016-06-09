@@ -1023,16 +1023,12 @@ static int nx_csi_probe(struct platform_device *pdev)
 	init_me(me);
 
 	ret = nx_csi_parse_dt(pdev, me);
-	if (ret) {
-		kfree(me);
+	if (ret)
 		return ret;
-	}
 
 	ret = init_v4l2_subdev(me);
-	if (ret) {
-		kfree(me);
+	if (ret)
 		return ret;
-	}
 
 	ret = nx_v4l2_register_subdev(&me->subdev);
 	if (ret)
@@ -1050,10 +1046,8 @@ static int nx_csi_remove(struct platform_device *pdev)
 {
 	struct nx_csi *me = platform_get_drvdata(pdev);
 
-	if (me) {
+	if (me)
 		v4l2_device_unregister_subdev(&me->subdev);
-		kfree(me);
-	}
 
 	return 0;
 }

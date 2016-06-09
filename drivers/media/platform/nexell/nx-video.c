@@ -484,7 +484,7 @@ static int nx_vb2_buf_init(struct vb2_buffer *vb)
 	}
 
 	if (!bufs[index]) {
-		buf = devm_kzalloc(me->v4l2_dev->dev, sizeof(*buf), GFP_KERNEL);
+		buf = kzalloc(sizeof(*buf), GFP_KERNEL);
 		if (!buf) {
 			WARN_ON(1);
 			return -ENOMEM;
@@ -1179,8 +1179,7 @@ struct nx_video *nx_video_create(char *name, u32 type,
 	int ret;
 	struct vb2_queue *vbq = NULL;
 	int pad_num = 0;
-	struct nx_video *me = devm_kzalloc(v4l2_dev->dev, sizeof(*me),
-					   GFP_KERNEL);
+	struct nx_video *me = kzalloc(sizeof(*me), GFP_KERNEL);
 
 	if (!me) {
 		WARN_ON(1);
@@ -1218,7 +1217,7 @@ struct nx_video *nx_video_create(char *name, u32 type,
 	me->vdev.release   = video_device_release;
 	me->vdev.lock      = &me->lock;
 
-	vbq = devm_kzalloc(v4l2_dev->dev, sizeof(*vbq), GFP_KERNEL);
+	vbq = kzalloc(sizeof(*vbq), GFP_KERNEL);
 	if (!vbq) {
 		WARN_ON(1);
 		ret = -ENOMEM;

@@ -127,8 +127,7 @@ static int register_irq_handler(struct nx_decimator *me)
 	struct nx_v4l2_irq_entry *irq_entry = me->irq_entry;
 
 	if (!irq_entry) {
-		irq_entry = devm_kzalloc(&me->pdev->dev, sizeof(*irq_entry),
-					 GFP_KERNEL);
+		irq_entry = kzalloc(sizeof(*irq_entry), GFP_KERNEL);
 		if (!irq_entry) {
 			WARN_ON(1);
 			return -ENOMEM;
@@ -478,24 +477,18 @@ static int nx_decimator_probe(struct platform_device *pdev)
 	}
 
 	ret = nx_decimator_parse_dt(pdev, me);
-	if (ret) {
-		kfree(me);
+	if (ret)
 		return ret;
-	}
 
 	init_me(me);
 
 	ret = init_v4l2_subdev(me);
-	if (ret) {
-		kfree(me);
+	if (ret)
 		return ret;
-	}
 
 	ret = register_v4l2(me);
-	if (ret) {
-		kfree(me);
+	if (ret)
 		return ret;
-	}
 
 	me->pdev = pdev;
 	platform_set_drvdata(pdev, me);
@@ -511,8 +504,6 @@ static int nx_decimator_remove(struct platform_device *pdev)
 		return 0;
 
 	unregister_v4l2(me);
-	kfree(me);
-
 	return 0;
 }
 

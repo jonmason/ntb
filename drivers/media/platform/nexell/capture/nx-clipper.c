@@ -867,8 +867,7 @@ static int register_irq_handler(struct nx_clipper *me)
 	struct nx_v4l2_irq_entry *irq_entry = me->irq_entry;
 
 	if (!irq_entry) {
-		irq_entry = devm_kzalloc(&me->pdev->dev, sizeof(*irq_entry),
-					 GFP_KERNEL);
+		irq_entry = kzalloc(sizeof(*irq_entry), GFP_KERNEL);
 		if (!irq_entry) {
 			WARN_ON(1);
 			return -ENOMEM;
@@ -1654,7 +1653,6 @@ static int nx_clipper_probe(struct platform_device *pdev)
 	ret = nx_clipper_parse_dt(dev, me);
 	if (ret) {
 		dev_err(dev, "failed to parse dt\n");
-		kfree(me);
 		return ret;
 	}
 
@@ -1666,16 +1664,12 @@ static int nx_clipper_probe(struct platform_device *pdev)
 	init_me(me);
 
 	ret = init_v4l2_subdev(me);
-	if (ret) {
-		kfree(me);
+	if (ret)
 		return ret;
-	}
 
 	ret = register_v4l2(me);
-	if (ret) {
-		kfree(me);
+	if (ret)
 		return ret;
-	}
 
 	platform_set_drvdata(pdev, me);
 
@@ -1690,7 +1684,6 @@ static int nx_clipper_remove(struct platform_device *pdev)
 		return 0;
 
 	unregister_v4l2(me);
-	kfree(me);
 
 	return 0;
 }

@@ -90,9 +90,7 @@ int nx_v4l2_register_subdev(struct v4l2_subdev *sd)
 	}
 
 	if (sd->flags & V4L2_SUBDEV_FL_HAS_DEVNODE) {
-		struct video_device *vdev = devm_kzalloc(me->dev,
-							 sizeof(*vdev),
-							 GFP_KERNEL);
+		struct video_device *vdev = kzalloc(sizeof(*vdev), GFP_KERNEL);
 
 		if (!vdev) {
 			WARN_ON(1);
@@ -203,7 +201,6 @@ cleanup_alloc_ctx:
 	vb2_dma_contig_cleanup_ctx(nx_v4l2->alloc_ctx);
 
 free_me:
-	kfree(nx_v4l2);
 	__me = NULL;
 	return ret;
 }
@@ -218,7 +215,6 @@ static int nx_v4l2_remove(struct platform_device *pdev)
 	media_device_unregister(&nx_v4l2->media_dev);
 	v4l2_device_unregister(&nx_v4l2->v4l2_dev);
 	vb2_dma_contig_cleanup_ctx(nx_v4l2->alloc_ctx);
-	kfree(nx_v4l2);
 
 	__me = NULL;
 	return 0;

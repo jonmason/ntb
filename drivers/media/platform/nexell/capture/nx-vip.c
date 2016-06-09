@@ -443,15 +443,12 @@ static int nx_vip_probe(struct platform_device *pdev)
 	}
 
 	ret = nx_vip_parse_dt(pdev, me);
-	if (ret) {
-		kfree(me);
+	if (ret)
 		return ret;
-	}
 
 	if (_nx_vip_object[me->module]) {
 		dev_err(&pdev->dev, "already nx vip %d registered\n",
 			me->module);
-		kfree(me);
 		return -EBUSY;
 	}
 
@@ -470,7 +467,6 @@ static int nx_vip_probe(struct platform_device *pdev)
 	if (ret) {
 		dev_err(&pdev->dev, "failed to devm_request_irq for vip %d\n",
 			me->module);
-		kfree(me);
 		return ret;
 	}
 
@@ -486,7 +482,6 @@ static int nx_vip_remove(struct platform_device *pdev)
 	if (me) {
 		_nx_vip_object[me->module] = NULL;
 		nx_vip_clock_enable(me->module, false);
-		kfree(me);
 	}
 
 	return 0;
