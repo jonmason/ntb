@@ -474,7 +474,17 @@ static struct snd_soc_dai_ops nx_spdif_ops = {
  */
 static int nx_spdif_dai_suspend(struct snd_soc_dai *dai)
 {
+	struct nx_spdif_snd_param *par = snd_soc_dai_get_drvdata(dai);
+	struct spdif_register *spdif = &par->spdif;
+	void __iomem *base = par->base_addr;
+
 	dev_dbg(dai->dev, "%s\n", __func__);
+
+	spdif->clkcon &= ~(1 << CLKCON_POWER_POS);
+	writel(spdif->clkcon, (base+SPDIF_CLKCON_OFFSET));
+
+	clk_disable_unprepare(par->clk);
+
 	return 0;
 }
 
@@ -484,10 +494,11 @@ static int nx_spdif_dai_resume(struct snd_soc_dai *dai)
 	struct spdif_register *spdif = &par->spdif;
 	unsigned int cstas = spdif->cstas;
 	void __iomem *base = par->base_addr;
+	long rate_hz = par->master_clock;
 
 	dev_dbg(dai->dev, "%s\n", __func__);
 
-	clk_set_rate(par->clk, par->clk_rate);
+	par->clk_rate = clk_set_rate(par->clk, rate_hz);
 	clk_prepare_enable(par->clk);
 
 	spdif_reset(dai->dev, par);
