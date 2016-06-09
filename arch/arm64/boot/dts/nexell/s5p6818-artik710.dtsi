@@ -197,6 +197,14 @@
 		status = "okay";
 	};
 
+	artik_s3t9mf {
+		compatible = "samsung,s3t9mf";
+		reset-gpio = <&gpio_b 26 0>;
+		pwms = <&pwm 1 121 0>;
+		pwm-names = "pwm_t9mf";
+		status = "okay";
+	};
+
 	wlan {
 		compatible = "samsung,brcm-wlan";
 		gpios = <&gpio_d 28 0  /* WLAN_EN */
