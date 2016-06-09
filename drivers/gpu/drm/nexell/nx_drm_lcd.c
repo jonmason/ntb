@@ -61,27 +61,13 @@ struct lcd_context {
 #define host_to_mipi(h)	container_of(h, struct mipi_resource, mipi_host)
 #define mipi_to_ctx(d)	container_of(d, struct lcd_context, mipi_res)
 
-static const char *const panel_type_name[] = {
-	[dp_panel_type_none] = "unknown",
-	[dp_panel_type_rgb]  = "RGB",
-	[dp_panel_type_lvds] = "LVDS",
-	[dp_panel_type_mipi] = "MIPI",
-};
-
-static inline enum dp_panel_type panel_get_type(
-			struct nx_drm_device *display)
-{
-	struct nx_drm_ctrl *ctrl = &display->ctrl;
-
-	return ctrl->dpc.panel_type;
-}
-
 static bool panel_lcd_is_connected(struct device *dev,
 			struct drm_connector *connector)
 {
 	struct lcd_context *ctx = dev_get_drvdata(dev);
 	struct nx_drm_panel *panel = &ctx->display->panel;
 	struct device_node *panel_node = panel->panel_node;
+		enum dp_panel_type panel_type = dp_panel_get_type(ctx->display);
 
 	DRM_DEBUG_KMS("enter panel %s\n",
 		panel_node ? "exist" : "not exist");
@@ -110,15 +96,19 @@ static bool panel_lcd_is_connected(struct device *dev,
 				panel->is_connected = false;
 			}
 			panel->check_panel = true;
+
+			DRM_INFO("%s: status %s\n",
+				dp_panel_type_name(panel_type),
+				panel->is_connected ? "connect" : "disconnect");
+
 			return panel->is_connected;
 		}
 	}
 
 	if (!panel_node && false == ctx->local_timing) {
-		enum dp_panel_type panel_type = panel_get_type(ctx->display);
 
 		DRM_ERROR("not exist %s panel & timing %s !\n",
-			panel_type_name[panel_type], dev_name(dev));
+			dp_panel_type_name(panel_type), dev_name(dev));
 
 		return false;
 	}
@@ -316,11 +306,11 @@ static int panel_lcd_bind(struct device *dev,
 	struct drm_device *drm = data;
 	struct lcd_context *ctx = dev_get_drvdata(dev);
 	struct platform_driver *pdrv = to_platform_driver(dev->driver);
-	enum dp_panel_type panel_type = panel_get_type(ctx->display);
+	enum dp_panel_type panel_type = dp_panel_get_type(ctx->display);
 	int pipe = ctx->crtc_pipe;
 	int err = 0;
 
-	DRM_INFO("Bind %s panel\n", panel_type_name[panel_type]);
+	DRM_INFO("Bind %s panel\n", dp_panel_type_name(panel_type));
 
 	ctx->connector = nx_drm_connector_create_and_attach(drm,
 			ctx->display, pipe, panel_type, ctx);
@@ -355,7 +345,7 @@ static void panel_lcd_unbind(struct device *dev,
 			struct device *master, void *data)
 {
 	struct lcd_context *ctx = dev_get_drvdata(dev);
-	enum dp_panel_type panel_type = panel_get_type(ctx->display);
+	enum dp_panel_type panel_type = dp_panel_get_type(ctx->display);
 
 	if (ctx->connector)
 		nx_drm_connector_destroy_and_detach(ctx->connector);
@@ -466,7 +456,7 @@ static int panel_lcd_driver_setup(struct platform_device *pdev,
 	id = of_match_node(panel_lcd_of_match, pdev->dev.of_node);
 	type = (enum dp_panel_type)id->data;
 
-	DRM_INFO("Load %s panel\n", panel_type_name[type]);
+	DRM_INFO("Load %s panel\n", dp_panel_type_name(type));
 
 	err = nx_drm_dp_panel_drv_res_parse(dev, &ctx->base, &ctx->reset);
 	if (0 > err)
@@ -510,7 +500,7 @@ static int panel_lcd_probe(struct platform_device *pdev)
 	if (0 > err)
 		goto err_parse;
 
-	panel_type = panel_get_type(ctx->display);
+	panel_type = dp_panel_get_type(ctx->display);
 
 	if (IS_ENABLED(CONFIG_DRM_NX_MIPI_DSI)) {
 		if (dp_panel_type_mipi == panel_type) {

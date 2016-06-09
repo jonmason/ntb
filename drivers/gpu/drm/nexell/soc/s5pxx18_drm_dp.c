@@ -42,6 +42,18 @@ static const char *const panel_type_name[] = {
 	[dp_panel_type_hdmi] = "HDMI",
 };
 
+enum dp_panel_type dp_panel_get_type(struct nx_drm_device *display)
+{
+	struct nx_drm_ctrl *ctrl = &display->ctrl;
+
+	return ctrl->dpc.panel_type;
+}
+
+const char *dp_panel_type_name(enum dp_panel_type panel)
+{
+	return panel_type_name[panel];
+}
+
 static int convert_dp_rgb_format(uint32_t pixel_format,
 			uint32_t bpp, uint32_t depth, uint32_t *format)
 {
@@ -202,7 +214,7 @@ int nx_drm_dp_panel_dev_res_parse(struct device *dev,
 	np = of_find_node_by_name(node, "dp-resource");
 	if (!np) {
 		DRM_INFO("%s no output resource[%s] ...\n",
-			panel_type_name[panel_type], node->full_name);
+			dp_panel_type_name(panel_type), node->full_name);
 		return 0;
 	}
 
@@ -477,7 +489,7 @@ void nx_drm_dp_panel_ctrl_dump(struct nx_drm_device *display)
 	    panel->vm.vback_porch, panel->vm.vfront_porch);
 	DRM_DEBUG_KMS("flags:0x%x\n", panel->vm.flags);
 
-	DRM_DEBUG_KMS("CTRL (%s)\n", panel_type_name[dpc->panel_type]);
+	DRM_DEBUG_KMS("CTRL (%s)\n", dp_panel_type_name(dpc->panel_type));
 	DRM_DEBUG_KMS("cs0:%d, cd0:%d, cs1:%d, cd1:%d\n",
 	    ctrl->clk_src_lv0, ctrl->clk_div_lv0,
 	    ctrl->clk_src_lv1, ctrl->clk_div_lv1);
@@ -775,7 +787,7 @@ int nx_drm_dp_plane_update(struct drm_plane *plane,
 				src_x, src_y, src_w, src_h,
 				crtc_x, crtc_y, crtc_w, crtc_h, false);
 		nx_soc_dp_rgb_set_address(layer,
-				paddrs[0], pixel, crtc_w * pixel, false);
+				paddrs[0], pixel, crtc_w * pixel, true);
 		nx_soc_dp_rgb_set_enable(layer, true, true);
 
 	/* update video plane */
@@ -797,7 +809,7 @@ int nx_drm_dp_plane_update(struct drm_plane *plane,
 		case 1:
 			lua = paddrs[0], lus = pitches[0];
 			nx_soc_dp_video_set_address_1plane(layer,
-				lua, lus, false);
+				lua, lus, true);
 			break;
 
 		case 2:
@@ -808,7 +820,7 @@ int nx_drm_dp_plane_update(struct drm_plane *plane,
 			lus = pitches[0], cbs = pitches[1], crs = pitches[2];
 
 			nx_soc_dp_video_set_address_3plane(layer, lua, lus,
-				cba, cbs, cra, crs, false);
+				cba, cbs, cra, crs, true);
 			break;
 		default:
 			ret = -EINVAL;
@@ -904,13 +916,14 @@ void nx_drm_dp_encoder_commit(struct drm_encoder *encoder)
 	struct nx_drm_device *display = to_nx_encoder(encoder)->display;
 	struct dp_control_dev *dpc = display_to_dpc(display);
 
+	DRM_DEBUG_KMS("%s\n", dp_panel_type_name(dpc->panel_type));
+
 	/*
 	 * when set_crtc is requested from user or at booting time,
 	 * encoder->commit would be called without dpms call so if dpms is
 	 * no power on then encoder->dpms should be called
 	 * with DRM_MODE_DPMS_ON for the hardware power to be on.
 	 */
-	nx_soc_dp_device_power_on(dpc, false);
 	nx_soc_dp_device_prepare(dpc);
 	nx_soc_dp_device_power_on(dpc, true);
 }
@@ -930,6 +943,9 @@ void nx_drm_dp_encoder_dpms(struct drm_encoder *encoder, bool poweron)
 {
 	struct nx_drm_device *display = to_nx_encoder(encoder)->display;
 	struct dp_control_dev *dpc = display_to_dpc(display);
+
+	DRM_DEBUG_KMS("%s power %s\n",
+		dp_panel_type_name(dpc->panel_type), poweron ? "on" : "off");
 
 	if (poweron)
 		nx_soc_dp_device_prepare(dpc);
@@ -965,7 +981,7 @@ int nx_drm_dp_lcd_prepare(struct nx_drm_device *display,
 	struct dp_control_dev *dpc = display_to_dpc(display);
 	struct dp_control_ops *ops = dpc->ops;
 
-	DRM_DEBUG_KMS("%s\n", panel_type_name[dpc->panel_type]);
+	DRM_DEBUG_KMS("%s\n", dp_panel_type_name(dpc->panel_type));
 
 	if (ops && ops->prepare)
 		ops->prepare(dpc, panel ? 1 : 0);
@@ -980,7 +996,7 @@ int nx_drm_dp_lcd_enable(struct nx_drm_device *display,
 	struct dp_control_ops *ops = dpc->ops;
 	int module = dpc->module;
 
-	DRM_DEBUG_KMS("%s\n", panel_type_name[dpc->panel_type]);
+	DRM_DEBUG_KMS("%s\n", dp_panel_type_name(dpc->panel_type));
 
 	if (dp_panel_type_rgb == dpc->panel_type) {
 		/*
@@ -1021,7 +1037,7 @@ int nx_drm_dp_lcd_unprepare(struct nx_drm_device *display,
 	struct dp_control_dev *dpc = display_to_dpc(display);
 	struct dp_control_ops *ops = dpc->ops;
 
-	DRM_DEBUG_KMS("%s\n", panel_type_name[dpc->panel_type]);
+	DRM_DEBUG_KMS("%s\n", dp_panel_type_name(dpc->panel_type));
 
 	if (ops && ops->unprepare)
 		ops->unprepare(dpc);
@@ -1035,7 +1051,7 @@ int nx_drm_dp_lcd_disable(struct nx_drm_device *display,
 	struct dp_control_dev *dpc = display_to_dpc(display);
 	struct dp_control_ops *ops = dpc->ops;
 
-	DRM_DEBUG_KMS("%s\n", panel_type_name[dpc->panel_type]);
+	DRM_DEBUG_KMS("%s\n", dp_panel_type_name(dpc->panel_type));
 
 	if (ops && ops->disable)
 		ops->disable(dpc);

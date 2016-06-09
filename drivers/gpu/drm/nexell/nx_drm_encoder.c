@@ -33,10 +33,16 @@
 static void nx_drm_encoder_dpms(struct drm_encoder *encoder, int mode)
 {
 	struct nx_drm_device *display = to_nx_encoder(encoder)->display;
+	struct nx_drm_panel *panel = &display->panel;
 	struct nx_drm_ops *ops = display->ops;
 
-	DRM_DEBUG_KMS("enter [ENCODER:%d] dpms:%d\n",
-		encoder->base.id, mode);
+	DRM_DEBUG_KMS("enter [ENCODER:%d] %s dpms:%d, %s\n",
+		encoder->base.id,
+		dp_panel_type_name(dp_panel_get_type(display)),
+		mode, panel->is_connected ? "connected" : "disconnected");
+
+	if (!panel->is_connected)
+		return;
 
 	if (to_nx_encoder(encoder)->dpms == mode) {
 		DRM_DEBUG_KMS("desired dpms mode is same as previous one.\n");
@@ -129,14 +135,19 @@ static void nx_drm_encoder_commit(struct drm_encoder *encoder)
 {
 	struct nx_drm_device *display = to_nx_encoder(encoder)->display;
 	struct nx_drm_ops *ops = display->ops;
+	struct nx_drm_panel *panel = &display->panel;
 
 	DRM_DEBUG_KMS("enter\n");
+
+	if (!panel->is_connected)
+		return;
 
 	if (ops && ops->commit)
 		ops->commit(display->dev);
 
 	nx_drm_dp_encoder_commit(encoder);
 
+	/* display output device */
 	if (ops->dpms)
 		ops->dpms(display->dev, DRM_MODE_DPMS_ON);
 }

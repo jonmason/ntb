@@ -51,7 +51,6 @@ struct nx_drm_panel {
 	int height_mm;
 	struct videomode vm;
 	int vrefresh;
-
 	bool check_panel;
 	bool is_connected;
 };
@@ -76,6 +75,9 @@ struct nx_drm_device {
 };
 
 #define	drm_dev_get_dpc(d)	(&d->ctrl.dpc)
+
+enum dp_panel_type dp_panel_get_type(struct nx_drm_device *display);
+const char *dp_panel_type_name(enum dp_panel_type panel);
 
 void nx_drm_dp_crtc_init(struct drm_device *drm, struct drm_crtc *crtc,
 			int index);
@@ -152,6 +154,5 @@ int  nx_drm_dp_panel_ctrl_parse(struct device_node *np,
 			struct nx_drm_device *display);
 
 void nx_tieoff_set(u32 tieoff_index, u32 tieoff_value);
-
 
 #endif

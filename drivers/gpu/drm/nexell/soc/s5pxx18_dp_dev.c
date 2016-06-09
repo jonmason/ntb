@@ -83,7 +83,7 @@ static inline unsigned int R3G3B2toR8G8B8(u8 RGB)
 	return R8B8G8;
 }
 
-static void dp_plane_adjust(int module, int layer, bool now)
+static inline void dp_plane_adjust(int module, int layer, bool now)
 {
 	if (now)
 		nx_mlc_set_dirty_flag(module, layer);
@@ -655,8 +655,9 @@ int nx_soc_dp_device_prepare(struct dp_control_dev *dpc)
 		nx_dpc_set_quantization_mode(module, qmode_256, qmode_256);
 	}
 
-	pr_debug("%s: dev.%d (x=%4d, hfp=%3d, hbp=%3d, hsw=%3d)\n",
-		 __func__, module, sync->h_active_len, sync->h_front_porch,
+	pr_debug("%s: %s dev.%d (x=%4d, hfp=%3d, hbp=%3d, hsw=%3d)\n",
+		 __func__, dp_panel_type_name(dpc->panel_type), module,
+		 sync->h_active_len, sync->h_front_porch,
 		 sync->h_back_porch, sync->h_sync_width);
 	pr_debug("%s: dev.%d (y=%4d, vfp=%3d, vbp=%3d, vsw=%3d)\n",
 		 __func__, module, sync->v_active_len, sync->v_front_porch,
@@ -682,9 +683,14 @@ int nx_soc_dp_device_power_status(struct dp_control_dev *dpc)
 void nx_soc_dp_device_power_on(struct dp_control_dev *dpc, bool on)
 {
 	int module = dpc->module;
+	int count = 200;
+	int vbl;
 
-	pr_debug("%s: dev.%d power %s\n",
-		__func__, module, on ? "on" : "off");
+	pr_debug("%s: %s dev.%d power %s\n",
+		__func__, dp_panel_type_name(dpc->panel_type),
+		module, on ? "on" : "off");
+
+	nx_dpc_clear_interrupt_pending_all(module);
 
 	if (on) {
 		nx_dpc_set_reg_flush(module);	/* for HDMI */
@@ -693,6 +699,23 @@ void nx_soc_dp_device_power_on(struct dp_control_dev *dpc, bool on)
 	} else {
 		nx_dpc_set_dpc_enable(module, 0);
 		nx_dpc_set_clock_divisor_enable(module, 0);
+	}
+
+	/*
+	 * wait for video sync
+	 * for hdmi and output devices.
+	 */
+	vbl = nx_dpc_get_interrupt_enable_all(module);
+	while (on) {
+		if (!vbl) {
+			msleep(20);
+			break;
+		}
+
+		vbl = nx_dpc_get_interrupt_pending_all(module);
+		mdelay(1);
+		if (0 > --count || vbl)
+			break;
 	}
 }
 

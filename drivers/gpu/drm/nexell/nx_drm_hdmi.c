@@ -66,6 +66,9 @@ static bool panel_hdmi_is_connected(struct device *dev,
 			struct drm_connector *connector)
 {
 	struct hdmi_context *ctx = dev_get_drvdata(dev);
+	struct nx_drm_panel *panel = &ctx->display->panel;
+
+	panel->is_connected = ctx->plug;
 
 	DRM_INFO("HDMI: %s\n",
 		ctx->plug ? "connect" : "disconnect");
@@ -271,9 +274,7 @@ static int panel_hdmi_bind(struct device *dev,
 	struct hdmi_context *ctx = dev_get_drvdata(dev);
 	struct hdmi_resource *hdmi = &ctx->hdmi_res;
 	struct platform_driver *pdrv = to_platform_driver(dev->driver);
-	struct nx_drm_priv *priv = drm->dev_private;
 	int pipe = ctx->crtc_pipe;
-	bool plug;
 
 	DRM_DEBUG_KMS("enter\n");
 
@@ -288,9 +289,10 @@ static int panel_hdmi_bind(struct device *dev,
 	/*
 	 * check connect boot status at boot time
 	 */
-	plug = nx_dp_hdmi_is_connected();
-	if (plug) {
-		ctx->plug = plug;
+	if (nx_dp_hdmi_is_connected()) {
+		struct nx_drm_priv *priv = drm->dev_private;
+
+		ctx->plug = nx_dp_hdmi_is_connected();
 		priv->force_detect = true;
 	}
 

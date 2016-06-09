@@ -23,14 +23,6 @@
 #include "nx_drm_encoder.h"
 #include "soc/s5pxx18_drm_dp.h"
 
-static inline enum dp_panel_type panel_get_type(
-			struct nx_drm_device *display)
-{
-	struct nx_drm_ctrl *ctrl = &display->ctrl;
-
-	return ctrl->dpc.panel_type;
-}
-
 static int nx_drm_connector_get_modes(struct drm_connector *connector)
 {
 	struct nx_drm_device *display = to_nx_connector(connector)->display;
@@ -68,9 +60,10 @@ struct drm_encoder *nx_drm_best_encoder(struct drm_connector *connector)
 	struct drm_encoder *encoder = nx_connector->encoder;
 
 	if (encoder)
-		DRM_DEBUG_KMS("encoodr id:%d (enc.%d) panel %d\n",
+		DRM_DEBUG_KMS("encoodr id:%d (enc.%d) panel %s\n",
 			encoder->base.id, to_nx_encoder(encoder)->pipe,
-			panel_get_type(to_nx_connector(connector)->display));
+			dp_panel_type_name(
+				dp_panel_get_type(nx_connector->display)));
 
 	DRM_DEBUG_KMS("connector id:%d\n", connector->base.id);
 	return encoder;

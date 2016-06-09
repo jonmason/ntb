@@ -286,6 +286,8 @@ struct dp_plane_layer {
 	} color;
 };
 
+const char *dp_panel_type_name(enum dp_panel_type panel);
+
 void nx_soc_dp_device_dpc_base(int module, void __iomem *base);
 void nx_soc_dp_device_mlc_base(int module, void __iomem *base);
 void nx_soc_dp_device_top_base(int module, void __iomem *base);
