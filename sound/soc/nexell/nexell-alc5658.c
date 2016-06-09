@@ -155,6 +155,10 @@ static int alc5658_resume_post(struct snd_soc_card *card)
 		return -1;
 	if (SND_SOC_BIAS_OFF != codec_bias_level)
 		codec->driver->resume(codec);
+
+	if (NULL == jack_gpio.name)
+		return 0;
+
 	if (invert)
 		level = !level;
 	dev_dbg(card->dev, "%s: hp jack %s\n", __func__, level?"IN":"OUT");
