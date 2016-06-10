@@ -151,6 +151,12 @@
 			status = "okay";
 		};
 
+		spdiftx@c0059000 {
+			pcm-bit = <16>;
+			sample_rate = <48000>;
+			status = "okay";
+		};
+
 		i2s_0:i2s@c0055000 {
 			master-mode = <1>;
 			mclk-in = <0>;
@@ -412,6 +418,16 @@
 		hpin-support = <0>;
 		nexell,i2s-controller = <&i2s_0>;
 		audio-codec = <&alc5658>;
+	};
+
+	spdif_out: spdif-out {
+		compatible = "linux,spdif-dit";
+	};
+
+	spdif-transceiver {
+		compatible = "nexell,spdif-transceiver";
+		sample_rate = <48000>;
+		format = "S16";
 	};
 
 	gpio_keys {
