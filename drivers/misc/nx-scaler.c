@@ -1275,6 +1275,9 @@ static const struct file_operations nx_scaler_ops = {
 	.open           = nx_scaler_open,
 	.release        = nx_scaler_release,
 	.unlocked_ioctl = nx_scaler_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl	= nx_scaler_ioctl,
+#endif
 };
 
 static struct miscdevice nx_scaler_misc_device = {
