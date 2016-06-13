@@ -86,6 +86,15 @@
 		 init_cfg = "mrvl/bt_init_cfg.conf";
 		 cal_cfg = "mrvl/bt_cal_data.conf";
 	};
+
+	thermal_ap:thermal {
+		#thermal-sensor-cells = <0>;
+		compatible = "murata,ncp03wf104";
+		pullup-uv = <1800000>;   /* VCC_1.8V_AP */
+		pullup-ohm = <100000>;   /* 100K */
+		pulldown-ohm = <0>; /* 100K */
+		io-channels = <&adc 6>;  /* AP temperature */
+	};
 };
 
 &dw_mmc_1 {
