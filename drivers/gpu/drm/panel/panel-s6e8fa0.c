@@ -226,7 +226,10 @@ static int s6e8fa0_set_brightness(struct backlight_device *bl_dev)
 {
 	struct s6e8fa0 *ctx = (struct s6e8fa0 *)bl_get_data(bl_dev);
 	unsigned int brightness = bl_dev->props.brightness;
-	u8 gamma_update[2] = { 0x51, };
+	/* FIXME: MIPI_DSI_DCS_SHORT_WRITE_PARAM is not working properly, the
+	 * panel is turned on from Power key source.
+	 */
+	u8 gamma_update[3] = { 0x51, };
 
 	if (brightness < MIN_BRIGHTNESS ||
 		brightness > bl_dev->props.max_brightness) {
