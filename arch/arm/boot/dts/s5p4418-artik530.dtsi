@@ -95,6 +95,42 @@
 		pulldown-ohm = <0>; /* 100K */
 		io-channels = <&adc 6>;  /* AP temperature */
 	};
+
+	thermal-zones {
+		cpu0_thermal: cpu0-thermal {
+			thermal-sensors = <&thermal_ap>;
+			polling-delay-passive = <1000>;
+			polling-delay = <1000>;
+			trips {
+				cpu_alert0: cpu-alert-0 {
+					temperature = <60000>;
+					hysteresis = <100000>;
+					type = "active";
+				};
+				cpu_alert1: cpu-alert-1 {
+					temperature = <70000>;
+					hysteresis = <100000>;
+					type = "passive";
+				};
+				cpu-crit-0 {
+					temperature = <80000>;
+					hysteresis = <100000>;
+					type = "critical";
+					};
+			};
+
+			cooling-maps {
+				map0 {
+					trip = <&cpu_alert0>;
+					cooling-device = <&cpu0 2 6>;
+				};
+				map1 {
+					trip = <&cpu_alert1>;
+					cooling-device = <&cpu0 8 8>;
+				};
+			};
+		};
+	};
 };
 
 &dw_mmc_1 {
