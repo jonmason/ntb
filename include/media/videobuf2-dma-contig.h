@@ -26,6 +26,7 @@ vb2_dma_contig_plane_dma_addr(struct vb2_buffer *vb, unsigned int plane_no)
 
 void *vb2_dma_contig_init_ctx(struct device *dev);
 void vb2_dma_contig_cleanup_ctx(void *alloc_ctx);
+void vb2_dma_contig_enable_cached_mmap(void *alloc_ctx, bool enable);
 
 extern const struct vb2_mem_ops vb2_dma_contig_memops;
 

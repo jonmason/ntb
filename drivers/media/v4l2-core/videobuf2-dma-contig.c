@@ -23,6 +23,7 @@
 
 struct vb2_dc_conf {
 	struct device		*dev;
+	bool			mmap_cached;
 };
 
 struct vb2_dc_buf {
@@ -38,6 +39,7 @@ struct vb2_dc_buf {
 	struct vb2_vmarea_handler	handler;
 	atomic_t			refcount;
 	struct sg_table			*sgt_base;
+	bool				use_cached_buffer;
 
 	/* DMABUF related */
 	struct dma_buf_attachment	*db_attach;
@@ -164,6 +166,8 @@ static void *vb2_dc_alloc(void *alloc_ctx, unsigned long size,
 	buf->handler.put = vb2_dc_put;
 	buf->handler.arg = buf;
 
+	buf->use_cached_buffer = conf->mmap_cached;
+
 	atomic_inc(&buf->refcount);
 
 	return buf;
@@ -185,8 +189,14 @@ static int vb2_dc_mmap(void *buf_priv, struct vm_area_struct *vma)
 	 */
 	vma->vm_pgoff = 0;
 
-	ret = dma_mmap_coherent(buf->dev, vma, buf->vaddr,
-		buf->dma_addr, buf->size);
+	if (buf->use_cached_buffer)
+		ret = remap_pfn_range(vma, vma->vm_start,
+				      __phys_to_pfn(buf->dma_addr),
+				      buf->size, vma->vm_page_prot);
+
+	else
+		ret = dma_mmap_coherent(buf->dev, vma, buf->vaddr,
+					buf->dma_addr, buf->size);
 
 	if (ret) {
 		pr_err("Remapping memory failed, error: %d\n", ret);
@@ -741,6 +751,16 @@ void vb2_dma_contig_cleanup_ctx(void *alloc_ctx)
 		kfree(alloc_ctx);
 }
 EXPORT_SYMBOL_GPL(vb2_dma_contig_cleanup_ctx);
+
+void vb2_dma_contig_enable_cached_mmap(void *alloc_ctx, bool enable)
+{
+	if (!IS_ERR_OR_NULL(alloc_ctx)) {
+		struct vb2_dc_conf *conf = alloc_ctx;
+
+		conf->mmap_cached = enable;
+	}
+}
+EXPORT_SYMBOL_GPL(vb2_dma_contig_enable_cached_mmap);
 
 MODULE_DESCRIPTION("DMA-contig memory handling routines for videobuf2");
 MODULE_AUTHOR("Pawel Osciak <pawel@osciak.com>");
