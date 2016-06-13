@@ -1254,6 +1254,8 @@ struct nx_video *nx_video_create(char *name, u32 type,
 		goto free_vbq;
 	}
 
+	vb2_dma_contig_enable_cached_mmap(me->vb2_alloc_ctx, true);
+
 	video_set_drvdata(&me->vdev, me);
 
 	video_device_number++;
