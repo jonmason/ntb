@@ -54,6 +54,7 @@
 		cpu0: cpu@0 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a9";
+			#cooling-cells = <2>;
 			reg = <0xa00>;
 		};
 
