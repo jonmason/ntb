@@ -696,7 +696,6 @@ static int nx_video_set_format(struct file *file, void *fh,
 	/* call to subdev */
 	ret = v4l2_subdev_call(subdev, pad, set_fmt, NULL, &mbus_fmt);
 	if (ret < 0) {
-		WARN_ON(1);
 		pr_err("[nx video] failed to subdev set_fmt()\n");
 		return ret;
 	}

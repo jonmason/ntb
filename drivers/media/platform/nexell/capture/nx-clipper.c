@@ -1044,7 +1044,8 @@ static int nx_clipper_s_stream(struct v4l2_subdev *sd, int enable)
 			}
 			ret = v4l2_subdev_call(remote, video, s_stream, 1);
 			if (ret) {
-				WARN_ON(1);
+				dev_err(&me->pdev->dev,
+					"failed to s_stream %d\n", enable);
 				goto UP_AND_OUT;
 			}
 		}
@@ -1105,7 +1106,7 @@ static int nx_clipper_s_stream(struct v4l2_subdev *sd, int enable)
 UP_AND_OUT:
 	up(&me->s_stream_sem);
 
-	return 0;
+	return ret;
 }
 
 static int nx_clipper_g_crop(struct v4l2_subdev *sd,

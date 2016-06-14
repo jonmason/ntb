@@ -837,7 +837,7 @@ static int nx_csi_s_stream(struct v4l2_subdev *sd, int enable)
 	if (enable && !(NX_ATOMIC_READ(&me->state) & STATE_RUNNING)) {
 		ret = v4l2_subdev_call(remote_source, video, s_stream, 1);
 		if (ret) {
-			WARN_ON(1);
+			dev_err(me->dev, "failed to s_stream %d\n", enable);
 			goto UP_AND_OUT;
 		}
 		nx_csi_run(me);
@@ -851,7 +851,7 @@ static int nx_csi_s_stream(struct v4l2_subdev *sd, int enable)
 UP_AND_OUT:
 	up(&me->s_stream_sem);
 
-	return 0;
+	return ret;
 }
 
 static int nx_csi_g_parm(struct v4l2_subdev *sd, struct v4l2_streamparm *param)
