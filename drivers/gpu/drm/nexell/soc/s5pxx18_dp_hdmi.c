@@ -412,12 +412,21 @@ static void hdmi_reg_infoframe(const struct hdmi_conf *conf,
 			       const struct hdmi_format *format)
 {
 	const struct hdmi_preset *preset = conf->preset;
+	bool dvi_mode = conf->preset->dvi_mode;
 	u32 hdr_sum;
 	u8 chksum;
 	u32 aspect_ratio;
 	u32 vic;
 
-	pr_debug("%s: infoframe type = 0x%x\n", __func__, infoframe->any.type);
+	pr_debug("%s: infoframe type = 0x%x, %s\n", __func__,
+		infoframe->any.type, dvi_mode ? "dvi monitor" : "hdmi monitor");
+
+	if (dvi_mode) {
+		hdmi_writeb(HDMI_VSI_CON, HDMI_VSI_CON_DO_NOT_TRANSMIT);
+		hdmi_writeb(HDMI_AVI_CON, HDMI_AVI_CON_DO_NOT_TRANSMIT);
+		hdmi_write(HDMI_AUI_CON, HDMI_AUI_CON_NO_TRAN);
+		return;
+	}
 
 	switch (infoframe->any.type) {
 	case HDMI_INFOFRAME_TYPE_VENDOR:
@@ -567,6 +576,9 @@ static void hdmi_set_acr(int sample_rate, bool dvi_mode)
 {
 	u32 n, cts;
 
+	pr_debug("%s %s\n",
+		 __func__, dvi_mode ? "dvi monitor" : "hdmi monitor");
+
 	if (dvi_mode) {
 		hdmi_write(HDMI_ACR_CON, HDMI_ACR_CON_TX_MODE_NO_TX);
 		return;
@@ -662,6 +674,9 @@ void hdmi_dvi_mode_set(bool dvi_mode)
 {
 	u32 val;
 
+	pr_debug("%s %s\n",
+		 __func__, dvi_mode ? "dvi monitor" : "hdmi monitor");
+
 	hdmi_write_mask(HDMI_MODE_SEL, dvi_mode ? HDMI_MODE_DVI_EN :
 			HDMI_MODE_HDMI_EN, HDMI_MODE_MASK);
 
@@ -741,7 +756,7 @@ int hdmi_find_mode(struct videomode *vm, int refresh,
 		if (0 == mode->pixelclock)
 			continue;
 
-		pr_debug("[%s] Find %2d %s ha=%4d, va=%4d, %2d fps, %dhz\n",
+		pr_debug("[%s] Ok Find %2d %s ha=%4d, va=%4d, %2d fps, %dhz\n",
 			 __func__, i, mode->name, mode->h_as, mode->v_as,
 			 mode->refresh, mode->pixelclock);
 		return i;
@@ -946,24 +961,26 @@ int nx_dp_hdmi_mode_commit(struct nx_drm_device *display, int pipe)
 
 void nx_dp_hdmi_power(struct nx_drm_device *display, bool on)
 {
-	struct dp_control_dev *dpc = display_to_dpc(display);
 	struct dp_hdmi_dev *out;
 	const struct hdmi_conf *conf;
-	bool dvi_mode = false;
+	struct dp_control_dev *dpc = display_to_dpc(display);
+	bool dvi_mode;
 
 	pr_debug("%s %s\n", __func__, on ? "on" : "off");
 
 	out = dpc->dp_output;
 	conf = out->preset_data;
 
-	if (!conf)
+	if (!conf || !conf->preset)
 		return;
 
-	if (on) {
+	dvi_mode = conf->preset->dvi_mode;
+
+	if (on)
 		hdmi_enable(conf, true);
-		if (dvi_mode)
-			hdmi_write(HDMI_GCP_CON, HDMI_GCP_CON_NO_TRAN);
-	} else {
+	else
 		hdmi_enable(conf, false);
-	}
+
+	if (on && dvi_mode)
+		hdmi_write(HDMI_GCP_CON, HDMI_GCP_CON_NO_TRAN);
 }
