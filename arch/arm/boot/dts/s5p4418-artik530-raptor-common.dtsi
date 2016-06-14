@@ -413,8 +413,8 @@
 
 &pwm {
 	pinctrl-names = "default";
-	pinctrl-0 = <&pwm2_pin>;
-	samsung,pwm-outputs = <2>;
+	pinctrl-0 = <&pwm1_pin &pwm2_pin>;
+	samsung,pwm-outputs = <1>, <2>;
 	status = "okay";
 };
 
