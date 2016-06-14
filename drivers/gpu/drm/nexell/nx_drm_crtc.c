@@ -79,12 +79,8 @@ static void nx_drm_crtc_commit(struct drm_crtc *crtc)
 	 * no power on then crtc->dpms should be called
 	 * with DRM_MODE_DPMS_ON for the hardware power to be on.
 	 */
-	if (nx_crtc->dpms_mode != DRM_MODE_DPMS_ON) {
+	if (nx_crtc->dpms_mode != DRM_MODE_DPMS_ON)
 		nx_drm_crtc_dpms(crtc, DRM_MODE_DPMS_ON);
-	} else {
-		nx_drm_crtc_dpms(crtc, DRM_MODE_DPMS_OFF);
-		nx_drm_crtc_dpms(crtc, DRM_MODE_DPMS_ON);
-	}
 
 	nx_drm_dp_crtc_commit(crtc);
 }
@@ -188,10 +184,11 @@ static int nx_drm_crtc_page_flip(struct drm_crtc *crtc,
 			struct drm_pending_vblank_event *event,
 			uint32_t flags)
 {
-	struct drm_device *dev = crtc->dev;
+	struct drm_device *drm = crtc->dev;
 	struct nx_drm_crtc *nx_crtc = to_nx_crtc(crtc);
 	struct drm_framebuffer *old_fb = crtc->primary->fb;
 	unsigned int crtc_w, crtc_h;
+	int pipe = nx_crtc->pipe;
 	int ret;
 
 	DRM_DEBUG_KMS("page flip crtc.%d\n", nx_crtc->pipe);
@@ -205,26 +202,27 @@ static int nx_drm_crtc_page_flip(struct drm_crtc *crtc,
 	if (!event)
 		return -EINVAL;
 
-	spin_lock_irq(&dev->event_lock);
+	spin_lock_irq(&drm->event_lock);
+
 	if (nx_crtc->event) {
 		ret = -EBUSY;
 		goto out;
 	}
 
-	ret = drm_vblank_get(dev, nx_crtc->pipe);
+	ret = drm_vblank_get(drm, pipe);
 	if (ret) {
-		DRM_DEBUG("fail : to acquire vblank counter\n");
+		DRM_ERROR("fail : to acquire vblank counter\n");
 		goto out;
 	}
 
 	nx_crtc->event = event;
-	spin_unlock_irq(&dev->event_lock);
+	spin_unlock_irq(&drm->event_lock);
 
 	/*
 	 * the pipe from user always is 0 so we can set pipe number
 	 * of current owner to event.
 	 */
-	event->pipe = nx_crtc->pipe;
+	event->pipe = pipe;
 
 	crtc->primary->fb = fb;
 	crtc_w = fb->width - crtc->x;
@@ -237,17 +235,17 @@ static int nx_drm_crtc_page_flip(struct drm_crtc *crtc,
 	if (ret) {
 		DRM_DEBUG("fail : plane update for page flip %d\n", ret);
 		crtc->primary->fb = old_fb;
-		spin_lock_irq(&dev->event_lock);
+		spin_lock_irq(&drm->event_lock);
 		nx_crtc->event = NULL;
-		drm_vblank_put(dev, nx_crtc->pipe);
-		spin_unlock_irq(&dev->event_lock);
+		drm_vblank_put(drm, pipe);
+		spin_unlock_irq(&drm->event_lock);
 		return ret;
 	}
 
 	return 0;
 
 out:
-	spin_unlock_irq(&dev->event_lock);
+	spin_unlock_irq(&drm->event_lock);
 	return ret;
 }
 
@@ -304,10 +302,13 @@ void nx_drm_crtc_disable_vblank(struct drm_device *drm, unsigned int pipe)
 }
 
 #ifdef DEBUG_FPS_TIME
+#define	SHOW_PERIOD_SEC		1
+#define	FPS_HZ	(60)
 #define	DUMP_FPS_TIME(p) {	\
-	static long ts[2] = { 0, };	\
+	static long ts[2] = { 0, }, vb_count;	\
 	long new = ktime_to_ms(ktime_get());	\
-	pr_info("[dp.%d] %ld ms\n", p, new - ts[p]);	\
+	if (0 == (vb_count++ % (FPS_HZ * SHOW_PERIOD_SEC)))	\
+		pr_info("[dp.%d] %ld ms\n", p, new - ts[p]);	\
 	ts[p] = new;	\
 	}
 #else
@@ -317,44 +318,46 @@ void nx_drm_crtc_disable_vblank(struct drm_device *drm, unsigned int pipe)
 static irqreturn_t nx_drm_crtc_interrupt(int irq, void *arg)
 {
 	struct drm_device *drm = arg;
-	struct nx_drm_priv *priv;
-	int no;
+	struct nx_drm_priv *priv = drm->dev_private;
+	int i;
 
-	priv = drm->dev_private;
+	for (i = 0; i < priv->num_crtcs; i++) {
+		struct drm_crtc *crtc = priv->crtcs[i];
+		struct nx_drm_crtc *nx_crtc;
 
-	for (no = 0; no < priv->num_crtcs; no++) {
-		struct drm_crtc *crtc = priv->crtcs[no];
-		struct nx_drm_crtc *nx_crtc = to_nx_crtc(crtc);
+		if (!crtc)
+			continue;
 
-		if (crtc) {
-			if (irq == nx_crtc->pipe_irq) {
-				struct drm_pending_vblank_event *event = NULL;
-				int pipe = nx_crtc->pipe;
+		nx_crtc = to_nx_crtc(crtc);
 
-				if (nx_crtc->dpms_mode == DRM_MODE_DPMS_OFF) {
-					nx_drm_dp_crtc_irq_done(crtc, pipe);
-					break;
-				}
+		if (irq == nx_crtc->pipe_irq) {
+			struct drm_pending_vblank_event *event = NULL;
+			int pipe = nx_crtc->pipe;
 
-				drm_handle_vblank(drm, no);
+			drm_handle_vblank(drm, i);
 
-				spin_lock(&drm->event_lock);
+			spin_lock(&drm->event_lock);
 
-				event = nx_crtc->event;
-				if (event) {
-					drm_send_vblank_event(drm, no, event);
-					drm_vblank_put(drm, no);
+			event = nx_crtc->event;
+			if (event) {
+				if (nx_crtc->post_closed) {
+					drm_vblank_put(drm, i);
+					event->base.destroy(&event->base);
+				} else {
+					drm_send_vblank_event(drm, i, event);
+					drm_vblank_put(drm, i);
 				}
 				nx_crtc->event = NULL;
-
-				spin_unlock(&drm->event_lock);
-
-				DUMP_FPS_TIME(pipe);
-
-				/* clear hw pend */
-				nx_drm_dp_crtc_irq_done(crtc, pipe);
-				break;
+				nx_crtc->post_closed = false;
 			}
+
+			spin_unlock(&drm->event_lock);
+
+			DUMP_FPS_TIME(pipe);
+
+			/* clear irq */
+			nx_drm_dp_crtc_irq_done(crtc, pipe);
+			break;
 		}
 	}
 

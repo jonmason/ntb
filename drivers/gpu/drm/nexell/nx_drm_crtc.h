@@ -30,6 +30,7 @@ struct nx_drm_crtc {
 	unsigned int dpms_mode;
 	int num_resets;
 	struct reset_control *reset_ctrl;
+	bool post_closed;
 };
 
 #define to_nx_crtc(x)	\

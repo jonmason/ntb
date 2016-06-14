@@ -173,9 +173,9 @@ static struct dma_buf *nx_drm_gem_prime_export(struct drm_device *drm,
 	return drm_gem_prime_export(drm, obj, flags);
 }
 
-static void nx_drm_lastclose(struct drm_device *dev)
+static void nx_drm_lastclose(struct drm_device *drm)
 {
-	struct nx_drm_priv *priv = dev->dev_private;
+	struct nx_drm_priv *priv = drm->dev_private;
 	struct drm_fbdev_cma *fbdev;
 
 	if (!priv || !priv->fbdev)
@@ -187,6 +187,25 @@ static void nx_drm_lastclose(struct drm_device *dev)
 				(struct drm_fb_helper *)fbdev);
 }
 
+static void nx_drm_postclose(struct drm_device *drm, struct drm_file *file)
+{
+	struct drm_pending_vblank_event *event;
+	struct nx_drm_crtc *nx_crtc;
+	struct nx_drm_priv *priv = drm->dev_private;
+	unsigned long flags;
+	int i;
+
+	for (i = 0; i < priv->num_crtcs; i++) {
+		nx_crtc = to_nx_crtc(priv->crtcs[i]);
+		event = nx_crtc->event;
+		if (event && event->base.file_priv == file) {
+			spin_lock_irqsave(&drm->event_lock, flags);
+			nx_crtc->post_closed = true;
+			spin_unlock_irqrestore(&drm->event_lock, flags);
+		}
+	}
+}
+
 static struct drm_driver nx_drm_driver = {
 	.driver_features = DRIVER_HAVE_IRQ | DRIVER_MODESET | DRIVER_GEM |
 	    DRIVER_PRIME,
@@ -194,6 +213,7 @@ static struct drm_driver nx_drm_driver = {
 	.unload = nx_drm_unload,
 	.fops = &nx_drm_driver_fops,
 	.lastclose = nx_drm_lastclose,
+	.postclose = nx_drm_postclose,
 	.set_busid = drm_platform_set_busid,
 
 	.get_vblank_counter = drm_vblank_count,
