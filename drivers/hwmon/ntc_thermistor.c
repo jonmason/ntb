@@ -491,6 +491,15 @@ static int ntc_read_temp(void *dev, int *temp)
 	return 0;
 }
 
+static int ntc_set_emul_temp(void *dev, unsigned long temp)
+{
+	struct ntc_data *data = dev_get_drvdata(dev);
+
+	data->tz->emul_temperature = temp;
+
+	return 0;
+}
+
 static ssize_t ntc_show_name(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -535,6 +544,7 @@ static const struct attribute_group ntc_attr_group = {
 
 static const struct thermal_zone_of_device_ops ntc_of_thermal_ops = {
 	.get_temp = ntc_read_temp,
+	.set_emul_temp = ntc_set_emul_temp,
 };
 
 static int ntc_thermistor_probe(struct platform_device *pdev)
