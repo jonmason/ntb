@@ -987,9 +987,9 @@ static int _make_command_buffer(struct nx_scaler *me,
 	dst_code = data->dst_code;
 
 	if ((data->crop.x > 0) || (data->crop.y > 0)) {
-		src_y_pos = ((data->crop.y-1) * data->src_stride[0])
+		src_y_pos = ((data->crop.y) * data->src_stride[0])
 			+ data->crop.x;
-		src_c_pos = (((data->crop.y/2)-1) * data->src_stride[1])
+		src_c_pos = (((data->crop.y/2)) * data->src_stride[1])
 			+ (data->crop.x/2);
 	}
 
