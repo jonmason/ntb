@@ -1813,9 +1813,8 @@ p_err:
 static int sensor_4ec_set_size(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
-	struct s5k4ec_framesize const *size;
+	struct s5k4ec_framesize *size;
 	struct s5k4ec_state *s5k4ec_state;
-	u32 i;
 
 	cam_dbg("E\n");
 
@@ -1826,28 +1825,9 @@ static int sensor_4ec_set_size(struct v4l2_subdev *subdev)
 		goto p_err;
 	}
 
-	size = NULL;
+	size = s5k4ec_state->stream_size;
 
 	if (s5k4ec_state->mode == S5K4EC_OPRMODE_IMAGE) {
-		cam_info("for capture\n");
-		for (i = 0; i < ARRAY_SIZE(capture_size_list); ++i) {
-			if ((capture_size_list[i].width ==
-				s5k4ec_state->fmt.width) &&
-				(capture_size_list[i].height ==
-				s5k4ec_state->fmt.height)) {
-				size = &capture_size_list[i];
-				break;
-			}
-		}
-
-		if (!size) {
-			cam_err("the capture size(%d x %d) is not supported",
-				s5k4ec_state->fmt.width,
-				s5k4ec_state->fmt.height);
-			ret = -EINVAL;
-			goto p_err;
-		}
-
 		ret = sensor_4ec_apply_set(subdev,
 			&regs_set.capture_size[size->index]);
 		if (ret) {
@@ -1855,25 +1835,6 @@ static int sensor_4ec_set_size(struct v4l2_subdev *subdev)
 			goto p_err;
 		}
 	} else {
-		cam_info("for preview\n");
-		for (i = 0; i < ARRAY_SIZE(preview_size_list); ++i) {
-			if ((preview_size_list[i].width ==
-			s5k4ec_state->fmt.width) &&
-				(preview_size_list[i].height ==
-				s5k4ec_state->fmt.height)) {
-				size = &preview_size_list[i];
-				break;
-			}
-		}
-
-		if (!size) {
-			cam_err("the preview size(%d x %d) is not supported",
-				s5k4ec_state->fmt.width,
-				s5k4ec_state->fmt.height);
-			ret = -EINVAL;
-			goto p_err;
-		}
-
 		ret = sensor_4ec_apply_set(subdev,
 			&regs_set.preview_size[size->index]);
 		if (ret) {
@@ -1896,6 +1857,8 @@ static int sensor_4ec_s_format(struct v4l2_subdev *subdev,
 {
 	int ret = 0;
 	struct s5k4ec_state *s5k4ec_state;
+	struct s5k4ec_framesize *size;
+	u32 i;
 
 	BUG_ON(!subdev);
 	BUG_ON(!fmt);
@@ -1912,6 +1875,51 @@ static int sensor_4ec_s_format(struct v4l2_subdev *subdev,
 	s5k4ec_state->fmt.width = fmt->width;
 	s5k4ec_state->fmt.height = fmt->height;
 	s5k4ec_state->fmt.code = fmt->code;
+
+	size = NULL;
+
+	if (s5k4ec_state->mode == S5K4EC_OPRMODE_IMAGE) {
+		cam_info("for capture\n");
+		for (i = 0; i < ARRAY_SIZE(capture_size_list); ++i) {
+			if ((capture_size_list[i].width ==
+				s5k4ec_state->fmt.width) &&
+				(capture_size_list[i].height ==
+				s5k4ec_state->fmt.height)) {
+				size = &capture_size_list[i];
+				break;
+			}
+		}
+
+		if (!size) {
+			cam_err("the capture size(%d x %d) is not supported",
+				s5k4ec_state->fmt.width,
+				s5k4ec_state->fmt.height);
+			ret = -EINVAL;
+			goto p_err;
+		}
+	} else {
+		cam_info("for preview\n");
+		for (i = 0; i < ARRAY_SIZE(preview_size_list); ++i) {
+			if ((preview_size_list[i].width ==
+			s5k4ec_state->fmt.width) &&
+				(preview_size_list[i].height ==
+				s5k4ec_state->fmt.height)) {
+				size = &preview_size_list[i];
+				break;
+			}
+		}
+
+		if (!size) {
+			cam_err("the preview size(%d x %d) is not supported",
+				s5k4ec_state->fmt.width,
+				s5k4ec_state->fmt.height);
+			ret = -EINVAL;
+			goto p_err;
+		}
+	}
+
+	s5k4ec_state->stream_size = size;
+
 p_err:
 	return ret;
 }
@@ -1924,9 +1932,24 @@ static int sensor_4ec_s_stream(struct v4l2_subdev *subdev,
 	cam_info("%d\n", enable);
 
 	if (enable) {
-		sensor_4ec_init(subdev, 1);
-		sensor_4ec_set_framerate(subdev);
-		sensor_4ec_set_size(subdev);
+		ret = sensor_4ec_init(subdev, 1);
+		if (ret) {
+			cam_err("stream_on is fail(%d)", ret);
+			goto p_err;
+		}
+
+		ret = sensor_4ec_set_framerate(subdev);
+		if (ret) {
+			cam_err("stream_on is fail(%d)", ret);
+			goto p_err;
+		}
+
+		ret = sensor_4ec_set_size(subdev);
+		if (ret) {
+			cam_err("stream_on is fail(%d)", ret);
+			goto p_err;
+		}
+
 		ret = sensor_4ec_stream_on(subdev);
 		if (ret) {
 			cam_err("stream_on is fail(%d)", ret);
@@ -1941,7 +1964,7 @@ static int sensor_4ec_s_stream(struct v4l2_subdev *subdev,
 	}
 
 p_err:
-	return 0;
+	return ret;
 }
 
 static int sensor_4ec_s_param(struct v4l2_subdev *subdev,
@@ -3193,8 +3216,11 @@ static int sensor_4ec_set_framerate(struct v4l2_subdev *subdev)
 
 	framerate = s5k4ec_state->fps;
 
+	if (s5k4ec_state->mode == S5K4EC_OPRMODE_IMAGE)
+		return 0;
+
 	if (framerate > FRAME_RATE_30) {
-		cam_err("invalid(%d) value, forced set to MAX", framerate);
+		cam_info("invalid(%d) value, forced set to MAX", framerate);
 		framerate = FRAME_RATE_30;
 	}
 
