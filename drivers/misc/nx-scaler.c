@@ -1237,6 +1237,8 @@ static int nx_scaler_release(struct inode *inode,
 	if (atomic_read(&me->open_count) == 0)
 		_hw_cleanup(me);
 
+	_clear_running(me);
+
 	return 0;
 }
 
