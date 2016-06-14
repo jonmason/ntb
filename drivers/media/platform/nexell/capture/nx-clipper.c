@@ -77,7 +77,7 @@ struct nx_capture_enable_clock_action {
 	int delay_ms;
 };
 
-struct nx_capture_enable_action {
+struct nx_capture_power_action {
 	int type;
 	/**
 	 * nx_capture_enable_gpio_action or
@@ -87,10 +87,10 @@ struct nx_capture_enable_action {
 	void *action;
 };
 
-struct nx_capture_enable_seq {
+struct nx_capture_power_seq {
 	int count;
 	/* alloc dynamically by count */
-	struct nx_capture_enable_action *actions;
+	struct nx_capture_power_action *actions;
 };
 
 struct nx_v4l2_i2c_board_info {
@@ -123,7 +123,8 @@ struct nx_clipper {
 	u32 *regulator_voltages;
 	struct pwm_device *pwm;
 	u32 clock_rate;
-	struct nx_capture_enable_seq enable_seq;
+	struct nx_capture_power_seq enable_seq;
+	struct nx_capture_power_seq disable_seq;
 	struct nx_v4l2_i2c_board_info sensor_info;
 
 	struct v4l2_subdev subdev;
@@ -247,7 +248,7 @@ static int get_num_of_enable_action(u32 *array, int count)
 
 		next_index = find_action_end(p, length);
 		if (next_index <= 0) {
-			pr_err("failed to find_action_end, check enable_seq of dts\n");
+			pr_err("failed to find_action_end, check power node of dts\n");
 			return 0;
 		}
 		p += next_index;
@@ -274,7 +275,7 @@ static u32 get_action_type(u32 *array)
 }
 
 static int make_enable_gpio_action(u32 *start, u32 *end,
-				   struct nx_capture_enable_action *action)
+				   struct nx_capture_power_action *action)
 {
 	struct nx_capture_enable_gpio_action *gpio_action;
 	struct gpio_action_unit *unit;
@@ -321,7 +322,7 @@ static int make_enable_gpio_action(u32 *start, u32 *end,
 }
 
 static int make_enable_pmic_action(u32 *start, u32 *end,
-				   struct nx_capture_enable_action *action)
+				   struct nx_capture_power_action *action)
 {
 	struct nx_capture_enable_pmic_action *pmic_action;
 	int entry_count = end - start - 1 - 1; /* start_marker, type */
@@ -347,7 +348,7 @@ static int make_enable_pmic_action(u32 *start, u32 *end,
 }
 
 static int make_enable_clock_action(u32 *start, u32 *end,
-				    struct nx_capture_enable_action *action)
+				    struct nx_capture_power_action *action)
 {
 	struct nx_capture_enable_clock_action *clock_action;
 	int entry_count = end - start - 1 - 1; /* start_marker, type */
@@ -373,7 +374,7 @@ static int make_enable_clock_action(u32 *start, u32 *end,
 }
 
 static int make_enable_action(u32 *array, int count,
-			      struct nx_capture_enable_action *action)
+			      struct nx_capture_power_action *action)
 {
 	u32 *p = array;
 	int end_index = find_action_end(p, count);
@@ -397,10 +398,10 @@ static int make_enable_action(u32 *array, int count,
 	}
 }
 
-static void free_enable_seq_actions(struct nx_capture_enable_seq *seq)
+static void free_enable_seq_actions(struct nx_capture_power_seq *seq)
 {
 	int i;
-	struct nx_capture_enable_action *action;
+	struct nx_capture_power_action *action;
 
 	for (i = 0; i < seq->count; i++) {
 		action = &seq->actions[i];
@@ -419,15 +420,16 @@ static void free_enable_seq_actions(struct nx_capture_enable_seq *seq)
 	seq->actions = NULL;
 }
 
-static int parse_capture_enable_seq(struct device_node *np,
-				    struct nx_capture_enable_seq *seq)
+static int parse_capture_power_seq(struct device_node *np,
+				   char *node_name,
+				   struct nx_capture_power_seq *seq)
 {
-	int count = of_property_count_elems_of_size(np, "enable_seq", 4);
+	int count = of_property_count_elems_of_size(np, node_name, 4);
 
 	if (count > 0) {
 		u32 *p;
 		int ret = 0;
-		struct nx_capture_enable_action *action;
+		struct nx_capture_power_action *action;
 		int action_nums;
 		u32 *array = kcalloc(count, sizeof(u32), GFP_KERNEL);
 
@@ -436,10 +438,11 @@ static int parse_capture_enable_seq(struct device_node *np,
 			return -ENOMEM;
 		}
 
-		of_property_read_u32_array(np, "enable_seq", array, count);
+		of_property_read_u32_array(np, node_name, array, count);
 		action_nums = get_num_of_enable_action(array, count);
 		if (action_nums <= 0) {
-			pr_err("parse_dt v4l2 capture: no actions in enable_seq\n");
+			pr_err("parse_dt v4l2 capture: no actions in %s\n",
+			       node_name);
 			return -ENOENT;
 		}
 
@@ -479,10 +482,20 @@ static int parse_capture_enable_seq(struct device_node *np,
 static int parse_power_dt(struct device_node *np, struct device *dev,
 			  struct nx_clipper *me)
 {
-	if (of_find_property(np, "enable_seq", NULL))
-		return parse_capture_enable_seq(np, &me->enable_seq);
+	int ret = 0;
 
-	return 0;
+	if (of_find_property(np, "enable_seq", NULL))
+		ret = parse_capture_power_seq(np, "enable_seq",
+					      &me->enable_seq);
+
+	if (ret)
+		return ret;
+
+	if (of_find_property(np, "disable_seq", NULL))
+		ret = parse_capture_power_seq(np, "disable_seq",
+					      &me->disable_seq);
+
+	return ret;
 }
 
 static int parse_clock_dt(struct device_node *np, struct device *dev,
@@ -704,7 +717,7 @@ static int apply_gpio_action(struct device *dev, int gpio_num,
 	return 0;
 }
 
-static int do_enable_gpio_action(struct nx_clipper *me,
+static int do_gpio_action(struct nx_clipper *me,
 				 struct nx_capture_enable_gpio_action *action)
 {
 	int ret;
@@ -721,7 +734,7 @@ static int do_enable_gpio_action(struct nx_clipper *me,
 	return 0;
 }
 
-static int do_enable_pmic_action(struct nx_clipper *me,
+static int do_pmic_action(struct nx_clipper *me,
 				 struct nx_capture_enable_pmic_action *action)
 {
 	int ret;
@@ -769,7 +782,7 @@ static int do_enable_pmic_action(struct nx_clipper *me,
 	return 0;
 }
 
-static int do_enable_clock_action(struct nx_clipper *me,
+static int do_clock_action(struct nx_clipper *me,
 				  struct nx_capture_enable_clock_action *action)
 {
 	if (me->pwm)
@@ -783,22 +796,28 @@ static int do_enable_clock_action(struct nx_clipper *me,
 
 static int enable_sensor_power(struct nx_clipper *me, bool enable)
 {
-	if (enable && !me->sensor_enabled) {
-		struct nx_capture_enable_seq *seq = &me->enable_seq;
+	struct nx_capture_power_seq *seq = NULL;
+
+	if (enable && !me->sensor_enabled)
+		seq = &me->enable_seq;
+	else if (!enable && me->sensor_enabled)
+		seq = &me->disable_seq;
+
+	if (seq) {
 		int i;
-		struct nx_capture_enable_action *action;
+		struct nx_capture_power_action *action;
 
 		for (i = 0; i < seq->count; i++) {
 			action = &seq->actions[i];
 			switch (action->type) {
 			case NX_ACTION_TYPE_GPIO:
-				do_enable_gpio_action(me, action->action);
+				do_gpio_action(me, action->action);
 				break;
 			case NX_ACTION_TYPE_PMIC:
-				do_enable_pmic_action(me, action->action);
+				do_pmic_action(me, action->action);
 				break;
 			case NX_ACTION_TYPE_CLOCK:
-				do_enable_clock_action(me, action->action);
+				do_clock_action(me, action->action);
 				break;
 			default:
 				pr_warn("unknown action type %d\n",
@@ -806,9 +825,6 @@ static int enable_sensor_power(struct nx_clipper *me, bool enable)
 				break;
 			}
 		}
-	} else if (!enable && me->sensor_enabled) {
-		if (me->pwm)
-			pwm_disable(me->pwm);
 	}
 
 	me->sensor_enabled = enable;

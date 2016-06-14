@@ -30,6 +30,8 @@ Optional properties:
 			  SEQUENCE for ACTION_TYPE_GPIO: gpionum, value, delay_ms, value, delay_ms ...
 			  SEQUENCE for ACTION_TYPE_PMIC: regulator_name, value, delay_ms
 			  SEQUENCE for ACTION_TYPE_CLOCK: enable/disable, delay_ms
+- power: disable_seq	: camera sensor power off sequence
+                          Action defines same to above
 - clock: pwms	: reference to pwm that gives master clock to camera sensor
 
 Example:
