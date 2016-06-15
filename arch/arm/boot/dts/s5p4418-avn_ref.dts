@@ -33,7 +33,29 @@
 			uart3:uart@c00ab000 { clock-frequency = <147500000>; };
 		};
 
+		serial0:serial@c00a1000 {
+			dmas = <&pl08xdma0 2>, <&pl08xdma0 3>;
+			dma-names = "tx", "rx";
+			status ="okay";
+		};
+
+		serial1:serial@c00a0000 {
+			dmas = <&pl08xdma0 0>, <&pl08xdma0 1>;
+			dma-names = "tx", "rx";
+			status ="okay";
+		};
+
+		serial2:serial@c00a2000 {
+			dmas = <&pl08xdma0 4>, <&pl08xdma0 5>;
+			dma-names = "tx", "rx";
+			status ="okay";
+		};
+
 		serial3:serial@c00a3000 {
+			status ="okay";
+		};
+
+		serial4:serial@c006d000 {
 			status ="okay";
 		};
 
