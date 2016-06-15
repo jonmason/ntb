@@ -242,11 +242,17 @@ config USB_EZUSB_FX2
 	  Say Y here if you need EZUSB device support.
 	  (Cypress FX/FX2/FX2LP microcontrollers)
 
+config USB_HUB_USB2514
+	tristate "USB Hub USB2514 support"
+	depends on I2C
+	help
+         This option enables support for SMSC USB2514 USB 2.0 HUB Driver.
+
 config USB_HSIC_USB3503
-       tristate "USB3503 HSIC to USB20 Driver"
-       depends on I2C
-       select REGMAP_I2C
-       help
+	tristate "USB3503 HSIC to USB20 Driver"
+	depends on I2C
+	select REGMAP_I2C
+	help
          This option enables support for SMSC USB3503 HSIC to USB 2.0 Driver.
 
 config USB_LINK_LAYER_TEST
