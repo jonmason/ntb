@@ -18,6 +18,7 @@
 
 /dts-v1/;
 #include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
 #include "s5p4418.dtsi"
 
@@ -28,7 +29,8 @@
 	};
 
 	aliases {
-	    i2c2 = &i2c_gpio2;
+		i2c2 = &i2c_gpio2;
+		i2c6 = &i2c_gpio6;
 	};
 
 	soc {
@@ -235,6 +237,32 @@
 		};
 	};	/*** soc ***/
 
+	vcc_lcdgate: regulator-fix@0 {
+		compatible = "regulator-fixed";
+
+		regulator-name = "LCD Gate Vcc";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+		regulator-always-on;
+
+		gpio = <&gpio_b 25 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+
+	vcc_lcd: regulator-fix@1 {
+		compatible = "regulator-fixed";
+
+		regulator-name = "LCD Vcc";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+		regulator-always-on;
+
+		gpio = <&gpio_c 11 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+
 	i2c_gpio2: i2c@2 {
 		compatible = "i2c-gpio";
 		gpios = <&gpio_d 7 0 /* sda */
@@ -254,6 +282,16 @@
 			reg = <0x48>;
 			ti,x-plate-ohms = <180>;
 		};
+	};
+
+	i2c_gpio6: i2c@6 {
+		compatible = "i2c-gpio";
+		gpios = <&gpio_d 23 0 /* sda */
+		    &gpio_d 22 0 /* scl */
+		    >;
+		i2c-gpio,delay-us = <100>;
+		#address-cells = <1>;
+		#size-cells = <0>;
 	};
 
 	spdif_out: spdif-out {
@@ -307,3 +345,51 @@
 	};
 };
 
+&dp_drm {
+	status = "okay";
+	ports {
+		port@0 {
+			reg = <0>;
+			back_color = < 0x0 >;
+			color_key = < 0x0 >;
+			plane-names = "video", "primary", "rgb";
+		};
+		port@1 {
+			reg = <1>;
+			back_color = < 0x0 >;
+			color_key = < 0x0 >;
+			plane-names = "video", "primary";
+		};
+	};
+};
+
+&dp_drm_lvds {
+	status = "ok";
+
+	enable-gpios = <&gpio_e 13 GPIO_ACTIVE_LOW>;
+
+	display-timing {
+		clock-frequency = <50000000>;
+		hactive = <1024>;
+		vactive = <600>;
+		hfront-porch = <160>;
+		hback-porch = <140>;
+		hsync-len = <20>;
+		vfront-porch = <12>;
+		vback-porch = <20>;
+		vsync-len = <3>;
+	};
+
+	dp_control {
+		clk_src_lv0 = <0>;
+		clk_div_lv0 = <16>;
+		clk_src_lv1 = <7>;
+		clk_div_lv1 = <1>;
+		out_format = <2>;
+	};
+};
+
+&dp_drm_hdmi {
+	ddc-i2c-bus = <&i2c_gpio6>;
+	status = "ok";
+};
