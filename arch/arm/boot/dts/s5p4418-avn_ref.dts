@@ -27,6 +27,10 @@
 		reg = <0x40000000 0x40000000>;
 	};
 
+	aliases {
+	    i2c2 = &i2c_gpio2;
+	};
+
 	soc {
 		#include "s5p4418-pinctrl.dtsi"
 		clocks {
@@ -221,8 +225,36 @@
 				nexell,pin-pull = <1>;
 				nexell,pin-strength = <0>;
 			};
+
+			toutchpanel_irq: touchpanel-irq {
+				nexell,pins = "gpiod-8";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
 		};
 	};	/*** soc ***/
+
+	i2c_gpio2: i2c@2 {
+		compatible = "i2c-gpio";
+		gpios = <&gpio_d 7 0 /* sda */
+		    &gpio_d 6 0 /* scl */
+		    >;
+		i2c-gpio,delay-us = <100>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		tsc2007: tsc2007@48 {
+			compatible = "ti,tsc2007";
+			gpios = <&gpio_d 8 0>;
+			interrupt-parent = <&gpio_d>;
+			interrupts = <8 IRQ_TYPE_EDGE_FALLING>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&toutchpanel_irq>;
+			reg = <0x48>;
+			ti,x-plate-ohms = <180>;
+		};
+	};
 
 	spdif_out: spdif-out {
 		compatible = "linux,spdif-dit";
