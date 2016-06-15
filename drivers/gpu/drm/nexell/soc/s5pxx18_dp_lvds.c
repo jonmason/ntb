@@ -38,7 +38,7 @@ static void lvds_phy_reset(struct reset_control *rsc[], int num)
 		reset_control_deassert(rsc[i]);
 }
 
-void nx_soc_dp_lvds_set_base(struct dp_control_dev *dpc,
+static void nx_soc_dp_lvds_set_base(struct dp_control_dev *dpc,
 			void __iomem *base)
 {
 	BUG_ON(!base);
@@ -47,7 +47,7 @@ void nx_soc_dp_lvds_set_base(struct dp_control_dev *dpc,
 	nx_lvds_set_base_address(0, base);
 }
 
-int nx_soc_dp_lvds_set_prepare(struct dp_control_dev *dpc,
+static int nx_soc_dp_lvds_set_prepare(struct dp_control_dev *dpc,
 			unsigned int flags)
 {
 	unsigned int val;
@@ -195,12 +195,12 @@ int nx_soc_dp_lvds_set_prepare(struct dp_control_dev *dpc,
 	return 0;
 }
 
-int nx_soc_dp_lvds_set_unprepare(struct dp_control_dev *dpc)
+static int nx_soc_dp_lvds_set_unprepare(struct dp_control_dev *dpc)
 {
 	return 0;
 }
 
-int nx_soc_dp_lvds_set_enable(struct dp_control_dev *dpc,
+static int nx_soc_dp_lvds_set_enable(struct dp_control_dev *dpc,
 			unsigned int flags)
 {
 	int clkid = dp_clock_lvds;
@@ -214,7 +214,7 @@ int nx_soc_dp_lvds_set_enable(struct dp_control_dev *dpc,
 	return 0;
 }
 
-int nx_soc_dp_lvds_set_disable(struct dp_control_dev *dpc)
+static int nx_soc_dp_lvds_set_disable(struct dp_control_dev *dpc)
 {
 	int clkid = dp_clock_lvds;
 
@@ -225,6 +225,33 @@ int nx_soc_dp_lvds_set_disable(struct dp_control_dev *dpc)
 
 	/* START: CLKGEN, MIPI is started in setup function */
 	nx_disp_top_clkgen_set_clock_divisor_enable(clkid, false);
+
+	return 0;
+}
+
+static struct dp_control_ops lvds_dp_ops = {
+	.set_base = nx_soc_dp_lvds_set_base,
+	.prepare = nx_soc_dp_lvds_set_prepare,
+	.unprepare = nx_soc_dp_lvds_set_unprepare,
+	.enable = nx_soc_dp_lvds_set_enable,
+	.disable = nx_soc_dp_lvds_set_disable,
+};
+
+int nx_soc_dp_lvds_register(struct device *dev,
+			struct device_node *np, struct dp_control_dev *dpc,
+			void *resets, int num_resets)
+{
+	struct dp_lvds_dev *out;
+
+	out = devm_kzalloc(dev, sizeof(*out), GFP_KERNEL);
+	if (IS_ERR(out))
+		return -ENOMEM;
+
+	out->reset_control = (void *)resets;
+	out->num_resets = num_resets;
+	dpc->panel_type = dp_panel_type_lvds;
+	dpc->dp_output = out;
+	dpc->ops = &lvds_dp_ops;
 
 	return 0;
 }

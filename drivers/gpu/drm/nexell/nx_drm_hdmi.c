@@ -480,7 +480,7 @@ static int panel_hdmi_parse_dt(struct platform_device *pdev,
 	/*
 	 * parse panel output for HDMI
 	 */
-	err = nx_drm_dp_panel_device_parse(dev,
+	err = nx_drm_dp_panel_dev_register(dev,
 				node, dp_panel_type_hdmi, display);
 	if (0 > err)
 		return err;
@@ -587,7 +587,7 @@ static int panel_hdmi_remove(struct platform_device *pdev)
 
 	nx_drm_dp_panel_dev_res_free(dev, &ctx->display->res);
 	nx_drm_dp_panel_drv_res_free(dev, ctx->base, ctx->reset);
-	nx_drm_dp_panel_device_free(dev, ctx->display);
+	nx_drm_dp_panel_dev_release(dev, ctx->display);
 
 	devm_kfree(&pdev->dev, ctx);
 

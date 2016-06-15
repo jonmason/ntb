@@ -18,6 +18,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/delay.h>
+#include <linux/of.h>
 #include <video/mipi_display.h>
 
 #include "s5pxx18_dp_dev.h"
@@ -156,7 +157,7 @@ static int dp_mipi_phy_pll(int bitrate, unsigned int *pllpms,
 	return 0;
 }
 
-void nx_soc_dp_mipi_set_base(struct dp_control_dev *dpc,
+static void nx_soc_dp_mipi_set_base(struct dp_control_dev *dpc,
 			void __iomem *base)
 {
 	BUG_ON(!base);
@@ -165,7 +166,7 @@ void nx_soc_dp_mipi_set_base(struct dp_control_dev *dpc,
 	nx_mipi_set_base_address(0, base);
 }
 
-int nx_soc_dp_mipi_set_prepare(struct dp_control_dev *dpc,
+static int nx_soc_dp_mipi_set_prepare(struct dp_control_dev *dpc,
 			unsigned int flags)
 {
 	struct dp_mipi_dev *dev = dpc->dp_output;
@@ -205,7 +206,7 @@ int nx_soc_dp_mipi_set_prepare(struct dp_control_dev *dpc,
 	return 0;
 }
 
-int nx_soc_dp_mipi_set_enable(struct dp_control_dev *dpc,
+static int nx_soc_dp_mipi_set_enable(struct dp_control_dev *dpc,
 			unsigned int flags)
 {
 	struct dp_mipi_dev *dev = dpc->dp_output;
@@ -266,12 +267,12 @@ int nx_soc_dp_mipi_set_enable(struct dp_control_dev *dpc,
 	return 0;
 }
 
-int nx_soc_dp_mipi_set_unprepare(struct dp_control_dev *dpc)
+static int nx_soc_dp_mipi_set_unprepare(struct dp_control_dev *dpc)
 {
 	return 0;
 }
 
-int nx_soc_dp_mipi_set_disable(struct dp_control_dev *dpc)
+static int nx_soc_dp_mipi_set_disable(struct dp_control_dev *dpc)
 {
 	int clkid = dp_clock_mipi;
 
@@ -431,4 +432,41 @@ clear_fifo:
 	} while (--size);
 
 	return err;
+}
+
+static struct dp_control_ops mipi_dp_ops = {
+	.set_base = nx_soc_dp_mipi_set_base,
+	.prepare = nx_soc_dp_mipi_set_prepare,
+	.unprepare = nx_soc_dp_mipi_set_unprepare,
+	.enable = nx_soc_dp_mipi_set_enable,
+	.disable = nx_soc_dp_mipi_set_disable,
+};
+
+#define parse_read_prop(n, s, v)	{ \
+	u32 _v;	\
+	if (!of_property_read_u32(n, s, &_v))	\
+		v = _v;	\
+	}
+
+int nx_soc_dp_mipi_register(struct device *dev,
+			struct device_node *np, struct dp_control_dev *dpc)
+{
+	struct dp_mipi_dev *out;
+	u32 lp_rate = 0, hs_rate = 0;
+
+	out = devm_kzalloc(dev, sizeof(*out), GFP_KERNEL);
+	if (IS_ERR(out))
+		return -ENOMEM;
+
+	parse_read_prop(np, "lp_bitrate", lp_rate);
+	parse_read_prop(np, "hs_bitrate", hs_rate);
+
+	out->lp_bitrate = lp_rate;
+	out->hs_bitrate = hs_rate;
+
+	dpc->panel_type = dp_panel_type_mipi;
+	dpc->dp_output = out;
+	dpc->ops = &mipi_dp_ops;
+
+	return 0;
 }

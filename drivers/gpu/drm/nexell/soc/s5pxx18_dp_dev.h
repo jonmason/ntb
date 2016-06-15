@@ -338,25 +338,22 @@ void nx_soc_dp_device_power_on(struct dp_control_dev *dpc, bool on);
 void nx_soc_dp_device_irq_on(struct dp_control_dev *dpc, bool on);
 void nx_soc_dp_device_irq_done(struct dp_control_dev *dpc);
 
-#ifdef CONFIG_DRM_NX_MIPI_DSI
-void nx_soc_dp_mipi_set_base(struct dp_control_dev *dpc,
-			void __iomem *base);
-int nx_soc_dp_mipi_set_prepare(struct dp_control_dev *dpc, unsigned int flags);
-int nx_soc_dp_mipi_set_unprepare(struct dp_control_dev *dpc);
-int nx_soc_dp_mipi_set_enable(struct dp_control_dev *dpc, unsigned int flags);
-int nx_soc_dp_mipi_set_disable(struct dp_control_dev *dpc);
-
-int nx_soc_dp_mipi_tx_transfer(struct dp_mipi_xfer *xfer);
-int nx_soc_dp_mipi_rx_transfer(struct dp_mipi_xfer *xfer);
+#ifdef CONFIG_DRM_NX_RGB
+int nx_soc_dp_rgb_register(struct device *dev,
+			struct device_node *np, struct dp_control_dev *dpc);
 #endif
 
 #ifdef CONFIG_DRM_NX_LVDS
-void nx_soc_dp_lvds_set_base(struct dp_control_dev *dpc,
-			void __iomem *base);
-int nx_soc_dp_lvds_set_prepare(struct dp_control_dev *dpc, unsigned int flags);
-int nx_soc_dp_lvds_set_unprepare(struct dp_control_dev *dpc);
-int nx_soc_dp_lvds_set_enable(struct dp_control_dev *dpc, unsigned int flags);
-int nx_soc_dp_lvds_set_disable(struct dp_control_dev *dpc);
+int nx_soc_dp_lvds_register(struct device *dev,
+			struct device_node *np, struct dp_control_dev *dpc,
+			void *resets, int num_resets);
+#endif
+
+#ifdef CONFIG_DRM_NX_MIPI_DSI
+int nx_soc_dp_mipi_register(struct device *dev,
+			struct device_node *np, struct dp_control_dev *dpc);
+int nx_soc_dp_mipi_tx_transfer(struct dp_mipi_xfer *xfer);
+int nx_soc_dp_mipi_rx_transfer(struct dp_mipi_xfer *xfer);
 #endif
 
 #endif /* __S5PXX18_DP_DEV_H__ */

@@ -775,7 +775,7 @@ bool nx_dp_hdmi_is_connected(void)
 	return state ? true : false;
 }
 
-void nx_dp_hdmi_set_base(struct dp_control_dev *dpc,
+static void nx_dp_hdmi_set_base(struct dp_control_dev *dpc,
 				void __iomem *base)
 {
 	u32 mask = (1 << 6) | (1 << 3) | (1 << 2);
@@ -984,3 +984,24 @@ void nx_dp_hdmi_power(struct nx_drm_device *display, bool on)
 	if (on && dvi_mode)
 		hdmi_write(HDMI_GCP_CON, HDMI_GCP_CON_NO_TRAN);
 }
+
+static struct dp_control_ops hdmi_dp_ops = {
+	.set_base = nx_dp_hdmi_set_base,
+};
+
+int nx_soc_dp_hdmi_register(struct device *dev,
+			struct device_node *np, struct dp_control_dev *dpc)
+{
+	struct dp_hdmi_dev *out;
+
+	out = devm_kzalloc(dev, sizeof(*out), GFP_KERNEL);
+	if (IS_ERR(out))
+		return -ENOMEM;
+
+	dpc->panel_type = dp_panel_type_hdmi;
+	dpc->dp_output = out;
+	dpc->ops = &hdmi_dp_ops;
+
+	return 0;
+}
+

@@ -126,32 +126,6 @@ static uint32_t convert_dp_vid_format(uint32_t fourcc,
 	return 0;
 }
 
-#ifdef CONFIG_DRM_NX_LVDS
-static struct dp_control_ops lvds_dp_ops = {
-	.set_base = nx_soc_dp_lvds_set_base,
-	.prepare = nx_soc_dp_lvds_set_prepare,
-	.unprepare = nx_soc_dp_lvds_set_unprepare,
-	.enable = nx_soc_dp_lvds_set_enable,
-	.disable = nx_soc_dp_lvds_set_disable,
-};
-#endif
-
-#ifdef CONFIG_DRM_NX_MIPI_DSI
-static struct dp_control_ops mipi_dp_ops = {
-	.set_base = nx_soc_dp_mipi_set_base,
-	.prepare = nx_soc_dp_mipi_set_prepare,
-	.unprepare = nx_soc_dp_mipi_set_unprepare,
-	.enable = nx_soc_dp_mipi_set_enable,
-	.disable = nx_soc_dp_mipi_set_disable,
-};
-#endif
-
-#ifdef CONFIG_DRM_NX_HDMI
-static struct dp_control_ops hdmi_dp_ops = {
-	.set_base = nx_dp_hdmi_set_base,
-};
-#endif
-
 #define parse_read_prop(n, s, v)	{ \
 	u32 _v;	\
 	if (!of_property_read_u32(n, s, &_v))	\
@@ -322,105 +296,48 @@ void nx_drm_dp_panel_dev_res_free(struct device *dev,
 	}
 }
 
-int nx_drm_dp_panel_device_parse(struct device *dev,
+int nx_drm_dp_panel_dev_register(struct device *dev,
 			struct device_node *np, enum dp_panel_type type,
 			struct nx_drm_device *display)
 {
 	struct dp_control_dev *dpc = display_to_dpc(display);
 	struct nx_drm_res *res = &display->res;
+	int err = -EINVAL;
 
 	if (dp_panel_type_rgb == type) {
 
-		struct dp_rgb_dev *out;
-		u32 mpu_lcd = 0;
-
-		#ifndef CONFIG_DRM_NX_RGB
-		DRM_ERROR("not selected kernel config for RGB LCD !\n");
-		return -EINVAL;
+		#ifdef CONFIG_DRM_NX_RGB
+		err = nx_soc_dp_rgb_register(dev, np, dpc);
 		#endif
-
-		out = devm_kzalloc(dev, sizeof(*out), GFP_KERNEL);
-		if (IS_ERR(out))
-			return -ENOMEM;
-
-		parse_read_prop(np, "panel-mpu", mpu_lcd);
-		out->mpu_lcd = mpu_lcd ? true : false;
-
-		dpc->panel_type = dp_panel_type_rgb;
-		dpc->dp_output = out;
 
 	} else if (dp_panel_type_lvds == type) {
 
-		struct dp_lvds_dev *out;
-
-		#ifndef CONFIG_DRM_NX_LVDS
-		DRM_ERROR("not selected kernel config for LVDS LCD !\n");
-		return -EINVAL;
-		#endif
-
-		out = devm_kzalloc(dev, sizeof(*out), GFP_KERNEL);
-		if (IS_ERR(out))
-			return -ENOMEM;
-
-		out->reset_control = (void *)res->resets;
-		out->num_resets = res->num_resets;
-		dpc->panel_type = dp_panel_type_lvds;
-		dpc->dp_output = out;
-
 		#ifdef CONFIG_DRM_NX_LVDS
-		dpc->ops = &lvds_dp_ops;
+		err = nx_soc_dp_lvds_register(dev, np, dpc,
+					(void *)res->resets, res->num_resets);
 		#endif
 
 	} else if (dp_panel_type_mipi == type) {
 
-		struct dp_mipi_dev *out;
-		u32 lp_rate = 0, hs_rate = 0;
-
-		#ifndef CONFIG_DRM_NX_MIPI_DSI
-		DRM_ERROR("not selected kernel config for MiPi-DSI!\n");
-		return -EINVAL;
-		#endif
-
-		out = devm_kzalloc(dev, sizeof(*out), GFP_KERNEL);
-		if (IS_ERR(out))
-			return -ENOMEM;
-
-		parse_read_prop(np, "lp_bitrate", lp_rate);
-		parse_read_prop(np, "hs_bitrate", hs_rate);
-
-		out->lp_bitrate = lp_rate;
-		out->hs_bitrate = hs_rate;
-
-		dpc->panel_type = dp_panel_type_mipi;
-		dpc->dp_output = out;
-
 		#ifdef CONFIG_DRM_NX_MIPI_DSI
-		dpc->ops = &mipi_dp_ops;
+		err = nx_soc_dp_mipi_register(dev, np, dpc);
 		#endif
 
 	} else if (dp_panel_type_hdmi == type) {
 
-		struct dp_hdmi_dev *out;
-
-		#ifndef CONFIG_DRM_NX_HDMI
-		DRM_ERROR("not selected kernel config for HDMI !\n");
-		return -EINVAL;
-		#endif
-
-		out = devm_kzalloc(dev, sizeof(*out), GFP_KERNEL);
-		if (IS_ERR(out))
-			return -ENOMEM;
-
-		dpc->panel_type = dp_panel_type_hdmi;
-		dpc->dp_output = out;
-
 		#ifdef CONFIG_DRM_NX_HDMI
-		dpc->ops = &hdmi_dp_ops;
+		err = nx_soc_dp_hdmi_register(dev, np, dpc);
 		#endif
 
 	} else {
 		DRM_ERROR("not support panel type [%d] !!!\n", type);
 		return -EINVAL;
+	}
+
+	if (0 > err) {
+		DRM_ERROR("not selected panel [%s] !!!\n",
+			dp_panel_type_name(type));
+		return err;
 	}
 
 	if (dpc->ops && dpc->ops->set_base)
@@ -429,7 +346,7 @@ int nx_drm_dp_panel_device_parse(struct device *dev,
 	return 0;
 }
 
-void nx_drm_dp_panel_device_free(struct device *dev,
+void nx_drm_dp_panel_dev_release(struct device *dev,
 			struct nx_drm_device *display)
 {
 	struct dp_control_dev *dpc = display_to_dpc(display);

@@ -390,7 +390,7 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 	/*
 	 * parse panel output for RGB/LVDS/MiPi-DSI
 	 */
-	err = nx_drm_dp_panel_device_parse(dev, node, panel_type, display);
+	err = nx_drm_dp_panel_dev_register(dev, node, panel_type, display);
 	if (0 > err)
 		return err;
 
@@ -534,7 +534,7 @@ static int panel_lcd_remove(struct platform_device *pdev)
 
 	nx_drm_dp_panel_dev_res_free(dev, &ctx->display->res);
 	nx_drm_dp_panel_drv_res_free(dev, ctx->base, ctx->reset);
-	nx_drm_dp_panel_device_free(dev, ctx->display);
+	nx_drm_dp_panel_dev_release(dev, ctx->display);
 
 	devm_kfree(&pdev->dev, ctx);
 

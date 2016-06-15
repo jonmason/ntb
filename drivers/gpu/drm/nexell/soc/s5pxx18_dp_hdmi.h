@@ -188,7 +188,9 @@ enum HDMI_AUDIO_CODEC {
 extern const struct hdmi_conf hdmi_conf[];
 extern const int num_hdmi_presets;
 
-void nx_dp_hdmi_set_base(struct dp_control_dev *dpc, void __iomem *base);
+int nx_soc_dp_hdmi_register(struct device *dev,
+			struct device_node *np, struct dp_control_dev *dpc);
+
 u32  nx_dp_hdmi_hpd_event(int irq);
 bool nx_dp_hdmi_is_connected(void);
 bool nx_dp_hdmi_mode_valid(struct videomode *vm, int refresh, int pixelclock);

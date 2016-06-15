@@ -139,10 +139,10 @@ int nx_drm_dp_panel_dev_res_parse(struct device *dev,
 void nx_drm_dp_panel_dev_res_free(struct device *dev,
 			struct nx_drm_res *res);
 
-int nx_drm_dp_panel_device_parse(struct device *dev,
+int nx_drm_dp_panel_dev_register(struct device *dev,
 			struct device_node *np, enum dp_panel_type type,
 			struct nx_drm_device *display);
-void nx_drm_dp_panel_device_free(struct device *dev,
+void nx_drm_dp_panel_dev_release(struct device *dev,
 			struct nx_drm_device *display);
 
 void nx_drm_dp_panel_ctrl_dump(struct nx_drm_device *display);
