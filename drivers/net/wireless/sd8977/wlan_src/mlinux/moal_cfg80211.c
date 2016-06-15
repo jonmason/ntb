@@ -86,6 +86,7 @@ static struct ieee80211_channel cfg80211_channels_5ghz[] = {
 	{.center_freq = 5660,.hw_value = 132,.max_power = 20},
 	{.center_freq = 5680,.hw_value = 136,.max_power = 20},
 	{.center_freq = 5700,.hw_value = 140,.max_power = 20},
+	{.center_freq = 5720,.hw_value = 144,.max_power = 20},
 	{.center_freq = 5745,.hw_value = 149,.max_power = 20},
 	{.center_freq = 5765,.hw_value = 153,.max_power = 20},
 	{.center_freq = 5785,.hw_value = 157,.max_power = 20},
@@ -450,6 +451,7 @@ woal_clear_all_mgmt_ies(moal_private *priv, t_u8 wait_option)
 		woal_cfg80211_mgmt_frame_ie(priv, NULL, 0, NULL, 0, NULL, 0,
 					    NULL, 0, MGMT_MASK_BEACON_WPS_P2P,
 					    wait_option);
+		priv->beacon_wps_index = MLAN_CUSTOM_IE_AUTO_IDX_MASK;
 	}
 	if (priv->assocresp_qos_map_index != MLAN_CUSTOM_IE_AUTO_IDX_MASK) {
 		PRINTM(MCMND, "Clear associate response QOS map ie\n");
@@ -457,6 +459,7 @@ woal_clear_all_mgmt_ies(moal_private *priv, t_u8 wait_option)
 					    NULL, 0,
 					    MGMT_MASK_ASSOC_RESP_QOS_MAP,
 					    wait_option);
+		priv->assocresp_qos_map_index = MLAN_CUSTOM_IE_AUTO_IDX_MASK;
 	}
 	/* clear mgmt frame ies */
 	if (priv->probereq_index != MLAN_CUSTOM_IE_AUTO_IDX_MASK)
@@ -474,6 +477,10 @@ woal_clear_all_mgmt_ies(moal_private *priv, t_u8 wait_option)
 		woal_cfg80211_mgmt_frame_ie(priv, NULL, 0, NULL, 0, NULL, 0,
 					    NULL, 0, mask, wait_option);
 	}
+	priv->probereq_index = MLAN_CUSTOM_IE_AUTO_IDX_MASK;
+	priv->beacon_index = MLAN_CUSTOM_IE_AUTO_IDX_MASK;
+	priv->proberesp_index = MLAN_CUSTOM_IE_AUTO_IDX_MASK;
+	priv->assocresp_index = MLAN_CUSTOM_IE_AUTO_IDX_MASK;
 }
 
 #if defined(STA_SUPPORT) && defined(UAP_SUPPORT)
@@ -753,7 +760,7 @@ woal_cfg80211_init_p2p_go(moal_private *priv)
 	}
 /* NoA:-- Interval = 100TUs and Duration= 50TUs, count=255*/
 #define DEF_NOA_COUNT       255
-	if (priv->phandle->noa_duration) {
+	if (priv->phandle->noa_duration && priv->phandle->card_info->go_noa) {
 		memset(&p2p_config, 0, sizeof(p2p_config));
 		p2p_config.noa_enable = MTRUE;
 		p2p_config.index = 0;
@@ -918,6 +925,11 @@ woal_cfg80211_change_virtual_intf(struct wiphy *wiphy,
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
 	ENTER();
+
+	if (dev->ieee80211_ptr->iftype == NL80211_IFTYPE_MONITOR) {
+		ret = -EFAULT;
+		goto done;
+	}
 
 	if (priv->wdev->iftype == type) {
 		PRINTM(MINFO, "Already set to required type\n");
@@ -1145,12 +1157,16 @@ woal_cfg80211_set_wiphy_params(struct wiphy *wiphy, u32 changed)
 #endif
 #endif
 	int frag_thr = wiphy->frag_threshold;
-	int rts_thr = wiphy->frag_threshold;
+	int rts_thr = wiphy->rts_threshold;
 	int retry = wiphy->retry_long;
 
 	ENTER();
 
 	priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
+	if (!priv) {
+		LEAVE();
+		return -EFAULT;
+	}
 	if (rts_thr == MLAN_FRAG_RTS_DISABLED)
 		rts_thr = MLAN_RTS_MAX_VALUE;
 	if (frag_thr == MLAN_FRAG_RTS_DISABLED)
@@ -1382,6 +1398,87 @@ woal_cfg80211_set_default_mgmt_key(struct wiphy *wiphy,
 	return 0;
 }
 #endif
+
+/**
+ *  @brief  Set GTK rekey data to driver
+ *
+ *  @param priv         A pointer to moal_private structure
+ *  @param gtk_rekey     A pointer to mlan_ds_misc_gtk_rekey_data structure
+ *
+ *  @return             0 --success, otherwise fail
+ */
+mlan_status
+woal_set_rekey_data(moal_private *priv, mlan_ds_misc_gtk_rekey_data * gtk_rekey)
+{
+	mlan_ioctl_req *req;
+	mlan_ds_misc_cfg *misc_cfg;
+	int ret = 0;
+	mlan_status status;
+
+	ENTER();
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+
+	if (NULL == req) {
+		ret = -ENOMEM;
+	} else {
+		misc_cfg = (mlan_ds_misc_cfg *)req->pbuf;
+		misc_cfg->sub_command = MLAN_OID_MISC_GTK_REKEY_OFFLOAD;
+		req->req_id = MLAN_IOCTL_MISC_CFG;
+		req->action = MLAN_ACT_SET;
+
+		memcpy(&misc_cfg->param.gtk_rekey, gtk_rekey,
+		       sizeof(mlan_ds_misc_gtk_rekey_data));
+		status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+		if (MLAN_STATUS_SUCCESS != status)
+			ret = -EFAULT;
+		if (status != MLAN_STATUS_PENDING)
+			kfree(req);
+	}
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief Give the data necessary for GTK rekeying to the driver
+ *
+ * @param wiphy         A pointer to wiphy structure
+ * @param dev           A pointer to net_device structure
+ * @param data        A pointer to cfg80211_gtk_rekey_data structure
+ *
+ * @return              0 -- success, otherwise fail
+ */
+int
+woal_cfg80211_set_rekey_data(struct wiphy *wiphy, struct net_device *dev,
+			     struct cfg80211_gtk_rekey_data *data)
+{
+	int ret = 0;
+	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
+	mlan_ds_misc_gtk_rekey_data rekey;
+
+	ENTER();
+
+	/* In wpa_supplicant 2.5 or earlier versions, it doesn't check the
+	   WIPHY_WOWLAN_SUPPORTS_GTK_REKEY flag for this feature. * It assumes
+	   this feature is supported and disable this on first attempt to use
+	   if the driver rejects the command due to missing support. * We need
+	   to add the check here. */
+	if (!(wiphy->wowlan->flags & WIPHY_WOWLAN_SUPPORTS_GTK_REKEY)) {
+		return -1;
+	}
+
+	memcpy(rekey.kek, data->kek, MLAN_KEK_LEN);
+	memcpy(rekey.kck, data->kck, MLAN_KCK_LEN);
+	memcpy(rekey.replay_ctr, data->replay_ctr, MLAN_REPLAY_CTR_LEN);
+
+	if (MLAN_STATUS_SUCCESS != woal_set_rekey_data(priv, &rekey)) {
+		ret = -EFAULT;
+	}
+
+	LEAVE();
+	return ret;
+}
 
 #ifdef STA_SUPPORT
 /* Opportunistic Key Caching APIs functions support
@@ -1916,6 +2013,18 @@ woal_cfg80211_set_bitrate_mask(struct wiphy *wiphy,
 #else
 	rate_cfg->bitmap_rates[2] = mask->control[band].mcs[0];
 #endif
+#if defined(SD_8XXX)
+	if (priv->phandle->card_type ==
+#if defined(SD_8XXX)
+	    CARD_TYPE_SD8797
+#endif
+		)
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+		rate_cfg->bitmap_rates[2] |= mask->control[band].ht_mcs[1] << 8;
+#else
+		rate_cfg->bitmap_rates[2] |= mask->control[band].mcs[1] << 8;
+#endif
 #endif
 
 	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
@@ -1973,7 +2082,8 @@ woal_cfg80211_set_antenna(struct wiphy *wiphy, u32 tx_ant, u32 rx_ant)
 	radio->sub_command = MLAN_OID_ANT_CFG;
 	req->req_id = MLAN_IOCTL_RADIO_CFG;
 	req->action = MLAN_ACT_SET;
-	radio->param.ant_cfg_1x1.antenna = tx_ant;
+	radio->param.ant_cfg.tx_antenna = tx_ant;
+	radio->param.ant_cfg.rx_antenna = rx_ant;
 
 	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
 	if (MLAN_STATUS_SUCCESS != status) {
@@ -2848,6 +2958,8 @@ woal_filter_beacon_ies(const t_u8 *ie, int len, t_u8 *ie_out, t_u16 wps_flag,
 		case WLAN_EID_ERP_INFO:
 		case HT_CAPABILITY:
 		case HT_OPERATION:
+		case VHT_CAPABILITY:
+		case VHT_OPERATION:
 			break;
 		case VENDOR_SPECIFIC_221:
 			/* filter out wmm ie */
@@ -3413,3 +3525,113 @@ woal_cfg80211_setup_ht_cap(struct ieee80211_sta_ht_cap *ht_info,
 
 	LEAVE();
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
+/**
+ *  @brief Sets up the CFG802.11 specific VHT capability fields
+ *  with default values
+ *
+ * @param priv         A pointer to moal private structure
+ *  @param vht_cap      A pointer to ieee80211_sta_vht_cap structure
+ *
+ *  @return             N/A
+ */
+void
+woal_cfg80211_setup_vht_cap(moal_private *priv,
+			    struct ieee80211_sta_vht_cap *vht_cap)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_11ac_cfg *cfg_11ac = NULL;
+	mlan_status status;
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11ac_cfg));
+	if (req == NULL) {
+		status = MLAN_STATUS_FAILURE;
+		PRINTM(MERROR, "Fail to allocate buf for setup vht_cap\n");
+		goto done;
+	}
+	cfg_11ac = (mlan_ds_11ac_cfg *)req->pbuf;
+	cfg_11ac->sub_command = MLAN_OID_11AC_VHT_CFG;
+	req->req_id = MLAN_IOCTL_11AC_CFG;
+	req->action = MLAN_ACT_GET;
+	cfg_11ac->param.vht_cfg.band = BAND_SELECT_A;
+	cfg_11ac->param.vht_cfg.txrx = MLAN_RADIO_RX;
+	status = woal_request_ioctl(priv, req, MOAL_CMD_WAIT);
+	if (MLAN_STATUS_SUCCESS != status) {
+		PRINTM(MERROR, "Fail to get vht_cfg\n");
+		goto done;
+	}
+	vht_cap->vht_supported = true;
+	vht_cap->cap = cfg_11ac->param.vht_cfg.vht_cap_info;
+	vht_cap->vht_mcs.rx_mcs_map = (t_u16)cfg_11ac->param.vht_cfg.vht_rx_mcs;
+	vht_cap->vht_mcs.rx_highest =
+		(t_u16)cfg_11ac->param.vht_cfg.vht_rx_max_rate;
+	vht_cap->vht_mcs.tx_mcs_map = (t_u16)cfg_11ac->param.vht_cfg.vht_tx_mcs;
+	vht_cap->vht_mcs.tx_highest =
+		(t_u16)cfg_11ac->param.vht_cfg.vht_tx_max_rate;
+	PRINTM(MCMND,
+	       "vht_cap=0x%x rx_mcs_map=0x%x rx_max=0x%x tx_mcs_map=0x%x tx_max=0x%x\n",
+	       vht_cap->cap, vht_cap->vht_mcs.rx_mcs_map,
+	       vht_cap->vht_mcs.rx_highest, vht_cap->vht_mcs.tx_mcs_map,
+	       vht_cap->vht_mcs.tx_highest);
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return;
+}
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+/**
+ * @brief create cfg80211_chan_def structure based on chan_band info
+ *
+ * @param priv          A pointer moal_private structure
+ * @param chandef       A pointer to cfg80211_chan_def structure
+ * @param pchan_info    A pointer to chan_band_info structure
+ *
+ * @return          N/A
+ */
+void
+woal_chandef_create(moal_private *priv, struct cfg80211_chan_def *chandef,
+		    chan_band_info * pchan_info)
+{
+	enum ieee80211_band band = IEEE80211_BAND_2GHZ;
+
+	ENTER();
+	chandef->center_freq2 = 0;
+	if (pchan_info->band_config.chanBand == BAND_2GHZ)
+		band = IEEE80211_BAND_2GHZ;
+	else if (pchan_info->band_config.chanBand == BAND_5GHZ)
+		band = IEEE80211_BAND_5GHZ;
+	chandef->chan = ieee80211_get_channel(priv->wdev->wiphy,
+					      ieee80211_channel_to_frequency
+					      (pchan_info->channel, band));
+	switch (pchan_info->band_config.chanWidth) {
+	case CHAN_BW_20MHZ:
+		if (pchan_info->is_11n_enabled)
+			chandef->width = NL80211_CHAN_WIDTH_20;
+		else
+			chandef->width = NL80211_CHAN_WIDTH_20_NOHT;
+		chandef->center_freq1 = chandef->chan->center_freq;
+		break;
+	case CHAN_BW_40MHZ:
+		chandef->width = NL80211_CHAN_WIDTH_40;
+		if (pchan_info->band_config.chan2Offset == SEC_CHAN_ABOVE)
+			chandef->center_freq1 = chandef->chan->center_freq + 10;
+		else if (pchan_info->band_config.chan2Offset == SEC_CHAN_BELOW)
+			chandef->center_freq1 = chandef->chan->center_freq - 10;
+		break;
+	case CHAN_BW_80MHZ:
+		chandef->width = NL80211_CHAN_WIDTH_80;
+		chandef->center_freq1 =
+			ieee80211_channel_to_frequency(pchan_info->center_chan,
+						       band);
+		break;
+	default:
+		break;
+	}
+	LEAVE();
+	return;
+}
+#endif

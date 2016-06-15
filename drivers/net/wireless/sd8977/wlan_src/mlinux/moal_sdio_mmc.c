@@ -46,12 +46,33 @@ extern int pm_keep_power;
 extern int shutdown_hs;
 #endif
 
+/** Device ID for SD8777 */
+#define SD_DEVICE_ID_8777   (0x9131)
+/** Device ID for SD8787 */
+#define SD_DEVICE_ID_8787   (0x9119)
+/** Device ID for SD8887 */
+#define SD_DEVICE_ID_8887   (0x9135)
+/** Device ID for SD8801 FN1 */
+#define SD_DEVICE_ID_8801   (0x9139)
+/** Device ID for SD8897 */
+#define SD_DEVICE_ID_8897   (0x912d)
+/** Device ID for SD8797 */
+#define SD_DEVICE_ID_8797   (0x9129)
 /** Device ID for SD8977 */
 #define SD_DEVICE_ID_8977   (0x9145)
+/** Device ID for SD8997 */
+#define SD_DEVICE_ID_8997   (0x9141)
 
 /** WLAN IDs */
 static const struct sdio_device_id wlan_ids[] = {
+	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8777)},
+	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8787)},
+	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8887)},
+	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8801)},
+	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8897)},
+	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8797)},
 	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8977)},
+	{SDIO_DEVICE(MARVELL_VENDOR_ID, SD_DEVICE_ID_8997)},
 	{},
 };
 
@@ -101,6 +122,13 @@ static struct sdio_driver REFDATA wlan_sdio = {
 #endif
 };
 
+#ifdef SDIO_OOB_IRQ
+extern int mrvl_sdio_claim_irq(struct sdio_func *func, sdio_irq_handler_t *handler);
+extern int mrvl_sdio_release_irq(struct sdio_func *func);
+extern int mrvl_sdio_suspend(struct sdio_func *func);
+extern int mrvl_sdio_resume(struct sdio_func *func);
+#endif
+
 /********************************************************
 		Local Functions
 ********************************************************/
@@ -116,7 +144,9 @@ woal_dump_sdio_reg(moal_handle *handle)
 	t_u8 data, i;
 	int fun0_reg[] = { 0x05, 0x04 };
 	t_u8 array_size = 0;
-	int fun1_reg[] = { 0x03, 0x04, 0x05, 0x60, 0x61 };
+	int fun1_reg_8897[] = { 0x03, 0x04, 0x05, 0x06, 0x07, 0xC0, 0xC1 };
+	int fun1_reg_other[] = { 0x03, 0x04, 0x05, 0x60, 0x61 };
+	int *fun1_reg = NULL;
 
 	for (i = 0; i < ARRAY_SIZE(fun0_reg); i++) {
 		data = sdio_f0_readb(((struct sdio_mmc_card *)handle->card)->
@@ -125,7 +155,13 @@ woal_dump_sdio_reg(moal_handle *handle)
 		       data, ret);
 	}
 
-	array_size = ARRAY_SIZE(fun1_reg);
+	if (handle->card_type == CARD_TYPE_SD8897) {
+		fun1_reg = fun1_reg_8897;
+		array_size = sizeof(fun1_reg_8897) / sizeof(int);
+	} else {
+		fun1_reg = fun1_reg_other;
+		array_size = sizeof(fun1_reg_other) / sizeof(int);
+	}
 	for (i = 0; i < array_size; i++) {
 		data = sdio_readb(((struct sdio_mmc_card *)handle->card)->func,
 				  fun1_reg[i], &ret);
@@ -138,6 +174,36 @@ woal_dump_sdio_reg(moal_handle *handle)
 /********************************************************
 		Global Functions
 ********************************************************/
+/**  @brief This function updates the SDIO card types
+ *
+ *  @param handle   A Pointer to the moal_handle structure
+ *  @param card     A Pointer to card
+ *
+ *  @return         N/A
+ */
+t_void
+woal_sdio_update_card_type(moal_handle *handle, t_void *card)
+{
+	struct sdio_mmc_card *cardp = (struct sdio_mmc_card *)card;
+
+	/* Update card type */
+	if (cardp->func->device == SD_DEVICE_ID_8777)
+		handle->card_type = CARD_TYPE_SD8777;
+	else if (cardp->func->device == SD_DEVICE_ID_8787)
+		handle->card_type = CARD_TYPE_SD8787;
+	else if (cardp->func->device == SD_DEVICE_ID_8887)
+		handle->card_type = CARD_TYPE_SD8887;
+	else if (cardp->func->device == SD_DEVICE_ID_8801)
+		handle->card_type = CARD_TYPE_SD8801;
+	else if (cardp->func->device == SD_DEVICE_ID_8897)
+		handle->card_type = CARD_TYPE_SD8897;
+	else if (cardp->func->device == SD_DEVICE_ID_8797)
+		handle->card_type = CARD_TYPE_SD8797;
+	else if (cardp->func->device == SD_DEVICE_ID_8977)
+		handle->card_type = CARD_TYPE_SD8977;
+	else if (cardp->func->device == SD_DEVICE_ID_8997)
+		handle->card_type = CARD_TYPE_SD8997;
+}
 
 /**
  *  @brief This function handles the interrupt.
@@ -247,9 +313,8 @@ woal_sdio_remove(struct sdio_func *func)
 
 	ENTER();
 
-	PRINTM(MINFO, "SDIO func=%d\n", func->num);
-
 	if (func) {
+		PRINTM(MINFO, "SDIO func=%d\n", func->num);
 		card = sdio_get_drvdata(func);
 		if (card) {
 			woal_remove_card(card);
@@ -456,6 +521,9 @@ woal_sdio_suspend(struct device *dev)
 
 	/* Indicate device suspended */
 	handle->is_suspended = MTRUE;
+#ifdef SDIO_OOB_IRQ
+	mrvl_sdio_suspend(func);
+#endif
 done:
 	PRINTM(MCMND, "<--- Leave woal_sdio_suspend --->\n");
 	LEAVE();
@@ -495,6 +563,9 @@ woal_sdio_resume(struct device *dev)
 		return MLAN_STATUS_SUCCESS;
 	}
 	handle->is_suspended = MFALSE;
+#ifdef SDIO_OOB_IRQ
+	mrvl_sdio_resume(func);
+#endif
 	if (woal_check_driver_status(handle)) {
 		PRINTM(MERROR, "Resuem, device is in hang state\n");
 		LEAVE();
@@ -577,7 +648,7 @@ mlan_status
 woal_sdio_rw_mb(moal_handle *handle, pmlan_buffer pmbuf_list, t_u32 port,
 		t_u8 write)
 {
-	struct scatterlist sg_list[SDIO_MP_AGGR_DEF_PKT_LIMIT];
+	struct scatterlist sg_list[SDIO_MP_AGGR_DEF_PKT_LIMIT_MAX];
 	int num_sg = pmbuf_list->use_count;
 	int i = 0;
 	mlan_buffer *pmbuf = NULL;
@@ -591,7 +662,7 @@ woal_sdio_rw_mb(moal_handle *handle, pmlan_buffer pmbuf_list, t_u32 port,
 	int status;
 #endif
 
-	if (num_sg > SDIO_MP_AGGR_DEF_PKT_LIMIT) {
+	if (num_sg > SDIO_MP_AGGR_DEF_PKT_LIMIT_MAX) {
 		PRINTM(MERROR, "ERROR: num_sg=%d", num_sg);
 		return MLAN_STATUS_FAILURE;
 	}
@@ -814,7 +885,11 @@ woal_unregister_dev(moal_handle *handle)
 	if (handle->card) {
 		/* Release the SDIO IRQ */
 		sdio_claim_host(((struct sdio_mmc_card *)handle->card)->func);
+#ifdef SDIO_OOB_IRQ
+		mrvl_sdio_release_irq(((struct sdio_mmc_card *)handle->card)->func);
+#else
 		sdio_release_irq(((struct sdio_mmc_card *)handle->card)->func);
+#endif
 		sdio_disable_func(((struct sdio_mmc_card *)handle->card)->func);
 		sdio_release_host(((struct sdio_mmc_card *)handle->card)->func);
 
@@ -845,7 +920,11 @@ woal_register_dev(moal_handle *handle)
 	func = card->func;
 	sdio_claim_host(func);
 	/* Request the SDIO IRQ */
+#ifdef SDIO_OOB_IRQ
+	ret = mrvl_sdio_claim_irq(func, woal_sdio_interrupt);
+#else
 	ret = sdio_claim_irq(func, woal_sdio_interrupt);
+#endif
 	if (ret) {
 		PRINTM(MFATAL, "sdio_claim_irq failed: ret=%d\n", ret);
 		goto release_host;
@@ -869,7 +948,11 @@ woal_register_dev(moal_handle *handle)
 	return MLAN_STATUS_SUCCESS;
 
 release_irq:
+#ifdef SDIO_OOB_IRQ
+	mrvl_sdio_release_irq(func);
+#else
 	sdio_release_irq(func);
+#endif
 release_host:
 	sdio_release_host(func);
 	handle->card = NULL;

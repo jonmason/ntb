@@ -40,9 +40,13 @@ Change log:
 #include "mlan_init.h"
 #include "mlan_wmm.h"
 #include "mlan_11n.h"
+#include "mlan_11ac.h"
 #include "mlan_11h.h"
 #include "mlan_meas.h"
 #include "mlan_sdio.h"
+#if defined(DRV_EMBEDDED_AUTHENTICATOR) || defined(DRV_EMBEDDED_SUPPLICANT)
+#include "hostsa_init.h"
+#endif
 
 /********************************************************
 			Global Variables
@@ -188,10 +192,12 @@ wlan_allocate_adapter(pmlan_adapter pmadapter)
 		140, 144, 149, 153, 157, 161, 165
 	};
 #endif
-	t_u32 max_mp_regs = MAX_MP_REGS;
+	t_u32 max_mp_regs = pmadapter->psdio_device->reg->max_mp_regs;
 #if defined(SDIO_MULTI_PORT_TX_AGGR) || defined(SDIO_MULTI_PORT_RX_AGGR)
-	t_u32 mp_tx_aggr_buf_size = SDIO_MP_TX_AGGR_DEF_BUF_SIZE;
-	t_u32 mp_rx_aggr_buf_size = SDIO_MP_RX_AGGR_DEF_BUF_SIZE;
+	t_u32 mp_tx_aggr_buf_size =
+		pmadapter->psdio_device->mp_tx_aggr_buf_size;
+	t_u32 mp_rx_aggr_buf_size =
+		pmadapter->psdio_device->mp_rx_aggr_buf_size;
 #endif
 
 	ENTER();
@@ -298,7 +304,8 @@ wlan_allocate_adapter(pmlan_adapter pmadapter)
 #ifdef DEBUG_LEVEL1
 	if (mlan_drvdbg & MMPA_D) {
 		pmadapter->mpa_buf_size =
-			SDIO_MP_DBG_NUM * SDIO_MP_AGGR_DEF_PKT_LIMIT *
+			SDIO_MP_DBG_NUM *
+			pmadapter->psdio_device->mp_aggr_pkt_limit *
 			MLAN_SDIO_BLOCK_SIZE;
 		if (pmadapter->callbacks.moal_vmalloc &&
 		    pmadapter->callbacks.moal_vfree)
@@ -373,6 +380,7 @@ wlan_init_priv(pmlan_private priv)
 	priv->ewpa_query = MFALSE;
 	priv->adhoc_aes_enabled = MFALSE;
 	priv->curr_pkt_filter =
+		HostCmd_ACT_MAC_STATIC_DYNAMIC_BW_ENABLE |
 		HostCmd_ACT_MAC_RTS_CTS_ENABLE |
 		HostCmd_ACT_MAC_RX_ON | HostCmd_ACT_MAC_TX_ON |
 		HostCmd_ACT_MAC_ETHERNETII_ENABLE;
@@ -388,6 +396,7 @@ wlan_init_priv(pmlan_private priv)
 
 	wlan_11d_priv_init(priv);
 	wlan_11h_priv_init(priv);
+	priv->enable_11k = MFALSE;
 
 #ifdef UAP_SUPPORT
 	priv->uap_bss_started = MFALSE;
@@ -411,6 +420,8 @@ wlan_init_priv(pmlan_private priv)
 	priv->min_tx_power_level = 0;
 	priv->tx_rate = 0;
 	priv->rxpd_rate_info = 0;
+	/* refer to V15 CMD_TX_RATE_QUERY */
+	priv->rxpd_vhtinfo = 0;
 	priv->rxpd_rate = 0;
 	priv->rate_bitmap = 0;
 	priv->data_rssi_last = 0;
@@ -455,6 +466,7 @@ wlan_init_priv(pmlan_private priv)
 	priv->pcurr_bcn_buf = MNULL;
 	priv->curr_bcn_size = 0;
 	memset(pmadapter, &priv->ext_cap, 0, sizeof(priv->ext_cap));
+	SET_EXTCAP_OPERMODENTF(priv->ext_cap);
 	SET_EXTCAP_QOS_MAP(priv->ext_cap);
 #endif /* STA_SUPPORT */
 
@@ -467,20 +479,30 @@ wlan_init_priv(pmlan_private priv)
 	priv->max_amsdu = 0;
 #ifdef STA_SUPPORT
 	if (priv->bss_type == MLAN_BSS_TYPE_STA) {
-		priv->add_ba_param.tx_win_size = MLAN_STA_AMPDU_DEF_TXWINSIZE;
+		priv->add_ba_param.tx_win_size =
+			pmadapter->psdio_device->ampdu_info->
+			ampdu_sta_txwinsize;
 		priv->add_ba_param.rx_win_size = MLAN_STA_AMPDU_DEF_RXWINSIZE;
 	}
 #endif
 #ifdef WIFI_DIRECT_SUPPORT
 	if (priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT) {
-		priv->add_ba_param.tx_win_size = MLAN_WFD_AMPDU_DEF_TXRXWINSIZE;
-		priv->add_ba_param.rx_win_size = MLAN_WFD_AMPDU_DEF_TXRXWINSIZE;
+		priv->add_ba_param.tx_win_size =
+			pmadapter->psdio_device->ampdu_info->
+			ampdu_wfd_txrxwinsize;
+		priv->add_ba_param.rx_win_size =
+			pmadapter->psdio_device->ampdu_info->
+			ampdu_wfd_txrxwinsize;
 	}
 #endif
 #ifdef UAP_SUPPORT
 	if (priv->bss_type == MLAN_BSS_TYPE_UAP) {
-		priv->add_ba_param.tx_win_size = MLAN_UAP_AMPDU_DEF_TXWINSIZE;
-		priv->add_ba_param.rx_win_size = MLAN_UAP_AMPDU_DEF_RXWINSIZE;
+		priv->add_ba_param.tx_win_size =
+			pmadapter->psdio_device->ampdu_info->
+			ampdu_uap_txwinsize;
+		priv->add_ba_param.rx_win_size =
+			pmadapter->psdio_device->ampdu_info->
+			ampdu_uap_rxwinsize;
 		priv->aggr_prio_tbl[6].ampdu_user =
 			priv->aggr_prio_tbl[7].ampdu_user =
 			BA_STREAM_NOT_ALLOWED;
@@ -492,10 +514,16 @@ wlan_init_priv(pmlan_private priv)
 	priv->port_open = MFALSE;
 
 	ret = wlan_add_bsspriotbl(priv);
+#if defined(DRV_EMBEDDED_AUTHENTICATOR) || defined(DRV_EMBEDDED_SUPPLICANT)
+	hostsa_init(priv);
+#endif
 
 	priv->usr_dev_mcs_support = 0;
 	priv->usr_dot_11n_dev_cap_bg = 0;
 	priv->usr_dot_11n_dev_cap_a = 0;
+	priv->usr_dot_11ac_mcs_support = 0;
+	priv->usr_dot_11ac_dev_cap_bg = 0;
+	priv->usr_dot_11ac_dev_cap_a = 0;
 
 	LEAVE();
 	return ret;
@@ -515,11 +543,13 @@ wlan_init_adapter(pmlan_adapter pmadapter)
 	opt_sleep_confirm_buffer *sleep_cfm_buf = MNULL;
 	ENTER();
 
-	sleep_cfm_buf =
-		(opt_sleep_confirm_buffer *)(pmadapter->psleep_cfm->pbuf +
-					     pmadapter->psleep_cfm->
-					     data_offset);
-
+	if (pmadapter->psleep_cfm) {
+		sleep_cfm_buf =
+			(opt_sleep_confirm_buffer *)(pmadapter->psleep_cfm->
+						     pbuf +
+						     pmadapter->psleep_cfm->
+						     data_offset);
+	}
 #ifdef MFG_CMD_SUPPORT
 	if (pmadapter->init_para.mfg_mode == MLAN_INIT_PARA_DISABLED)
 		pmadapter->mfg_mode = MFALSE;
@@ -537,9 +567,15 @@ wlan_init_adapter(pmlan_adapter pmadapter)
 	pmadapter->data_sent = MTRUE;
 	pmadapter->mp_rd_bitmap = 0;
 	pmadapter->mp_wr_bitmap = 0;
-	pmadapter->curr_rd_port = 0;
-	pmadapter->curr_wr_port = 0;
-	pmadapter->mp_data_port_mask = DATA_PORT_MASK;
+	if (pmadapter->psdio_device->supports_sdio_new_mode) {
+		pmadapter->curr_rd_port = 0;
+		pmadapter->curr_wr_port = 0;
+	} else {
+		pmadapter->curr_rd_port = 1;
+		pmadapter->curr_wr_port = 1;
+	}
+	pmadapter->mp_data_port_mask =
+		pmadapter->psdio_device->reg->data_port_mask;
 	pmadapter->mp_invalid_update = 0;
 	memset(pmadapter, pmadapter->mp_update, 0,
 	       sizeof(pmadapter->mp_update));
@@ -554,7 +590,8 @@ wlan_init_adapter(pmlan_adapter pmadapter)
 		pmadapter->mpa_tx.enabled = MFALSE;
 	else
 		pmadapter->mpa_tx.enabled = MTRUE;
-	pmadapter->mpa_tx.pkt_aggr_limit = SDIO_MP_AGGR_DEF_PKT_LIMIT;
+	pmadapter->mpa_tx.pkt_aggr_limit =
+		pmadapter->psdio_device->mp_aggr_pkt_limit;
 #endif /* SDIO_MULTI_PORT_TX_AGGR */
 
 #ifdef SDIO_MULTI_PORT_RX_AGGR
@@ -568,7 +605,8 @@ wlan_init_adapter(pmlan_adapter pmadapter)
 		pmadapter->mpa_rx.enabled = MFALSE;
 	else
 		pmadapter->mpa_rx.enabled = MTRUE;
-	pmadapter->mpa_rx.pkt_aggr_limit = SDIO_MP_AGGR_DEF_PKT_LIMIT;
+	pmadapter->mpa_rx.pkt_aggr_limit =
+		pmadapter->psdio_device->mp_aggr_pkt_limit;
 
 #endif /* SDIO_MULTI_PORT_RX_AGGR */
 
@@ -608,7 +646,7 @@ wlan_init_adapter(pmlan_adapter pmadapter)
 	pmadapter->num_in_scan_table = 0;
 	memset(pmadapter, pmadapter->pscan_table, 0,
 	       (sizeof(BSSDescriptor_t) * MRVDRV_MAX_BSSID_LIST));
-	pmadapter->ext_scan = MTRUE;
+	pmadapter->ext_scan = pmadapter->psdio_device->ext_scan;
 	pmadapter->scan_probes = DEFAULT_PROBES;
 
 	memset(pmadapter, pmadapter->bcn_buf, 0, pmadapter->bcn_buf_size);
@@ -644,7 +682,8 @@ wlan_init_adapter(pmlan_adapter pmadapter)
 	pmadapter->pm_wakeup_fw_try = MFALSE;
 
 	if (!pmadapter->init_para.max_tx_buf)
-		pmadapter->max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K;
+		pmadapter->max_tx_buf_size =
+			pmadapter->psdio_device->max_tx_buf_size;
 	else
 		pmadapter->max_tx_buf_size =
 			(t_u16)pmadapter->init_para.max_tx_buf;
@@ -657,6 +696,8 @@ wlan_init_adapter(pmlan_adapter pmadapter)
 	pmadapter->hs_cfg.gap = HOST_SLEEP_DEF_GAP;
 	pmadapter->hs_activated = MFALSE;
 	pmadapter->min_wake_holdoff = HOST_SLEEP_DEF_WAKE_HOLDOFF;
+	pmadapter->hs_wake_interval = 0;
+	pmadapter->hs_inactivity_timeout = HOST_SLEEP_DEF_INACTIVITY_TIMEOUT;
 
 	memset(pmadapter, pmadapter->event_body, 0,
 	       sizeof(pmadapter->event_body));
@@ -668,6 +709,9 @@ wlan_init_adapter(pmlan_adapter pmadapter)
 	pmadapter->adhoc_11n_enabled = MFALSE;
 	pmadapter->tdls_status = TDLS_NOT_SETUP;
 #endif /* STA_SUPPORT */
+
+	pmadapter->hw_dot_11ac_dev_cap = 0;
+	pmadapter->hw_dot_11ac_mcs_support = 0;
 
 	/* Initialize 802.11d */
 	wlan_11d_init(pmadapter);
@@ -1238,6 +1282,10 @@ wlan_free_priv(mlan_private *pmpriv)
 #ifdef STA_SUPPORT
 	wlan_free_curr_bcn(pmpriv);
 #endif /* STA_SUPPORT */
+
+#if defined(DRV_EMBEDDED_AUTHENTICATOR) || defined(DRV_EMBEDDED_SUPPLICANT)
+	hostsa_cleanup(pmpriv);
+#endif /* EMBEDDED AUTHENTICATOR */
 
 	wlan_delete_station_list(pmpriv);
 	LEAVE();

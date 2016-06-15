@@ -313,6 +313,53 @@ wlan_11n_ioctl_tx_bf_cfg(IN pmlan_adapter pmadapter,
 }
 
 /**
+ *  @brief Set/get HT stream configurations
+ *
+ *  @param pmadapter    A pointer to mlan_adapter structure
+ *  @param pioctl_req   A pointer to ioctl request buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS --success, otherwise fail
+ */
+static mlan_status
+wlan_11n_ioctl_stream_cfg(IN pmlan_adapter pmadapter,
+			  IN pmlan_ioctl_req pioctl_req)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_ds_11n_cfg *cfg = MNULL;
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+
+	ENTER();
+
+	cfg = (mlan_ds_11n_cfg *)pioctl_req->pbuf;
+	if (pioctl_req->action == MLAN_ACT_GET) {
+		cfg->param.stream_cfg = pmpriv->usr_dev_mcs_support;
+	} else if (pioctl_req->action == MLAN_ACT_SET) {
+		switch (cfg->param.stream_cfg) {
+		case HT_STREAM_MODE_2X2:
+			if (pmadapter->hw_dev_mcs_support == HT_STREAM_MODE_1X1) {
+				PRINTM(MERROR,
+				       "HW does not support this mode\n");
+				ret = MLAN_STATUS_FAILURE;
+			} else
+				pmpriv->usr_dev_mcs_support =
+					cfg->param.stream_cfg;
+			break;
+		case HT_STREAM_MODE_1X1:
+			pmpriv->usr_dev_mcs_support = cfg->param.stream_cfg;
+			break;
+		default:
+			PRINTM(MERROR, "Invalid stream mode\n");
+			pioctl_req->status_code = MLAN_ERROR_INVALID_PARAMETER;
+			ret = MLAN_STATUS_FAILURE;
+			break;
+		}
+	}
+
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Set/get control to coex RX window size configuration
  *
  *  @param pmadapter    A pointer to mlan_adapter structure
@@ -1233,9 +1280,10 @@ wlan_11n_ioctl_supported_mcs_set(IN pmlan_adapter pmadapter,
 	memset(pmadapter, (t_u8 *)&mcs_set[rx_mcs_supp], 0,
 	       NUM_MCS_FIELD - rx_mcs_supp);
 	/* Set MCS32 with 40MHz support */
-	if (ISSUPP_CHANWIDTH40(pmpriv->usr_dot_11n_dev_cap_bg)
-	    || ISSUPP_CHANWIDTH40(pmpriv->usr_dot_11n_dev_cap_a)
-		)
+	if ((ISSUPP_CHANWIDTH40(pmpriv->usr_dot_11n_dev_cap_bg)
+	     || ISSUPP_CHANWIDTH40(pmpriv->usr_dot_11n_dev_cap_a)
+	    ) && !(pmpriv->curr_chan_flags & CHAN_FLAGS_NO_HT40PLUS
+		   && pmpriv->curr_chan_flags & CHAN_FLAGS_NO_HT40MINUS))
 		SETHT_MCS32(mcs_set);
 
 	cfg = (mlan_ds_11n_cfg *)pioctl_req->pbuf;
@@ -1368,7 +1416,6 @@ wlan_fill_cap_info(mlan_private *priv, HTCap_t *ht_cap, t_u8 bands)
 		SETHT_SHORTGI40(ht_cap->ht_cap_info);
 	else
 		RESETHT_SHORTGI40(ht_cap->ht_cap_info);
-
 	if (ISSUPP_RXSTBC(usr_dot_11n_dev_cap))
 		SETHT_RXSTBC(ht_cap->ht_cap_info, 1);
 	else
@@ -1379,6 +1426,13 @@ wlan_fill_cap_info(mlan_private *priv, HTCap_t *ht_cap, t_u8 bands)
 	else
 		RESETHT_40MHZ_INTOLARANT(ht_cap->ht_cap_info);
 
+	/** if current channel only allow 20Mhz, we should cler 40Mhz support */
+	if (priv->curr_chan_flags & CHAN_FLAGS_NO_HT40PLUS &&
+	    priv->curr_chan_flags & CHAN_FLAGS_NO_HT40MINUS) {
+		RESETHT_SUPPCHANWIDTH(ht_cap->ht_cap_info);
+		RESETHT_SHORTGI40(ht_cap->ht_cap_info);
+		RESETHT_40MHZ_INTOLARANT(ht_cap->ht_cap_info);
+	}
 	/* No user config for LDPC coding capability yet */
 	if (ISSUPP_RXLDPC(usr_dot_11n_dev_cap))
 		SETHT_LDPCCODINGCAP(ht_cap->ht_cap_info);
@@ -1392,7 +1446,14 @@ wlan_fill_cap_info(mlan_private *priv, HTCap_t *ht_cap, t_u8 bands)
 		RESETHT_TXSTBC(ht_cap->ht_cap_info);
 
 	/* No user config for Delayed BACK yet */
-	RESETHT_DELAYEDBACK(ht_cap->ht_cap_info);
+	if (priv->adapter->psdio_device->v15_fw_api) {
+		RESETHT_DELAYEDBACK(ht_cap->ht_cap_info);
+	} else {
+		if (GET_DELAYEDBACK(priv->adapter->hw_dot_11n_dev_cap))
+			SETHT_DELAYEDBACK(ht_cap->ht_cap_info);
+		else
+			RESETHT_DELAYEDBACK(ht_cap->ht_cap_info);
+	}
 
 	/* Need change to support 8k AMSDU receive */
 	RESETHT_MAXAMSDU(ht_cap->ht_cap_info);
@@ -1440,7 +1501,11 @@ wlan_fill_ht_cap_tlv(mlan_private *priv,
 	       (t_u8 *)&pht_cap->ht_cap.supported_mcs_set[rx_mcs_supp], 0,
 	       NUM_MCS_FIELD - rx_mcs_supp);
 	/* Set MCS32 with 40MHz support */
-	if (ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap))
+	/* if current channel only support 20MHz, we should not set 40Mz
+	   supprot */
+	if (ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap) &&
+	    !(priv->curr_chan_flags & CHAN_FLAGS_NO_HT40PLUS
+	      && priv->curr_chan_flags & CHAN_FLAGS_NO_HT40MINUS))
 		SETHT_MCS32(pht_cap->ht_cap.supported_mcs_set);
 
 	/* Clear RD responder bit */
@@ -1496,7 +1561,11 @@ wlan_fill_ht_cap_ie(mlan_private *priv, IEEEtypes_HTCap_t *pht_cap, t_u8 bands)
 	       (t_u8 *)&pht_cap->ht_cap.supported_mcs_set[rx_mcs_supp], 0,
 	       NUM_MCS_FIELD - rx_mcs_supp);
 	/* Set MCS32 with 40MHz support */
-	if (ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap))
+	/* if current channel only support 20MHz, we should not set 40Mz
+	   supprot */
+	if (ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap) &&
+	    !(priv->curr_chan_flags & CHAN_FLAGS_NO_HT40PLUS
+	      && priv->curr_chan_flags & CHAN_FLAGS_NO_HT40MINUS))
 		SETHT_MCS32(pht_cap->ht_cap.supported_mcs_set);
 
 	/* Clear RD responder bit */
@@ -1544,8 +1613,18 @@ wlan_show_dot11ndevcap(pmlan_adapter pmadapter, t_u32 cap)
 	PRINTM(MINFO, "GET_HW_SPEC: LDPC coded packet receive %s\n",
 	       (ISSUPP_RXLDPC(cap) ? "supported" : "not supported"));
 
-	PRINTM(MINFO, "GET_HW_SPEC: Number of Tx BA streams supported = %d\n",
-	       ISSUPP_GETTXBASTREAM(cap));
+	if (pmadapter->psdio_device->v15_fw_api) {
+		PRINTM(MINFO,
+		       "GET_HW_SPEC: Number of Tx BA streams supported = %d\n",
+		       ISSUPP_GETTXBASTREAM(cap));
+	} else {
+		PRINTM(MINFO,
+		       "GET_HW_SPEC: Number of Delayed Block Ack streams = %d\n",
+		       GET_DELAYEDBACK(cap));
+		PRINTM(MINFO,
+		       "GET_HW_SPEC: Number of Immediate Block Ack streams = %d\n",
+		       GET_IMMEDIATEBACK(cap));
+	}
 	PRINTM(MINFO, "GET_HW_SPEC: 40 Mhz channel width %s\n",
 	       (ISSUPP_CHANWIDTH40(cap) ? "supported" : "not supported"));
 	PRINTM(MINFO, "GET_HW_SPEC: 20 Mhz channel width %s\n",
@@ -2198,6 +2277,7 @@ wlan_get_second_channel_offset(int chan)
 	case 116:
 	case 124:
 	case 132:
+	case 140:
 	case 149:
 	case 157:
 		chan2Offset = SEC_CHAN_ABOVE;
@@ -2215,6 +2295,7 @@ wlan_get_second_channel_offset(int chan)
 	case 161:
 		chan2Offset = SEC_CHAN_BELOW;
 		break;
+	case 144:
 	case 165:
 		/* Special Case: 20Mhz-only Channel */
 		chan2Offset = SEC_CHAN_NONE;
@@ -2296,9 +2377,21 @@ wlan_check_chan_width_ht40_by_region(IN mlan_private *pmpriv,
 		LEAVE();
 		return MFALSE;
 	}
+	if (pmpriv->curr_chan_flags & CHAN_FLAGS_NO_HT40PLUS &&
+	    pmpriv->curr_chan_flags & CHAN_FLAGS_NO_HT40MINUS) {
+		LEAVE();
+		return MFALSE;
+	}
 
 	pri_chan = pbss_desc->pht_info->ht_info.pri_chan;
 	chan_offset = GET_SECONDARYCHAN(pbss_desc->pht_info->ht_info.field2);
+	if ((chan_offset == SEC_CHANNEL_ABOVE) &&
+	    (pmpriv->curr_chan_flags & CHAN_FLAGS_NO_HT40PLUS))
+		return MFALSE;
+	if ((chan_offset == SEC_CHANNEL_BELOW) &&
+	    (pmpriv->curr_chan_flags & CHAN_FLAGS_NO_HT40MINUS))
+		return MFALSE;
+
 	num_cfp = pmadapter->region_channel[0].num_cfp;
 
 	if ((pbss_desc->bss_band & (BAND_B | BAND_G)) &&
@@ -2349,6 +2442,7 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 	MrvlIETypes_2040BSSCo_t *p2040_bss_co;
 	MrvlIETypes_ExtCap_t *pext_cap;
 	t_u32 usr_dot_11n_dev_cap, orig_usr_dot_11n_dev_cap = 0;
+	t_u32 usr_vht_cap_info;
 	int ret_len = 0;
 
 	ENTER();
@@ -2368,6 +2462,10 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 	else
 		usr_dot_11n_dev_cap = pmpriv->usr_dot_11n_dev_cap_bg;
 
+	if (pbss_desc->bss_band & BAND_A)
+		usr_vht_cap_info = pmpriv->usr_dot_11ac_dev_cap_a;
+	else
+		usr_vht_cap_info = pmpriv->usr_dot_11ac_dev_cap_bg;
 	if ((pbss_desc->bss_band & (BAND_B | BAND_G)) &&
 	    ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap) &&
 	    !wlan_check_chan_width_ht40_by_region(pmpriv, pbss_desc)) {
@@ -2376,6 +2474,7 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 		RESET_40MHZ_INTOLARENT(usr_dot_11n_dev_cap);
 		RESETSUPP_SHORTGI40(usr_dot_11n_dev_cap);
 		pmpriv->usr_dot_11n_dev_cap_bg = usr_dot_11n_dev_cap;
+		pbss_desc->curr_bandwidth = BW_20MHZ;
 	}
 	if (pbss_desc->pht_cap) {
 		pht_cap = (MrvlIETypes_HTCap_t *)*ppbuffer;
@@ -2437,17 +2536,32 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 			pbss_desc->pht_info->ht_info.pri_chan;
 		pchan_list->chan_scan_param[0].radio_type =
 			wlan_band_to_radio_type((t_u8)pbss_desc->bss_band);
-		if (ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap) &&
-		    ISALLOWED_CHANWIDTH40(pbss_desc->pht_info->ht_info.field2)
-		    && wlan_check_chan_width_ht40_by_region(pmpriv,
-							    pbss_desc)) {
+		/* support the VHT if the network to be join has the VHT
+		   operation */
+		if (ISSUPP_11ACENABLED(pmadapter->fw_cap_info) &&
+		    pbss_desc->pvht_oprat &&
+		    pbss_desc->pvht_oprat->chan_width == VHT_OPER_CHWD_80MHZ) {
+			if ((pbss_desc->bss_band & BAND_GAC)
+			    || (pbss_desc->bss_band & BAND_AAC)
+				) {
+				pchan_list->chan_scan_param[0].radio_type |=
+					CHAN_BW_80MHZ << 2;
+				pbss_desc->curr_bandwidth = BW_80MHZ;
+			}
+		} else if (ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap) &&
+			   ISALLOWED_CHANWIDTH40(pbss_desc->pht_info->ht_info.
+						 field2) &&
+			   wlan_check_chan_width_ht40_by_region(pmpriv,
+								pbss_desc)) {
 			SET_SECONDARYCHAN(pchan_list->chan_scan_param[0].
 					  radio_type,
 					  GET_SECONDARYCHAN(pbss_desc->
 							    pht_info->ht_info.
 							    field2));
-			pchan_list->chan_scan_param[0].radio_type |=
-				CHAN_BW_40MHZ << 2;
+			pbss_desc->curr_bandwidth = BW_40MHZ;
+			if (pmpriv->adapter->psdio_device->v15_update)
+				pchan_list->chan_scan_param[0].radio_type |=
+					CHAN_BW_40MHZ << 2;
 		}
 
 		HEXDUMP("ChanList", (t_u8 *)pchan_list,
@@ -2498,11 +2612,18 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 			RESET_EXTCAP_TDLS(pext_cap->ext_cap);
 		if (!ISSUPP_EXTCAP_INTERWORKING(pmpriv->ext_cap))
 			RESET_EXTCAP_INTERWORKING(pext_cap->ext_cap);
+		if (!ISSUPP_EXTCAP_OPERMODENTF(pmpriv->ext_cap))
+			RESET_EXTCAP_OPERMODENTF(pext_cap->ext_cap);
 		HEXDUMP("Extended Capabilities IE", (t_u8 *)pext_cap,
 			sizeof(MrvlIETypes_ExtCap_t));
 		*ppbuffer += sizeof(MrvlIETypes_ExtCap_t);
 		ret_len += sizeof(MrvlIETypes_ExtCap_t);
 		pext_cap->header.len = wlan_cpu_to_le16(pext_cap->header.len);
+	} else if (wlan_is_ext_capa_support(pmpriv) ||
+		   (pmpriv->config_bands & BAND_AAC)
+		) {
+		wlan_add_ext_capa_info_ie(pmpriv, ppbuffer);
+		ret_len += sizeof(MrvlIETypes_ExtCap_t);
 	}
 
 	if (orig_usr_dot_11n_dev_cap)
@@ -2576,6 +2697,9 @@ wlan_11n_cfg_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		break;
 	case MLAN_OID_11N_CFG_TX_BF_CFG:
 		status = wlan_11n_ioctl_tx_bf_cfg(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_11N_CFG_STREAM_CFG:
+		status = wlan_11n_ioctl_stream_cfg(pmadapter, pioctl_req);
 		break;
 	case MLAN_OID_11N_CFG_COEX_RX_WINSIZE:
 		status = wlan_11n_ioctl_coex_rx_winsize(pmadapter, pioctl_req);
@@ -2961,9 +3085,12 @@ wlan_get_txbastream_tbl(mlan_private *priv, tx_ba_stream_tbl *buf)
 		LEAVE();
 		return count;
 	}
-	bastream_max = ISSUPP_GETTXBASTREAM(priv->adapter->hw_dot_11n_dev_cap);
-	if (bastream_max == 0)
-		bastream_max = MLAN_MAX_TX_BASTREAM_DEFAULT;
+	if (priv->adapter->psdio_device->v15_fw_api) {
+		bastream_max =
+			ISSUPP_GETTXBASTREAM(priv->adapter->hw_dot_11n_dev_cap);
+		if (bastream_max == 0)
+			bastream_max = MLAN_MAX_TX_BASTREAM_DEFAULT;
+	}
 
 	while (ptxtbl != (TxBAStreamTbl *)&priv->tx_ba_stream_tbl_ptr) {
 		ptbl->tid = (t_u16)ptxtbl->tid;
@@ -2974,7 +3101,10 @@ wlan_get_txbastream_tbl(mlan_private *priv, tx_ba_stream_tbl *buf)
 		ptxtbl = ptxtbl->pnext;
 		ptbl++;
 		count++;
-		if (count >= bastream_max)
+		if ((priv->adapter->psdio_device->v15_fw_api &&
+		     (count >= bastream_max)) ||
+		    (!priv->adapter->psdio_device->v15_fw_api &&
+		     (count >= MLAN_MAX_TX_BASTREAM_SUPPORTED_NOV15)))
 			break;
 	}
 

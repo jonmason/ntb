@@ -67,6 +67,9 @@ Change log:
 
 #define UAP_TX_RATE_CFG         14
 
+/** Subcommand ID to set/get antenna configuration */
+#define UAP_ANTENNA_CFG         15
+
 #define UAP_DFS_REPEATER_MODE	16
 
 #define UAP_CAC_TIMER_STATUS	17
@@ -75,6 +78,10 @@ Change log:
 #define UAP_SKIP_CAC		18
 
 #define UAP_HT_TX_CFG           19
+
+#define UAP_VHT_CFG             20
+
+#define UAP_HT_STREAM_CFG       21
 
 #define UAP_OPERATION_CTRL       22
 
@@ -134,11 +141,35 @@ typedef struct _tx_rate_cfg_t {
 	int rate_format;
     /** Rate configured */
 	int rate;
+    /** nss */
+	int nss;
     /** user_data_cnt */
 	int user_data_cnt;
     /** Rate bitmap */
 	t_u16 bitmap_rates[MAX_BITMAP_RATES_SIZE];
 } tx_rate_cfg_t;
+
+/** ant_cfg structure */
+typedef struct _ant_cfg_t {
+   /** Subcommand */
+	int subcmd;
+   /** Action */
+	int action;
+   /** TX mode configured */
+	int tx_mode;
+   /** RX mode configured */
+	int rx_mode;
+} ant_cfg_t;
+
+/** htstream_cfg structure */
+typedef struct _htstream_cfg_t {
+   /** Subcommand */
+	int subcmd;
+   /** Action */
+	int action;
+   /** HT stream configuration */
+	t_u32 stream_cfg;
+} htstream_cfg_t;
 
 /* dfs repeater mode */
 typedef struct _dfs_repeater_mode {
@@ -179,6 +210,33 @@ typedef struct _skip_cac_para {
 /** deauth station */
 #define	UAP_STA_DEAUTH	            (SIOCDEVPRIVATE + 7)
 
+/** enable UAP report mic error */
+#define UAP_REPORT_MIC_ERR          (SIOCDEVPRIVATE + 8)
+/** uap set key */
+#define UAP_SET_KEY                 (SIOCDEVPRIVATE + 9)
+/** encrypt key */
+typedef struct _encrypt_key {
+    /** Key index */
+	t_u32 key_index;
+    /** Key length */
+	t_u32 key_len;
+    /** Key */
+	t_u8 key_material[MLAN_MAX_KEY_LENGTH];
+    /** mac address */
+	t_u8 mac_addr[MLAN_MAC_ADDR_LENGTH];
+} encrypt_key;
+
+/** Packet inject command ioctl number */
+#define UAPHOSTPKTINJECT            WOAL_MGMT_FRAME_TX_IOCTL
+/** pkt_header */
+typedef struct _pkt_header {
+    /** pkt_len */
+	u32 pkt_len;
+    /** pkt_type */
+	u32 TxPktType;
+    /** tx control */
+	u32 TxControl;
+} pkt_header;
 /** uap get station list */
 #define UAP_GET_STA_LIST            (SIOCDEVPRIVATE + 11)
 
@@ -305,6 +363,13 @@ typedef struct _tx_bf_cfg_para_hdr {
 	t_u32 action;
 } tx_bf_cfg_para_hdr;
 
+typedef struct _vht_cfg_para_hdr {
+    /** Sub command */
+	t_u32 subcmd;
+    /** Action: Set/Get */
+	t_u32 action;
+} vht_cfg_para_hdr;
+
 typedef struct _uap_oper_para_hdr {
     /** Sub command */
 	t_u32 subcmd;
@@ -421,7 +486,7 @@ int woal_uap_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd);
 int woal_uap_bss_ctrl(moal_private *priv, t_u8 wait_option, int data);
 mlan_status woal_set_get_ap_channel(moal_private *priv, t_u16 action,
 				    t_u8 wait_option,
-				    mlan_uap_channel * uap_channel);
+				    mlan_chan_info * uap_channel);
 #ifdef CONFIG_PROC_FS
 void woal_uap_get_version(moal_private *priv, char *version, int max_len);
 #endif
@@ -443,6 +508,7 @@ mlan_status woal_set_get_sys_config(moal_private *priv,
 mlan_status woal_set_get_ap_wmm_para(moal_private *priv, t_u16 action,
 				     wmm_parameter_t *ap_wmm_para);
 int woal_uap_set_ap_cfg(moal_private *priv, t_u8 *data, int len);
+int woal_uap_set_11ac_status(moal_private *priv, t_u8 action, t_u8 vht20_40);
 int woal_set_uap_ht_tx_cfg(moal_private *priv, t_u8 band_cfg, t_u8 en);
 mlan_status woal_uap_set_11n_status(mlan_uap_bss_param *sys_cfg, t_u8 action);
 #ifdef UAP_WEXT

@@ -41,6 +41,7 @@ Change log:
 #include "mlan_11n.h"
 #include "mlan_fw.h"
 #include "mlan_11h.h"
+#include "mlan_11ac.h"
 
 /********************************************************
 			Global Variables
@@ -297,6 +298,13 @@ wlan_uap_bss_ioctl_start(IN pmlan_adapter pmadapter,
 
 	ENTER();
 
+	if (pmadapter->enable_net_mon == MTRUE) {
+		PRINTM(MINFO,
+		       "BSS start is blocked in Network Monitor mode...\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
 	bss = (mlan_ds_bss *)pioctl_req->pbuf;
 	pmpriv->uap_host_based = bss->param.host_based;
 	if (!pmpriv->uap_host_based && pmpriv->intf_state_11h.is_11h_active) {
@@ -350,8 +358,10 @@ wlan_uap_bss_ioctl_reset(IN pmlan_adapter pmadapter,
 	for (i = 0; i < pmadapter->max_mgmt_ie_index; i++)
 		memset(pmadapter, &pmpriv->mgmt_ie[i], 0, sizeof(custom_ie));
 	pmpriv->add_ba_param.timeout = MLAN_DEFAULT_BLOCK_ACK_TIMEOUT;
-	pmpriv->add_ba_param.tx_win_size = MLAN_UAP_AMPDU_DEF_TXWINSIZE;
-	pmpriv->add_ba_param.rx_win_size = MLAN_UAP_AMPDU_DEF_RXWINSIZE;
+	pmpriv->add_ba_param.tx_win_size =
+		pmadapter->psdio_device->ampdu_info->ampdu_uap_txwinsize;
+	pmpriv->add_ba_param.rx_win_size =
+		pmadapter->psdio_device->ampdu_info->ampdu_uap_rxwinsize;
 	for (i = 0; i < MAX_NUM_TID; i++) {
 		pmpriv->aggr_prio_tbl[i].ampdu_user = tos_to_tid_inv[i];
 		pmpriv->aggr_prio_tbl[i].amsdu = BA_STREAM_NOT_ALLOWED;
@@ -981,6 +991,38 @@ wlan_uap_sec_ioctl_wapi_enable(IN pmlan_adapter pmadapter,
 }
 
 /**
+ *  @brief report mic error
+ *
+ *  @param pmadapter	A pointer to mlan_adapter structure
+ *  @param pioctl_req	A pointer to ioctl request buffer
+ *
+ *  @return		MLAN_STATUS_PENDING --success, otherwise fail
+ */
+static mlan_status
+wlan_uap_sec_ioctl_report_mic_error(IN pmlan_adapter pmadapter,
+				    IN pmlan_ioctl_req pioctl_req)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_ds_sec_cfg *sec = MNULL;
+
+	ENTER();
+
+	sec = (mlan_ds_sec_cfg *)pioctl_req->pbuf;
+	ret = wlan_prepare_cmd(pmpriv,
+			       HOST_CMD_APCMD_REPORT_MIC,
+			       HostCmd_ACT_GEN_SET,
+			       0,
+			       (t_void *)pioctl_req,
+			       (t_void *)sec->param.sta_mac);
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Set encrypt key
  *
  *  @param pmadapter	A pointer to mlan_adapter structure
@@ -1500,6 +1542,38 @@ wlan_uap_snmp_mib_11h(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 	return ret;
 }
 
+/**
+ *  @brief ACS scan
+ *
+ *  @param pmadapter	A pointer to mlan_adapter structure
+ *  @param pioctl_req	A pointer to ioctl request buffer
+ *
+ *  @return		MLAN_STATUS_PENDING --success, otherwise fail
+ */
+static mlan_status
+wlan_uap_bss_ioctl_acs_scan(IN pmlan_adapter pmadapter,
+			    IN pmlan_ioctl_req pioctl_req)
+{
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+	if (pmadapter->uap_fw_ver < UAP_FW_VERSION_2) {
+		PRINTM(MIOCTL, "FW don't support ACS SCAN API\n");
+		return MLAN_STATUS_FAILURE;
+	}
+	/* Send request to firmware */
+	ret = wlan_prepare_cmd(pmpriv, HostCMD_APCMD_ACS_SCAN,
+			       HostCmd_ACT_GEN_SET, 0, (t_void *)pioctl_req,
+			       MNULL);
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
+
 /********************************************************
 			Global Functions
 ********************************************************/
@@ -1678,6 +1752,9 @@ wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		else if (bss->sub_command == MLAN_OID_UAP_CHANNEL)
 			status = wlan_uap_bss_ioctl_uap_channel(pmadapter,
 								pioctl_req);
+		else if (bss->sub_command == MLAN_OID_UAP_ACS_SCAN)
+			status = wlan_uap_bss_ioctl_acs_scan(pmadapter,
+							     pioctl_req);
 		else if (bss->sub_command == MLAN_OID_UAP_OPER_CTRL)
 			status = wlan_uap_bss_ioctl_uap_oper_ctrl(pmadapter,
 								  pioctl_req);
@@ -1734,8 +1811,15 @@ wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 				pmadapter->hw_dev_mcs_support;
 			pget_info->param.fw_info.hw_dot_11n_dev_cap =
 				pmadapter->hw_dot_11n_dev_cap;
+			pget_info->param.fw_info.hw_dot_11ac_mcs_support =
+				pmadapter->hw_dot_11ac_mcs_support;
+			pget_info->param.fw_info.hw_dot_11ac_dev_cap =
+				pmadapter->hw_dot_11ac_dev_cap;
 			pget_info->param.fw_info.region_code =
 				pmadapter->region_code;
+			pget_info->param.fw_info.fw_supplicant_support =
+				IS_FW_SUPPORT_SUPPLICANT(pmadapter) ? 0x01 :
+				0x00;
 		}
 		break;
 	case MLAN_IOCTL_MISC_CFG:
@@ -1832,6 +1916,9 @@ wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		if (sec->sub_command == MLAN_OID_SEC_CFG_WAPI_ENABLED)
 			status = wlan_uap_sec_ioctl_wapi_enable(pmadapter,
 								pioctl_req);
+		if (sec->sub_command == MLAN_OID_SEC_CFG_REPORT_MIC_ERR)
+			status = wlan_uap_sec_ioctl_report_mic_error(pmadapter,
+								     pioctl_req);
 		break;
 	case MLAN_IOCTL_11N_CFG:
 		status = wlan_11n_cfg_ioctl(pmadapter, pioctl_req);
@@ -1865,6 +1952,9 @@ wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 			status = wlan_radio_ioctl_remain_chan_cfg(pmadapter,
 								  pioctl_req);
 #endif
+		if (radiocfg->sub_command == MLAN_OID_ANT_CFG)
+			status = wlan_radio_ioctl_ant_cfg(pmadapter,
+							  pioctl_req);
 		break;
 	case MLAN_IOCTL_RATE:
 		rate = (mlan_ds_rate *)pioctl_req->pbuf;
@@ -1873,6 +1963,9 @@ wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		else if (rate->sub_command == MLAN_OID_GET_DATA_RATE)
 			status = wlan_rate_ioctl_get_data_rate(pmadapter,
 							       pioctl_req);
+		break;
+	case MLAN_IOCTL_11AC_CFG:
+		status = wlan_11ac_cfg_ioctl(pmadapter, pioctl_req);
 		break;
 	case MLAN_IOCTL_REG_MEM:
 		reg_mem = (mlan_ds_reg_mem *)pioctl_req->pbuf;

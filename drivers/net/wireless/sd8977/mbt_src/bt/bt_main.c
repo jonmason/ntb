@@ -49,11 +49,26 @@
 #define VERSION "C3X14113"
 
 /** Driver version */
-static char mbt_driver_version[] = "SD8977-%s-" VERSION "-(" "FP" FPNUM ")"
+static char mbt_driver_version[] = "SD8XXX-%s-" VERSION "-(" "FP" FPNUM ")"
 #ifdef DEBUG_LEVEL2
 	"-dbg"
 #endif
 	" ";
+
+/** SD8787 Card */
+#define CARD_SD8787     "SD8787"
+/** SD8777 Card */
+#define CARD_SD8777     "SD8777"
+/** SD8887 Card */
+#define CARD_SD8887     "SD8887"
+/** SD8897 Card */
+#define CARD_SD8897     "SD8897"
+/** SD8797 Card */
+#define CARD_SD8797     "SD8797"
+/** SD8977 Card */
+#define CARD_SD8977     "SD8977"
+/** SD8997 Card */
+#define CARD_SD8997     "SD8997"
 
 /** Declare and initialize fw_version */
 static char fw_version[32] = "0.0.0.p0";
@@ -86,6 +101,8 @@ static char *nfc_name;
 static int fw = 1;
 /** default powermode */
 static int psmode = 1;
+/** Default CRC check control */
+static int fw_crc_check = 1;
 /** Init config file (MAC address, register etc.) */
 static char *init_cfg;
 /** Calibration config file (MAC address, init powe etc.) */
@@ -94,6 +111,7 @@ static char *cal_cfg;
 static char *cal_cfg_ext;
 /** Init MAC address */
 static char *bt_mac;
+static int mbt_gpio_pin;
 
 /** Setting mbt_drvdbg value based on DEBUG level */
 #ifdef DEBUG_LEVEL1
@@ -208,9 +226,7 @@ clean_up_m_devs(bt_private *priv)
 		PRINTM(MSG, "BT: Delete %s\n", m_dev->name);
 		if (m_dev->spec_type == BLUEZ_SPEC) {
 			hdev = (struct hci_dev *)m_dev->dev_pointer;
-			/** check if dev->name has been assigned */
-            if(strstr(hdev->name,"hci")) 
-				hci_unregister_dev(hdev);
+			hci_unregister_dev(hdev);
 			hci_free_dev(hdev);
 		}
 		priv->bt_dev.m_dev[BT_SEQ].dev_pointer = NULL;
@@ -295,6 +311,7 @@ check_evtpkt(bt_private *priv, struct sk_buff *skb)
 		case BT_CMD_ENABLE_WRITE_SCAN:
 			// case BT_CMD_ENABLE_DEVICE_TESTMODE:
 		case BT_CMD_RESET:
+		case BT_CMD_SET_GPIO_PIN:
 			priv->bt_dev.sendcmdflag = FALSE;
 			priv->adapter->cmd_complete = TRUE;
 			wake_up_interruptible(&priv->adapter->cmd_wait_q);
@@ -307,35 +324,6 @@ check_evtpkt(bt_private *priv, struct sk_buff *skb)
 				snprintf(fw_version, sizeof(fw_version),
 					 "%u.%u.%u.p%u", pos[2], pos[1], pos[0],
 					 pos[3]);
-				priv->bt_dev.sendcmdflag = FALSE;
-				priv->adapter->cmd_complete = TRUE;
-				wake_up_interruptible(&priv->adapter->
-						      cmd_wait_q);
-				break;
-			}
-		case BT_CMD_HISTOGRAM:
-			{
-				u8 *status =
-					skb->data + HCI_EVENT_HDR_SIZE +
-					sizeof(struct hci_ev_cmd_complete);
-				u8 *pos =
-					(skb->data + HCI_EVENT_HDR_SIZE +
-					 sizeof(struct hci_ev_cmd_complete) +
-					 1);
-				if (*status == 0) {
-					priv->hist_data_len =
-						hdr->plen -
-						sizeof(struct
-						       hci_ev_cmd_complete) - 1;
-					if (priv->hist_data_len >
-					    sizeof(priv->hist_data))
-						priv->hist_data_len =
-							sizeof(priv->hist_data);
-					memcpy(priv->hist_data, pos,
-					       priv->hist_data_len);
-					PRINTM(CMD, "histogram len=%d\n",
-					       priv->hist_data_len);
-				}
 				priv->bt_dev.sendcmdflag = FALSE;
 				priv->adapter->cmd_complete = TRUE;
 				wake_up_interruptible(&priv->adapter->
@@ -412,8 +400,6 @@ bt_process_event(bt_private *priv, struct sk_buff *skb)
 		goto exit;
 	}
 	switch (pevent->data[0]) {
-	case BT_CMD_HISTOGRAM:
-		break;
 	case BT_CMD_AUTO_SLEEP_MODE:
 		if (pevent->data[2] == BT_STATUS_SUCCESS) {
 			if (pevent->data[1] == BT_PS_ENABLE)
@@ -513,6 +499,10 @@ bt_process_event(bt_private *priv, struct sk_buff *skb)
 	case BT_EVENT_POWER_STATE:
 		if (pevent->data[1] == BT_PS_SLEEP)
 			priv->adapter->ps_state = PS_SLEEP;
+		if (priv->adapter->ps_state == PS_SLEEP
+		    && (priv->card_type == CARD_TYPE_SD8887)
+			)
+			os_sched_timeout(5);
 		PRINTM(CMD, "BT: EVENT %s:%s\n", m_dev->name,
 		       (priv->adapter->ps_state) ? "PS_SLEEP" : "PS_AWAKE");
 
@@ -603,9 +593,18 @@ done:
 #define DEBUG_FW_DONE			0xFF
 #define MAX_POLL_TRIES			100
 
-#define DEBUG_DUMP_CTRL_REG               0xF0
-#define DEBUG_DUMP_START_REG              0xF1
-#define DEBUG_DUMP_END_REG                0xF8
+#define DEBUG_DUMP_CTRL_REG_8897               0xE2
+#define DEBUG_DUMP_START_REG_8897              0xE3
+#define DEBUG_DUMP_END_REG_8897                0xEA
+#define DEBUG_DUMP_CTRL_REG_8887               0xA2
+#define DEBUG_DUMP_START_REG_8887              0xA3
+#define DEBUG_DUMP_END_REG_8887                0xAA
+#define DEBUG_DUMP_CTRL_REG_8977               0xF0
+#define DEBUG_DUMP_START_REG_8977              0xF1
+#define DEBUG_DUMP_END_REG_8977                0xF8
+#define DEBUG_DUMP_CTRL_REG_8997               0xF0
+#define DEBUG_DUMP_START_REG_8997              0xF1
+#define DEBUG_DUMP_END_REG_8997                0xF8
 
 typedef enum {
 	DUMP_TYPE_ITCM = 0,
@@ -674,7 +673,14 @@ bt_cmd52_rdwr_firmware(bt_private *priv, u8 doneflag)
 	u8 ctrl_data = 0;
 	u8 dbg_dump_ctrl_reg = 0;
 
-	dbg_dump_ctrl_reg = DEBUG_DUMP_CTRL_REG;
+	if (priv->card_type == CARD_TYPE_SD8887)
+		dbg_dump_ctrl_reg = DEBUG_DUMP_CTRL_REG_8887;
+	else if (priv->card_type == CARD_TYPE_SD8897)
+		dbg_dump_ctrl_reg = DEBUG_DUMP_CTRL_REG_8897;
+	else if (priv->card_type == CARD_TYPE_SD8977)
+		dbg_dump_ctrl_reg = DEBUG_DUMP_CTRL_REG_8977;
+	else if (priv->card_type == CARD_TYPE_SD8997)
+		dbg_dump_ctrl_reg = DEBUG_DUMP_CTRL_REG_8997;
 
 	sdio_writeb(((struct sdio_mmc_card *)priv->bt_dev.card)->func,
 		    DEBUG_HOST_READY, dbg_dump_ctrl_reg, &ret);
@@ -745,12 +751,32 @@ bt_dump_firmware_info_v2(bt_private *priv)
 		return;
 	}
 
+	if ((priv->card_type != CARD_TYPE_SD8887) &&
+	    (priv->card_type != CARD_TYPE_SD8897)
+	    && (priv->card_type != CARD_TYPE_SD8977) &&
+	    (priv->card_type != CARD_TYPE_SD8997)) {
+		PRINTM(MSG, "card_type %d don't support FW dump\n",
+		       priv->card_type);
+		return;
+	}
+
 	memset(path_name, 0, sizeof(path_name));
 	strcpy((char *)path_name, "/data");
 	PRINTM(MSG, "Create DUMP directory success:dir_name=%s\n", path_name);
 
-	dbg_dump_start_reg = DEBUG_DUMP_START_REG;
-	dbg_dump_end_reg = DEBUG_DUMP_END_REG;
+	if (priv->card_type == CARD_TYPE_SD8887) {
+		dbg_dump_start_reg = DEBUG_DUMP_START_REG_8887;
+		dbg_dump_end_reg = DEBUG_DUMP_END_REG_8887;
+	} else if (priv->card_type == CARD_TYPE_SD8897) {
+		dbg_dump_start_reg = DEBUG_DUMP_START_REG_8897;
+		dbg_dump_end_reg = DEBUG_DUMP_END_REG_8897;
+	} else if (priv->card_type == CARD_TYPE_SD8977) {
+		dbg_dump_start_reg = DEBUG_DUMP_START_REG_8977;
+		dbg_dump_end_reg = DEBUG_DUMP_END_REG_8977;
+	} else if (priv->card_type == CARD_TYPE_SD8997) {
+		dbg_dump_start_reg = DEBUG_DUMP_START_REG_8997;
+		dbg_dump_end_reg = DEBUG_DUMP_END_REG_8997;
+	}
 
 	sbi_wakeup_firmware(priv);
 	sdio_claim_host(((struct sdio_mmc_card *)priv->bt_dev.card)->func);
@@ -1011,52 +1037,6 @@ bt_send_module_cfg_cmd(bt_private *priv, int subcmd)
 		bt_cmd_timeout_func(priv, BT_CMD_MODULE_CFG_REQ);
 	} else {
 		PRINTM(CMD, "BT: module cfg Command done\n");
-	}
-exit:
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brief This function to get histogram
- *
- *  @param priv    A pointer to bt_private structure
- *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
- */
-int
-bt_get_histogram(bt_private *priv)
-{
-	struct sk_buff *skb = NULL;
-	int ret = BT_STATUS_SUCCESS;
-	BT_CMD *pcmd;
-	ENTER();
-	skb = bt_skb_alloc(sizeof(BT_CMD), GFP_ATOMIC);
-	if (skb == NULL) {
-		PRINTM(WARN, "No free skb\n");
-		ret = BT_STATUS_FAILURE;
-		goto exit;
-	}
-	pcmd = (BT_CMD *)skb->data;
-	pcmd->ocf_ogf = __cpu_to_le16((VENDOR_OGF << 10) | BT_CMD_HISTOGRAM);
-	pcmd->length = 0;
-	bt_cb(skb)->pkt_type = MRVL_VENDOR_PKT;
-	skb_put(skb, BT_CMD_HEADER_SIZE + pcmd->length);
-	skb->dev = (void *)(&(priv->bt_dev.m_dev[BT_SEQ]));
-	skb_queue_head(&priv->adapter->tx_queue, skb);
-	PRINTM(CMD, "Queue Histogram cmd(0x%x)\n",
-	       __le16_to_cpu(pcmd->ocf_ogf));
-	priv->bt_dev.sendcmdflag = TRUE;
-	priv->bt_dev.send_cmd_opcode = __le16_to_cpu(pcmd->ocf_ogf);
-	priv->adapter->cmd_complete = FALSE;
-	priv->hist_data_len = 0;
-	memset(priv->hist_data, 0, sizeof(priv->hist_data));
-	wake_up_interruptible(&priv->MainThread.waitQ);
-	if (!os_wait_interruptible_timeout
-	    (priv->adapter->cmd_wait_q, priv->adapter->cmd_complete,
-	     WAIT_UNTIL_CMD_RESP)) {
-		ret = BT_STATUS_FAILURE;
-		PRINTM(MSG, "BT: histogram timeout:\n");
-		bt_cmd_timeout_func(priv, BT_CMD_HISTOGRAM);
 	}
 exit:
 	LEAVE();
@@ -1503,6 +1483,56 @@ bt_enable_test_mode(bt_private *priv)
 		PRINTM(ERROR,
 		       "BT test_mode: Enable device under testmode fail\n");
 
+exit:
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief This function set GPIO pin
+ *
+ *  @param priv    A pointer to bt_private structure
+ *
+ *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
+ */
+int
+bt_set_gpio_pin(bt_private *priv)
+{
+	struct sk_buff *skb = NULL;
+	int ret = BT_STATUS_SUCCESS;
+	/**Interrupt falling edge **/
+	u8 gpio_int_edge = INT_FALLING_EDGE;
+	/**Delay 50 usec **/
+	u8 gpio_pulse_width = DELAY_50_US;
+	BT_CMD *pcmd;
+	ENTER();
+	skb = bt_skb_alloc(sizeof(BT_CMD), GFP_ATOMIC);
+	if (skb == NULL) {
+		PRINTM(WARN, "No free skb\n");
+		ret = BT_STATUS_FAILURE;
+		goto exit;
+	}
+	pcmd = (BT_CMD *)skb->data;
+	pcmd->ocf_ogf = __cpu_to_le16((VENDOR_OGF << 10) | BT_CMD_SET_GPIO_PIN);
+	pcmd->data[0] = mbt_gpio_pin;
+	pcmd->data[1] = gpio_int_edge;
+	pcmd->data[2] = gpio_pulse_width;
+	pcmd->length = 3;
+	bt_cb(skb)->pkt_type = MRVL_VENDOR_PKT;
+	skb_put(skb, BT_CMD_HEADER_SIZE + pcmd->length);
+	skb->dev = (void *)(&(priv->bt_dev.m_dev[BT_SEQ]));
+	skb_queue_head(&priv->adapter->tx_queue, skb);
+	priv->bt_dev.sendcmdflag = TRUE;
+	priv->bt_dev.send_cmd_opcode = __le16_to_cpu(pcmd->ocf_ogf);
+	priv->adapter->cmd_complete = FALSE;
+	wake_up_interruptible(&priv->MainThread.waitQ);
+	if (!os_wait_interruptible_timeout(priv->adapter->cmd_wait_q,
+					   priv->adapter->cmd_complete,
+					   WAIT_UNTIL_CMD_RESP)) {
+		ret = BT_STATUS_FAILURE;
+		PRINTM(MSG, "BT: Set GPIO pin: timeout!\n");
+		bt_cmd_timeout_func(priv, BT_CMD_SET_GPIO_PIN);
+	}
 exit:
 	LEAVE();
 	return ret;
@@ -2034,6 +2064,13 @@ bt_init_from_dev_tree(void)
 				bt_mac = (char *)string_data;
 				PRINTM(CMD, "bt_mac=%s\n", bt_mac);
 			}
+		} else if (!strncmp
+			   (prop->name, "mbt_gpio_pin",
+			    strlen("mbt_gpio_pin"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				mbt_gpio_pin = data;
+				PRINTM(CMD, "mbt_gpio_pin=%d\n", mbt_gpio_pin);
+			}
 		}
 	}
 	LEAVE();
@@ -2083,6 +2120,9 @@ bt_init_fw(bt_private *priv)
 		goto done;
 	}
 	sd_disable_host_int(priv);
+	if ((priv->card_type == CARD_TYPE_SD8787) ||
+	    (priv->card_type == CARD_TYPE_SD8777))
+		priv->fw_crc_check = fw_crc_check;
 	if (sbi_download_fw(priv)) {
 		PRINTM(ERROR, " FW failed to be download!\n");
 		ret = BT_STATUS_FAILURE;
@@ -2091,101 +2131,6 @@ bt_init_fw(bt_private *priv)
 done:
 	LEAVE();
 	return ret;
-}
-
-#define FW_POLL_TRIES 100
-#define FW_RESET_REG  0xB6
-
-/**
- *  @brief This function reload firmware
- *
- *  @param priv   A pointer to bt_private
- *
- *  @return       0--success, otherwise failure
- */
-static int
-bt_reload_fw(bt_private *priv)
-{
-	int ret = 0, tries = 0;
-	u8 value = 1;
-
-	ENTER();
-	/** Wake up firmware firstly */
-	sbi_wakeup_firmware(priv);
-
-    /** wait SOC fully wake up */
-	for (tries = 0; tries < FW_POLL_TRIES; ++tries) {
-		ret = sd_write_reg(priv, FW_RESET_REG, 0xba);
-		if (!ret) {
-			ret = sd_read_reg(priv, FW_RESET_REG, &value);
-			if (!ret && (value == 0xba)) {
-				PRINTM(MSG, "Fw wake up\n");
-				break;
-			}
-		}
-		udelay(1000);
-	}
-
-	ret = sd_write_reg(priv, FW_RESET_REG, 1);
-	if (ret) {
-		PRINTM(ERROR, "Failed to write register.\n");
-		goto done;
-	}
-
-	/** Poll register around 1 ms */
-	for (; tries < FW_POLL_TRIES; ++tries) {
-		ret = sd_read_reg(priv, FW_RESET_REG, &value);
-		if (ret) {
-			PRINTM(ERROR, "Failed to read register.\n");
-			goto done;
-		}
-		if (value == 0)
-			/** FW is ready */
-			break;
-		udelay(1000);
-	}
-	if (value) {
-		PRINTM(ERROR, "Failed to poll FW reset register %X=0x%x\n",
-		       FW_RESET_REG, value);
-		ret = -EFAULT;
-		goto done;
-	}
-
-	/** reload FW */
-	ret = bt_init_fw(priv);
-	if (ret) {
-		PRINTM(ERROR, "Re download firmware failed.\n");
-		ret = -EFAULT;
-		goto done;
-	}
-done:
-	LEAVE();
-	return ret;
-}
-
-/**
- *  @brief This function request to reload firmware
- *
- *  @param priv   A pointer to bt_private
- *
- *  @return         N/A
- */
-void
-bt_request_fw_reload(bt_private *priv)
-{
-	ENTER();
-
-	/** Reload FW */
-	priv->fw_reload = TRUE;
-	if (bt_reload_fw(priv)) {
-		PRINTM(ERROR, "FW reload fail\n");
-		goto done;
-	}
-	priv->fw_reload = FALSE;
-	/** Other operation here? */
-done:
-	LEAVE();
-	return;
 }
 
 /**
@@ -2792,96 +2737,6 @@ bt_priv_put(bt_private *priv)
 	kobject_put(&priv->kobj);
 }
 
-int
-bt_reinit_fw(bt_private *priv)
-{
-	int ret = BT_STATUS_SUCCESS;
-	priv->adapter->tx_lock = FALSE;
-	priv->adapter->ps_state = PS_AWAKE;
-	priv->adapter->suspend_fail = FALSE;
-	priv->adapter->is_suspended = FALSE;
-	priv->adapter->hs_skip = 0;
-	priv->adapter->num_cmd_timeout = 0;
-	ret = bt_send_module_cfg_cmd(priv, MODULE_BRINGUP_REQ);
-	if (ret < 0) {
-		PRINTM(FATAL, "Module cfg command send failed!\n");
-		goto done;
-	}
-	ret = bt_set_ble_deepsleep(priv, TRUE);
-	if (ret < 0) {
-		PRINTM(FATAL, "Enable BLE deepsleep failed!\n");
-		goto done;
-	}
-	if (psmode) {
-		priv->bt_dev.psmode = TRUE;
-		priv->bt_dev.idle_timeout = DEFAULT_IDLE_TIME;
-		ret = bt_enable_ps(priv);
-		if (ret < 0) {
-			PRINTM(FATAL, "Enable PS mode failed!\n");
-			goto done;
-		}
-	}
-#ifdef SDIO_SUSPEND_RESUME
-	priv->bt_dev.gpio_gap = 0xffff;
-	ret = bt_send_hscfg_cmd(priv);
-	if (ret < 0) {
-		PRINTM(FATAL, "Send HSCFG failed!\n");
-		goto done;
-	}
-#endif
-	priv->bt_dev.sdio_pull_cfg = 0xffffffff;
-	priv->bt_dev.sdio_pull_ctrl = 0;
-	wake_up_interruptible(&priv->MainThread.waitQ);
-	/* block all the packet from bluez */
-	if (init_cfg || cal_cfg || bt_mac || cal_cfg_ext)
-		priv->adapter->tx_lock = TRUE;
-
-	if (init_cfg)
-		if (BT_STATUS_SUCCESS != bt_init_config(priv, init_cfg)) {
-			PRINTM(FATAL,
-			       "BT: Set user init data and param failed\n");
-			ret = BT_STATUS_FAILURE;
-			goto done;
-		}
-
-	if (cal_cfg) {
-		if (BT_STATUS_SUCCESS != bt_cal_config(priv, cal_cfg, bt_mac)) {
-			PRINTM(FATAL, "BT: Set cal data failed\n");
-			ret = BT_STATUS_FAILURE;
-			goto done;
-		}
-	}
-
-	if (bt_mac) {
-		PRINTM(INFO,
-		       "Set BT mac_addr from insmod parametre bt_mac = %s\n",
-		       bt_mac);
-		if (BT_STATUS_SUCCESS != bt_init_mac_address(priv, bt_mac)) {
-			PRINTM(FATAL,
-			       "BT: Fail to set mac address from insmod parametre\n");
-			ret = BT_STATUS_FAILURE;
-			goto done;
-		}
-	}
-
-	if (cal_cfg_ext) {
-		if (BT_STATUS_SUCCESS != bt_cal_config_ext(priv, cal_cfg_ext)) {
-			PRINTM(FATAL, "BT: Set cal ext data failed\n");
-			ret = BT_STATUS_FAILURE;
-			goto done;
-		}
-	}
-	if (init_cfg || cal_cfg || bt_mac || cal_cfg_ext) {
-		priv->adapter->tx_lock = FALSE;
-		bt_restore_tx_queue(priv);
-	}
-	bt_get_fw_version(priv);
-	snprintf((char *)priv->adapter->drv_ver, MAX_VER_STR_LEN,
-		 mbt_driver_version, fw_version);
-done:
-	return ret;
-}
-
 /**
  *  @brief Module configuration and register device
  *
@@ -2902,12 +2757,6 @@ sbi_register_conf_dpc(bt_private *priv)
 	ENTER();
 
 	priv->bt_dev.tx_dnld_rdy = TRUE;
-
-	if (priv->fw_reload) {
-		bt_reinit_fw(priv);
-		LEAVE();
-		return ret;
-	}
 
 	if (drv_mode & DRV_MODE_BT) {
 		hdev = hci_alloc_dev();
@@ -2951,6 +2800,13 @@ sbi_register_conf_dpc(bt_private *priv)
 	if (hdev)
 		hdev->type = dev_type;
 #endif /* >= 2.6.34 */
+	if (mbt_gpio_pin) {
+		ret = bt_set_gpio_pin(priv);
+		if (ret < 0) {
+			PRINTM(FATAL, "GPIO pin set failed!\n");
+			goto done;
+		}
+	}
 
 	ret = bt_send_module_cfg_cmd(priv, MODULE_BRINGUP_REQ);
 	if (ret < 0) {
@@ -3009,7 +2865,8 @@ sbi_register_conf_dpc(bt_private *priv)
 			goto done;
 		}
 	}
-	if (cal_cfg_ext) {
+	if (cal_cfg_ext && (priv->card_type == CARD_TYPE_SD8787)
+		) {
 		if (BT_STATUS_SUCCESS != bt_cal_config_ext(priv, cal_cfg_ext)) {
 			PRINTM(FATAL, "BT: Set cal ext data failed\n");
 			ret = BT_STATUS_FAILURE;
@@ -3027,15 +2884,15 @@ sbi_register_conf_dpc(bt_private *priv)
 		hdev->dev_type = priv->bt_dev.devType;
 #endif
 		ret = hci_register_dev(hdev);
-		if (ret < 0) {
-			PRINTM(FATAL, "Can not register HCI device\n");
-			ret = BT_STATUS_FAILURE;
-			goto done;
-		}
-		snprintf((char *)priv->bt_dev.m_dev[BT_SEQ].name,
-				 sizeof(priv->bt_dev.m_dev[BT_SEQ].name), hdev->name);
-		bt_proc_init(priv, &(priv->bt_dev.m_dev[BT_SEQ]), BT_SEQ);
 	}
+	if (ret < 0) {
+		PRINTM(FATAL, "Can not register HCI device\n");
+		ret = BT_STATUS_FAILURE;
+		goto done;
+	}
+	snprintf((char *)priv->bt_dev.m_dev[BT_SEQ].name,
+		 sizeof(priv->bt_dev.m_dev[BT_SEQ].name), hdev->name);
+	bt_proc_init(priv, &(priv->bt_dev.m_dev[BT_SEQ]), BT_SEQ);
 
 	if ((drv_mode & DRV_MODE_FM) &&
 	    (!(priv->bt_dev.devType == DEV_TYPE_AMP)) &&
@@ -3215,6 +3072,26 @@ bt_add_card(void *card)
 	/* wait for mainthread to up */
 	while (!priv->MainThread.pid)
 		os_sched_timeout(1);
+
+	sdio_update_card_type(priv, card);
+	/* Update driver version */
+	if (priv->card_type == CARD_TYPE_SD8787)
+		memcpy(mbt_driver_version, CARD_SD8787, strlen(CARD_SD8787));
+	else if (priv->card_type == CARD_TYPE_SD8777)
+		memcpy(mbt_driver_version, CARD_SD8777, strlen(CARD_SD8777));
+	else if (priv->card_type == CARD_TYPE_SD8887)
+		memcpy(mbt_driver_version, CARD_SD8887, strlen(CARD_SD8887));
+	else if (priv->card_type == CARD_TYPE_SD8897)
+		memcpy(mbt_driver_version, CARD_SD8897, strlen(CARD_SD8897));
+	else if (priv->card_type == CARD_TYPE_SD8797)
+		memcpy(mbt_driver_version, CARD_SD8797, strlen(CARD_SD8797));
+	else if (priv->card_type == CARD_TYPE_SD8977)
+		memcpy(mbt_driver_version, CARD_SD8977, strlen(CARD_SD8977));
+	else if (priv->card_type == CARD_TYPE_SD8997)
+		memcpy(mbt_driver_version, CARD_SD8997, strlen(CARD_SD8997));
+
+	if (BT_STATUS_SUCCESS != sdio_get_sdio_device(priv))
+		goto err_kmalloc;
 
 	/** user config file */
 	init_waitqueue_head(&priv->init_user_conf_wait_q);
@@ -3408,6 +3285,9 @@ MODULE_VERSION(VERSION);
 MODULE_LICENSE("GPL");
 module_param(fw, int, 0);
 MODULE_PARM_DESC(fw, "0: Skip firmware download; otherwise: Download firmware");
+module_param(fw_crc_check, int, 0);
+MODULE_PARM_DESC(fw_crc_check,
+		 "1: Enable FW download CRC check (default); 0: Disable FW download CRC check");
 module_param(psmode, int, 0);
 MODULE_PARM_DESC(psmode, "1: Enable powermode; 0: Disable powermode");
 #ifdef CONFIG_OF
@@ -3436,3 +3316,6 @@ module_param(fm_name, charp, 0);
 MODULE_PARM_DESC(fm_name, "FM interface name");
 module_param(nfc_name, charp, 0);
 MODULE_PARM_DESC(nfc_name, "NFC interface name");
+module_param(mbt_gpio_pin, int, 0);
+MODULE_PARM_DESC(mbt_gpio_pin,
+		 "GPIO pin to interrupt host. 0xFF: disable GPIO interrupt mode; Others: GPIO pin assigned to generate pulse to host.");

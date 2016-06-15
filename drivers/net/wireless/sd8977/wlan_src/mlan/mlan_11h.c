@@ -615,6 +615,7 @@ wlan_11h_cmd_chan_rpt_req(mlan_private *priv,
 	   CMD_RESP == SUCCESS */
 	pstate_dfs->dfs_check_pending = MFALSE;
 	pstate_dfs->dfs_radar_found = MFALSE;
+	pstate_dfs->dfs_check_priv = MNULL;
 
 	if (!is_cancel_req)
 		pstate_dfs->dfs_check_channel =
@@ -1130,6 +1131,33 @@ wlan_11h_check_radar_det_state(mlan_adapter *pmadapter, OUT t_u32 *pnew_state)
 }
 
 /**
+ *  @brief generate the channel center frequency index
+ *
+ *  @param channel_num       channel number
+ *
+ *  @return                 frenquency index
+ */
+static t_u8
+wlan_11h_get_channel_freq_idx(IN t_u8 channel_num)
+{
+	t_u8 index;
+	t_u8 center_freq[] = { 42, 58, 106, 122, 138, 155 };
+	t_u8 chan_idx, ret = 0;
+
+	chan_idx = channel_num - 100;
+
+	for (index = 0; index < sizeof(center_freq); index++) {
+		if ((chan_idx >= (center_freq[index] - 6)) &&
+		    (chan_idx <= (center_freq[index] + 6))) {
+			ret = center_freq[index];
+			break;
+		}
+	}
+
+	return ret;
+}
+
+/**
  *  @brief Prepare ioctl for add/remove CHAN_SW IE - RADAR_DETECTED event handling
  *
  *  @param pmadapter        Pointer to mlan_adapter
@@ -1148,6 +1176,11 @@ wlan_11h_prepare_custom_ie_chansw(IN mlan_adapter *pmadapter,
 	custom_ie *pcust_chansw_ie = MNULL;
 	IEEEtypes_ChanSwitchAnn_t *pchansw_ie = MNULL;
 	mlan_status ret;
+	IEEEtypes_Header_t *pChanSwWrap_ie = MNULL;
+	IEEEtypes_WideBWChanSwitch_t *pbwchansw_ie = MNULL;
+	IEEEtypes_VhtTpcEnvelope_t *pvhttpcEnv_ie = MNULL;
+	t_u8 index;
+	mlan_private *pmpriv = MNULL;
 
 	ENTER();
 
@@ -1202,6 +1235,80 @@ wlan_11h_prepare_custom_ie_chansw(IN mlan_adapter *pmadapter,
 	pchansw_ie->chan_switch_mode = 1;	/* STA should not transmit */
 	pchansw_ie->new_channel_num = pmadapter->state_rdh.new_channel;
 	pchansw_ie->chan_switch_count = 5;	/* simplification */
+
+	for (index = 0; index < pmadapter->state_rdh.priv_list_count; index++) {
+		pmpriv = pmadapter->state_rdh.priv_list[index];
+		/* find the first AP interface */
+		if (GET_BSS_ROLE(pmpriv) == MLAN_BSS_ROLE_UAP) {
+			if (pmpriv->is_11ac_enabled) {
+
+				pChanSwWrap_ie =
+					(IEEEtypes_Header_t *)((t_u8 *)
+							       pchansw_ie +
+							       sizeof
+							       (IEEEtypes_ChanSwitchAnn_t));
+				pChanSwWrap_ie->element_id = EXT_POWER_CONSTR;
+				/* will have multiple sub IEs */
+				pChanSwWrap_ie->len = 0;
+
+				/* prepare the Wide Bandwidth Channel Switch IE
+				   * Channel Switch IE */
+				pbwchansw_ie =
+					(IEEEtypes_WideBWChanSwitch_t
+					 *)((t_u8 *)pChanSwWrap_ie +
+					    sizeof(IEEEtypes_Header_t));
+				pbwchansw_ie->ieee_hdr.element_id =
+					BW_CHANNEL_SWITCH;
+				pbwchansw_ie->ieee_hdr.len =
+					sizeof(IEEEtypes_WideBWChanSwitch_t) -
+					sizeof(IEEEtypes_Header_t);
+				/* fix 80MHZ now */
+				pbwchansw_ie->new_channel_width =
+					VHT_OPER_CHWD_80MHZ;
+				pbwchansw_ie->new_channel_center_freq0 =
+					wlan_11h_get_channel_freq_idx
+					(pmadapter->state_rdh.new_channel);
+				pbwchansw_ie->new_channel_center_freq1 =
+					wlan_11h_get_channel_freq_idx
+					(pmadapter->state_rdh.new_channel);
+				pChanSwWrap_ie->len +=
+					sizeof(IEEEtypes_WideBWChanSwitch_t);
+
+				/* prepare the VHT Transmit Power Envelope IE */
+				pvhttpcEnv_ie =
+					(IEEEtypes_VhtTpcEnvelope_t *)((t_u8 *)
+								       pChanSwWrap_ie
+								       +
+								       sizeof
+								       (IEEEtypes_Header_t)
+								       +
+								       sizeof
+								       (IEEEtypes_WideBWChanSwitch_t));
+				pvhttpcEnv_ie->ieee_hdr.element_id =
+					VHT_TX_POWER_ENV;
+				pvhttpcEnv_ie->ieee_hdr.len =
+					sizeof(IEEEtypes_VhtTpcEnvelope_t) -
+					sizeof(IEEEtypes_Header_t);
+				/* Local Max TX Power Count= 3, * Local TX
+				   Power Unit Inter=EIP(0) */
+				pvhttpcEnv_ie->tpc_info = 3;
+				pvhttpcEnv_ie->local_max_tp_20mhz = 0xff;
+				pvhttpcEnv_ie->local_max_tp_40mhz = 0xff;
+				pvhttpcEnv_ie->local_max_tp_80mhz = 0xff;
+				pChanSwWrap_ie->len +=
+					sizeof(IEEEtypes_VhtTpcEnvelope_t);
+
+				pcust_chansw_ie->ie_length +=
+					sizeof(IEEEtypes_WideBWChanSwitch_t)
+					+ sizeof(IEEEtypes_VhtTpcEnvelope_t)
+					+ sizeof(IEEEtypes_Header_t);
+
+				PRINTM(MINFO,
+				       "Append Wide Bandwidth Channel Switch IE\n");
+				break;
+			}
+		}
+	}
 
 	pds_misc_cfg->param.cust_ie.len += pcust_chansw_ie->ie_length;
 	DBG_HEXDUMP(MCMD_D, "11h: custom_ie containing CHAN_SW IE",
@@ -2026,6 +2133,7 @@ wlan_11h_issue_radar_detect(mlan_private *priv,
 	t_s32 ret;
 	HostCmd_DS_CHAN_RPT_REQ chan_rpt_req;
 	mlan_adapter *pmadapter = priv->adapter;
+	mlan_ds_11h_cfg *ds_11hcfg = MNULL;
 
 	ENTER();
 
@@ -2047,6 +2155,33 @@ wlan_11h_issue_radar_detect(mlan_private *priv,
 		chan_rpt_req.chan_desc.chanNum = channel;
 		chan_rpt_req.millisec_dwell_time =
 			WLAN_11H_CHANNEL_AVAIL_CHECK_DURATION;
+
+		/* ETSI new requirement for ch 120, 124 and 128 */
+		if (wlan_is_etsi_country(pmadapter, pmadapter->country_code)) {
+			if (channel == 120 || channel == 124 || channel == 128) {
+				chan_rpt_req.millisec_dwell_time =
+					WLAN_11H_CHANNEL_AVAIL_CHECK_DURATION *
+					10;
+			}
+			if (channel == 116 &&
+			    ((bandcfg.chanWidth == CHAN_BW_40MHZ)
+			     || (bandcfg.chanWidth == CHAN_BW_80MHZ)
+			    )) {
+				chan_rpt_req.millisec_dwell_time =
+					WLAN_11H_CHANNEL_AVAIL_CHECK_DURATION *
+					10;
+			}
+		}
+
+		/* Save dwell time information to be used later in moal */
+		if (pioctl_req) {
+			ds_11hcfg = (mlan_ds_11h_cfg *)pioctl_req->pbuf;
+			if (!ds_11hcfg->param.chan_rpt_req.host_based) {
+				ds_11hcfg->param.chan_rpt_req.
+					millisec_dwell_time =
+					chan_rpt_req.millisec_dwell_time;
+			}
+		}
 #ifdef DFS_TESTING_SUPPORT
 		if (priv->adapter->dfs_test_params.user_cac_period_msec) {
 			PRINTM(MCMD_D,
@@ -2429,11 +2564,13 @@ wlan_11h_cmdresp_process(mlan_private *priv, const HostCmd_DS_COMMAND *resp)
 		break;
 
 	case HostCmd_CMD_CHAN_REPORT_REQUEST:
+		priv->adapter->state_dfs.dfs_check_priv = priv;
 		priv->adapter->state_dfs.dfs_check_pending = MTRUE;
 
 		if (resp->params.chan_rpt_req.millisec_dwell_time == 0) {
 			/* from wlan_11h_ioctl_dfs_cancel_chan_report */
 			priv->adapter->state_dfs.dfs_check_pending = MFALSE;
+			priv->adapter->state_dfs.dfs_check_priv = MNULL;
 			priv->adapter->state_dfs.dfs_check_channel = 0;
 			PRINTM(MINFO, "11h: Cancelling Chan Report \n");
 		} else {
@@ -2822,6 +2959,7 @@ wlan_11h_handle_event_chanrpt_ready(mlan_private *priv, mlan_event *pevent)
 						      &usec);
 	pstate_dfs->dfs_report_time_sec = sec;
 	pstate_dfs->dfs_check_pending = MFALSE;
+	pstate_dfs->dfs_check_priv = MNULL;
 
 	LEAVE();
 	return ret;
@@ -2984,7 +3122,10 @@ wlan_11h_update_bandcfg(IN t_u8 *uap_band_cfg, IN t_u8 new_channel)
 
 /**
  * @brief Get priv current index -- this is used to enter correct rdh_state during radar handling
+ *
+ * @param pmpriv           Pointer to mlan_private
  * @param pstate_rdh       Pointer to radar detected state handler
+ *
  * @return                 MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
  */
 mlan_status
@@ -3010,6 +3151,7 @@ wlan_11h_get_priv_curr_idx(mlan_private *pmpriv,
  *  @brief Driver handling for RADAR_DETECTED event
  *
  *  @param pmadapter    Pointer to mlan_adapter
+ *  @param pmpriv       Pointer to mlan_private
  *
  *  @return MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE or MLAN_STATUS_PENDING
  */
@@ -3690,6 +3832,11 @@ wlan_11h_dfs_event_preprocessing(mlan_adapter *pmadapter)
 			pmpriv = priv_list[0];
 			PRINTM(MINFO, "%s: found dfs_slave priv=%p\n",
 			       __func__, pmpriv);
+		} else if (pmadapter->state_dfs.dfs_check_pending) {
+			pmpriv = (mlan_private *)(pmadapter->state_dfs.
+						  dfs_check_priv);
+			PRINTM(MINFO, "%s: found dfs priv=%p\n", __func__,
+			       pmpriv);
 		}
 
 		/* update event_cause if we found an appropriate priv */

@@ -81,12 +81,17 @@ wlan_handle_rx_packet(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 				   prx_pd->bss_type);
 	if (!priv)
 		priv = wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY);
+	if (!priv) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
 	pmbuf->bss_index = priv->bss_index;
 	PRINTM_GET_SYS_TIME(MDATA, &sec, &usec);
 	PRINTM_NETINTF(MDATA, priv);
 	PRINTM(MDATA, "%lu.%06lu : Data <= FW\n", sec, usec);
 	ret = priv->ops.process_rx_packet(pmadapter, pmbuf);
 
+done:
 	LEAVE();
 	return ret;
 }

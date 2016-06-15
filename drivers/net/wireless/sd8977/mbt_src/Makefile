@@ -60,12 +60,11 @@ LD += -S
 #ifdef SD8xxx
 BINDIR = ../bin_sd8xxx_bt
 #endif
-BINDIR = ../bin_sd8977_bt
 
 #############################################################################
 # Compiler Flags
 #############################################################################
-	EXTRA_CFLAGS += -DFPNUM='"26"'
+	EXTRA_CFLAGS += -DFPNUM='"28"'
 
 ifeq ($(CONFIG_DEBUG),1)
 	EXTRA_CFLAGS += -DDEBUG_LEVEL1
@@ -79,6 +78,10 @@ endif
 
 ifeq ($(CONFIG_SDIO_SUSPEND_RESUME),y)
 	EXTRA_CFLAGS += -DSDIO_SUSPEND_RESUME
+endif
+
+ifeq ($(CONFIG_MRVL_SDIO_OOB_IRQ),y)
+	EXTRA_CFLAGS += -DSDIO_OOB_IRQ
 endif
 
 #############################################################################
@@ -119,7 +122,7 @@ build:		echo default
 		mkdir $(BINDIR); \
 	fi
 
-	cp -f bt8xxx.$(MODEXT) $(BINDIR)/bt8977$(DBG).$(MODEXT)
+	cp -f bt8xxx.$(MODEXT) $(BINDIR)/bt8xxx$(DBG).$(MODEXT)
 	cp -r config $(BINDIR)
 
 	cp -f script/sdio_mmc/* $(BINDIR)/

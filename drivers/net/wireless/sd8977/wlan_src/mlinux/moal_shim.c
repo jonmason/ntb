@@ -813,6 +813,199 @@ moal_read_reg(IN t_void *pmoal_handle, IN t_u32 reg, OUT t_u32 *data)
 }
 
 /**
+ *  @brief This function uploads the packet to the network stack monitor interface
+ *
+ *  @param handle Pointer to the MOAL context
+ *  @param pmbuf    Pointer to mlan_buffer
+ *
+ *  @return  MLAN_STATUS_SUCCESS/MLAN_STATUS_PENDING/MLAN_STATUS_FAILURE
+ */
+mlan_status
+moal_recv_packet_to_mon_if(IN moal_handle *handle, IN pmlan_buffer pmbuf)
+{
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	struct sk_buff *skb = NULL;
+	struct radiotap_header *rth = NULL;
+	radiotap_info rt_info;
+	t_u8 format = 0;
+	t_u8 bw = 0;
+	t_u8 gi = 0;
+	t_u8 ldpc = 0;
+	struct ieee80211_hdr *dot11_hdr = NULL;
+	t_u8 *payload = NULL;
+	ENTER();
+	if (!pmbuf->pdesc) {
+		LEAVE();
+		return status;
+	}
+
+	skb = (struct sk_buff *)pmbuf->pdesc;
+
+	if ((handle->mon_if) && netif_running(handle->mon_if->mon_ndev)) {
+		if (handle->mon_if->radiotap_enabled) {
+			if (skb_headroom(skb) < sizeof(*rth)) {
+				PRINTM(MERROR,
+				       "%s No space to add Radio TAP header\n",
+				       __func__);
+				status = MLAN_STATUS_FAILURE;
+				handle->mon_if->stats.rx_dropped++;
+				goto done;
+			}
+			dot11_hdr =
+				(struct ieee80211_hdr *)(pmbuf->pbuf +
+							 pmbuf->data_offset);
+			memcpy(&rt_info,
+			       pmbuf->pbuf + pmbuf->data_offset -
+			       sizeof(rt_info), sizeof(rt_info));
+			ldpc = (rt_info.rate_info.rate_info & 0x20) >> 5;
+			format = (rt_info.rate_info.rate_info & 0x18) >> 3;
+			bw = (rt_info.rate_info.rate_info & 0x06) >> 1;
+			gi = rt_info.rate_info.rate_info & 0x01;
+			skb_push(skb, sizeof(*rth));
+			rth = (struct radiotap_header *)skb->data;
+			memset(skb->data, 0, sizeof(*rth));
+			rth->hdr.it_version = PKTHDR_RADIOTAP_VERSION;
+			rth->hdr.it_pad = 0;
+			rth->hdr.it_len = cpu_to_le16(sizeof(*rth));
+			rth->hdr.it_present =
+				cpu_to_le32((1 << IEEE80211_RADIOTAP_TSFT) |
+					    (1 << IEEE80211_RADIOTAP_FLAGS) |
+					    (1 << IEEE80211_RADIOTAP_CHANNEL) |
+					    (1 <<
+					     IEEE80211_RADIOTAP_DBM_ANTSIGNAL) |
+					    (1 <<
+					     IEEE80211_RADIOTAP_DBM_ANTNOISE) |
+					    (1 << IEEE80211_RADIOTAP_ANTENNA));
+			// Timstamp
+			rth->body.timestamp = cpu_to_le64(jiffies);
+			// Flags
+			rth->body.flags = (rt_info.extra_info.flags &
+					   ~(RADIOTAP_FLAGS_USE_SGI_HT |
+					     RADIOTAP_FLAGS_WITH_FRAGMENT |
+					     RADIOTAP_FLAGS_WEP_ENCRYPTION |
+					     RADIOTAP_FLAGS_FAILED_FCS_CHECK));
+			// reverse fail fcs, 1 means pass FCS in FW, but means
+			// fail FCS in radiotap
+			rth->body.flags |=
+				(~rt_info.extra_info.
+				 flags) & RADIOTAP_FLAGS_FAILED_FCS_CHECK;
+			if ((format == MLAN_RATE_FORMAT_HT) && (gi == 1))
+				rth->body.flags |= RADIOTAP_FLAGS_USE_SGI_HT;
+			if (ieee80211_is_mgmt(dot11_hdr->frame_control) ||
+			    ieee80211_is_data(dot11_hdr->frame_control)) {
+				if ((ieee80211_has_morefrags
+				     (dot11_hdr->frame_control)) ||
+				    (!ieee80211_is_first_frag
+				     (dot11_hdr->seq_ctrl))) {
+					rth->body.flags |=
+						RADIOTAP_FLAGS_WITH_FRAGMENT;
+				}
+			}
+			if (ieee80211_is_data(dot11_hdr->frame_control) &&
+			    ieee80211_has_protected(dot11_hdr->frame_control)) {
+				payload =
+					(t_u8 *)dot11_hdr +
+					ieee80211_hdrlen(dot11_hdr->
+							 frame_control);
+				if (!(*(payload + 3) & 0x20))	// ExtIV bit
+								// shall be 0
+								// for WEP
+								// frame
+					rth->body.flags |=
+						RADIOTAP_FLAGS_WEP_ENCRYPTION;
+			}
+			// Rate, t_u8 only apply for LG mode
+			if (format == MLAN_RATE_FORMAT_LG) {
+				rth->hdr.it_present |=
+					cpu_to_le32(1 <<
+						    IEEE80211_RADIOTAP_RATE);
+				rth->body.rate = rt_info.rate_info.bitrate;
+			}
+			// Channel
+			rth->body.channel.flags = 0;
+			rth->body.channel.frequency =
+				cpu_to_le16(handle->mon_if->chandef.chan->
+					    center_freq);
+			rth->body.channel.flags |=
+				cpu_to_le16((handle->mon_if->chandef.chan->
+					     band ==
+					     IEEE80211_BAND_2GHZ) ?
+					    CHANNEL_FLAGS_2GHZ :
+					    CHANNEL_FLAGS_5GHZ);
+			if (rth->body.channel.
+			    flags & cpu_to_le16(CHANNEL_FLAGS_2GHZ))
+				rth->body.channel.flags |=
+					cpu_to_le16
+					(CHANNEL_FLAGS_DYNAMIC_CCK_OFDM);
+			else
+				rth->body.channel.flags |=
+					cpu_to_le16(CHANNEL_FLAGS_OFDM);
+			if (handle->mon_if->chandef.chan->
+			    flags & (IEEE80211_CHAN_PASSIVE_SCAN |
+				     IEEE80211_CHAN_RADAR))
+				rth->body.channel.flags |=
+					cpu_to_le16
+					(CHANNEL_FLAGS_ONLY_PASSIVSCAN_ALLOW);
+			// Antenna
+			rth->body.antenna_signal = -(rt_info.nf - rt_info.snr);
+			rth->body.antenna_noise = -rt_info.nf;
+			rth->body.antenna = rt_info.antenna;
+			// MCS
+			if (format == MLAN_RATE_FORMAT_HT) {
+				rth->hdr.it_present |=
+					cpu_to_le32(1 <<
+						    IEEE80211_RADIOTAP_MCS);
+				rth->body.mcs.known =
+					rt_info.extra_info.mcs_known;
+				rth->body.mcs.flags =
+					rt_info.extra_info.mcs_flags;
+				// MCS mcs
+				rth->body.mcs.known |=
+					MCS_KNOWN_MCS_INDEX_KNOWN;
+				rth->body.mcs.mcs = rt_info.rate_info.mcs_index;
+				// MCS bw
+				rth->body.mcs.known |= MCS_KNOWN_BANDWIDTH;
+				rth->body.mcs.flags &= ~(0x03);	// Clear, 20MHz
+								// as default
+				if (bw == 1)
+					rth->body.mcs.flags |= RX_BW_40;
+				// MCS gi
+				rth->body.mcs.known |= MCS_KNOWN_GUARD_INTERVAL;
+				rth->body.mcs.flags &= ~(1 << 2);
+				if (gi)
+					rth->body.mcs.flags |= gi << 2;
+				// MCS FEC
+				rth->body.mcs.known |= MCS_KNOWN_FEC_TYPE;
+				rth->body.mcs.flags &= ~(1 << 4);
+				if (ldpc)
+					rth->body.mcs.flags |= ldpc << 4;
+			}
+		}
+		skb_set_mac_header(skb, 0);
+		skb->ip_summed = CHECKSUM_UNNECESSARY;
+		skb->pkt_type = PACKET_OTHERHOST;
+		skb->protocol = htons(ETH_P_802_2);
+		memset(skb->cb, 0, sizeof(skb->cb));
+		skb->dev = handle->mon_if->mon_ndev;
+
+		handle->mon_if->stats.rx_bytes += skb->len;
+		handle->mon_if->stats.rx_packets++;
+
+		if (in_interrupt())
+			netif_rx(skb);
+		else
+			netif_rx_ni(skb);
+
+		status = MLAN_STATUS_PENDING;
+	}
+
+done:
+
+	LEAVE();
+	return status;
+}
+
+/**
  *  @brief This function uploads the packet to the network stack
  *
  *  @param pmoal_handle Pointer to the MOAL context
@@ -829,12 +1022,21 @@ moal_recv_packet(IN t_void *pmoal_handle, IN pmlan_buffer pmbuf)
 	moal_handle *handle = (moal_handle *)pmoal_handle;
 	ENTER();
 	if (pmbuf) {
+
 		priv = woal_bss_index_to_priv(pmoal_handle, pmbuf->bss_index);
 		skb = (struct sk_buff *)pmbuf->pdesc;
 		if (priv) {
 			if (skb) {
 				skb_reserve(skb, pmbuf->data_offset);
 				skb_put(skb, pmbuf->data_len);
+				if (pmbuf->flags & MLAN_BUF_FLAG_NET_MONITOR) {
+					status = moal_recv_packet_to_mon_if
+						(pmoal_handle, pmbuf);
+					if (status == MLAN_STATUS_PENDING)
+						atomic_dec(&handle->
+							   mbufalloc_count);
+					goto done;
+				}
 				pmbuf->pdesc = NULL;
 				pmbuf->pbuf = NULL;
 				pmbuf->data_offset = pmbuf->data_len = 0;
@@ -845,6 +1047,15 @@ moal_recv_packet(IN t_void *pmoal_handle, IN pmlan_buffer pmbuf)
 			} else {
 				PRINTM(MERROR, "%s without skb attach!!!\n",
 				       __func__);
+		/** drop the packet without skb in monitor mode */
+				if (pmbuf->flags & MLAN_BUF_FLAG_NET_MONITOR) {
+					PRINTM(MINFO,
+					       "%s Drop packet without skb\n",
+					       __func__);
+					status = MLAN_STATUS_FAILURE;
+					priv->stats.rx_dropped++;
+					goto done;
+				}
 				skb = dev_alloc_skb(pmbuf->data_len +
 						    MLAN_NET_IP_ALIGN);
 				if (!skb) {
@@ -860,6 +1071,7 @@ moal_recv_packet(IN t_void *pmoal_handle, IN pmlan_buffer pmbuf)
 						pmbuf->data_offset),
 				       pmbuf->data_len);
 				skb_put(skb, pmbuf->data_len);
+
 			}
 			skb->dev = priv->netdev;
 			skb->protocol = eth_type_trans(skb, priv->netdev);
@@ -918,7 +1130,6 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 #if defined(SDIO_SUSPEND_RESUME)
 	mlan_ds_ps_info pm_info;
 #endif
-
 	ENTER();
 
 	if ((pmevent->event_id != MLAN_EVENT_ID_DRV_DEFER_RX_WORK) &&
@@ -1029,7 +1240,6 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 								   MFALSE);
 						priv->phandle->scan_request =
 							NULL;
-						priv->phandle->scan_priv = NULL;
 					}
 					spin_unlock_irqrestore(&priv->phandle->
 							       scan_req_lock,
@@ -1051,6 +1261,7 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 		}
 		if (priv->phandle->scan_pending_on_block == MTRUE) {
 			priv->phandle->scan_pending_on_block = MFALSE;
+			priv->phandle->scan_priv = NULL;
 			MOAL_REL_SEMAPHORE(&priv->phandle->async_sem);
 		}
 		break;
@@ -1740,6 +1951,25 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 		woal_broadcast_event(priv, pmevent->event_buf,
 				     pmevent->event_len);
 		break;
+	case MLAN_EVENT_ID_UAP_FW_MIC_COUNTERMEASURES:
+		{
+			t_u16 status = 0;
+			status = *(t_u16 *)(pmevent->event_buf + 4);
+			if (status) {
+				priv->media_connected = MFALSE;
+				woal_stop_queue(priv->netdev);
+				if (netif_carrier_ok(priv->netdev))
+					netif_carrier_off(priv->netdev);
+			} else {
+				priv->media_connected = MTRUE;
+				if (!netif_carrier_ok(priv->netdev))
+					netif_carrier_on(priv->netdev);
+				woal_wake_queue(priv->netdev);
+			}
+			woal_broadcast_event(priv, pmevent->event_buf,
+					     pmevent->event_len);
+		}
+		break;
 #ifdef WIFI_DIRECT_SUPPORT
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 	case MLAN_EVENT_ID_FW_REMAIN_ON_CHAN_EXPIRED:
@@ -2145,12 +2375,7 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 	case MLAN_EVENT_ID_FW_DUMP_INFO:
 		woal_store_firmware_dump(priv, pmevent);
 		break;
-	case MLAN_EVENT_ID_FW_SUCC_TX_FAIL:
-		DBG_HEXDUMP(MCMD_D, "Peer MAC address", pmevent->event_buf,
-			    pmevent->event_len);
-		woal_unicast_event(priv, pmevent->event_buf, pmevent->event_len,
-				   priv->succ_tx_fail_pid);
-		break;
+
 	default:
 		break;
 	}
@@ -2287,13 +2512,15 @@ moal_hist_data_add(IN t_void *pmoal_handle, IN t_u32 bss_index, IN t_u8 rx_rate,
 {
 	moal_private *priv = NULL;
 	priv = woal_bss_index_to_priv(pmoal_handle, bss_index);
-	if ((antenna & MBIT(0)) && (antenna & MBIT(1)))
-		antenna = 2;
-	else if (antenna & MBIT(1))
-		antenna = 1;
-	else if (antenna & MBIT(0))
-		antenna = 0;
-	if (antenna >= priv->phandle->histogram_table_num)
+	if (((moal_handle *)pmoal_handle)->card_info->v16_fw_api) {
+		if ((antenna & MBIT(0)) && (antenna & MBIT(1)))
+			antenna = 2;
+		else if (antenna & MBIT(1))
+			antenna = 1;
+		else if (antenna & MBIT(0))
+			antenna = 0;
+	}
+	if (priv && antenna >= priv->phandle->histogram_table_num)
 		antenna = 0;
 	if (priv && priv->hist_data[antenna])
 		woal_hist_data_add(priv, rx_rate, snr, nflr, antenna);

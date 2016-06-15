@@ -350,10 +350,16 @@ wlan_is_bastream_avail(mlan_private *priv)
 						  (pmlan_list_head)&pmpriv->
 						  tx_ba_stream_tbl_ptr);
 	}
-	bastream_max = ISSUPP_GETTXBASTREAM(priv->adapter->hw_dot_11n_dev_cap);
-	if (bastream_max == 0)
-		bastream_max = MLAN_MAX_TX_BASTREAM_DEFAULT;
-	return (bastream_num < bastream_max) ? MTRUE : MFALSE;
+	if (priv->adapter->psdio_device->v15_fw_api) {
+		bastream_max =
+			ISSUPP_GETTXBASTREAM(priv->adapter->hw_dot_11n_dev_cap);
+		if (bastream_max == 0)
+			bastream_max = MLAN_MAX_TX_BASTREAM_DEFAULT;
+		return (bastream_num < bastream_max) ? MTRUE : MFALSE;
+	} else {
+		return (bastream_num <
+			MLAN_MAX_TX_BASTREAM_SUPPORTED_NOV15) ? MTRUE : MFALSE;
+	}
 }
 
 /**

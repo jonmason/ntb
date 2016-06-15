@@ -330,6 +330,8 @@ mlan_register(IN pmlan_device pmdevice, OUT t_void **ppmlan_adapter)
 	/* Save pmoal_handle */
 	pmadapter->pmoal_handle = pmdevice->pmoal_handle;
 
+	pmadapter->feature_control = pmdevice->feature_control;
+
 	if ((pmdevice->int_mode == INT_MODE_GPIO) && (pmdevice->gpio_pin == 0)) {
 		PRINTM(MERROR, "SDIO_GPIO_INT_CONFIG: Invalid GPIO Pin\n");
 		ret = MLAN_STATUS_FAILURE;
@@ -337,6 +339,13 @@ mlan_register(IN pmlan_device pmdevice, OUT t_void **ppmlan_adapter)
 	}
 	pmadapter->init_para.int_mode = pmdevice->int_mode;
 	pmadapter->init_para.gpio_pin = pmdevice->gpio_pin;
+	pmadapter->card_type = pmdevice->card_type;
+
+	ret = wlan_get_sdio_device(pmadapter);
+	if (MLAN_STATUS_SUCCESS != ret) {
+		ret = MLAN_STATUS_FAILURE;
+		goto error;
+	}
 	/* card specific probing has been deferred until now .. */
 	ret = wlan_sdio_probe(pmadapter);
 	if (MLAN_STATUS_SUCCESS != ret) {
@@ -366,6 +375,7 @@ mlan_register(IN pmlan_device pmdevice, OUT t_void **ppmlan_adapter)
 	pmadapter->init_para.ps_mode = pmdevice->ps_mode;
 	if (pmdevice->max_tx_buf == MLAN_TX_DATA_BUF_SIZE_2K ||
 	    pmdevice->max_tx_buf == MLAN_TX_DATA_BUF_SIZE_4K ||
+	    pmdevice->max_tx_buf == MLAN_TX_DATA_BUF_SIZE_12K ||
 	    pmdevice->max_tx_buf == MLAN_TX_DATA_BUF_SIZE_8K)
 		pmadapter->init_para.max_tx_buf = pmdevice->max_tx_buf;
 #ifdef STA_SUPPORT
@@ -373,9 +383,12 @@ mlan_register(IN pmlan_device pmdevice, OUT t_void **ppmlan_adapter)
 #else
 	pmadapter->init_para.cfg_11d = 0;
 #endif
-	pmadapter->init_para.dfs_master_radar_det_en =
-		DFS_MASTER_RADAR_DETECT_EN;
+	if (IS_DFS_SUPPORT(pmadapter->feature_control))
+		pmadapter->init_para.dfs_master_radar_det_en =
+			DFS_MASTER_RADAR_DETECT_EN;
 	pmadapter->init_para.dfs_slave_radar_det_en = DFS_SLAVE_RADAR_DETECT_EN;
+	if (IS_SD8777(pmadapter->card_type) || IS_SD8787(pmadapter->card_type))
+		pmadapter->init_para.fw_crc_check = pmdevice->fw_crc_check;
 	pmadapter->init_para.dev_cap_mask = pmdevice->dev_cap_mask;
 	pmadapter->rx_work_flag = pmdevice->rx_work;
 
@@ -587,7 +600,7 @@ mlan_dnld_fw(IN t_void *pmlan_adapter, IN pmlan_fw_image pmfw)
 	/* Check if firmware is already running */
 	ret = wlan_check_fw_status(pmadapter, poll_num);
 	if (ret == MLAN_STATUS_SUCCESS) {
-		if (pmfw->fw_reload) {
+		if (pmfw->fw_reload && pmadapter->psdio_device->fw_reload) {
 			ret = wlan_reset_fw(pmadapter);
 			if (ret == MLAN_STATUS_FAILURE) {
 				PRINTM(MERROR, "FW reset failure!");

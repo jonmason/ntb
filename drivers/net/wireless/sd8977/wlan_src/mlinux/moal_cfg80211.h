@@ -24,6 +24,11 @@
 
 #include    "moal_main.h"
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+#define IEEE80211_CHAN_PASSIVE_SCAN IEEE80211_CHAN_NO_IR
+#define IEEE80211_CHAN_NO_IBSS IEEE80211_CHAN_NO_IR
+#endif
+
 /* Clear all key indexes */
 #define KEY_INDEX_CLEAR_ALL             (0x0000000F)
 
@@ -152,6 +157,9 @@ int woal_cfg80211_set_default_mgmt_key(struct wiphy *wiphy,
 				       struct net_device *netdev,
 				       t_u8 key_index);
 #endif
+
+int woal_cfg80211_set_rekey_data(struct wiphy *wiphy, struct net_device *dev,
+				 struct cfg80211_gtk_rekey_data *data);
 
 void woal_cfg80211_mgmt_frame_register(struct wiphy *wiphy,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
@@ -290,6 +298,12 @@ int woal_cfg80211_remain_on_channel_cfg(moal_private *priv,
 					struct ieee80211_channel *chan,
 					enum nl80211_channel_type channel_type,
 					t_u32 duration);
+void woal_remove_virtual_interface(moal_handle *handle);
+
+#endif /* KERNEL_VERSION */
+#endif /* WIFI_DIRECT_SUPPORT && V14_FEATURE */
+
+#ifdef UAP_CFG80211
 int woal_uap_cfg80211_get_station(struct wiphy *wiphy, struct net_device *dev,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
 				  const u8 *mac,
@@ -298,12 +312,6 @@ int woal_uap_cfg80211_get_station(struct wiphy *wiphy, struct net_device *dev,
 #endif
 				  struct station_info *stainfo);
 
-void woal_remove_virtual_interface(moal_handle *handle);
-
-#endif /* KERNEL_VERSION */
-#endif /* WIFI_DIRECT_SUPPORT && V14_FEATURE */
-
-#ifdef UAP_CFG80211
 int woal_uap_cfg80211_dump_station(struct wiphy *wiphy,
 				   struct net_device *dev, int idx,
 				   t_u8 *mac, struct station_info *sinfo);
@@ -377,11 +385,12 @@ void woal_csa_work_queue(struct work_struct *work);
 void woal_cfg80211_notify_uap_channel(moal_private *priv,
 				      chan_band_info * pchan_info);
 #endif
+#endif /* UAP_CFG80211 */
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 void woal_chandef_create(moal_private *priv, struct cfg80211_chan_def *chandef,
 			 chan_band_info * pchan_info);
 #endif
-#endif /* UAP_CFG80211 */
 
 void woal_clear_all_mgmt_ies(moal_private *priv, t_u8 wait_option);
 int woal_cfg80211_mgmt_frame_ie(moal_private *priv,
@@ -398,6 +407,10 @@ int woal_get_active_intf_freq(moal_private *priv);
 
 void woal_cfg80211_setup_ht_cap(struct ieee80211_sta_ht_cap *ht_info,
 				t_u32 dev_cap, t_u8 *mcs_set);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
+void woal_cfg80211_setup_vht_cap(moal_private *priv,
+				 struct ieee80211_sta_vht_cap *vht_cap);
+#endif
 int woal_cfg80211_assoc(moal_private *priv, void *sme, t_u8 wait_option);
 
 #endif /* _MOAL_CFG80211_H_ */

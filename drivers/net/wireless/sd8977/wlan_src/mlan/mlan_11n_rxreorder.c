@@ -1484,6 +1484,9 @@ wlan_update_ampdu_rxwinsize(pmlan_adapter pmadapter, t_u8 coex_flag)
 					priv->add_ba_param.rx_win_size =
 						MLAN_WFD_COEX_AMPDU_DEF_RXWINSIZE;
 #endif
+				if (priv->bss_type == MLAN_BSS_TYPE_NAN)
+					priv->add_ba_param.rx_win_size =
+						MLAN_NAN_COEX_AMPDU_DEF_RXWINSIZE;
 #ifdef UAP_SUPPORT
 				if (priv->bss_type == MLAN_BSS_TYPE_UAP)
 					priv->add_ba_param.rx_win_size =
@@ -1499,12 +1502,18 @@ wlan_update_ampdu_rxwinsize(pmlan_adapter pmadapter, t_u8 coex_flag)
 #ifdef WIFI_DIRECT_SUPPORT
 				if (priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT)
 					priv->add_ba_param.rx_win_size =
-						MLAN_WFD_AMPDU_DEF_TXRXWINSIZE;
+						pmadapter->psdio_device->
+						ampdu_info->
+						ampdu_wfd_txrxwinsize;
 #endif
+				if (priv->bss_type == MLAN_BSS_TYPE_NAN)
+					priv->add_ba_param.rx_win_size =
+						MLAN_NAN_AMPDU_DEF_TXRXWINSIZE;
 #ifdef UAP_SUPPORT
 				if (priv->bss_type == MLAN_BSS_TYPE_UAP)
 					priv->add_ba_param.rx_win_size =
-						MLAN_UAP_AMPDU_DEF_RXWINSIZE;
+						pmadapter->psdio_device->
+						ampdu_info->ampdu_uap_rxwinsize;
 #endif
 			}
 			if (pmadapter->coex_win_size &&

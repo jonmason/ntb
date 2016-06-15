@@ -702,6 +702,13 @@ wlan_wmm_get_highest_priolist_ptr(pmlan_adapter pmadapter,
 				   closed */
 				goto next_intf;
 			}
+			if (priv_tmp->tx_pause == MTRUE) {
+				PRINTM(MINFO, "get_highest_prio_ptr(): "
+				       "TX PASUE Ignore pkts from BSS%d\n",
+				       priv_tmp->bss_index);
+				/* Ignore data pkts from a BSS if tx pause */
+				goto next_intf;
+			}
 
 			pmadapter->callbacks.moal_spin_lock(pmadapter->
 							    pmoal_handle,
@@ -1863,7 +1870,8 @@ wlan_wmm_init(pmlan_adapter pmadapter)
 #ifdef STA_SUPPORT
 			if (priv->bss_type == MLAN_BSS_TYPE_STA) {
 				priv->add_ba_param.tx_win_size =
-					MLAN_STA_AMPDU_DEF_TXWINSIZE;
+					pmadapter->psdio_device->ampdu_info->
+					ampdu_sta_txwinsize;
 				priv->add_ba_param.rx_win_size =
 					MLAN_STA_AMPDU_DEF_RXWINSIZE;
 			}
@@ -1871,17 +1879,27 @@ wlan_wmm_init(pmlan_adapter pmadapter)
 #ifdef WIFI_DIRECT_SUPPORT
 			if (priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT) {
 				priv->add_ba_param.tx_win_size =
-					MLAN_WFD_AMPDU_DEF_TXRXWINSIZE;
+					pmadapter->psdio_device->ampdu_info->
+					ampdu_wfd_txrxwinsize;
 				priv->add_ba_param.rx_win_size =
-					MLAN_WFD_AMPDU_DEF_TXRXWINSIZE;
+					pmadapter->psdio_device->ampdu_info->
+					ampdu_wfd_txrxwinsize;
 			}
 #endif
+			if (priv->bss_type == MLAN_BSS_TYPE_NAN) {
+				priv->add_ba_param.tx_win_size =
+					MLAN_NAN_AMPDU_DEF_TXRXWINSIZE;
+				priv->add_ba_param.rx_win_size =
+					MLAN_NAN_AMPDU_DEF_TXRXWINSIZE;
+			}
 #ifdef UAP_SUPPORT
 			if (priv->bss_type == MLAN_BSS_TYPE_UAP) {
 				priv->add_ba_param.tx_win_size =
-					MLAN_UAP_AMPDU_DEF_TXWINSIZE;
+					pmadapter->psdio_device->ampdu_info->
+					ampdu_uap_txwinsize;
 				priv->add_ba_param.rx_win_size =
-					MLAN_UAP_AMPDU_DEF_RXWINSIZE;
+					pmadapter->psdio_device->ampdu_info->
+					ampdu_uap_rxwinsize;
 			}
 #endif
 			priv->add_ba_param.tx_amsdu = MTRUE;
@@ -1960,6 +1978,8 @@ wlan_wmm_lists_empty(pmlan_adapter pmadapter)
 				       j);
 				continue;
 			}
+			if (priv->tx_pause)
+				continue;
 
 			if (util_scalar_read(pmadapter->pmoal_handle,
 					     &priv->wmm.tx_pkts_queued,
@@ -2164,7 +2184,8 @@ wlan_wmm_add_buf_txqueue(pmlan_adapter pmadapter, pmlan_buffer pmbuf)
 		else if (priv->bss_type == MLAN_BSS_TYPE_UAP) {
 			sta_ptr = wlan_get_station_entry(priv, ra);
 			if (sta_ptr) {
-				if (!sta_ptr->is_wmm_enabled) {
+				if (!sta_ptr->is_wmm_enabled
+				    && !priv->is_11ac_enabled) {
 					tid_down =
 						wlan_wmm_downgrade_tid(priv,
 								       0xff);

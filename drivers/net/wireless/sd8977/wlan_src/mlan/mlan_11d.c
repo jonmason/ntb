@@ -442,10 +442,10 @@ wlan_11d_get_chan(pmlan_adapter pmadapter, t_u8 band, t_u8 first_chan,
 	t_u8 cfp_no = 0;
 
 	ENTER();
-	if (band & (BAND_B | BAND_G | BAND_GN)) {
+	if (band & (BAND_B | BAND_G | BAND_GN | BAND_GAC)) {
 		cfp = channel_freq_power_UN_BG;
 		cfp_no = NELEMENTS(channel_freq_power_UN_BG);
-	} else if (band & (BAND_A | BAND_AN)) {
+	} else if (band & (BAND_A | BAND_AN | BAND_AAC)) {
 		cfp = channel_freq_power_UN_AJ;
 		cfp_no = NELEMENTS(channel_freq_power_UN_AJ);
 	} else {
@@ -1062,7 +1062,7 @@ wlan_11d_chan_2_freq(pmlan_adapter pmadapter, t_u8 chan, t_u8 band)
 	ENTER();
 
 	/* Get channel-frequency-power trios */
-	if (band & (BAND_A | BAND_AN)) {
+	if (band & (BAND_A | BAND_AN | BAND_AAC)) {
 		cf = channel_freq_power_UN_AJ;
 		cnt = NELEMENTS(channel_freq_power_UN_AJ);
 	} else {
@@ -1123,7 +1123,7 @@ wlan_11d_set_universaltable(mlan_private *pmpriv, t_u8 band)
 		i++;
 	}
 
-	if (band & (BAND_A | BAND_AN)) {
+	if (band & (BAND_A | BAND_AN | BAND_AAC)) {
 		/* If band A */
 
 		/* Set channel-frequency-power */
@@ -1248,6 +1248,7 @@ wlan_11d_create_dnld_countryinfo(mlan_private *pmpriv, t_u8 band)
 				case BAND_A:
 				case BAND_AN:
 				case BAND_A | BAND_AN:
+				case BAND_A | BAND_AN | BAND_AAC:
 					break;
 				default:
 					continue;
@@ -1262,6 +1263,7 @@ wlan_11d_create_dnld_countryinfo(mlan_private *pmpriv, t_u8 band)
 				case BAND_GN:
 				case BAND_G | BAND_GN:
 				case BAND_B | BAND_G | BAND_GN:
+				case BAND_B | BAND_G | BAND_GN | BAND_GAC:
 					break;
 				default:
 					continue;

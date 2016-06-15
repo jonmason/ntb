@@ -150,24 +150,11 @@ wlan_ops_sta_process_txpd(IN t_void *priv, IN pmlan_buffer pmbuf)
 		plocal_tx_pd->tx_pkt_type = (t_u16)pkt_type;
 		plocal_tx_pd->tx_control = tx_control;
 	}
-	if (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS &&
-	    (pmbuf->flags & MLAN_BUF_FLAG_ARP)) {
-		plocal_tx_pd->tx_control &= ~0x1f;
-	/** bit 4 :Host Rate Ctrl**/
-		plocal_tx_pd->tx_control |= RATE_CONTROL_ENABLE;
-		if (pmpriv->adhoc_channel >= 36) {
-	     /** bit 3-0 :RateID, set to data rate 6Mbps for 5G**/
-			plocal_tx_pd->tx_control |= RATEID_OFDM6Mbps;
-		} else if (pmpriv->adhoc_channel <= 14)
-	     /** bit 3-0 :RateID, set to data rate 1Mbps for 2.4G**/
-			plocal_tx_pd->tx_control |= RATEID_DBPSK1Mbps;
-	}
 
 	if (pmbuf->flags & MLAN_BUF_FLAG_TX_STATUS) {
 		plocal_tx_pd->tx_token_id = (t_u8)pmbuf->tx_seq_num;
 		plocal_tx_pd->flags |= MRVDRV_TxPD_FLAGS_TX_PACKET_STATUS;
 	}
-
 	endian_convert_TxPD(plocal_tx_pd);
 
 	/* Adjust the data offset and length to include TxPD in pmbuf */
@@ -191,7 +178,7 @@ done:
 mlan_status
 wlan_send_null_packet(pmlan_private priv, t_u8 flags)
 {
-	pmlan_adapter pmadapter = priv->adapter;
+	pmlan_adapter pmadapter = MNULL;
 	TxPD *ptx_pd;
 /* sizeof(TxPD) + Interface specific header */
 #define NULL_PACKET_HDR 256
@@ -200,10 +187,16 @@ wlan_send_null_packet(pmlan_private priv, t_u8 flags)
 	t_u8 *ptr;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 #ifdef DEBUG_LEVEL1
-	t_u32 sec, usec;
+	t_u32 sec = 0, usec = 0;
 #endif
 
 	ENTER();
+
+	if (!priv) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+	pmadapter = priv->adapter;
 
 	if (pmadapter->surprise_removed == MTRUE) {
 		ret = MLAN_STATUS_FAILURE;

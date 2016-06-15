@@ -37,6 +37,7 @@ Change log:
 #include "mlan_main.h"
 #include "mlan_wmm.h"
 #include "mlan_11n.h"
+#include "mlan_11ac.h"
 #include "mlan_11h.h"
 #include "mlan_sdio.h"
 #include "mlan_meas.h"
@@ -755,8 +756,20 @@ wlan_ret_get_log(IN pmlan_private pmpriv,
 					wlan_le32_to_cpu(pget_log->
 							 qos_retries_rx_cnt[i]);
 			}
+			pget_info->param.stats.cmacicv_errors =
+				wlan_le32_to_cpu(pget_log->cmacicv_errors);
+			pget_info->param.stats.cmac_replays =
+				wlan_le32_to_cpu(pget_log->cmac_replays);
 			pget_info->param.stats.mgmt_ccmp_replays =
 				wlan_le32_to_cpu(pget_log->mgmt_ccmp_replays);
+			pget_info->param.stats.tkipicv_errors =
+				wlan_le32_to_cpu(pget_log->tkipicv_errors);
+			pget_info->param.stats.tkip_replays =
+				wlan_le32_to_cpu(pget_log->tkip_replays);
+			pget_info->param.stats.ccmp_decrypt_errors =
+				wlan_le32_to_cpu(pget_log->ccmp_decrypt_errors);
+			pget_info->param.stats.ccmp_replays =
+				wlan_le32_to_cpu(pget_log->ccmp_replays);
 			pget_info->param.stats.tx_amsdu_cnt =
 				wlan_le32_to_cpu(pget_log->tx_amsdu_cnt);
 			pget_info->param.stats.failed_amsdu_cnt =
@@ -968,6 +981,24 @@ wlan_ret_tx_power_cfg(IN pmlan_private pmpriv,
 							pg->first_rate_code;
 						pwr_grp->last_rate_ind =
 							pg->last_rate_code;
+					} else if (pg->modulation_class ==
+						   MOD_CLASS_VHT) {
+						pwr_grp->rate_format =
+							MLAN_RATE_FORMAT_VHT;
+						pwr_grp->first_rate_ind =
+							(pg->
+							 first_rate_code) & 0xF;
+						pwr_grp->last_rate_ind =
+							(pg->
+							 last_rate_code) & 0xF;
+						pwr_grp->nss =
+							1 +
+							(pg->
+							 first_rate_code >> 4);
+						pwr_grp->nss =
+							1 +
+							(pg->
+							 last_rate_code >> 4);
 					}
 					pwr_grp->bandwidth = pg->ht_bandwidth;
 					pwr_grp->power_min = pg->power_min;
@@ -2238,6 +2269,62 @@ wlan_ret_inactivity_timeout(IN pmlan_private pmpriv,
 
 /**
  *  @brief This function handles the command response of
+ *  network monitor
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to command buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+static mlan_status
+wlan_ret_net_monitor(IN pmlan_private pmpriv,
+		     IN HostCmd_DS_COMMAND *resp, IN mlan_ioctl_req *pioctl_buf)
+{
+	mlan_ds_misc_cfg *pmisc = MNULL;
+	mlan_ds_misc_net_monitor *net_mon = MNULL;
+	HostCmd_DS_802_11_NET_MONITOR *cmd_net_mon =
+		(HostCmd_DS_802_11_NET_MONITOR *)&resp->params.net_mon;
+	ChanBandParamSet_t *pchan_band = MNULL;
+	t_u8 band_info = 0;
+
+	ENTER();
+
+	if (pioctl_buf && (pioctl_buf->action == MLAN_ACT_GET)) {
+		pmisc = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+		net_mon = &pmisc->param.net_mon;
+		net_mon->enable_net_mon =
+			wlan_le16_to_cpu(cmd_net_mon->enable_net_mon);
+		net_mon->filter_flag =
+			wlan_le16_to_cpu(cmd_net_mon->filter_flag);
+		pchan_band = &cmd_net_mon->monitor_chan.chan_band_param[0];
+		/* Band information in the TLV is bits[1:0] */
+		band_info = pchan_band->radio_type & (MBIT(1) | MBIT(0));
+		net_mon->channel = pchan_band->chan_number;
+		if (band_info == HostCmd_SCAN_RADIO_TYPE_BG)
+			net_mon->band |= (BAND_B | BAND_G);
+		if (band_info == HostCmd_SCAN_RADIO_TYPE_A)
+			net_mon->band |= BAND_A;
+		net_mon->chan_bandwidth =
+			GET_SECONDARYCHAN(pchan_band->radio_type >> 4);
+		if (band_info == HostCmd_SCAN_RADIO_TYPE_BG)
+			net_mon->band |= BAND_GN;
+		if (band_info == HostCmd_SCAN_RADIO_TYPE_A)
+			net_mon->band |= BAND_AN;
+		if (band_info == HostCmd_SCAN_RADIO_TYPE_BG)
+			net_mon->band |= BAND_GAC;
+		if (band_info == HostCmd_SCAN_RADIO_TYPE_A)
+			net_mon->band |= BAND_AAC;
+	}
+	pmpriv->adapter->enable_net_mon =
+		wlan_le16_to_cpu(cmd_net_mon->enable_net_mon);
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handles the command response of
  *  subscribe event
  *
  *  @param pmpriv       A pointer to mlan_private structure
@@ -2366,64 +2453,22 @@ wlan_ret_coalesce_config(IN pmlan_private pmpriv,
 	return MLAN_STATUS_SUCCESS;
 }
 
-/**
- *  @brief This function handles the command respose of get ibss peer info
- *
- *  @param pmpriv       A pointer to mlan_private structure
- *  @param resp         A pointer to HostCmd_DS_COMMAND
- *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
- *
- *  @return             MLAN_STATUS_SUCCESS
- */
 mlan_status
-wlan_ret_get_ibss_peer_info(IN pmlan_private pmpriv,
-			    IN HostCmd_DS_COMMAND *resp,
-			    OUT mlan_ioctl_req *pioctl_buf)
+wlan_ret_get_sensor_temp(IN pmlan_private pmpriv,
+			 const IN HostCmd_DS_COMMAND *resp,
+			 OUT mlan_ioctl_req *pioctl_buf)
 {
-	mlan_ds_misc_cfg *misc_cfg = MNULL;
-	mlan_ds_misc_ibss_peer_info *misc_ibss_peer_info = MNULL;
-	HostCmd_DS_IBSS_PEER_INFO *cmd_peer_info = &resp->params.ibss_peer_info;
-	MrvlIEtypes_ibss_peer_info_t *peer_info_tlv = MNULL;
-	t_u16 tlv_left_len = 0, peers = 0;
-	t_u32 tx_data_rate = 0;
-	t_u8 tx_rate_index = 0, tx_rate_info = 0;
+	mlan_ds_misc_cfg *pcfg = MNULL;
+	const HostCmd_DS_SENSOR_TEMP *pSensorT = &resp->params.temp_sensor;
 
 	ENTER();
 
 	if (pioctl_buf) {
-		misc_cfg = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
-		misc_ibss_peer_info = &misc_cfg->param.misc_peer_info;
-		peer_info_tlv =
-			(MrvlIEtypes_ibss_peer_info_t *) ((t_u8 *)cmd_peer_info
-							  +
-							  sizeof
-							  (HostCmd_DS_IBSS_PEER_INFO));
-		tlv_left_len =
-			resp->size - (sizeof(HostCmd_DS_IBSS_PEER_INFO) +
-				      S_DS_GEN);
-		while (tlv_left_len >= sizeof(MrvlIEtypesHeader_t)) {
-			memcpy(pmpriv->adapter,
-			       &misc_ibss_peer_info->peer_info_table[peers].
-			       peer_mac_addr, &peer_info_tlv->peer_mac_addr,
-			       MLAN_MAC_ADDR_LENGTH);
-			tx_rate_index = peer_info_tlv->tx_rate_index;
-			tx_rate_info = peer_info_tlv->tx_rate_info;
-			tx_data_rate =
-				wlan_index_to_data_rate(pmpriv->adapter,
-							tx_rate_index,
-							tx_rate_info);
-			misc_ibss_peer_info->peer_info_table[peers].
-				tx_data_rate = tx_data_rate;
-			misc_ibss_peer_info->peer_info_table[peers].rssi =
-				wlan_le16_to_cpu(peer_info_tlv->rssi);
-			tlv_left_len -=
-				wlan_le16_to_cpu(peer_info_tlv->header.len) +
-				sizeof(MrvlIEtypesHeader_t);
-			peers++;
-			peer_info_tlv++;
-		}
-		misc_ibss_peer_info->peers = peers;
-		PRINTM(MINFO, "IBSS Peer numbers: %d\n", peers);
+		pcfg = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+		pcfg->param.sensor_temp.temperature =
+			wlan_le32_to_cpu(pSensorT->temperature);
+		PRINTM(MCMND, "get SOC temperature %u C \n",
+		       pSensorT->temperature);
 	}
 
 	LEAVE();
@@ -2431,7 +2476,7 @@ wlan_ret_get_ibss_peer_info(IN pmlan_private pmpriv,
 }
 
 /**
- *  @brief This function handles the command response of ipv6 ra offload feature
+ *  @brief This function handles the command response of offload feature
  *
  *  @param pmpriv       A pointer to mlan_private structure
  *  @param resp         A pointer to HostCmd_DS_COMMAND
@@ -2440,27 +2485,98 @@ wlan_ret_get_ibss_peer_info(IN pmlan_private pmpriv,
  *  @return             MLAN_STATUS_SUCCESS
  */
 mlan_status
-wlan_ret_ipv6_ra_offload(IN pmlan_private pmpriv,
-			 IN HostCmd_DS_COMMAND *resp,
-			 OUT mlan_ioctl_req *pioctl_buf)
+wlan_ret_offload_feature_ctrl(mlan_private *priv, HostCmd_DS_COMMAND *resp)
 {
-	HostCmd_DS_IPV6_RA_OFFLOAD *ipv6_ra_resp =
-		&resp->params.ipv6_ra_offload;
-	mlan_ds_misc_cfg *misc = MNULL;
-	mlan_ds_misc_ipv6_ra_offload *ipv6_ra = MNULL;
-
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	HostCmd_OFFLOAD_FEATURE_CTRL *fctrl = &resp->params.fctrl;
 	ENTER();
 
-	if (pioctl_buf && (pioctl_buf->action == MLAN_ACT_GET)) {
-		misc = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
-		ipv6_ra =
-			(mlan_ds_misc_ipv6_ra_offload *) & misc->param.
-			ipv6_ra_offload;
-		ipv6_ra->enable = ipv6_ra_resp->enable;
-		memcpy(pmpriv->adapter, ipv6_ra->ipv6_addr,
-		       ipv6_ra_resp->ipv6_addr_param.ipv6_addr, 16);
+	PRINTM(MINFO, "offload feature ctrl set successful \n");
+	if (fctrl->featureSelect == 0) {
+		PRINTM(MCMND, "11k:  Neighbor Report %s \n",
+		       fctrl->control.std.
+		       dot11k_nbor_support ? "enabled" : "disabled");
+		PRINTM(MCMND, "11k:  Traffic Stream Measurement %s \n",
+		       fctrl->control.std.dot11k_tsm ? "enabled" : "disabled");
+		PRINTM(MCMND, "11k:  Link Measurement %s \n",
+		       fctrl->control.std.dot11k_lm ? "enabled" : "disabled");
+		PRINTM(MCMND, "11k:  Beacon Report %s \n",
+		       fctrl->control.std.dot11k_rm ? "enabled" : "disabled");
+		PRINTM(MCMND, "11v:  BSS Transition %s \n",
+		       fctrl->control.std.
+		       dot11v_bss_trans ? "enabled" : "disabled");
+
+		priv->enable_11k = fctrl->control.std.dot11k_nbor_support
+			| fctrl->control.std.dot11k_tsm
+			| fctrl->control.std.dot11k_lm
+			| fctrl->control.std.dot11k_rm;
+		if (priv->enable_11k)
+			SET_EXTCAP_BSS_TRANSITION(priv->ext_cap);
+		else
+			RESET_EXTCAP_BSS_TRANSITION(priv->ext_cap);
+		PRINTM(MMSG, "11K %s \n",
+		       priv->enable_11k ? "enable" : "disable");
 	}
 
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief This function handles the command response of sta get band and channel
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+static mlan_status
+wlan_ret_sta_config(IN pmlan_private pmpriv,
+		    IN HostCmd_DS_COMMAND *resp, IN mlan_ioctl_req *pioctl_buf)
+{
+	HostCmd_DS_STA_CONFIGURE *cmdrsp_sta_cfg =
+		(HostCmd_DS_STA_CONFIGURE *) & resp->params.sta_cfg;
+	mlan_ds_bss *bss = MNULL;
+	MrvlIEtypes_channel_band_t *tlv_band_channel = MNULL;
+
+	ENTER();
+	if (pioctl_buf) {
+		if (pioctl_buf->req_id == MLAN_IOCTL_BSS) {
+			bss = (mlan_ds_bss *)pioctl_buf->pbuf;
+			if (bss->sub_command == MLAN_OID_BSS_CHAN_INFO) {
+				tlv_band_channel =
+					(MrvlIEtypes_channel_band_t *)
+					cmdrsp_sta_cfg->tlv_buffer;
+				bss->param.sta_channel.band_cfg =
+					tlv_band_channel->band_config;
+				bss->param.sta_channel.channel =
+					tlv_band_channel->channel;
+				bss->param.sta_channel.is_11n_enabled =
+					IS_11N_ENABLED(pmpriv);
+				if (((Band_Config_t *)
+				     &(bss->param.sta_channel.band_cfg))->
+				    chanWidth == CHAN_BW_80MHZ)
+					bss->param.sta_channel.center_chan =
+						wlan_get_center_freq_idx(pmpriv,
+									 BAND_AAC,
+									 bss->
+									 param.
+									 sta_channel.
+									 channel,
+									 CHANNEL_BW_80MHZ);
+				PRINTM(MCMND,
+				       "Get STA channel, band=0x%x, channel=%d, is_11n_enabled=%d center_chan=%d\n",
+				       bss->param.sta_channel.band_cfg,
+				       bss->param.sta_channel.channel,
+				       bss->param.sta_channel.is_11n_enabled,
+				       bss->param.sta_channel.center_chan);
+
+				pioctl_buf->data_read_written =
+					sizeof(mlan_ds_bss);
+			}
+		}
+	}
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }
@@ -2612,6 +2728,8 @@ wlan_ops_sta_process_cmdresp(IN t_void *priv,
 	case HostCmd_CMD_802_11_KEY_MATERIAL:
 		ret = wlan_ret_802_11_key_material(pmpriv, resp, pioctl_buf);
 		break;
+	case HostCmd_CMD_GTK_REKEY_OFFLOAD_CFG:
+		break;
 	case HostCmd_CMD_SUPPLICANT_PMK:
 		ret = wlan_ret_802_11_supplicant_pmk(pmpriv, resp, pioctl_buf);
 		break;
@@ -2623,6 +2741,11 @@ wlan_ops_sta_process_cmdresp(IN t_void *priv,
 		break;
 	case HostCmd_CMD_802_11D_DOMAIN_INFO:
 		ret = wlan_ret_802_11d_domain_info(pmpriv, resp);
+		break;
+	case HostCmd_CMD_802_11K_GET_NLIST:
+		break;
+	case HostCmd_CMD_OFFLOAD_FEATURE_CONTROL:
+		ret = wlan_ret_offload_feature_ctrl(pmpriv, resp);
 		break;
 	case HostCmd_CMD_802_11_TPC_ADAPT_REQ:
 	case HostCmd_CMD_802_11_TPC_INFO:
@@ -2648,17 +2771,26 @@ wlan_ops_sta_process_cmdresp(IN t_void *priv,
 		pmadapter->curr_tx_buf_size = pmadapter->tx_buf_size;
 		pmadapter->mp_end_port =
 			wlan_le16_to_cpu(resp->params.tx_buf.mp_end_port);
-		pmadapter->mp_data_port_mask = DATA_PORT_MASK;
+		pmadapter->mp_data_port_mask =
+			pmadapter->psdio_device->reg->data_port_mask;
 
-		for (ctr = 1; ctr <= MAX_PORT - pmadapter->mp_end_port; ctr++) {
+		for (ctr = 1;
+		     ctr <=
+		     pmadapter->psdio_device->max_ports -
+		     pmadapter->mp_end_port; ctr++) {
 			pmadapter->mp_data_port_mask &=
-				~(1 << (MAX_PORT - ctr));
+				~(1 <<
+				  (pmadapter->psdio_device->max_ports - ctr));
 		}
 
-		pmadapter->curr_wr_port = 0;
-		pmadapter->mpa_tx.pkt_aggr_limit =
-			MIN(SDIO_MP_AGGR_DEF_PKT_LIMIT,
-			    (pmadapter->mp_end_port >> 1));
+		if (pmadapter->psdio_device->supports_sdio_new_mode) {
+			pmadapter->curr_wr_port = 0;
+			pmadapter->mpa_tx.pkt_aggr_limit =
+				MIN(pmadapter->psdio_device->mp_aggr_pkt_limit,
+				    (pmadapter->mp_end_port >> 1));
+		} else {
+			pmadapter->curr_wr_port = 1;
+		}
 		PRINTM(MCMND, "end port %d, data port mask %x\n",
 		       wlan_le16_to_cpu(resp->params.tx_buf.mp_end_port),
 		       pmadapter->mp_data_port_mask);
@@ -2707,6 +2839,15 @@ wlan_ops_sta_process_cmdresp(IN t_void *priv,
 	case HostCmd_CMD_11N_CFG:
 		ret = wlan_ret_11n_cfg(pmpriv, resp, pioctl_buf);
 		break;
+	case HostCmd_CMD_11AC_CFG:
+		ret = wlan_ret_11ac_cfg(pmpriv, resp, pioctl_buf);
+		break;
+#if 0
+	case HostCmd_CMD_RECONFIGURE_TX_BUFF:
+		pmadapter->tx_buf_size =
+			(t_u16)wlan_le16_to_cpu(resp->params.tx_buf.buff_size);
+		break;
+#endif
 	case HostCmd_CMD_TX_BF_CFG:
 		ret = wlan_ret_tx_bf_cfg(pmpriv, resp, pioctl_buf);
 		break;
@@ -2735,6 +2876,9 @@ wlan_ops_sta_process_cmdresp(IN t_void *priv,
 	case HostCmd_CMD_MEASUREMENT_REQUEST:
 	case HostCmd_CMD_MEASUREMENT_REPORT:
 		ret = wlan_meas_cmdresp_process(pmpriv, resp);
+		break;
+	case HostCmd_CMD_802_11_NET_MONITOR:
+		ret = wlan_ret_net_monitor(pmpriv, resp, pioctl_buf);
 		break;
 #ifdef WIFI_DIRECT_SUPPORT
 	case HostCmd_CMD_802_11_REMAIN_ON_CHANNEL:
@@ -2767,21 +2911,21 @@ wlan_ops_sta_process_cmdresp(IN t_void *priv,
 	case HostCmd_CMD_MULTI_CHAN_POLICY:
 		ret = wlan_ret_multi_chan_policy(pmpriv, resp, pioctl_buf);
 		break;
+	case HostCMD_CONFIG_LOW_POWER_MODE:
+		break;
 	case HostCmd_DFS_REPEATER_MODE:
 		ret = wlan_ret_dfs_repeater_cfg(pmpriv, resp, pioctl_buf);
 		break;
 	case HostCmd_CMD_COALESCE_CFG:
 		ret = wlan_ret_coalesce_config(pmpriv, resp, pioctl_buf);
 		break;
-	case HostCmd_CMD_802_11_ADHOC_ROUTE_TABLE:
-	case HostCmd_CMD_802_11_OXYGEN_SUCC_TX_FAIL:
-	case HostCmd_CMD_802_11_OXYGEN_RMC:
+	case HostCmd_DS_GET_SENSOR_TEMP:
+		ret = wlan_ret_get_sensor_temp(pmpriv, resp, pioctl_buf);
 		break;
-	case HostCmd_CMD_802_11_IBSS_PEER_INFO:
-		ret = wlan_ret_get_ibss_peer_info(pmpriv, resp, pioctl_buf);
+	case HostCmd_CMD_STA_CONFIGURE:
+		ret = wlan_ret_sta_config(pmpriv, resp, pioctl_buf);
 		break;
-	case HostCmd_CMD_IPV6_RA_OFFLOAD_CFG:
-		ret = wlan_ret_ipv6_ra_offload(pmpriv, resp, pioctl_buf);
+	case HOST_CMD_PMIC_CONFIGURE:
 		break;
 	default:
 		PRINTM(MERROR, "CMD_RESP: Unknown command response %#x\n",

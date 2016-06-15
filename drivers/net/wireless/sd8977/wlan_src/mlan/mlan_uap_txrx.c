@@ -41,6 +41,9 @@ Change log:
 #include "mlan_wmm.h"
 #include "mlan_11n_aggr.h"
 #include "mlan_11n_rxreorder.h"
+#ifdef DRV_EMBEDDED_AUTHENTICATOR
+#include "authenticator_api.h"
+#endif
 
 /********************************************************
 			Local Functions
@@ -277,6 +280,9 @@ wlan_ops_uap_process_rx_packet(IN t_void *adapter, IN pmlan_buffer pmbuf)
 	t_u8 ta[MLAN_MAC_ADDR_LENGTH];
 	t_u16 rx_pkt_type = 0;
 	sta_node *sta_ptr = MNULL;
+#ifdef DRV_EMBEDDED_AUTHENTICATOR
+	t_u8 eapol_type[2] = { 0x88, 0x8e };
+#endif
 	t_u8 adj_rx_rate = 0;
 
 	ENTER();
@@ -287,6 +293,9 @@ wlan_ops_uap_process_rx_packet(IN t_void *adapter, IN pmlan_buffer pmbuf)
 	priv->rxpd_rate = prx_pd->rx_rate;
 
 	priv->rxpd_rate_info = prx_pd->rate_info;
+	if (!priv->adapter->psdio_device->v15_fw_api)
+		priv->rxpd_rate_info =
+			wlan_convert_v14_rate_ht_info(priv->rxpd_rate_info);
 
 	if (priv->bss_type == MLAN_BSS_TYPE_UAP) {
 		adj_rx_rate =
@@ -342,6 +351,21 @@ wlan_ops_uap_process_rx_packet(IN t_void *adapter, IN pmlan_buffer pmbuf)
 		wlan_free_mlan_buffer(pmadapter, pmbuf);
 		goto done;
 	}
+#ifdef DRV_EMBEDDED_AUTHENTICATOR
+    /**process eapol packet for uap*/
+	if (IsAuthenticatorEnabled(priv->psapriv) &&
+	    (!memcmp(pmadapter, &prx_pkt->eth803_hdr.h803_len,
+		     eapol_type, sizeof(eapol_type)))) {
+		ret = AuthenticatorProcessEapolPacket(priv->psapriv,
+						      ((t_u8 *)prx_pd +
+						       prx_pd->rx_pkt_offset),
+						      prx_pd->rx_pkt_length);
+		if (ret == MLAN_STATUS_SUCCESS) {
+			wlan_free_mlan_buffer(pmadapter, pmbuf);
+			goto done;
+		}
+	}
+#endif
 
 	pmbuf->priority = prx_pd->priority;
 	memcpy(pmadapter, ta, prx_pkt->eth803_hdr.src_addr,

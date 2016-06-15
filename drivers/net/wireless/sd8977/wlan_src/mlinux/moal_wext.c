@@ -1422,6 +1422,10 @@ woal_set_encode_ext(struct net_device *dev,
 		ret = -EINVAL;
 		goto done;
 	}
+	if (ext->key_len > (MLAN_MAX_KEY_LENGTH)) {
+		ret = -EINVAL;
+		goto done;
+	}
 	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_sec_cfg));
 	if (req == NULL) {
 		ret = -ENOMEM;
@@ -2105,6 +2109,10 @@ woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 		}
 	} else if (strncmp(buf, "COUNTRY", strlen("COUNTRY")) == 0) {
 		memset(country_code, 0, sizeof(country_code));
+		if ((strlen(buf) - strlen("COUNTRY") - 1) > COUNTRY_CODE_LEN) {
+			ret = -EFAULT;
+			goto done;
+		}
 		memcpy(country_code, buf + strlen("COUNTRY") + 1,
 		       strlen(buf) - strlen("COUNTRY") - 1);
 		PRINTM(MIOCTL, "Set COUNTRY %s\n", country_code);
@@ -2114,7 +2122,8 @@ woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 			goto done;
 		}
 		len = sprintf(buf, "OK\n") + 1;
-	} else if (memcmp(buf, WEXT_CSCAN_HEADER, WEXT_CSCAN_HEADER_SIZE) == 0) {
+	} else if (memcmp(buf, WEXT_CSCAN_HEADER, sizeof(WEXT_CSCAN_HEADER)) ==
+		   0) {
 		PRINTM(MIOCTL, "Set Combo Scan\n");
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_set_combo_scan(priv, buf, dwrq->length)) {

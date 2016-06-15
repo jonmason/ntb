@@ -60,8 +60,12 @@ CONFIG_MFG_CMD_SUPPORT=y
 # Big-endian platform
 CONFIG_BIG_ENDIAN=n
 
-# Use Samsung specific
-CONFIG_SAMSUNG_SUPPORT=y
+# Enable driver based authenticator
+CONFIG_DRV_EMBEDDED_AUTHENTICATOR=y
+
+
+# Enable driver based supplicant
+CONFIG_DRV_EMBEDDED_SUPPLICANT=y
 
 ifeq ($(CONFIG_DRV_EMBEDDED_SUPPLICANT), y)
 CONFIG_EMBEDDED_SUPP_AUTH=y
@@ -98,17 +102,21 @@ CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=n
 #############################################################################
 
 MODEXT = ko
-EXTRA_CFLAGS += -I$(M)/mlan
+EXTRA_CFLAGS += -I./drivers/net/wireless/sd8977/wlan_src/mlan
 EXTRA_CFLAGS += -DLINUX
 
 
+ifeq ($(CONFIG_EMBEDDED_SUPP_AUTH), y)
+EXTRA_CFLAGS += -I./drivers/net/wireless/sd8977/wlan_src/mlan/esa
+EXTRA_CFLAGS += -I./drivers/net/wireless/sd8977/wlan_src/mlan/esa/common
+endif
 
 
 KERNELVERSION_X86 := 	$(shell uname -r)
 KERNELDIR ?= /lib/modules/$(KERNELVERSION_X86)/build
 LD += -S
 
-BINDIR = ../bin_sd8977
+BINDIR = ../bin_sd8xxx
 APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
 
 #############################################################################
@@ -117,7 +125,7 @@ APPDIR= $(shell if test -d "mapp"; then echo mapp; fi)
 
 	EXTRA_CFLAGS += -I$(KERNELDIR)/include
 
-	EXTRA_CFLAGS += -DFPNUM='"183"'
+	EXTRA_CFLAGS += -DFPNUM='"68"'
 
 ifeq ($(CONFIG_DEBUG),1)
 	EXTRA_CFLAGS += -DDEBUG_LEVEL1
@@ -209,22 +217,14 @@ ifeq ($(CONFIG_T50), y)
 	EXTRA_CFLAGS += -DT3T
 endif
 
-ifeq ($(CONFIG_SAMSUNG_SUPPORT), y)
-ifneq ($(CONFIG_ARCH_S5P4418),)
-	EXTRA_CFLAGS += -DCSA_MAC_FILE_PATH=\"/etc/wifi/.mac.info\"
-	EXTRA_CFLAGS += -DOPT_MAC_FILE_PATH=\"/etc/wifi/.mac.info\"
-	EXTRA_CFLAGS += -DPSM_FILE_PATH=\"/etc/wifi/.psm.info\"
-else
-	EXTRA_CFLAGS += -DCSA_MAC_FILE_PATH=\"/csa/.mac.info\"
-	EXTRA_CFLAGS += -DOPT_MAC_FILE_PATH=\"/opt/etc/.mac.info\"
-	EXTRA_CFLAGS += -DPSM_FILE_PATH=\"/opt/etc/.psm.info\"
-endif
-endif
-
 # add -Wno-packed-bitfield-compat when GCC version greater than 4.4
 GCC_VERSION := $(shell echo `gcc -dumpversion | cut -f1-2 -d.` \>= 4.4 | sed -e 's/\./*100+/g' | bc )
 ifeq ($(GCC_VERSION),1)
 	EXTRA_CFLAGS += -Wno-packed-bitfield-compat
+endif
+
+ifeq ($(CONFIG_MRVL_SDIO_OOB_IRQ),y)
+	EXTRA_CFLAGS += -DSDIO_OOB_IRQ
 endif
 
 #############################################################################
@@ -319,7 +319,13 @@ endif
 endif
 
 
+ifeq ($(CONFIG_DRV_EMBEDDED_AUTHENTICATOR), y)
+    EXTRA_CFLAGS += -DDRV_EMBEDDED_AUTHENTICATOR
+endif
 
+ifeq ($(CONFIG_DRV_EMBEDDED_SUPPLICANT), y)
+    EXTRA_CFLAGS += -DDRV_EMBEDDED_SUPPLICANT
+endif
 
 
 MOALOBJS =	mlinux/moal_main.o \
@@ -338,6 +344,7 @@ MLANOBJS += mlan/mlan_sdio.o
 MLANOBJS += mlan/mlan_11n_aggr.o
 MLANOBJS += mlan/mlan_11n_rxreorder.o
 MLANOBJS += mlan/mlan_11n.o
+MLANOBJS += mlan/mlan_11ac.o
 MLANOBJS += mlan/mlan_11d.o
 MLANOBJS += mlan/mlan_11h.o
 ifeq ($(CONFIG_STA_SUPPORT),y)
@@ -385,9 +392,39 @@ endif
 
 
 
+ifeq ($(CONFIG_EMBEDDED_SUPP_AUTH), y)
+MLANOBJS += mlan/esa/common/rc4.o \
+			mlan/esa/common/aes_cmac_rom.o \
+			mlan/esa/common/hmac_sha1.o \
+			mlan/esa/common/md5.o \
+			mlan/esa/common/mrvl_sha256_crypto.o \
+			mlan/esa/common/hmac_md5.o \
+			mlan/esa/common/crypt_new_rom.o \
+			mlan/esa/common/rijndael.o \
+			mlan/esa/common/sha1.o \
+			mlan/esa/common/sha256.o \
+			mlan/esa/common/pass_phrase.o \
+			mlan/esa/common/pmkCache.o \
+			mlan/esa/common/pmkCache_rom.o \
+			mlan/esa/common/parser.o \
+			mlan/esa/common/parser_rom.o \
+			mlan/esa/keyMgmtApStaCommon.o \
+			mlan/esa/hostsa_init.o \
+			mlan/esa/authenticator_api.o
+endif
 
 
+ifeq ($(CONFIG_DRV_EMBEDDED_SUPPLICANT),y)
+MLANOBJS += mlan/esa/keyMgmtSta.o \
+			mlan/esa/keyMgmtSta_rom.o \
+			mlan/esa/supplicant.o
+endif
 
+ifeq ($(CONFIG_DRV_EMBEDDED_AUTHENTICATOR),y)
+MLANOBJS += mlan/esa/AssocAp_srv_rom.o \
+			mlan/esa/keyMgmtAp_rom.o \
+			mlan/esa/keyMgmtAp.o
+endif
 
 obj-$(CONFIG_MRVL_WLAN_DRIVER) := mlan.o
 mlan-objs := $(MLANOBJS)
@@ -448,12 +485,13 @@ build:		echo default
 	fi
 
 	cp -f mlan.$(MODEXT) $(BINDIR)/mlan$(DBG).$(MODEXT)
-	cp -f sd8xxx.$(MODEXT) $(BINDIR)/sd8977$(DBG).$(MODEXT)
+	cp -f sd8xxx.$(MODEXT) $(BINDIR)/sd8xxx$(DBG).$(MODEXT)
 	cp -rpf script/sdio_mmc/* $(BINDIR)/
 
 ifeq ($(CONFIG_STA_SUPPORT),y)
 	cp -f README $(BINDIR)
 	cp -f README_MLAN $(BINDIR)
+	cp -f README_RBC $(BINDIR)
 ifneq ($(APPDIR),)
 	$(MAKE) -C mapp/mlanconfig $@ INSTALLDIR=$(BINDIR)
 	$(MAKE) -C mapp/mlanutl $@ INSTALLDIR=$(BINDIR)
@@ -508,8 +546,6 @@ install: default
 
 	cp -f mlan.$(MODEXT) $(INSTALLDIR)/mlan$(DBG).$(MODEXT)
 	cp -f ../io/sdio/$(PLATFORM)/sdio.$(MODEXT) $(INSTALLDIR)
-	cp -f sd8xxx.$(MODEXT) $(INSTALLDIR)/sd8977$(DBG).$(MODEXT)
-	echo "sd8977 Driver Installed"
 
 distclean:
 	-find . -name "*.o" -exec rm {} \;

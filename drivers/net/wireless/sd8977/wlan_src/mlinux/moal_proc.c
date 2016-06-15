@@ -412,27 +412,37 @@ woal_config_write(struct file *f, const char __user * buf, size_t count,
 			woal_mlan_debug_info(priv);
 			woal_moal_debug_info(priv, NULL, MFALSE);
 
-			woal_dump_firmware_info_v3(handle);
+			woal_dump_firmware_info(handle);
 		}
 	}
 
-	if (!strncmp(databuf, "fwdump_file=", strlen("fwdump_file="))) {
-		int len = strlen(databuf) - strlen("fwdump_file=");
-		gfp_t flag;
-		if (len) {
-			kfree(handle->fwdump_fname);
-			flag = (in_atomic() ||
-				irqs_disabled())? GFP_ATOMIC : GFP_KERNEL;
-			handle->fwdump_fname = kzalloc(len, flag);
-			if (handle->fwdump_fname)
-				memcpy(handle->fwdump_fname,
-				       databuf + strlen("fwdump_file="),
-				       len - 1);
+	if (handle->card_info->v15_update) {
+		if (!strncmp(databuf, "fwdump_file=", strlen("fwdump_file="))) {
+			int len = strlen(databuf) - strlen("fwdump_file=");
+			gfp_t flag;
+			if (len) {
+				kfree(handle->fwdump_fname);
+				flag = (in_atomic() ||
+					irqs_disabled())? GFP_ATOMIC :
+					GFP_KERNEL;
+				handle->fwdump_fname = kzalloc(len, flag);
+				if (handle->fwdump_fname)
+					memcpy(handle->fwdump_fname,
+					       databuf + strlen("fwdump_file="),
+					       len - 1);
+			}
 		}
-	}
-	if (!strncmp(databuf, "fw_reload", strlen("fw_reload"))) {
-		PRINTM(MMSG, "Request fw_reload...\n");
-		woal_request_fw_reload(handle);
+		if (!strncmp(databuf, "fw_reload", strlen("fw_reload"))) {
+			if (!strncmp
+			    (databuf, "fw_reload=", strlen("fw_reload="))) {
+				line += strlen("fw_reload") + 1;
+				config_data =
+					(t_u32)woal_string_to_number(line);
+			} else
+				config_data = FW_RELOAD_SDIO_INBAND_RESET;
+			PRINTM(MMSG, "Request fw_reload=%d\n", config_data);
+			woal_request_fw_reload(handle, config_data);
+		}
 	}
 	MODULE_PUT;
 	LEAVE();
@@ -682,6 +692,14 @@ woal_create_proc_entry(moal_private *priv)
 	if (!priv->proc_entry) {
 		memset(proc_dir_name, 0, sizeof(proc_dir_name));
 		strcpy(proc_dir_name, MWLAN_PROC_DIR);
+
+		if (strlen(dev->name) >
+		    ((sizeof(proc_dir_name) - 1) - strlen(MWLAN_PROC_DIR))) {
+			PRINTM(MERROR,
+			       "Failed to create proc entry, device name is too long\n");
+			LEAVE();
+			return;
+		}
 		strcat(proc_dir_name, dev->name);
 		/* Try to create mwlan/mlanX first */
 		priv->proc_entry = proc_mkdir(proc_dir_name, PROC_DIR);

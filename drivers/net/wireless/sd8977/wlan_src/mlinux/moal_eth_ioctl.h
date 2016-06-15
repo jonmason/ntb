@@ -65,6 +65,8 @@ Change log:
 #define PRIV_CMD_DELBA      "delba"
 /** Private command: Reject Addba Req */
 #define PRIV_CMD_REJECTADDBAREQ  "rejectaddbareq"
+/** Private command: 11AC Cfg */
+#define PRIV_CMD_VHTCFG     "vhtcfg"
 #define PRIV_CMD_DATARATE   "getdatarate"
 #define PRIV_CMD_TXRATECFG  "txratecfg"
 #define PRIV_CMD_GETLOG     "getlog"
@@ -125,6 +127,7 @@ Change log:
 #define PRIV_CMD_MEMRDWR        "memrdwr"
 #define PRIV_CMD_SDCMD52RW      "sdcmd52rw"
 #define PRIV_CMD_ARPFILTER      "arpfilter"
+#define PRIV_CMD_HOTSPOTCFG     "hotspotcfg"
 #define PRIV_CMD_MGMT_FRAME_CTRL  "mgmtframectrl"
 #define PRIV_CMD_QCONFIG        "qconfig"
 #define PRIV_CMD_ADDTS          "addts"
@@ -159,16 +162,19 @@ Change log:
 #define PRIV_CMD_AUTH_TYPE          "authtype"
 #endif
 #define PRIV_CMD_POWER_CONS         "powercons"
+#define PRIV_CMD_HT_STREAM_CFG      "htstreamcfg"
 #define PRIV_CMD_THERMAL            "thermal"
 #define PRIV_CMD_BCN_INTERVAL       "bcninterval"
 #ifdef STA_SUPPORT
 #define PRIV_CMD_GET_SIGNAL         "getsignal"
+#define PRIV_CMD_SIGNALEXT_CFG      "signalextcfg"
+#define PRIV_CMD_GET_SIGNAL_EXT_V2  "getsignalextv2"
+#define PRIV_CMD_GET_SIGNAL_EXT     "getsignalext"
 #endif
 #if defined(STA_SUPPORT)
 #define PRIV_CMD_PMFCFG         "pmfcfg"
 #endif
 #define PRIV_CMD_INACTIVITYTO   "inactivityto"
-#define PRIV_CMD_ATIM_WINDOW    "atimwindow"
 #define PRIV_CMD_AMSDU_AGGR_CTRL    "amsduaggrctrl"
 #define PRIV_CMD_TX_BF_CAP          "httxbfcap"
 #define PRIV_CMD_SDIO_CLOCK         "sdioclock"
@@ -176,6 +182,10 @@ Change log:
 #define PRIV_CMD_MPA_CTRL           "mpactrl"
 #endif
 #define PRIV_CMD_SLEEP_PARAMS       "sleepparams"
+#define PRIV_CMD_NET_MON            "netmon"
+#if defined(STA_CFG80211) && defined(UAP_CFG80211)
+#define PRIV_CMD_MONITOR_MODE       "monitormode"
+#endif
 #if defined(DFS_TESTING_SUPPORT)
 #define PRIV_CMD_DFS_TESTING        "dfstesting"
 #endif
@@ -183,10 +193,12 @@ Change log:
 #define PRIV_CMD_ANT_CFG            "antcfg"
 #define PRIV_CMD_SYSCLOCK       "sysclock"
 #define PRIV_CMD_ADHOC_AES      "adhocaes"
+#define PRIV_CMD_GET_KEY        "getkey"
 #define PRIV_CMD_ASSOCIATE      "associate"
 #define PRIV_CMD_TX_BF_CFG      "httxbfcfg"
 #define PRIV_CMD_PORT_CTRL      "port_ctrl"
 #define PRIV_CMD_PB_BYPASS      "pb_bypass"
+#define PRIV_CMD_COALESCE_STATUS    "coalesce_status"
 #define PRIV_CMD_SD_CMD53_RW        "sdcmd53rw"
 #ifdef RX_PACKET_COALESCE
 #define PRIV_CMD_RX_COAL_CFG "rxpktcoal_cfg"
@@ -211,6 +223,10 @@ Change log:
 #define PRIV_CMD_TX_AGGR_CTRL "txaggrctrl"
 #define PRIV_CMD_AUTO_TDLS          "autotdls"
 
+#define PRIV_CMD_GET_SENSOR_TEMP        "get_sensor_temp"
+
+#define PRIV_CMD_11K_CFG        "11k_enable"
+#define PRIV_CMD_11K_NEIGHBOR_REPORT        "neighbor_report"
 #if defined(UAP_SUPPORT)
 #define PRIV_CMD_EXTEND_CHAN_SWITCH        "channel_switch"
 #endif
@@ -399,6 +415,8 @@ typedef struct woal_priv_tx_rate_cfg {
 	t_u32 rate_index;
     /** Data rate */
 	t_u32 rate;
+    /** NSS */
+	t_u32 nss;
 } woal_tx_rate_cfg;
 
 typedef struct woal_priv_esuppmode_cfg {

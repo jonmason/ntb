@@ -32,8 +32,8 @@ Change log:
 /** WLAN supported rates */
 #define WLAN_SUPPORTED_RATES                14
 
-/** WLAN supported rates extension*/
-#define WLAN_SUPPORTED_RATES_EXT            32
+/** WLAN supported rates extension */
+#define WLAN_SUPPORTED_RATES_EXT            60
 
 /** Enumeration definition*/
 /** WLAN_802_11_NETWORK_TYPE */
@@ -101,6 +101,15 @@ typedef MLAN_PACK_START enum _IEEEtypes_ElementId_e {
 	TIMEOUT_INTERVAL = 56,
 	RIC = 57,
 	QOS_MAPPING = 110,
+	VHT_CAPABILITY = 191,
+	VHT_OPERATION = 192,
+	EXT_BSS_LOAD = 193,
+	BW_CHANNEL_SWITCH = 194,
+	VHT_TX_POWER_ENV = 195,
+	EXT_POWER_CONSTR = 196,
+	AID_INFO = 197,
+	QUIET_CHAN = 198,
+	OPER_MODE_NTF = 199,
 
 	ERP_INFO = 42,
 
@@ -1004,6 +1013,154 @@ typedef MLAN_PACK_START struct _IEEEtypes_OverlapBSSScanParam_t {
 } MLAN_PACK_END IEEEtypes_OverlapBSSScanParam_t,
 	*pIEEEtypes_OverlapBSSScanParam_t;
 
+/** VHT MCS rate set field, refer to 802.11ac */
+typedef MLAN_PACK_START struct _VHT_MCS_set {
+	t_u16 rx_mcs_map;
+	t_u16 rx_max_rate;	/* bit 29-31 reserved */
+	t_u16 tx_mcs_map;
+	t_u16 tx_max_rate;	/* bit 61-63 reserved */
+} MLAN_PACK_END VHT_MCS_set_t, *pVHT_MCS_set_t;
+
+/** VHT Capabilities info field, reference 802.11ac D1.4 p89 */
+typedef MLAN_PACK_START struct _VHT_capa {
+#if 0
+#ifdef BIG_ENDIAN_SUPPORT
+	t_u8 mpdu_max_len:2;
+	t_u8 chan_width:2;
+	t_u8 rx_LDPC:1;
+	t_u8 sgi_80:1;
+	t_u8 sgi_160:1;
+	t_u8 tx_STBC:1;
+	t_u8 rx_STBC:3;
+	t_u8 SU_beamformer_capa:1;
+	t_u8 SU_beamformee_capa:1;
+	t_u8 beamformer_ante_num:3;
+	t_u8 sounding_dim_num:3;
+	t_u8 MU_beamformer_capa:1;
+	t_u8 MU_beamformee_capa:1;
+	t_u8 VHT_TXOP_ps:1;
+	t_u8 HTC_VHT_capa:1;
+	t_u8 max_ampdu_len:3;
+	t_u8 link_apapt_capa:2;
+	t_u8 reserved_1:4;
+#else
+	t_u8 reserved_1:4;
+	t_u8 link_apapt_capa:2;
+	t_u8 max_ampdu_len:3;
+	t_u8 HTC_VHT_capa:1;
+	t_u8 VHT_TXOP_ps:1;
+	t_u8 MU_beamformee_capa:1;
+	t_u8 MU_beamformer_capa:1;
+	t_u8 sounding_dim_num:3;
+	t_u8 beamformer_ante_num:3;
+	t_u8 SU_beamformee_capa:1;
+	t_u8 SU_beamformer_capa:1;
+	t_u8 rx_STBC:3;
+	t_u8 tx_STBC:1;
+	t_u8 sgi_160:1;
+	t_u8 sgi_80:1;
+	t_u8 rx_LDPC:1;
+	t_u8 chan_width:2;
+	t_u8 mpdu_max_len:2;
+#endif				/* BIG_ENDIAN_SUPPORT */
+#endif
+	t_u32 vht_cap_info;
+	VHT_MCS_set_t mcs_sets;
+} MLAN_PACK_END VHT_capa_t, *pVHT_capa_t;
+
+/** VHT Capabilities IE */
+typedef MLAN_PACK_START struct _IEEEtypes_VHTCap_t {
+    /** Generic IE header */
+	IEEEtypes_Header_t ieee_hdr;
+	VHT_capa_t vht_cap;
+} MLAN_PACK_END IEEEtypes_VHTCap_t, *pIEEEtypes_VHTCap_t;
+
+#define VHT_CAP_CHWD_80MHZ       0
+#define VHT_CAP_CHWD_160MHZ      1
+#define VHT_CAP_CHWD_80_80MHZ    2
+
+/** VHT Operations IE */
+typedef MLAN_PACK_START struct _IEEEtypes_VHTOprat_t {
+    /** Generic IE header */
+	IEEEtypes_Header_t ieee_hdr;
+	t_u8 chan_width;
+	t_u8 chan_center_freq_1;
+	t_u8 chan_center_freq_2;
+    /** Basic MCS set map, each 2 bits stands for a Nss */
+	t_u16 basic_MCS_map;
+} MLAN_PACK_END IEEEtypes_VHTOprat_t, *pIEEEtypes_VHTOprat_t;
+
+#define VHT_OPER_CHWD_20_40MHZ    0
+#define VHT_OPER_CHWD_80MHZ       1
+#define VHT_OPER_CHWD_160MHZ      2
+#define VHT_OPER_CHWD_80_80MHZ    3
+
+/** VHT Transmit Power Envelope IE */
+typedef MLAN_PACK_START struct _IEEEtypes_VHTtxpower_t {
+    /** Generic IE header */
+	IEEEtypes_Header_t ieee_hdr;
+	t_u8 max_tx_power;
+	t_u8 chan_center_freq;
+	t_u8 chan_width;
+} MLAN_PACK_END IEEEtypes_VHTtxpower_t, *pIEEEtypes_VHTtxpower_t;
+
+/** Extended Power Constraint IE */
+typedef MLAN_PACK_START struct _IEEEtypes_ExtPwerCons_t {
+    /** Generic IE header */
+	IEEEtypes_Header_t ieee_hdr;
+    /** channel width */
+	t_u8 chan_width;
+    /** local power constraint */
+	t_u8 local_power_cons;
+} MLAN_PACK_END IEEEtypes_ExtPwerCons_t, *pIEEEtypes_ExtPwerCons_t;
+
+/** Extended BSS Load IE */
+typedef MLAN_PACK_START struct _IEEEtypes_ExtBSSload_t {
+    /** Generic IE header */
+	IEEEtypes_Header_t ieee_hdr;
+	t_u8 MU_MIMO_capa_count;
+	t_u8 stream_underutilization;
+	t_u8 VHT40_util;
+	t_u8 VHT80_util;
+	t_u8 VHT160_util;
+} MLAN_PACK_END IEEEtypes_ExtBSSload_t, *pIEEEtypes_ExtBSSload_t;
+
+/** Quiet Channel IE */
+typedef MLAN_PACK_START struct _IEEEtypes_QuietChan_t {
+    /** Generic IE header */
+	IEEEtypes_Header_t ieee_hdr;
+	t_u8 AP_quiet_mode;
+	t_u8 quiet_count;
+	t_u8 quiet_period;
+	t_u16 quiet_dur;
+	t_u16 quiet_offset;
+} MLAN_PACK_END IEEEtypes_QuietChan_t, *pIEEEtypes_QuietChan_t;
+
+/** Wide Bandwidth Channel Switch IE */
+typedef MLAN_PACK_START struct _IEEEtypes_BWSwitch_t {
+    /** Generic IE header */
+	IEEEtypes_Header_t ieee_hdr;
+	t_u8 new_chan_width;
+	t_u8 new_chan_center_freq_1;
+	t_u8 new_chan_center_freq_2;
+} MLAN_PACK_END IEEEtypes_BWSwitch_t, *pIEEEtypes_BWSwitch_t;
+
+/** AID IE */
+typedef MLAN_PACK_START struct _IEEEtypes_AID_t {
+    /** Generic IE header */
+	IEEEtypes_Header_t ieee_hdr;
+    /** AID number */
+	t_u16 AID;
+} MLAN_PACK_END IEEEtypes_AID_t, *pIEEEtypes_AID_t;
+
+/** Operating Mode Notificaton IE */
+typedef MLAN_PACK_START struct _IEEEtypes_OperModeNtf_t {
+    /** Generic IE header */
+	IEEEtypes_Header_t ieee_hdr;
+    /** Operating Mode */
+	t_u8 oper_mode;
+} MLAN_PACK_END IEEEtypes_OperModeNtf_t, *pIEEEtypes_OperModeNtf_t;
+
 /** Maximum number of subbands in the IEEEtypes_SupportedChannels_t structure */
 #define WLAN_11H_MAX_SUBBANDS  5
 
@@ -1076,6 +1233,36 @@ typedef MLAN_PACK_START struct {
 	t_u8 chan_switch_count;	/**< # of TBTTs before channel switch */
 
 } MLAN_PACK_END IEEEtypes_ChanSwitchAnn_t;
+
+/*  IEEE Wide Bandwidth Channel Switch Element */
+/**
+ *  Provided in beacons and probe responses.  Used to advertise when
+ *    and to which channel it is changing to.  Only starting STAs in
+ *    an IBSS and APs are allowed to originate a wide bandwidth chan
+ *    switch element.
+ */
+typedef MLAN_PACK_START struct {
+    /** Generic IE header IEEE Element ID = 194*/
+	IEEEtypes_Header_t ieee_hdr;
+	t_u8 new_channel_width;
+	t_u8 new_channel_center_freq0;
+	t_u8 new_channel_center_freq1;
+} MLAN_PACK_END IEEEtypes_WideBWChanSwitch_t;
+
+/*  IEEE VHT Transmit Power Envelope Element */
+/**
+ *  Provided in beacons and probe responses.  Used to advertise the max
+ *    TX power in sepeate bandwidth and as a sub element of Channel Switch
+ *    Wrapper IE.
+ */
+typedef MLAN_PACK_START struct {
+    /** Generic IE header IEEE Element ID = 195*/
+	IEEEtypes_Header_t ieee_hdr;
+	t_u8 tpc_info;		/**< Transmit Power Information>*/
+	t_u8 local_max_tp_20mhz;/**< Local Maximum Transmit Power for 20 MHZ>*/
+	t_u8 local_max_tp_40mhz;/**< Local Maximum Transmit Power for 40 MHZ>*/
+	t_u8 local_max_tp_80mhz;/**< Local Maximum Transmit Power for 80 MHZ>*/
+} MLAN_PACK_END IEEEtypes_VhtTpcEnvelope_t;
 
 /*  IEEE Quiet Period Element (7.3.2.23) */
 /**
@@ -1289,6 +1476,13 @@ typedef MLAN_PACK_START struct _ChanStatistics_t {
 	t_u16 cca_busy_duration;
 } MLAN_PACK_END ChanStatistics_t;
 
+/** Enhance ext scan type defination */
+typedef enum _MLAN_EXT_SCAN_TYPE {
+	EXT_SCAN_DEFAULT,
+	EXT_SCAN_ENHANCE,
+	EXT_SCAN_CANCEL,
+} MLAN_EXT_SCAN_TYPE;
+
 /**
  *  Input structure to configure an immediate scan cmd to firmware
  *
@@ -1339,6 +1533,8 @@ typedef MLAN_PACK_START struct {
 	t_u16 scan_chan_gap;
     /** flag to filer only probe response */
 	t_u8 proberesp_only;
+	/** scan type: 0 legacy, 1: enhance scan*/
+	t_u8 ext_scan_type;
 } MLAN_PACK_END wlan_user_scan_cfg;
 
 /** Default scan interval in millisecond*/
@@ -1452,6 +1648,14 @@ typedef struct _BSSDescriptor_t {
     /** Supported data rates */
 	t_u8 data_rates[WLAN_SUPPORTED_RATES];
 
+    /** Current channel bandwidth
+     *  0 : 20MHZ
+     *  1 : 40MHZ
+     *  2 : 80MHZ
+     *  3 : 160MHZ
+     */
+	t_u8 curr_bandwidth;
+
     /** Network band.
      * BAND_B(0x01): 'b' band
      * BAND_G(0x02): 'g' band
@@ -1504,6 +1708,35 @@ typedef struct _BSSDescriptor_t {
     /** Overlapping BSS Scan Parameters Offset */
 	t_u16 overlap_bss_offset;
 
+    /** VHT Capabilities IE */
+	IEEEtypes_VHTCap_t *pvht_cap;
+    /** VHT Capabilities IE offset */
+	t_u16 vht_cap_offset;
+    /** VHT Operations IE */
+	IEEEtypes_VHTOprat_t *pvht_oprat;
+    /** VHT Operations IE offset */
+	t_u16 vht_oprat_offset;
+    /** VHT Transmit Power Envelope IE */
+	IEEEtypes_VHTtxpower_t *pvht_txpower;
+    /** VHT Transmit Power Envelope IE offset */
+	t_u16 vht_txpower_offset;
+    /** Extended Power Constraint IE */
+	IEEEtypes_ExtPwerCons_t *pext_pwer;
+    /** Extended Power Constraint IE offset */
+	t_u16 ext_pwer_offset;
+    /** Extended BSS Load IE  */
+	IEEEtypes_ExtBSSload_t *pext_bssload;
+    /** Extended BSS Load IE offset */
+	t_u16 ext_bssload_offset;
+    /** Quiet Channel IE */
+	IEEEtypes_QuietChan_t *pquiet_chan;
+    /** Quiet Channel IE offset */
+	t_u16 quiet_chan_offset;
+    /** Operating Mode Notification IE */
+	IEEEtypes_OperModeNtf_t *poper_mode;
+    /** Operating Mode Notification IE offset */
+	t_u16 oper_mode_offset;
+
 #ifdef STA_SUPPORT
     /** Country information set */
 	IEEEtypes_CountryInfoFullSet_t country_info;
@@ -1523,6 +1756,10 @@ typedef struct _BSSDescriptor_t {
     /** WAPI IE offset in the beacon buffer */
 	t_u16 wapi_offset;
 #endif
+	/* Hotspot 2.0 OSEN AKM IE */
+	IEEEtypes_Generic_t *posen_ie;
+    /** osen IE offset in the beacon buffer */
+	t_u16 osen_offset;
 	/* Mobility domain IE */
 	IEEEtypes_MobilityDomain_t *pmd_ie;
 	/** Mobility domain IE offset in the beacon buffer */
