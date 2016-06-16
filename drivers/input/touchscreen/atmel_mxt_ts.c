@@ -1117,8 +1117,8 @@ static int mxt_soft_reset(struct mxt_data *data)
 	if (ret)
 		return ret;
 
-	/* Ignore CHG line for 100ms after reset */
-	msleep(100);
+	/* Ignore CHG line for 10ms after reset */
+	msleep(10);
 
 	enable_irq(data->irq);
 
