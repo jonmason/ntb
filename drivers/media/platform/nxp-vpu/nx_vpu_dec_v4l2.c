@@ -151,7 +151,9 @@ static int vidioc_g_fmt_vid_cap_mplane(struct file *file, void *priv,
 	pix_mp->plane_fmt[2].bytesperline = ctx->buf_c_width;
 	pix_mp->plane_fmt[2].sizeimage = ctx->chroma_size;
 
-	pix_mp->reserved[0] = (__u8)ctx->codec.dec.frame_buffer_cnt;
+	/* TBD. Patch for fedora */
+	pix_mp->reserved[1] = (__u8)ctx->codec.dec.frame_buffer_cnt;
+	pix_mp->reserved[2] = (__u8)ctx->codec.dec.frame_buffer_cnt;
 
 	NX_DbgMsg(INFO_MSG, ("vidioc_g_fmt_vid_cap_mplane : W = %d, H = %d\n",
 		pix_mp->width, pix_mp->height));
