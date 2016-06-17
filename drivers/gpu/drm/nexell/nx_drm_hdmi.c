@@ -76,6 +76,23 @@ static bool panel_hdmi_is_connected(struct device *dev,
 	return ctx->plug;
 }
 
+static void panel_hdmi_dump_edid_modes(struct drm_connector *connector,
+			int num_modes, bool dump)
+{
+	struct drm_display_mode *mode, *t;
+
+	if (!num_modes || !dump)
+		return;
+
+	list_for_each_entry_safe(mode, t, &connector->probed_modes, head) {
+		DRM_DEBUG_KMS("EDID [%4d x %4d %3d fps, 0x%08x(%s), %d] %s\n",
+			mode->hdisplay, mode->vdisplay, mode->vrefresh,
+			mode->flags, mode->flags & DRM_MODE_FLAG_3D_MASK ?
+			"3D" : "2D",
+			mode->clock*1000, mode->name);
+	}
+}
+
 static int panel_hdmi_preferred_modes(struct device *dev,
 			struct drm_connector *connector, int num_modes)
 {
@@ -151,6 +168,7 @@ static int panel_hdmi_get_modes(struct device *dev,
 
 		drm_mode_connector_update_edid_property(connector, edid);
 		num_modes = drm_add_edid_modes(connector, edid);
+		panel_hdmi_dump_edid_modes(connector, num_modes, false);
 	}
 
 	return panel_hdmi_preferred_modes(dev, connector, num_modes);
@@ -198,17 +216,12 @@ void panel_hdmi_mode_set(struct device *dev,
 {
 	struct hdmi_context *ctx = dev_get_drvdata(dev);
 	struct nx_drm_device *display = ctx->display;
-	struct nx_drm_panel *panel = &display->panel;
 	struct hdmi_resource *hdmi = ctx_to_hdmi(ctx);
-	int pixelclock = mode->clock * 1000;
+	struct videomode *vm = &display->panel.vm;
 
 	DRM_DEBUG_KMS("enter\n");
 
-	drm_display_mode_to_videomode(mode, &panel->vm);
-
-	nx_dp_hdmi_mode_set(display,
-			&panel->vm, mode->vrefresh, pixelclock,
-			hdmi->dvi_mode);
+	nx_dp_hdmi_mode_set(display, mode, vm, hdmi->dvi_mode);
 }
 
 static void panel_hdmi_commit(struct device *dev)

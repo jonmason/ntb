@@ -859,8 +859,23 @@ bool nx_dp_hdmi_mode_get(int width, int height, int refresh,
 	return true;
 }
 
+static void hdmi_mode_to_display_mode(struct hdmi_res_mode *hm,
+			struct drm_display_mode *dmode)
+{
+	dmode->hdisplay = hm->h_as;
+	dmode->hsync_start = dmode->hdisplay + hm->h_fp;
+	dmode->hsync_end = dmode->hsync_start + hm->h_sw;
+	dmode->htotal = dmode->hsync_end + hm->h_bp;
+
+	dmode->vdisplay = hm->v_as;
+	dmode->vsync_start = dmode->vdisplay + hm->v_fp;
+	dmode->vsync_end = dmode->vsync_start + hm->v_sw;
+	dmode->vtotal = dmode->vsync_end + hm->v_bp;
+
+}
+
 int nx_dp_hdmi_mode_set(struct nx_drm_device *display,
-			struct videomode *vm, int refresh, int pixelclock,
+			struct drm_display_mode *mode, struct videomode *vm,
 			bool dvi_mode)
 {
 	struct dp_hdmi_dev *out;
@@ -868,9 +883,13 @@ int nx_dp_hdmi_mode_set(struct nx_drm_device *display,
 	struct hdmi_preset *preset;
 	struct dp_control_dev *dpc = display_to_dpc(display);
 	unsigned int flags = HDMI_CHECK_REFRESH | HDMI_CHECK_PIXCLOCK;
+	int refresh = mode->vrefresh;
+	int pixelclock = mode->clock * 1000;
 	int err;
 
 	BUG_ON(!dpc);
+
+	drm_display_mode_to_videomode(mode, vm);
 
 	pr_debug("%s %s\n",
 		 __func__, dvi_mode ? "dvi monitor" : "hdmi monitor");
@@ -894,6 +913,9 @@ int nx_dp_hdmi_mode_set(struct nx_drm_device *display,
 	 * set display control config
 	 */
 	hdmi_dp_set(dpc, vm);
+
+	/* set display mode values */
+	hdmi_mode_to_display_mode(&preset->mode, mode);
 
 	pr_debug("%s %s done\n", __func__, preset->mode.name);
 	return 0;

@@ -946,7 +946,7 @@ static const struct hdmi_preset hdmi_conf_1080i50 = {
 static const struct hdmi_preset hdmi_conf_1080p50 = {
 	.mode = {
 		 .pixelclock = 148500000,
-		 .h_as = 1920, .h_sw = 44, .h_bp = 148, .h_fp = 88, .h_si = 0,
+		 .h_as = 1920, .h_sw = 44, .h_bp = 148, .h_fp = 528, .h_si = 0,
 		 .v_as = 1080, .v_sw = 5, .v_bp = 36, .v_fp = 4, .v_si = 0,
 		 .refresh = 50,
 		 .name = "1080p@50",
@@ -2360,60 +2360,70 @@ const struct hdmi_conf hdmi_conf[] = {
 	 .preset = &hdmi_conf_480p59_94,
 	 .format = &_format_2d,
 	 .phy_data = hdmiphy_preset_27,
-	 .support = true},
+	 .support = true,
+	},
 	{
 	 .preset = &hdmi_conf_480p60,
 	 .format = &_format_2d,
 	 .phy_data = hdmiphy_preset_27_027,
-	 .support = true},
+	 .support = true,
+	},
 	{
 	 .preset = &hdmi_conf_576p50,
 	 .format = &_format_2d,
 	 .phy_data = hdmiphy_preset_27,
-	 .support = true},
+	 .support = true,
+	},
 	{
 	 .preset = &hdmi_conf_720p50,
 	 .format = &_format_2d,
 	 .phy_data = hdmiphy_preset_74_25,
-	 .support = true},
+	 .support = true,
+	},
 	{
 	 .preset = &hdmi_conf_720p59_94,
 	 .format = &_format_2d,
 	 .phy_data = hdmiphy_preset_74_175,
-	 .support = true},
+	 .support = true,
+	},
 	{
 	 .preset = &hdmi_conf_720p60,
 	 .format = &_format_2d,
 	 .phy_data = hdmiphy_preset_74_25,
-	 .support = true},
+	 .support = true,
+	},
 	{
 	 .preset = &hdmi_conf_1080p24,
 	 .format = &_format_2d,
 	 .phy_data = hdmiphy_preset_74_25,
-	 .support = true},
+	 .support = true,
+	},
 	{
 	 .preset = &hdmi_conf_1080p50,
 	 .format = &_format_2d,
 	 .phy_data = hdmiphy_preset_148_5,
-	 .support = true},
+	 .support = true,
+	},
 	{
 	 .preset = &hdmi_conf_1080p59_94,
 	 .format = &_format_2d,
 	 .phy_data = hdmiphy_preset_148_352,
-	 .support = true},
+	 .support = true,
+	},
 	{
 	 .preset = &hdmi_conf_1080p60,
 	 .format = &_format_2d,
 	 .phy_data = hdmiphy_preset_148_5,
-	 .support = true},
+	 .support = true,
+	},
 	{
 	 .preset = &hdmi_conf_1080p60_sb_h,
 	 .format = &_format_sbh,
-	 },
+	},
 	{
 	 .preset = &hdmi_conf_1080p60_tb,
 	 .format = &_format_tb,
-	 },
+	},
 };
 
 const int num_hdmi_presets = ARRAY_SIZE(hdmi_conf);

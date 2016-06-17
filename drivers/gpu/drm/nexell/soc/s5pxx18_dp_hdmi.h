@@ -196,8 +196,8 @@ bool nx_dp_hdmi_is_connected(void);
 bool nx_dp_hdmi_mode_valid(struct videomode *vm, int refresh, int pixelclock);
 bool nx_dp_hdmi_mode_get(int width, int height, int refresh,
 			struct videomode *vm);
-int  nx_dp_hdmi_mode_set(struct nx_drm_device *display,
-			struct videomode *vm, int refresh, int pixelclock,
+int nx_dp_hdmi_mode_set(struct nx_drm_device *display,
+			struct drm_display_mode *mode, struct videomode *vm,
 			bool dvi_mode);
 int  nx_dp_hdmi_mode_commit(struct nx_drm_device *display, int crtc);
 void nx_dp_hdmi_power(struct nx_drm_device *display, bool on);
