@@ -284,6 +284,17 @@
 		}; /* regulators */
 	};	/*** soc ***/
 
+	panel: panel-simple {
+		compatible = "dongguan,gst7d0038";
+		enable-gpios = <&gpio_e 30 0>;
+		status = "okay";
+
+		port {
+			lvds_panel: endpoint {
+			};
+		};
+	};
+
 	i2c_gpio4: i2c@4 {
 		compatible = "i2c-gpio";
 		gpios = <&gpio_d 31 0	/* SDA */
@@ -504,4 +515,18 @@
 	ddc-i2c-bus = <&i2c_gpio7>;
 	enable-gpios = <&gpio_a 21 0>;
 	status = "ok";
+};
+
+&dp_drm_lvds {
+	status = "ok";
+
+	remote-endpoint = <&lvds_panel>;
+
+	dp_control {
+		clk_src_lv0 = <0>;
+		clk_div_lv0 = <16>;
+		clk_src_lv1 = <7>;
+		clk_div_lv1 = <1>;
+		out_format = <3>;
+	};
 };
