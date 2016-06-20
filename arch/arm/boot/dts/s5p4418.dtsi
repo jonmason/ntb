@@ -146,7 +146,7 @@
 			interrupts = <1 IRQ_GIC_PPI_PVT 0x304>;
 			compatible = "arm,cortex-a9-twd-timer";
 			reg = <0xf0000600 0x20>;
-			clocks = <&bclk>;
+			clocks = <&hclk>;
 		};
 
 		tieoff@c0011000 {
