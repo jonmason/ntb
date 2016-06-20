@@ -56,25 +56,41 @@
 			compatible = "arm,cortex-a9";
 			#cooling-cells = <2>;
 			reg = <0xa00>;
+			cpu-idle-states =<&CPU_SLEEP>;
+
 		};
 
 		cpu@1 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a9";
 			reg = <0xa01>;
+			cpu-idle-states =<&CPU_SLEEP>;
 		};
 
 		cpu@2 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a9";
 			reg = <0xa02>;
+			cpu-idle-states =<&CPU_SLEEP>;
 		};
 
 		cpu@3 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a9";
 			reg = <0xa03>;
+			cpu-idle-states =<&CPU_SLEEP>;
 		};
+
+		idle-states {
+			CPU_SLEEP: sleep {
+				compatible = "arm,idle-state";
+				arm,psci-suspend-param = <0x0000000>;
+				entry-latency-us = <150>;
+				exit-latency-us = <200>;
+				min-residency-us = <2000>;
+			};
+		};
+
 	};
 
 	scu:0xf0000000 {
