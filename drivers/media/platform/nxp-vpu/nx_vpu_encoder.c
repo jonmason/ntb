@@ -160,6 +160,9 @@ int NX_VpuEncSetSeqParam(struct nx_vpu_codec_inst *pInst,
 		pEncInfo->enc_codec_para.h263EncParam.h263AnnexTEnable = 1;
 	}
 
+	if (pSeqArg->enableAUDelimiter)
+		pEncInfo->enc_codec_para.avcEncParam.audEnable = 1;
+
 	NX_DbgMsg(INFO_MSG, ("NX_VpuEncSetSeqParam() information\n"));
 	NX_DbgMsg(INFO_MSG, ("Reloution : %d x %d\n",
 		pEncInfo->srcWidth, pEncInfo->srcHeight));
