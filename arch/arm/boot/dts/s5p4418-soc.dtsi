@@ -76,6 +76,12 @@ clocks {
 		clock-output-names = "pclk";
 	};
 
+	hclk: hclk {
+		#clock-cells = <0>;
+		clock-names = "sys-chclk";
+		clock-output-names = "hclk";
+	};
+
 	apb_pclk: apb_pclk {
 		#clock-cells = <0>;
 		clock-names = "sys-bbclk";
