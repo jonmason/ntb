@@ -50,6 +50,49 @@ static struct {
 	NULL,
 };
 
+
+static unsigned int convertmsblsb(uint32_t data, int bits)
+{
+	uint32_t result = 0;
+	uint32_t mask = 1;
+	int i = 0;
+
+	for (i = 0; i < bits ; i++) {
+		if (data & (1<<i))
+			result |= mask<<(bits-i-1);
+	}
+	return result;
+}
+
+static const char gst36Strtable[36] = {
+	'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+	'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
+	'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S',
+	'T', 'U', 'V', 'W', 'X', 'Y', 'Z'
+};
+
+static void lotid_num2string(uint32_t lotId, char str[6])
+{
+	uint32_t value[3];
+	uint32_t mad[3];
+
+	value[0] = lotId / 36;
+	mad[0] = lotId % 36;
+
+	value[1] = value[0] / 36;
+	mad[1] = value[0] % 36;
+
+	value[2] = value[1] / 36;
+	mad[2] = value[1]  % 36;
+
+	str[0] = 'N';
+	str[1] = gst36Strtable[value[2]];
+	str[2] = gst36Strtable[mad[2]];
+	str[3] = gst36Strtable[mad[1]];
+	str[4] = gst36Strtable[mad[0]];
+	str[5] = '\0';
+}
+
 void nx_ecid_set_base_address(void *base_address)
 {
 	__g_module_variables.pregister =
@@ -214,6 +257,8 @@ static int __init cpu_sys_id_setup(void)
 	struct kobject *kobj;
 	u32 uid[4] = {0, };
 	int ret = 0;
+	u32 lotid;
+	char strlotid[6];
 
 	nx_ecid_set_base_address(ioremap_nocache(PHY_BASEADDR_ECID_MODULE,
 						 0x1000));
@@ -234,7 +279,12 @@ static int __init cpu_sys_id_setup(void)
 	if (0 > nxp_cpu_id_ecid(uid))
 		pr_err("FAIL: ecid !!!\n");
 
+	lotid =  convertmsblsb(uid[0] & 0x1FFFFF, 21);
+	lotid_num2string(lotid, strlotid);
+
 	pr_info("ECID: %08x:%08x:%08x:%08x\n", uid[0], uid[1], uid[2], uid[3]);
+	pr_info("LOT ID : %s\n", strlotid);
+
 	return ret;
 }
 
