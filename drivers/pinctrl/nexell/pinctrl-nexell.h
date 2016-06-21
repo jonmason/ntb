@@ -111,7 +111,6 @@ struct nexell_pinctrl_drv_data;
  * @gpio_chip: GPIO chip of the bank.
  * @grange: linux gpio pin range supported by this bank.
  * @slock: spinlock protecting bank registers
- * @pm_save: saved register values during suspend
  */
 struct nexell_pin_bank {
 	u32		pctl_offset;
@@ -131,8 +130,6 @@ struct nexell_pin_bank {
 	struct pinctrl_gpio_range grange;
 	struct nexell_irq_chip *irq_chip;
 	spinlock_t slock;
-
-	u32 pm_save[PINCFG_TYPE_NUM + 1]; /* +1 to handle double CON registers*/
 };
 
 /**

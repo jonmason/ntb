@@ -1087,6 +1087,78 @@ static int nexell_pinctrl_probe(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+
+/**
+ * nexell_pinctrl_suspend_dev - save pinctrl state for suspend for a device
+ *
+ * Save data for all banks handled by this device.
+ */
+static void nexell_pinctrl_suspend_dev(
+	struct nexell_pinctrl_drv_data *drvdata)
+{
+	struct nexell_pin_ctrl *ctrl = drvdata->ctrl;
+
+	if (ctrl->suspend)
+		ctrl->suspend(drvdata);
+}
+
+/**
+ * nexell_pinctrl_resume_dev - restore pinctrl state from suspend for a device
+ *
+ * Restore one of the banks that was saved during suspend.
+ *
+ * We don't bother doing anything complicated to avoid glitching lines since
+ * we're called before pad retention is turned off.
+ */
+static void nexell_pinctrl_resume_dev(struct nexell_pinctrl_drv_data *drvdata)
+{
+	struct nexell_pin_ctrl *ctrl = drvdata->ctrl;
+
+	if (ctrl->resume)
+		ctrl->resume(drvdata);
+}
+
+/**
+ * nexell_pinctrl_suspend - save pinctrl state for suspend
+ *
+ * Save data for all banks across all devices.
+ */
+static int nexell_pinctrl_suspend(void)
+{
+	struct nexell_pinctrl_drv_data *drvdata;
+
+	list_for_each_entry(drvdata, &drvdata_list, node) {
+		nexell_pinctrl_suspend_dev(drvdata);
+	}
+
+	return 0;
+}
+
+/**
+ * nexell_pinctrl_resume - restore pinctrl state for suspend
+ *
+ * Restore data for all banks across all devices.
+ */
+static void nexell_pinctrl_resume(void)
+{
+	struct nexell_pinctrl_drv_data *drvdata;
+
+	list_for_each_entry_reverse(drvdata, &drvdata_list, node) {
+		nexell_pinctrl_resume_dev(drvdata);
+	}
+}
+
+#else
+#define nexell_pinctrl_suspend		NULL
+#define nexell_pinctrl_resume		NULL
+#endif
+
+static struct syscore_ops nexell_pinctrl_syscore_ops = {
+	.suspend	= nexell_pinctrl_suspend,
+	.resume		= nexell_pinctrl_resume,
+};
+
 static const struct of_device_id nexell_pinctrl_dt_match[] = {
 	{ .compatible = "nexell,s5p6818-pinctrl",
 		.data = (void *)s5pxx18_pin_ctrl },
@@ -1107,6 +1179,8 @@ static struct platform_driver nexell_pinctrl_driver = {
 
 static int __init nexell_pinctrl_drv_register(void)
 {
+	register_syscore_ops(&nexell_pinctrl_syscore_ops);
+
 	return platform_driver_register(&nexell_pinctrl_driver);
 }
 postcore_initcall(nexell_pinctrl_drv_register);

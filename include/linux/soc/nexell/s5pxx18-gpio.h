@@ -272,7 +272,6 @@ struct nx_gpio_reg_set {
 	u32 GPIOx_InputMuxSelect0;
 	/* 0x6C */
 	u32 GPIOx_InputMuxSelect1;
-	u8 __Reserved1[0x1000 - 0x70];
 };
 
 struct module_init_data {
@@ -329,42 +328,42 @@ struct nx_alive_reg_set {
 	/* 0x24 : Alive GPIO gFalling Edge Detect Mode gRead Register */
 	u32 ALIVEGPIOFALLDETECTMODEREADREG;
 
-	/* 0x28 : Alive GPIO Detect gMode Reset Register1 */
+	/* 0x28 : Alive GPIO Detect Mode Reset Register1 */
 	u32 ALIVEGPIODETECTMODERSTREG1;
-	/* 0x2C : Alive GPIO Detect gMode Reset Register1 */
+	/* 0x2C : Alive GPIO Detect Mode Reset Register1 */
 	u32 ALIVEGPIODETECTMODESETREG1;
-	/* 0x30 : Alive GPIO gRising Edge Detect Mode gRead Register */
+	/* 0x30 : Alive GPIO Rising Edge Detect Mode Read Register */
 	u32 ALIVEGPIORISEDETECTMODEREADREG;
 
-	/* 0x34 : Alive GPIO Detect gMode Reset Register2 */
+	/* 0x34 : Alive GPIO Detect Mode Reset Register2 */
 	u32 ALIVEGPIODETECTMODERSTREG2;
-	/* 0x38 : Alive GPIO Detect gMode Reset Register2 */
+	/* 0x38 : Alive GPIO Detect Mode Reset Register2 */
 	u32 ALIVEGPIODETECTMODESETREG2;
-	/* 0x3C : Alive GPIO Low gLevel Detect Mode Read gRegister */
+	/* 0x3C : Alive GPIO Low Level Detect Mode Read gRegister */
 	u32 ALIVEGPIOLOWDETECTMODEREADREG;
 
-	/* 0x40 : Alive GPIO Detect gMode Reset Register3 */
+	/* 0x40 : Alive GPIO Detect Mode Reset Register3 */
 	u32 ALIVEGPIODETECTMODERSTREG3;
-	/* 0x44 : Alive GPIO Detect gMode Reset Register3 */
+	/* 0x44 : Alive GPIO Detect Mode Reset Register3 */
 	u32 ALIVEGPIODETECTMODESETREG3;
-	/* 0x48 : Alive GPIO High gLevel Detect Mode Read gRegister */
+	/* 0x48 : Alive GPIO High Level Detect Mode Read gRegister */
 	u32 ALIVEGPIOHIGHDETECTMODEREADREG;
 
-	/* 0x4C : Alive GPIO Detect gEnable Reset Register */
+	/* 0x4C : Alive GPIO Detect Enable Reset Register */
 	u32 ALIVEGPIODETECTENBRSTREG;
-	/* 0x50 : Alive GPIO Detect gEnable Set Register */
+	/* 0x50 : Alive GPIO Detect Enable Set Register */
 	u32 ALIVEGPIODETECTENBSETREG;
-	/* 0x54 : Alive GPIO Detect gEnable Read Register */
+	/* 0x54 : Alive GPIO Detect Enable Read Register */
 	u32 ALIVEGPIODETECTENBREADREG;
 
-	/* 0x58 : Alive GPIO Interrupt gEnable Reset Register */
+	/* 0x58 : Alive GPIO Interrupt Enable Reset Register */
 	u32 ALIVEGPIOINTENBRSTREG;
-	/* 0x5C : Alive GPIO Interrupt gEnable Set Register */
+	/* 0x5C : Alive GPIO Interrupt Enable Set Register */
 	u32 ALIVEGPIOINTENBSETREG;
-	/* 0x60 : Alive GPIO Interrupt gEnable Read Register */
+	/* 0x60 : Alive GPIO Interrupt Enable Read Register */
 	u32 ALIVEGPIOINTENBREADREG;
 
-	/* 0x64 : Alive GPIO Detect gPending Register */
+	/* 0x64 : Alive GPIO Detect Pending Register */
 	u32 ALIVEGPIODETECTPENDREG;
 
 	/* 0x68 : Alive Scratch Reset Register */
@@ -374,25 +373,25 @@ struct nx_alive_reg_set {
 	/* 0x70 : Alive Scratch Read Register */
 	u32 ALIVESCRATCHREADREG;
 
-	/* 0x74 : Alive GPIO PAD Out gEnable Reset Register */
+	/* 0x74 : Alive GPIO PAD Out Enable Reset Register */
 	u32 ALIVEGPIOPADOUTENBRSTREG;
-	/* 0x78 : Alive GPIO PAD Out gEnable Set Register */
+	/* 0x78 : Alive GPIO PAD Out Enable Set Register */
 	u32 ALIVEGPIOPADOUTENBSETREG;
-	/* 0x7C : Alive GPIO PAD Out gEnable Read Register */
+	/* 0x7C : Alive GPIO PAD Out Enable Read Register */
 	u32 ALIVEGPIOPADOUTENBREADREG;
 
-	/* 0x80 : Alive GPIO PAD Pullup gReset Register */
+	/* 0x80 : Alive GPIO PAD Pullup Reset Register */
 	u32 ALIVEGPIOPADPULLUPRSTREG;
-	/* 0x84 : Alive GPIO PAD Pullup gSet Register */
+	/* 0x84 : Alive GPIO PAD Pullup Set Register */
 	u32 ALIVEGPIOPADPULLUPSETREG;
-	/* 0x88 : Alive GPIO PAD gPullup Read Register */
+	/* 0x88 : Alive GPIO PAD Pullup Read Register */
 	u32 ALIVEGPIOPADPULLUPREADREG;
 
 	/* 0x8C : Alive GPIO PAD Out Reset Register */
 	u32 ALIVEGPIOPADOUTRSTREG;
 	/* 0x90 : Alive GPIO PAD Out Set Register */
 	u32 ALIVEGPIOPADOUTSETREG;
-	/* 0x94 :    Alive GPIO PAD Out gRead Register */
+	/* 0x94 : Alive GPIO PAD Out Read Register */
 	u32 ALIVEGPIOPADOUTREADREG;
 
 	/*  0x98 : VDD Control Reset Register */
@@ -508,5 +507,11 @@ extern int nx_soc_alive_get_int_pend(unsigned int io);
 extern void nx_soc_alive_clr_int_pend(unsigned int io);
 
 extern int s5pxx18_gpio_device_init(struct list_head *banks, int nr_banks);
+
+extern int s5pxx18_gpio_suspend(int idx);
+extern int s5pxx18_gpio_resume(int idx);
+
+extern int s5pxx18_alive_suspend(void);
+extern int s5pxx18_alive_resume(void);
 
 #endif /* __S5Pxx18_GPIO_H */

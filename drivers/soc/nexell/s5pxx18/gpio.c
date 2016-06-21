@@ -26,9 +26,11 @@
 
 static struct {
 	struct nx_gpio_reg_set *gpio_regs;
+	struct nx_gpio_reg_set gpio_save;
 } gpio_modules[NUMBER_OF_GPIO_MODULE];
 
 static struct nx_alive_reg_set *alive_regs;
+static struct nx_alive_reg_set alive_saves;
 
 /*
  * start of nx_gpio
@@ -1645,6 +1647,189 @@ void nx_soc_alive_clr_int_pend(unsigned int io)
 	IO_LOCK(ALIVE_INDEX);
 	nx_alive_clear_interrupt_pending(bit);
 	IO_UNLOCK(ALIVE_INDEX);
+}
+
+int s5pxx18_gpio_suspend(int idx)
+{
+	struct nx_gpio_reg_set *reg;
+	struct nx_gpio_reg_set *gpio_save;
+
+	if (idx < 0 || idx >= NUMBER_OF_GPIO_MODULE)
+		return -ENXIO;
+
+	reg = gpio_modules[idx].gpio_regs;
+	gpio_save = &gpio_modules[idx].gpio_save;
+
+	gpio_save->GPIOxOUT = readl(&reg->GPIOxOUT);
+	gpio_save->GPIOxOUTENB = readl(&reg->GPIOxOUTENB);
+	gpio_save->GPIOxALTFN[0] = readl(&reg->GPIOxALTFN[0]);
+	gpio_save->GPIOxALTFN[1] = readl(&reg->GPIOxALTFN[1]);
+	gpio_save->GPIOxDETMODE[0] = readl(&reg->GPIOxDETMODE[0]);
+	gpio_save->GPIOxDETMODE[1] = readl(&reg->GPIOxDETMODE[1]);
+	gpio_save->GPIOxDETMODEEX = readl(&reg->GPIOxDETMODEEX);
+	gpio_save->GPIOxINTENB = readl(&reg->GPIOxINTENB);
+
+	gpio_save->GPIOx_SLEW = readl(&reg->GPIOx_SLEW);
+	gpio_save->GPIOx_SLEW_DISABLE_DEFAULT =
+		readl(&reg->GPIOx_SLEW_DISABLE_DEFAULT);
+	gpio_save->GPIOx_DRV1 = readl(&reg->GPIOx_DRV1);
+	gpio_save->GPIOx_DRV1_DISABLE_DEFAULT =
+		readl(&reg->GPIOx_DRV1_DISABLE_DEFAULT);
+	gpio_save->GPIOx_DRV0 = readl(&reg->GPIOx_DRV0);
+	gpio_save->GPIOx_DRV0_DISABLE_DEFAULT =
+		readl(&reg->GPIOx_DRV0_DISABLE_DEFAULT);
+	gpio_save->GPIOx_PULLSEL = readl(&reg->GPIOx_PULLSEL);
+	gpio_save->GPIOx_PULLSEL_DISABLE_DEFAULT =
+		readl(&reg->GPIOx_PULLSEL_DISABLE_DEFAULT);
+	gpio_save->GPIOx_PULLENB = readl(&reg->GPIOx_PULLENB);
+	gpio_save->GPIOx_PULLENB_DISABLE_DEFAULT =
+		readl(&reg->GPIOx_PULLENB_DISABLE_DEFAULT);
+
+	return 0;
+}
+
+int s5pxx18_gpio_resume(int idx)
+{
+	struct nx_gpio_reg_set *reg;
+	struct nx_gpio_reg_set *gpio_save;
+
+	if (idx < 0 || idx >= NUMBER_OF_GPIO_MODULE)
+		return -ENXIO;
+
+	reg = gpio_modules[idx].gpio_regs;
+	gpio_save = &gpio_modules[idx].gpio_save;
+
+	writel(gpio_save->GPIOx_SLEW, &reg->GPIOx_SLEW);
+	writel(gpio_save->GPIOx_SLEW_DISABLE_DEFAULT,
+		&reg->GPIOx_SLEW_DISABLE_DEFAULT);
+	writel(gpio_save->GPIOx_DRV1, &reg->GPIOx_DRV1);
+	writel(gpio_save->GPIOx_DRV1_DISABLE_DEFAULT,
+		&reg->GPIOx_DRV1_DISABLE_DEFAULT);
+	writel(gpio_save->GPIOx_DRV0, &reg->GPIOx_DRV0);
+	writel(gpio_save->GPIOx_DRV0_DISABLE_DEFAULT,
+		&reg->GPIOx_DRV0_DISABLE_DEFAULT);
+	writel(gpio_save->GPIOx_PULLSEL, &reg->GPIOx_PULLSEL);
+	writel(gpio_save->GPIOx_PULLSEL_DISABLE_DEFAULT,
+		&reg->GPIOx_PULLSEL_DISABLE_DEFAULT);
+	writel(gpio_save->GPIOx_PULLENB, &reg->GPIOx_PULLENB);
+	writel(gpio_save->GPIOx_PULLENB_DISABLE_DEFAULT,
+		&reg->GPIOx_PULLENB_DISABLE_DEFAULT);
+
+	writel(gpio_save->GPIOxOUTENB, &reg->GPIOxOUTENB);
+	writel(gpio_save->GPIOxOUT, &reg->GPIOxOUT);
+	writel(gpio_save->GPIOxALTFN[0], &reg->GPIOxALTFN[0]);
+	writel(gpio_save->GPIOxALTFN[1], &reg->GPIOxALTFN[1]);
+	writel(gpio_save->GPIOxDETMODE[0], &reg->GPIOxDETMODE[0]);
+	writel(gpio_save->GPIOxDETMODE[1], &reg->GPIOxDETMODE[1]);
+	writel(gpio_save->GPIOxDETMODEEX, &reg->GPIOxDETMODEEX);
+	writel(gpio_save->GPIOxINTENB, &reg->GPIOxINTENB);
+	writel(gpio_save->GPIOxINTENB, &reg->GPIOxDETENB);/* DETECT ENABLE */
+	writel((u32)0xFFFFFFFF, &reg->GPIOxDET);	/* CLEAR PENDING */
+
+	return 0;
+}
+
+int s5pxx18_alive_suspend(void)
+{
+	struct nx_alive_reg_set *reg;
+	struct nx_alive_reg_set *alive_save;
+
+	reg = alive_regs;
+	alive_save = &alive_saves;
+
+	nx_alive_set_write_enable(true);
+
+	alive_save->ALIVEGPIOLOWASYNCDETECTMODEREADREG =
+		readl(&reg->ALIVEGPIOLOWASYNCDETECTMODEREADREG);
+	alive_save->ALIVEGPIOHIGHASYNCDETECTMODEREADREG =
+		readl(&reg->ALIVEGPIOHIGHASYNCDETECTMODEREADREG);
+	alive_save->ALIVEGPIOFALLDETECTMODEREADREG =
+		readl(&reg->ALIVEGPIOFALLDETECTMODEREADREG);
+	alive_save->ALIVEGPIORISEDETECTMODEREADREG =
+		readl(&reg->ALIVEGPIORISEDETECTMODEREADREG);
+	alive_save->ALIVEGPIOLOWDETECTMODEREADREG =
+		readl(&reg->ALIVEGPIOLOWDETECTMODEREADREG);
+	alive_save->ALIVEGPIOHIGHDETECTMODEREADREG =
+		readl(&reg->ALIVEGPIOHIGHDETECTMODEREADREG);
+
+	alive_save->ALIVEGPIODETECTENBREADREG =
+		readl(&reg->ALIVEGPIODETECTENBREADREG);
+	alive_save->ALIVEGPIOINTENBREADREG =
+		readl(&reg->ALIVEGPIOINTENBREADREG);
+	alive_save->ALIVEGPIOPADOUTENBREADREG =
+		readl(&reg->ALIVEGPIOPADOUTENBREADREG);
+	alive_save->ALIVEGPIOPADOUTREADREG =
+		readl(&reg->ALIVEGPIOPADOUTREADREG);
+	alive_save->ALIVEGPIOPADPULLUPREADREG
+		= readl(&reg->ALIVEGPIOPADPULLUPREADREG);
+
+	return 0;
+}
+
+int s5pxx18_alive_resume(void)
+{
+	struct nx_alive_reg_set *reg;
+	struct nx_alive_reg_set *alive_save;
+
+	reg = alive_regs;
+	alive_save = &alive_saves;
+
+	nx_alive_set_write_enable(true);
+
+	/* clear and set */
+	if (alive_save->ALIVEGPIOPADOUTENBREADREG !=
+			readl(&reg->ALIVEGPIOPADOUTENBREADREG)) {
+		writel((u32)0xFFFFFFFF, &reg->ALIVEGPIOPADOUTENBRSTREG);
+		writel(alive_save->ALIVEGPIOPADOUTENBREADREG,
+				&reg->ALIVEGPIOPADOUTENBSETREG);
+	}
+	if (alive_save->ALIVEGPIOPADOUTREADREG !=
+			readl(&reg->ALIVEGPIOPADOUTREADREG)) {
+		writel((u32)0xFFFFFFFF, &reg->ALIVEGPIOPADOUTRSTREG);
+		writel(alive_save->ALIVEGPIOPADOUTREADREG,
+				&reg->ALIVEGPIOPADOUTSETREG);
+	}
+	if (alive_save->ALIVEGPIOPADPULLUPREADREG !=
+			readl(&reg->ALIVEGPIOPADPULLUPREADREG)) {
+		writel((u32)0xFFFFFFFF, &reg->ALIVEGPIOPADPULLUPRSTREG);
+		writel(alive_save->ALIVEGPIOPADPULLUPREADREG,
+				&reg->ALIVEGPIOPADPULLUPSETREG);
+	}
+
+	writel((u32)0xFFFFFFFF, &reg->ALIVEGPIODETECTENBRSTREG);
+	writel((u32)0xFFFFFFFF, &reg->ALIVEGPIOINTENBRSTREG);
+
+
+	writel((u32)0xFFFFFFFF, &reg->ALIVEGPIOASYNCDETECTMODERSTREG0);
+	writel(alive_save->ALIVEGPIOLOWASYNCDETECTMODEREADREG,
+				&reg->ALIVEGPIOASYNCDETECTMODESETREG0);
+
+	writel((u32)0xFFFFFFFF, &reg->ALIVEGPIOASYNCDETECTMODERSTREG1);
+	writel(alive_save->ALIVEGPIOHIGHASYNCDETECTMODEREADREG,
+				&reg->ALIVEGPIOASYNCDETECTMODESETREG1);
+
+	writel((u32)0xFFFFFFFF, &reg->ALIVEGPIODETECTMODERSTREG0);
+	writel(alive_save->ALIVEGPIOFALLDETECTMODEREADREG,
+				&reg->ALIVEGPIODETECTMODESETREG0);
+
+	writel((u32)0xFFFFFFFF, &reg->ALIVEGPIODETECTMODERSTREG1);
+	writel(alive_save->ALIVEGPIORISEDETECTMODEREADREG,
+				&reg->ALIVEGPIODETECTMODESETREG1);
+
+	writel((u32)0xFFFFFFFF, &reg->ALIVEGPIODETECTMODERSTREG2);
+	writel(alive_save->ALIVEGPIOLOWDETECTMODEREADREG,
+				&reg->ALIVEGPIODETECTMODESETREG2);
+
+	writel((u32)0xFFFFFFFF, &reg->ALIVEGPIODETECTMODERSTREG3);
+	writel(alive_save->ALIVEGPIOHIGHDETECTMODEREADREG,
+				&reg->ALIVEGPIODETECTMODESETREG3);
+
+	writel(alive_save->ALIVEGPIODETECTENBREADREG,
+				&reg->ALIVEGPIODETECTENBSETREG);
+	writel(alive_save->ALIVEGPIOINTENBREADREG,
+				&reg->ALIVEGPIOINTENBSETREG);
+
+	return 0;
 }
 
 int s5pxx18_gpio_device_init(struct list_head *banks, int nr_banks)

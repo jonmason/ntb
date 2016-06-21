@@ -443,7 +443,7 @@ static irqreturn_t s5pxx18_alive_irq_handler(int irq, void *data)
 	bit = ffs(stat) - 1;
 
 	if (-1 == bit) {
-		pr_err("Unknown gpio irq=%d, status=0x%08x, mask=0x%08x\r\n",
+		pr_err("Unknown alive irq=%d, status=0x%08x, mask=0x%08x\r\n",
 		       irq, stat, mask);
 		writel(-1, (base + ALIVE_INT_STATUS)); /* clear alive status */
 		return IRQ_NONE;
@@ -529,6 +529,50 @@ err_domains:
 	return ret;
 }
 
+static void s5pxx18_suspend(struct nexell_pinctrl_drv_data *drvdata)
+{
+	struct nexell_pin_ctrl *ctrl = drvdata->ctrl;
+	int nr_banks = ctrl->nr_banks;
+	int i;
+
+	for (i = 0; i < nr_banks; i++) {
+		struct nexell_pin_bank *bank = &ctrl->pin_banks[i];
+
+		if (bank->eint_type == EINT_TYPE_WKUP) {
+			s5pxx18_alive_suspend();
+			continue;
+		}
+
+		if (bank->eint_type != EINT_TYPE_GPIO)
+			continue;
+
+		if (s5pxx18_gpio_suspend(i) < 0)
+			dev_err(drvdata->dev, "failed to suspend bank %d\n", i);
+	}
+}
+
+static void s5pxx18_resume(struct nexell_pinctrl_drv_data *drvdata)
+{
+	struct nexell_pin_ctrl *ctrl = drvdata->ctrl;
+	int nr_banks = ctrl->nr_banks;
+	int i;
+
+	for (i = 0; i < nr_banks; i++) {
+		struct nexell_pin_bank *bank = &ctrl->pin_banks[i];
+
+		if (bank->eint_type == EINT_TYPE_WKUP) {
+			s5pxx18_alive_resume();
+			continue;
+		}
+
+		if (bank->eint_type != EINT_TYPE_GPIO)
+			continue;
+
+		if (s5pxx18_gpio_resume(i) < 0)
+			dev_err(drvdata->dev, "failed to resume bank %d\n", i);
+	}
+}
+
 static int s5pxx18_base_init(struct nexell_pinctrl_drv_data *drvdata)
 {
 	struct nexell_pin_ctrl *ctrl = drvdata->ctrl;
@@ -586,5 +630,7 @@ const struct nexell_pin_ctrl s5pxx18_pin_ctrl[] = {
 		.base_init = s5pxx18_base_init,
 		.gpio_irq_init = s5pxx18_gpio_irq_init,
 		.alive_irq_init = s5pxx18_alive_irq_init,
+		.suspend = s5pxx18_suspend,
+		.resume = s5pxx18_resume,
 	}
 };
