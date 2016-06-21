@@ -69,8 +69,9 @@ static bool panel_lcd_is_connected(struct device *dev,
 	struct device_node *panel_node = panel->panel_node;
 		enum dp_panel_type panel_type = dp_panel_get_type(ctx->display);
 
-	DRM_DEBUG_KMS("enter panel %s\n",
-		panel_node ? "exist" : "not exist");
+	DRM_DEBUG_KMS("%s panel node %s\n",
+		dp_panel_type_name(panel_type), panel_node ?
+		"exist" : "not exist");
 
 	if (panel_node) {
 		struct drm_panel *drm_panel = of_drm_find_panel(panel_node);
@@ -97,26 +98,34 @@ static bool panel_lcd_is_connected(struct device *dev,
 			}
 			panel->check_panel = true;
 
-			DRM_INFO("%s: status %s\n",
+			DRM_INFO("%s: check panel %s\n",
 				dp_panel_type_name(panel_type),
-				panel->is_connected ? "connect" : "disconnect");
+				panel->is_connected ?
+				"connected" : "disconnected");
 
 			return panel->is_connected;
 		}
+
+		/*
+		 * builded with module (.ko file).
+		 */
+		DRM_DEBUG_KMS("Not find panel driver for %s ...\n",
+			dp_panel_type_name(panel_type));
+		return true;
 	}
 
 	if (!panel_node && false == ctx->local_timing) {
-
 		DRM_ERROR("not exist %s panel & timing %s !\n",
 			dp_panel_type_name(panel_type), dev_name(dev));
-
 		return false;
 	}
 
 	/*
-	 * if not attached panel,
-	 * set with DT's timing node.
+	 * support DT's timing node
+	 * when not use panel driver
 	 */
+	panel->is_connected = true;
+
 	return true;
 }
 

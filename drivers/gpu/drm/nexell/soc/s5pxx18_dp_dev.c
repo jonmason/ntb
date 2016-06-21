@@ -83,6 +83,19 @@ static inline unsigned int R3G3B2toR8G8B8(u8 RGB)
 	return R8B8G8;
 }
 
+static inline void dp_wait_vblank_done(int module, int layer)
+{
+	bool on = nx_mlc_get_layer_enable(module, layer);
+	int count = 20000;
+
+	while (on) {
+		bool dflag = nx_mlc_get_dirty_flag(module, layer);
+
+		if (0 > --count || !dflag)
+			break;
+	}
+}
+
 static inline void dp_plane_adjust(int module, int layer, bool now)
 {
 	if (now)
@@ -242,6 +255,10 @@ int nx_soc_dp_rgb_set_format(struct dp_plane_layer *layer,
 	pr_debug("%s: %s, fmt:0x%x, pixel=%d\n",
 		 __func__, layer->name, format, pixelbyte);
 
+	if (layer->format == format &&
+		layer->pixelbyte == pixelbyte)
+		return 0;
+
 	layer->format = format;
 	layer->pixelbyte = pixelbyte;
 
@@ -282,10 +299,23 @@ int nx_soc_dp_rgb_set_position(struct dp_plane_layer *layer,
 	int sw = src_w;
 	int sh = src_h;
 
+	if (layer->left == sx && layer->top == sy &&
+		layer->width == sw && layer->height == sh)
+		return 0;
+
+	if (layer->dst_left == dst_x && layer->dst_top == dst_y &&
+		layer->dst_width == dst_w && layer->dst_height == dst_h)
+		return 0;
+
 	layer->left = sx;
 	layer->top = sy;
 	layer->width = sw;
 	layer->height = sh;
+
+	layer->dst_left = dst_x;
+	layer->dst_top = dst_y;
+	layer->dst_width = dst_w;
+	layer->dst_height = dst_h;
 
 	pr_debug("%s: %s, (%d, %d, %d, %d) to (%d, %d, %d, %d) adjust=%d\n",
 		 __func__, layer->name, sx, sy, sw, sh,
@@ -294,6 +324,7 @@ int nx_soc_dp_rgb_set_position(struct dp_plane_layer *layer,
 	nx_mlc_set_position(module, num, dst_x, dst_y,
 		dst_x + sw - 1, dst_y + sh - 1);
 	dp_plane_adjust(module, num, adjust);
+
 	return 0;
 }
 
@@ -310,6 +341,9 @@ void nx_soc_dp_rgb_set_address(struct dp_plane_layer *layer,
 	pr_debug("%s: %s, pa=0x%x, hs=%d, vs=%d, adjust=%d\n",
 		__func__, layer->name, phys, pixelbyte, stride, adjust);
 
+	if (adjust)
+		dp_wait_vblank_done(module, num);
+
 	nx_mlc_set_rgblayer_stride(module, num, pixelbyte, stride);
 	nx_mlc_set_rgblayer_address(module, num, phys);
 	dp_plane_adjust(module, num, adjust);
@@ -324,9 +358,12 @@ void nx_soc_dp_rgb_set_enable(struct dp_plane_layer *layer,
 	pr_debug("%s: %s, %s\n",
 		__func__, layer->name, on ? "on" : "off");
 
+	if (on != layer->enable) {
+		nx_mlc_set_layer_enable(module, num, (on ? 1 : 0));
+		dp_plane_adjust(module, num, adjust);
+	}
+
 	layer->enable = on;
-	nx_mlc_set_layer_enable(module, num, (on ? 1 : 0));
-	dp_plane_adjust(module, num, adjust);
 }
 
 void nx_soc_dp_rgb_set_color(struct dp_plane_layer *layer,
@@ -403,6 +440,9 @@ int nx_soc_dp_video_set_format(struct dp_plane_layer *layer,
 {
 	int module = layer->module;
 
+	if (layer->format == format)
+		return 0;
+
 	layer->format = format;
 
 	pr_debug("%s: %s, format=0x%x\n",
@@ -426,10 +466,23 @@ int nx_soc_dp_video_set_position(struct dp_plane_layer *layer,
 	int dw = dst_w, dh = dst_h;
 	int hf = 1, vf = 1;
 
+	if (layer->left == sx && layer->top == sy &&
+		layer->width == sw && layer->height == sh)
+		return 0;
+
+	if (layer->dst_left == dst_x && layer->dst_top == dst_y &&
+		layer->dst_width == dst_w && layer->dst_height == dst_h)
+		return 0;
+
 	layer->left = sx;
 	layer->top = sy;
 	layer->width = sw;
 	layer->height = sh;
+
+	layer->dst_left = dst_x;
+	layer->dst_top = dst_y;
+	layer->dst_width = dst_w;
+	layer->dst_height = dst_h;
 
 	pr_debug("%s: %s, (%d, %d, %d, %d) to (%d, %d, %d, %d) adjust=%d\n",
 		 __func__, layer->name, sx, sy, sw, sh,
@@ -502,6 +555,9 @@ void nx_soc_dp_video_set_address_3plane(struct dp_plane_layer *layer,
 	pr_debug("%s: %s, lu:0x%x,%d, cb:0x%x,%d, cr:0x%x,%d\n",
 		__func__, layer->name, lu_a, lu_s, cb_a, cb_s, cr_a, cr_s);
 
+	if (adjust)
+		dp_wait_vblank_done(module, LAYER_VIDEO);
+
 	nx_mlc_set_video_layer_stride(module, lu_s, cb_s, cr_s);
 	nx_mlc_set_video_layer_address(module, lu_a, cb_a, cr_a);
 	dp_plane_adjust(module, LAYER_VIDEO, adjust);
@@ -516,6 +572,9 @@ void nx_soc_dp_video_set_enable(struct dp_plane_layer *layer,
 	pr_debug("%s: %s, %s\n", __func__, layer->name, on ? "on" : "off");
 
 	layer->enable = on;
+
+	if (adjust)
+		dp_wait_vblank_done(module, LAYER_VIDEO);
 
 	if (on) {
 		nx_mlc_set_video_layer_line_buffer_power_mode(module, 1);

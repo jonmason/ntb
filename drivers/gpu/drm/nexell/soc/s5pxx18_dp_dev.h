@@ -257,6 +257,7 @@ struct dp_plane_layer {
 	enum dp_plane_type type;
 	unsigned int format;
 
+	/* source */
 	int left;
 	int top;
 	int width;
@@ -266,6 +267,12 @@ struct dp_plane_layer {
 	unsigned int h_filter;
 	unsigned int v_filter;
 	int enable;
+
+	/* target */
+	int dst_left;
+	int dst_top;
+	int dst_width;
+	int dst_height;
 
 	/* color */
 	union {

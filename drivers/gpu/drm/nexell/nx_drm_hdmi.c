@@ -276,7 +276,7 @@ static struct nx_drm_ops panel_hdmi_ops = {
 	.dpms = panel_hdmi_dmps,
 };
 
-static struct nx_drm_device lcd_dp_dev = {
+static struct nx_drm_device hdmi_dp_dev = {
 	.ops = &panel_hdmi_ops,
 };
 
@@ -549,7 +549,7 @@ static int panel_hdmi_probe(struct platform_device *pdev)
 	if (IS_ERR(ctx))
 		return -ENOMEM;
 
-	ctx->display = &lcd_dp_dev;
+	ctx->display = &hdmi_dp_dev;
 	ctx->display->dev = dev;
 
 	spin_lock_init(&ctx->lock);

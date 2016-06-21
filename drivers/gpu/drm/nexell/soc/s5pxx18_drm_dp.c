@@ -595,7 +595,7 @@ void nx_drm_dp_crtc_commit(struct drm_crtc *crtc)
 	nx_soc_dp_rgb_set_color(layer,
 		dp_color_transp, top->color_key, true, false);
 
-	nx_soc_dp_rgb_set_address(layer, paddr, pixel, hstride, false);
+	nx_soc_dp_rgb_set_address(layer, paddr, pixel, hstride, true);
 	nx_soc_dp_rgb_set_enable(layer, true, true);
 }
 
