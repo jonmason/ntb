@@ -17,7 +17,29 @@
  */
 
 #include <linux/of_platform.h>
+#include <linux/reboot.h>
 #include <asm/mach/arch.h>
+#include <linux/io.h>
+
+#define PHYS_BASE_CLKPWR	0xC0010000
+#define ALIVE_GATE	0x800
+#define PWR_CONT	0x224
+#define PWR_MODE	0x228
+
+#define SW_RESET_EN	(1<<3)
+#define SW_RESET	(1<<12)
+
+void s5p4418_reboot(enum reboot_mode mode, const char *cmd)
+{
+	static void __iomem *base;
+
+	base = ioremap(PHYS_BASE_CLKPWR, 0x1000);
+
+	__raw_writel(0, base + ALIVE_GATE);
+	__raw_writel(SW_RESET_EN, base + PWR_CONT);
+	__raw_writel(SW_RESET, base + PWR_MODE);
+
+}
 
 static void __init cpu_init_machine(void)
 {
@@ -37,5 +59,6 @@ DT_MACHINE_START(S5P4418, "s5p4418")
 	.l2c_aux_mask	= 0xfc000fff,
 	.init_machine	= cpu_init_machine,
 	.dt_compat	= cpu_dt_compat,
+	.restart	= s5p4418_reboot,
 MACHINE_END
 
