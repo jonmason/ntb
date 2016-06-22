@@ -103,7 +103,7 @@ static void ntfs_end_buffer_async_read(struct buffer_head *bh, int uptodate)
 	} else {
 		clear_buffer_uptodate(bh);
 		SetPageError(page);
-		ntfs_error(ni->vol->sb, "Buffer I/O error, logical block "
+		ntfs_warning(ni->vol->sb, "Buffer I/O error, logical block "
 				"0x%llx.", (unsigned long long)bh->b_blocknr);
 	}
 	first = page_buffers(page);
