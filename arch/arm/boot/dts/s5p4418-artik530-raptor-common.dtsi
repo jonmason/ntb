@@ -47,6 +47,7 @@
 		i2c7 = &i2c_gpio7;
 		i2c8 = &i2c_gpio8;
 		i2c9 = &i2c_gpio9;
+		i2c10 = &i2c_gpio10;
 	};
 
 	nx-v4l2 {
@@ -409,6 +410,16 @@
 		};
 	};
 
+	i2c_gpio10: i2c@10 {
+		compatible = "i2c-gpio";
+		gpios = <&gpio_b 18 0	/* sda */
+			&gpio_b 11 0	/* scl */
+			>;
+		i2c-gpio,delay-us = <3>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+	};
 
 	sound {
 		compatible = "nexell,nexell-alc5658";
