@@ -208,10 +208,8 @@ static int nx_i2c_stop_scl(struct nx_i2c_param *par)
 	ICCR = (1<<ICCR_IRQ_CLR_POS);
 	writel(ICCR, (base+I2C_ICCR_OFFS));
 
-	gpio_request(gpio, NULL);
 	gpio_direction_input(gpio);
 	if (!gpio_get_value(gpio)) {
-		pinctrl_select_state(par->pctrl, par->pins_gpio_mode);
 		gpio_direction_output(gpio, 1);
 		start = jiffies;
 		while (!gpio_get_value(gpio)) {
@@ -226,7 +224,6 @@ static int nx_i2c_stop_scl(struct nx_i2c_param *par)
 	}
 
 _stop_timeout:
-	pinctrl_select_state(par->pctrl, par->pins_dft_mode);
 	return ret;
 }
 
@@ -236,10 +233,11 @@ static inline void nx_i2c_stop_dev(struct nx_i2c_param *par, int nostop,
 	void __iomem *base = par->hw.base_addr;
 	unsigned int ICSR = 0, ICCR = 0;
 	int delay = par->sda_delay;
+	unsigned long flags;
 
+	spin_lock_irqsave(&par->lock, flags);
 	if (!nostop) {
 		pinctrl_select_state(par->pctrl, par->pins_gpio_mode);
-		gpio_request(par->hw.sda_io, NULL);	/* gpio_Request */
 		gpio_direction_output(par->hw.sda_io, 0); /* SDA LOW */
 		udelay(delay);
 		nx_i2c_stop_scl(par);
@@ -248,10 +246,8 @@ static inline void nx_i2c_stop_dev(struct nx_i2c_param *par, int nostop,
 		pinctrl_select_state(par->pctrl, par->pins_dft_mode);
 	} else {
 		pinctrl_select_state(par->pctrl, par->pins_gpio_mode);
-		gpio_request(par->hw.sda_io, NULL);	 /* gpio_Request */
 		gpio_direction_output(par->hw.sda_io, 1); /* SDA LOW */
 		udelay(delay);
-		gpio_request(par->hw.scl_io, NULL);	 /* gpio_Request */
 		gpio_direction_output(par->hw.scl_io, 1); /* SDA LOW */
 		ICSR = par->trans_mode << ICSR_MOD_SEL_POS;
 		writel(ICSR, (base+I2C_ICSR_OFFS));
@@ -260,6 +256,7 @@ static inline void nx_i2c_stop_dev(struct nx_i2c_param *par, int nostop,
 		writel(ICCR, (base+I2C_ICCR_OFFS));
 		pinctrl_select_state(par->pctrl, par->pins_dft_mode);
 	}
+	spin_unlock_irqrestore(&par->lock, flags);
 }
 
 static inline void nx_i2c_wait_dev(struct nx_i2c_param *par, int wait)
@@ -551,8 +548,6 @@ static int nx_i2c_algo_xfer(struct i2c_adapter *adapter, struct i2c_msg *msgs,
 	int delay = par->retry_delay;
 	int  (*transfer_i2c)(struct nx_i2c_param *, struct i2c_msg *, int);
 
-	pinctrl_select_state(par->pctrl, par->pins_dft_mode);
-
 	transfer_i2c = nx_i2c_transfer;
 	par->running = 1;
 	par->irq_count = 0;
@@ -744,6 +739,9 @@ static int nx_i2c_probe(struct platform_device *pdev)
 	par->adapter.dev.parent	= &pdev->dev;
 	par->adapter.dev.of_node = pdev->dev.of_node;
 
+	devm_gpio_request(&pdev->dev, par->hw.sda_io, NULL);
+	devm_gpio_request(&pdev->dev, par->hw.scl_io, NULL);
+
 	par->pctrl = devm_pinctrl_get(&pdev->dev);
 
 	par->pins_dft_mode = pinctrl_lookup_state(par->pctrl, "default");
@@ -771,7 +769,6 @@ static int nx_i2c_remove(struct platform_device *pdev)
 {
 	struct nx_i2c_param *par = platform_get_drvdata(pdev);
 	int irq = par->hw.irqno;
-
 #ifdef CONFIG_RESET_CONTROLLER
 	struct reset_control *rst;
 
