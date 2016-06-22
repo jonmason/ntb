@@ -86,8 +86,7 @@
 
 		idle-states {
 			CPU_SLEEP: sleep {
-				compatible = "arm,idle-state";
-				arm,psci-suspend-param = <0x0000000>;
+				compatible = "nexell,idle-state";
 				entry-latency-us = <150>;
 				exit-latency-us = <200>;
 				min-residency-us = <2000>;
