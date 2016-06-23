@@ -28,4 +28,7 @@ struct nxp_cpufreq_plat_data {
 	char *supply_name;		/* voltage regulator name */
 	long supply_delay_us;
 };
+
+void nx_pll_set_rate(int PLL, int P, int M, int S);
+
 #endif
