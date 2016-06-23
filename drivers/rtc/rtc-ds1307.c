@@ -857,6 +857,8 @@ static int ds1307_check_inittime(struct i2c_client *client)
 	struct device_node *node = client->dev.of_node;
 	struct rtc_time hw_tm;
 	struct rtc_time init_tm;
+	int hw_comp_time;
+	int init_comp_time;
 	int ret;
 
 	memset(&init_tm, 0, sizeof(struct rtc_time));
@@ -892,13 +894,12 @@ static int ds1307_check_inittime(struct i2c_client *client)
 			return ret;
 	}
 
-	if (hw_tm.tm_year < init_tm.tm_year)
-		return ds1307_set_time(dev, &init_tm);
+	hw_comp_time = (hw_tm.tm_year << 16) |
+		hw_tm.tm_mon << 8 | hw_tm.tm_mday;
+	init_comp_time = (init_tm.tm_year << 16) |
+		init_tm.tm_mon << 8 | init_tm.tm_mday;
 
-	if (hw_tm.tm_mon < init_tm.tm_mon)
-		return ds1307_set_time(dev, &init_tm);
-
-	if (hw_tm.tm_mday < init_tm.tm_mday)
+	if (hw_comp_time < init_comp_time)
 		return ds1307_set_time(dev, &init_tm);
 
 	return 0;
