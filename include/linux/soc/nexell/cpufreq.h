@@ -31,4 +31,9 @@ struct nxp_cpufreq_plat_data {
 
 void nx_pll_set_rate(int PLL, int P, int M, int S);
 
+/* BUS CLOCK */
+#define NX_BUS_CLK_HIGH_KHZ     400000
+#define NX_BUS_CLK_MID_KHZ      260000
+#define NX_BUS_CLK_LOW_KHZ      210000
+
 #endif
