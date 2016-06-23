@@ -41,6 +41,10 @@
 
 #include <dt-bindings/media/nexell-vip.h>
 
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+#include <linux/soc/nexell/cpufreq.h>
+#endif
+
 #include "../nx-v4l2.h"
 #include "../nx-video.h"
 #include "nx-vip-primitive.h"
@@ -1036,6 +1040,10 @@ static int nx_clipper_s_stream(struct v4l2_subdev *sd, int enable)
 				me->crop.height = me->height;
 			}
 
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+			nx_bus_qos_update(NX_BUS_CLK_HIGH_KHZ);
+#endif
+
 			set_vip(me);
 			ret = enable_sensor_power(me, true);
 			if (ret) {
@@ -1098,6 +1106,11 @@ static int nx_clipper_s_stream(struct v4l2_subdev *sd, int enable)
 			v4l2_subdev_call(remote, video, s_stream, 0);
 			enable_sensor_power(me, false);
 			NX_ATOMIC_CLEAR_MASK(STATE_CLIP_RUNNING, &me->state);
+
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+			nx_bus_qos_update(NX_BUS_CLK_LOW_KHZ);
+#endif
+
 #ifndef CONFIG_VIDEO_NEXELL_CLIPPER
 		}
 #endif
