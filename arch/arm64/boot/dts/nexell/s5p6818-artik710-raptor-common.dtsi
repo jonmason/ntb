@@ -54,7 +54,7 @@
 	};
 
 	nx-devfreq {
-		pll = <1>;
+		pll = <0>;
 		status = "okay";
 	};
 
