@@ -31,6 +31,10 @@
 #include <linux/reset.h>
 #endif
 
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+#include <linux/soc/nexell/cpufreq.h>
+#endif
+
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
@@ -617,12 +621,22 @@ static int nx_i2s_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 	case SNDRV_PCM_TRIGGER_START:
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+		snd_pcm_stream_unlock_irq(substream);
+		nx_bus_qos_update(NX_BUS_CLK_MID_KHZ);
+		snd_pcm_stream_lock_irq(substream);
+#endif
 		i2s_start(dai, stream);
 		break;
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 	case SNDRV_PCM_TRIGGER_STOP:
 		i2s_stop(dai, stream);
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+		snd_pcm_stream_unlock_irq(substream);
+		nx_bus_qos_update(NX_BUS_CLK_LOW_KHZ);
+		snd_pcm_stream_lock_irq(substream);
+#endif
 		break;
 
 	default:
