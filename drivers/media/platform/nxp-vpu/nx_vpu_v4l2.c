@@ -35,6 +35,10 @@
 #include <media/v4l2-mem2mem.h>
 #include <media/videobuf2-dma-contig.h>
 
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+#include <linux/soc/nexell/cpufreq.h>
+#endif
+
 #include "nx_vpu_v4l2.h"
 #include "vpu_hw_interface.h"
 
@@ -932,8 +936,8 @@ static int nx_vpu_open(struct file *file)
 	if (dev->cur_num_instance == 0) {
 		dev->curr_ctx = ctx->idx;
 
-#ifdef CONFIG_NEXELL_DFS_BCLK
-		bclk_get(BCLK_USER_MPEG);
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+		nx_bus_qos_update(NX_BUS_CLK_HIGH_KHZ);
 #endif
 
 		NX_VPU_Clock(1);
@@ -992,8 +996,8 @@ static int nx_vpu_close(struct file *file)
 		NX_VPU_Clock(1);
 		NX_VpuDeInit(dev);
 
-#ifdef CONFIG_NEXELL_DFS_BCLK
-		bclk_put(BCLK_USER_MPEG);
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+		nx_bus_qos_update(NX_BUS_CLK_LOW_KHZ);
 #endif
 	}
 #endif
