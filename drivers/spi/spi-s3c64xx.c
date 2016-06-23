@@ -30,6 +30,10 @@
 
 #include <linux/platform_data/spi-s3c64xx.h>
 
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+#include <linux/soc/nexell/cpufreq.h>
+#endif
+
 #define MAX_SPI_PORTS		6
 #define S3C64XX_SPI_QUIRK_POLL		(1 << 0)
 #define S3C64XX_SPI_QUIRK_CS_AUTO	(1 << 1)
@@ -680,6 +684,10 @@ static int s3c64xx_spi_transfer_one(struct spi_master *master,
 	unsigned long flags;
 	int use_dma;
 
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+	nx_bus_qos_update(NX_BUS_CLK_HIGH_KHZ);
+#endif
+
 	reinit_completion(&sdd->xfer_completion);
 
 	/* Only BPW and Speed may change across transfers */
@@ -740,6 +748,10 @@ static int s3c64xx_spi_transfer_one(struct spi_master *master,
 	} else {
 		flush_fifo(sdd);
 	}
+
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+	nx_bus_qos_update(NX_BUS_CLK_LOW_KHZ);
+#endif
 
 	return status;
 }
