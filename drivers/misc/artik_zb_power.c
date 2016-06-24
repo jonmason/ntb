@@ -12,6 +12,7 @@
 #include <linux/sec_sysfs.h>
 #include <linux/of_gpio.h>
 #include <linux/gpio.h>
+#include <linux/delay.h>
 
 static bool artik_zb_boot_enable = true;
 module_param_named(zb_boot_enable, artik_zb_boot_enable, bool, 0);
@@ -37,6 +38,7 @@ struct artik_zb_power_platform_data {
 	struct regulator_bulk_data *supplies;
 	struct device *sec_sysfs;
 	int on;
+	int recovery_mode;
 	int num_supplies;
 	struct gpio_desc *reset_gpio;
 	struct gpio_desc *bootloader_gpio;
@@ -65,6 +67,36 @@ static int artik_zb_power_control(struct artik_zb_power_platform_data *pdata,
 	}
 
 	pdata->on = onoff;
+
+	return ret;
+}
+
+static int artik_zb_recovery_control(struct artik_zb_power_platform_data *pdata,
+				  int onoff)
+{
+	int ret;
+
+	if (onoff == pdata->recovery_mode)
+		return 0;
+
+	/* Turn off */
+	gpiod_set_value(pdata->reset_gpio, 0);
+	if (!IS_ERR_OR_NULL(pdata->bootloader_gpio))
+		gpiod_set_value(pdata->bootloader_gpio, 0);
+
+	/* EM358x chip needs 26usec hold time to reset device */
+	udelay(30);
+
+	if (onoff) {
+		/* Go to recovery mode */
+		gpiod_set_value(pdata->reset_gpio, 1);
+	} else {
+		/* Go to normal mode */
+		if (!IS_ERR_OR_NULL(pdata->bootloader_gpio))
+			gpiod_set_value(pdata->bootloader_gpio, 1);
+		gpiod_set_value(pdata->reset_gpio, 1);
+	}
+	pdata->recovery_mode = onoff;
 
 	return ret;
 }
@@ -99,12 +131,49 @@ static ssize_t set_zb_power_status(struct device *dev,
 
 	return count;	/* if success returns count, if failed returns - */
 }
+
+static ssize_t show_zb_recovery_status(struct device *dev,
+				    struct device_attribute *attr,
+				    char *buf)
+{
+	struct artik_zb_power_platform_data *pdata = dev_get_drvdata(dev);
+	int ret;
+
+	ret = sprintf(buf, "%d\n", pdata->recovery_mode);
+
+	return ret;
+}
+
+static ssize_t set_zb_recovery_status(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buf, size_t count)
+{
+	struct artik_zb_power_platform_data *pdata = dev_get_drvdata(dev);
+	int val = 0;
+	int ret;
+
+	ret = kstrtoint(buf, 10, &val);
+	if (ret)
+		return -EINVAL;
+
+	ret = artik_zb_recovery_control(pdata, !!val);
+	if (ret)
+		return -EINVAL;
+
+	return count;	/* if success returns count, if failed returns - */
+}
+
+static DEVICE_ATTR(recovery, S_IRUGO | S_IWUSR,
+		show_zb_recovery_status,
+		set_zb_recovery_status);
+
 static DEVICE_ATTR(enable, S_IRUGO | S_IWUSR,
 		show_zb_power_status,
 		set_zb_power_status);
 
 static struct attribute *artik_zb_power_attributes[] = {
 	&dev_attr_enable.attr,
+	&dev_attr_recovery.attr,
 	NULL
 };
 
@@ -229,6 +298,7 @@ static int artik_zb_power_probe(struct platform_device *pdev)
 		}
 	}
 
+	pdata->recovery_mode = 0;
 	dev_info(&pdev->dev, "platform driver %s registered\n", pdev->name);
 
 	return 0;
