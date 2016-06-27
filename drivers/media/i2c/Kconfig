@@ -376,6 +376,17 @@ config VIDEO_TW9906
 	  To compile this driver as a module, choose M here: the
 	  module will be called tw9906.
 
+config VIDEO_TW9992
+	tristate "Intersil TW9992 video decoder"
+	depends on VIDEO_V4L2 && I2C
+	---help---
+	  Support for the Intersil/Techwell TW9900 video decoder. TW9992 is a
+	  low power NTSC/PAL analog video decoder that is designed for
+	  automotive applications.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called tw9992.
+
 config VIDEO_VPX3220
 	tristate "vpx3220a, vpx3216b & vpx3214c video decoders"
 	depends on VIDEO_V4L2 && I2C
