@@ -346,6 +346,22 @@ int nx_soc_dp_mipi_rx_transfer(struct dp_mipi_xfer *xfer)
 	u32 count = 0;
 	int err = -EINVAL;
 
+	while (1) {
+		/* Completes receiving data. */
+		if (nx_mipi_get_interrupt_pending(module, 50))
+			break;
+
+		mdelay(1);
+
+		if (count > 500) {
+			pr_err("%s: DSI Error : recevice data\n", __func__);
+			err = -EINVAL;
+			goto clear_fifo;
+		} else {
+			count++;
+		}
+	}
+
 	data = nx_mipi_dsi_read_fifo(module);
 
 	switch (data & 0x3f) {
@@ -382,21 +398,6 @@ int nx_soc_dp_mipi_rx_transfer(struct dp_mipi_xfer *xfer)
 	size = xfer->rx_len - rx_len;
 	rx_len += size;
 
-	while (1) {
-		/* Completes receiving data. */
-		if (nx_mipi_get_interrupt_pending(module, 50))
-			break;
-
-		mdelay(1);
-
-		if (count > 500) {
-			pr_err("%s: DSI Error : recevice data\n", __func__);
-			err = -EINVAL;
-			goto clear_fifo;
-		} else {
-			count++;
-		}
-	}
 
 	/* Receive payload */
 	while (size >= 4) {
