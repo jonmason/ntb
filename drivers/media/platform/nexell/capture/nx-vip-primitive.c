@@ -373,7 +373,15 @@ void nx_vip_set_sync(u32 module_index, int b_ext_sync,
 
 	switch (source_bits) {
 	case nx_vip_vd_8bit:
+
+#ifdef CONFIG_ARCH_S5P6818
 		writel((u16)(avw >> 1), &p_register->vip_imgwidth);
+#else
+		if (b_ext_sync)
+			writel((u16)(avw >> 1), &p_register->vip_imgwidth);
+		else
+			writel((u16)(avw >> 1) + 2, &p_register->vip_imgwidth);
+#endif
 		writel((u16)avh, &p_register->vip_imgheight);
 		break;
 	case nx_vip_vd_16bit:
