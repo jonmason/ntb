@@ -60,6 +60,7 @@
 			vip0:vip@c00c1000 { clock-frequency = <300000000>;};
 			i2c0:i2c@c00ae000 { clock-frequency = <200000000>;};
 			i2c1:i2c@c00af000 { clock-frequency = <200000000>;};
+			i2c2:i2c@c00b0000 { clock-frequency = <200000000>;};
 		};
 
 		serial2:serial@c00a2000 {
@@ -117,6 +118,13 @@
 			key_pwr:key_pwr {
 				nexell,pins = "alive-0";
 				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+
+			touchpanel_irq: touchpanel-irq {
+				nexell,pins = "gpiob-22";
+				nexell,pin-function = <1>;
 				nexell,pin-pull = <1>;
 				nexell,pin-strength = <0>;
 			};
@@ -483,6 +491,23 @@
 		controller-data {
 			samsung,spi-feedback-delay = <0>;
 		};
+	};
+};
+
+&i2c_2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	touchscreen@4a {
+		compatible = "atmel,maxtouch";
+		reg = <0x4a>;
+		interrupt-parent = <&gpio_b>;
+		interrupts = <22 IRQ_TYPE_EDGE_FALLING>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&touchpanel_irq>;
+		skip-cfg-load;
+		switch-xy;
 	};
 };
 
