@@ -65,9 +65,10 @@
 		};
 	};	/*** soc ***/
 	artik_zb_power {
-		compatible = "samsung,artik_zb_power_efr32";
+		compatible = "samsung,artik_zb_power";
 		vdd_zb-supply = <&VCC_LDO2>;
 		reset-gpio = <&gpio_c 8 0>;
+		bootloader-gpio = <&gpio_b 31 0>;
 		status = "okay";
 	};
 
