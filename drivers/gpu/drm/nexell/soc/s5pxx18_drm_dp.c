@@ -699,10 +699,10 @@ int nx_drm_dp_plane_update(struct drm_plane *plane,
 		if (0 > ret)
 			return ret;
 
-		nx_soc_dp_rgb_set_format(layer, format, pixel, false);
+		nx_soc_dp_rgb_set_format(layer, format, pixel, true);
 		nx_soc_dp_rgb_set_position(layer,
 				src_x, src_y, src_w, src_h,
-				crtc_x, crtc_y, crtc_w, crtc_h, false);
+				crtc_x, crtc_y, crtc_w, crtc_h, true);
 		nx_soc_dp_rgb_set_address(layer,
 				paddrs[0], pixel, crtc_w * pixel, true);
 		nx_soc_dp_rgb_set_enable(layer, true, true);
@@ -717,10 +717,10 @@ int nx_drm_dp_plane_update(struct drm_plane *plane,
 		if (0 > ret)
 			return ret;
 
-		nx_soc_dp_video_set_format(layer, format, false);
+		nx_soc_dp_video_set_format(layer, format, true);
 		nx_soc_dp_video_set_position(layer,
 				src_x, src_y, src_w, src_h,
-				crtc_x, crtc_y, crtc_w, crtc_h, false);
+				crtc_x, crtc_y, crtc_w, crtc_h, true);
 
 		switch (num_planes) {
 		case 1:

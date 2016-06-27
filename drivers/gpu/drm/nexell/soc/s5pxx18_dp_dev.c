@@ -300,11 +300,9 @@ int nx_soc_dp_rgb_set_position(struct dp_plane_layer *layer,
 	int sh = src_h;
 
 	if (layer->left == sx && layer->top == sy &&
-		layer->width == sw && layer->height == sh)
-		return 0;
-
-	if (layer->dst_left == dst_x && layer->dst_top == dst_y &&
-		layer->dst_width == dst_w && layer->dst_height == dst_h)
+	layer->width == sw && layer->height == sh &&
+	layer->dst_left == dst_x && layer->dst_top == dst_y &&
+	layer->dst_width == dst_w && layer->dst_height == dst_h)
 		return 0;
 
 	layer->left = sx;
@@ -467,11 +465,9 @@ int nx_soc_dp_video_set_position(struct dp_plane_layer *layer,
 	int hf = 1, vf = 1;
 
 	if (layer->left == sx && layer->top == sy &&
-		layer->width == sw && layer->height == sh)
-		return 0;
-
-	if (layer->dst_left == dst_x && layer->dst_top == dst_y &&
-		layer->dst_width == dst_w && layer->dst_height == dst_h)
+	layer->width == sw && layer->height == sh &&
+	layer->dst_left == dst_x && layer->dst_top == dst_y &&
+	layer->dst_width == dst_w && layer->dst_height == dst_h)
 		return 0;
 
 	layer->left = sx;
