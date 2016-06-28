@@ -359,7 +359,10 @@ static int nx_devfreq_probe(struct platform_device *pdev)
 	}
 
 	nx_devfreq->pm_qos_class = PM_QOS_BUS_THROUGHPUT;
-	nx_devfreq_profile.initial_freq = NX_BUS_CLK_LOW_KHZ;
+	/* FIXME: after testing end, initial_freq must set to NX_BUS_CLK_LOW_KHZ
+	 */
+	/* nx_devfreq_profile.initial_freq = NX_BUS_CLK_LOW_KHZ; */
+	nx_devfreq_profile.initial_freq = NX_BUS_CLK_HIGH_KHZ;
 	nx_devfreq->devfreq = devm_devfreq_add_device(&pdev->dev,
 						      &nx_devfreq_profile,
 						      "nx_devfreq_gov",
@@ -377,8 +380,6 @@ static int nx_devfreq_probe(struct platform_device *pdev)
 #if 0
 	pm_qos_update_request_timeout(&nx_bus_qos, NX_BUS_CLK_HIGH_KHZ,
 				      60 * 1000 * 1000);
-#else
-	pm_qos_update_request(&nx_bus_qos, NX_BUS_CLK_HIGH_KHZ);
 #endif
 
 	return 0;
