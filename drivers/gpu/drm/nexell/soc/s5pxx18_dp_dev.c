@@ -660,7 +660,8 @@ int nx_soc_dp_device_prepare(struct dp_control_dev *dpc)
 	}
 
 	/* CLKGEN0/1 */
-	nx_dpc_set_clock_source(module, 0, ctl->clk_src_lv0);
+	nx_dpc_set_clock_source(module, 0, ctl->clk_src_lv0 == 3 ?
+				6 : ctl->clk_src_lv0);
 	nx_dpc_set_clock_divisor(module, 0, ctl->clk_div_lv0);
 	nx_dpc_set_clock_out_delay(module, 0, ctl->clk_delay_lv0);
 	nx_dpc_set_clock_source(module, 1, ctl->clk_src_lv1);
