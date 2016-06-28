@@ -19,7 +19,6 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/interrupt.h>
-#include <linux/switch.h>
 #include <linux/delay.h>
 #include <linux/workqueue.h>
 #include <linux/gpio.h>
