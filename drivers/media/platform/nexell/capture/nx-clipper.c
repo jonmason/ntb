@@ -165,6 +165,8 @@ struct nx_clipper {
 #ifdef DEBUG_SYNC
 	struct timer_list timer;
 #endif
+	/* for suspend */
+	struct nx_video_buffer *last_buf;
 };
 
 #ifdef DEBUG_SYNC
@@ -880,6 +882,7 @@ static int update_buffer(struct nx_clipper *me)
 				buf->dma_addr[0], buf->dma_addr[1],
 				buf->dma_addr[2], buf->stride[0],
 				buf->stride[1]);
+	me->last_buf = buf;
 
 #ifdef DEBUG_SYNC
 	dev_dbg(&me->pdev->dev, "%s: module : %d, crop width : %d\n",
@@ -1730,6 +1733,81 @@ static void unregister_v4l2(struct nx_clipper *me)
 }
 
 /**
+ * pm ops
+ */
+#ifdef CONFIG_PM_SLEEP
+static int nx_clipper_suspend(struct device *dev)
+{
+	struct nx_clipper *me;
+
+	me = dev_get_drvdata(dev);
+	if (me) {
+#ifdef CONFIG_VIDEO_NEXELL_CLIPPER
+		if (NX_ATOMIC_READ(&me->state) & STATE_MEM_RUNNING) {
+			struct v4l2_subdev *remote;
+
+			remote = get_remote_source_subdev(me);
+			if (remote) {
+				v4l2_subdev_call(remote, video, s_stream, 0);
+				enable_sensor_power(me, false);
+				nx_vip_stop(me->module, VIP_CLIPPER);
+			}
+		}
+#endif
+
+		nx_vip_reset(me->module);
+		nx_vip_clock_enable(me->module, false);
+	}
+
+	return 0;
+}
+
+static int nx_clipper_resume(struct device *dev)
+{
+	struct nx_clipper *me;
+
+	me = dev_get_drvdata(dev);
+	if (me) {
+		nx_vip_clock_enable(me->module, true);
+		nx_vip_reset(me->module);
+
+#ifdef CONFIG_VIDEO_NEXELL_CLIPPER
+		if (NX_ATOMIC_READ(&me->state) & STATE_MEM_RUNNING) {
+			struct v4l2_subdev *remote;
+
+			remote = get_remote_source_subdev(me);
+			if (remote) {
+				struct nx_video_buffer *buf;
+
+				set_vip(me);
+				enable_sensor_power(me, true);
+				v4l2_subdev_call(remote, video, s_stream, 1);
+				nx_vip_set_clipper_format(me->module,
+							  me->mem_fmt);
+				buf = me->last_buf;
+				nx_vip_set_clipper_addr(me->module, me->mem_fmt,
+							me->crop.width,
+							me->crop.height,
+							buf->dma_addr[0],
+							buf->dma_addr[1],
+							buf->dma_addr[2],
+							buf->stride[0],
+							buf->stride[1]);
+				nx_vip_run(me->module, VIP_CLIPPER);
+			}
+		}
+#endif
+	}
+
+	return 0;
+}
+
+static const struct dev_pm_ops nx_clipper_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(nx_clipper_suspend, nx_clipper_resume)
+};
+#endif
+
+/**
  * platform driver
  */
 static int nx_clipper_probe(struct platform_device *pdev)
@@ -1805,6 +1883,9 @@ static struct platform_driver nx_clipper_driver = {
 		.name	= NX_CLIPPER_DEV_NAME,
 		.owner	= THIS_MODULE,
 		.of_match_table = of_match_ptr(nx_clipper_dt_match),
+#ifdef CONFIG_PM_SLEEP
+		.pm	= &nx_clipper_pm_ops,
+#endif
 	},
 };
 
