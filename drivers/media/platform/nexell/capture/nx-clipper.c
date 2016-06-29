@@ -52,6 +52,13 @@
 
 #define NX_CLIPPER_DEV_NAME	"nx-clipper"
 
+/* #define DEBUG_SYNC */
+#ifdef DEBUG_SYNC
+#include <linux/timer.h>
+
+#define DEBUG_SYNC_TIMEOUT_MS	(1000)
+#endif
+
 enum {
 	NX_CLIPPER_PAD_SINK,
 	NX_CLIPPER_PAD_SOURCE_MEM,
@@ -154,7 +161,26 @@ struct nx_clipper {
 	struct nx_v4l2_irq_entry *irq_entry;
 	u32 mem_fmt;
 #endif
+
+#ifdef DEBUG_SYNC
+	struct timer_list timer;
+#endif
 };
+
+#ifdef DEBUG_SYNC
+/* DEBUG_SYNC */
+static void debug_sync(unsigned long priv)
+{
+	struct nx_clipper *me = (struct nx_clipper *)priv;
+
+	dev_err(&me->pdev->dev, "VCOUNT: %d, HCOUNT: %d\n",
+		nx_vip_get_ver_count(me->module),
+		nx_vip_get_hor_count(me->module));
+
+	mod_timer(&me->timer,
+		jiffies + msecs_to_jiffies(DEBUG_SYNC_TIMEOUT_MS));
+}
+#endif
 
 /**
  * parse device tree
@@ -855,6 +881,21 @@ static int update_buffer(struct nx_clipper *me)
 				buf->dma_addr[2], buf->stride[0],
 				buf->stride[1]);
 
+#ifdef DEBUG_SYNC
+	dev_dbg(&me->pdev->dev, "%s: module : %d, crop width : %d\n",
+		__func__, me->module, me->crop.width);
+	dev_dbg(&me->pdev->dev, "crop height : %d\n", me->crop.height);
+
+	dev_dbg(&me->pdev->dev, "%s: DMA Addr 0 : 0x%X, DMA Addr 1 : 0x%X\n",
+		__func__, buf->dma_addr[0], buf->dma_addr[1]);
+	dev_dbg(&me->pdev->dev, " DMA Addr2 : 0x%X\n", buf->dma_addr[2]);
+
+	dev_dbg(&me->pdev->dev, "%s: Stride[0] : 0x%X, Stride[1] : 0x%X\n",
+		__func__, buf->stride[0], buf->stride[1]);
+
+	mod_timer(&me->timer, jiffies +
+		msecs_to_jiffies(DEBUG_SYNC_TIMEOUT_MS));
+#endif
 	return 0;
 }
 
@@ -1727,6 +1768,9 @@ static int nx_clipper_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, me);
 
+#ifdef DEBUG_SYNC
+	setup_timer(&me->timer, debug_sync, (long)me);
+#endif
 	return 0;
 }
 
