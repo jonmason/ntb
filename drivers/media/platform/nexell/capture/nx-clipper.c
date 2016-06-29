@@ -122,6 +122,7 @@ struct nx_clipper {
 	u32 clock_invert;
 	u32 port;
 	u32 interlace;
+	u32 irq_count;
 	int regulator_nr;
 	char **regulator_names;
 	u32 *regulator_voltages;
@@ -154,7 +155,6 @@ struct nx_clipper {
 	u32 mem_fmt;
 #endif
 };
-
 
 /**
  * parse device tree
@@ -871,12 +871,34 @@ static irqreturn_t nx_clipper_irq_handler(void *data)
 {
 	struct nx_clipper *me = data;
 
-	nx_video_done_buffer(&me->vbuf_obj);
-	if (NX_ATOMIC_READ(&me->state) & STATE_MEM_STOPPING) {
-		nx_vip_stop(me->module, VIP_CLIPPER);
-		complete(&me->stop_done);
-	} else {
-		update_buffer(me);
+	bool interlace = me->interlace;
+	bool do_process = true;
+
+	if (interlace) {
+		bool is_odd = nx_vip_get_field_status(me->module);
+
+		if (me->irq_count == 0) {
+			if (!is_odd) /* odd */
+				me->irq_count++;
+		} else {
+			if (is_odd) /* even */
+				me->irq_count++;
+		}
+
+		if (me->irq_count == 2)
+			me->irq_count = 0;
+		else
+			do_process = false;
+	}
+
+	if (do_process) {
+		nx_video_done_buffer(&me->vbuf_obj);
+		if (NX_ATOMIC_READ(&me->state) & STATE_MEM_STOPPING) {
+			nx_vip_stop(me->module, VIP_CLIPPER);
+			complete(&me->stop_done);
+		} else {
+			update_buffer(me);
+		}
 	}
 
 	return IRQ_HANDLED;
@@ -995,6 +1017,8 @@ static int nx_clipper_s_stream(struct v4l2_subdev *sd, int enable)
 	u32 module = me->module;
 	char *hostname = (char *)v4l2_get_subdev_hostdata(sd);
 	bool is_host_video = false;
+
+	me->irq_count = 0;
 #endif
 
 	remote = get_remote_source_subdev(me);
