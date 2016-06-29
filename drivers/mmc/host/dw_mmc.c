@@ -2782,6 +2782,8 @@ static bool dw_mci_reset(struct dw_mci *host)
 	u32 flags = SDMMC_CTRL_RESET | SDMMC_CTRL_FIFO_RESET;
 	bool ret = false;
 
+	if (mci_readl(host, VERID) == 0x5342250a)
+		flags &= ~SDMMC_CTRL_RESET;
 	/*
 	 * Reseting generates a block interrupt, hence setting
 	 * the scatter-gather pointer to NULL.
