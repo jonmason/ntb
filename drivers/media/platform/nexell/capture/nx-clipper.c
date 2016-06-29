@@ -1466,7 +1466,7 @@ static int create_sysfs_for_camera_sensor(struct nx_clipper *me,
 	char sensor_name[V4L2_SUBDEV_NAME_SIZE];
 
 	memset(sensor_name, 0, V4L2_SUBDEV_NAME_SIZE);
-	sprintf(sensor_name, "%s %d-%04X",
+	sprintf(sensor_name, "%s %d-%04x",
 		info->board_info.type,
 		info->i2c_adapter_id,
 		info->board_info.addr);
