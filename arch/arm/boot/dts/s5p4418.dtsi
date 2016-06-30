@@ -582,6 +582,7 @@
 			interrupt-names = "macirq";
 			mac-address = [000000000000]; /* Filled in by U-Boot */
 			phy-mode = "rgmii";
+			snps,multicast-filter-bins = <256>;
 			status = "disable";
 		};
 
