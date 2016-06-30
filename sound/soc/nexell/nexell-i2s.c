@@ -806,6 +806,7 @@ static struct snd_soc_dai_driver i2s_dai_driver = {
 	.suspend	= nx_i2s_dai_suspend,
 	.resume		= nx_i2s_dai_resume,
 	.playback	= {
+		.stream_name = "Playback",
 		.channels_min	= 2,
 		.channels_max	= 2,
 		.formats		= SND_SOC_I2S_FORMATS,
@@ -814,6 +815,7 @@ static struct snd_soc_dai_driver i2s_dai_driver = {
 		.rate_max		= 1562500,
 		},
 	.capture	= {
+		.stream_name = "Capture",
 		.channels_min	= 2,
 		.channels_max	= 2,
 		.formats		= SND_SOC_I2S_FORMATS,
@@ -860,7 +862,6 @@ static int nx_i2s_probe(struct platform_device *pdev)
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
 	INIT_WORK(&par->qos_work, qos_worker);
 #endif
-
 	dev_set_drvdata(&pdev->dev, par);
 	return ret;
 
