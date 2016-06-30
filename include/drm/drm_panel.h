@@ -125,6 +125,7 @@ static inline int drm_panel_get_modes(struct drm_panel *panel)
 	return panel ? -ENOSYS : -EINVAL;
 }
 
+bool drm_panel_connected(const char *panel_name);
 void drm_panel_init(struct drm_panel *panel);
 
 int drm_panel_add(struct drm_panel *panel);

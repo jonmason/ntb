@@ -27,8 +27,29 @@
 #include <drm/drm_crtc.h>
 #include <drm/drm_panel.h>
 
+static char connected_panel_name[64] __initdata;
+
 static DEFINE_MUTEX(panel_lock);
 static LIST_HEAD(panel_list);
+
+static int __init drm_connected_panel_setup(char *line)
+{
+	strlcpy(connected_panel_name, line, sizeof(connected_panel_name));
+	return 1;
+}
+
+__setup("drm_panel=", drm_connected_panel_setup);
+
+bool drm_panel_connected(const char *panel_name)
+{
+	/* If drm_panel="xxx" is not specified, this function assumes the panel
+	 * is always connected */
+	if (strlen(connected_panel_name) == 0)
+		return true;
+
+	return strstr(connected_panel_name, panel_name) ? true : false;
+}
+EXPORT_SYMBOL(drm_panel_connected);
 
 void drm_panel_init(struct drm_panel *panel)
 {
