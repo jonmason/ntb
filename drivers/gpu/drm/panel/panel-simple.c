@@ -1230,6 +1230,11 @@ static int panel_simple_platform_probe(struct platform_device *pdev)
 	if (!id)
 		return -ENODEV;
 
+	if (of_device_is_compatible(pdev->dev.of_node, "dongguan,gst7d0038")) {
+		if (!drm_panel_connected("gst7d0038"))
+			return -ENODEV;
+	}
+
 	return panel_simple_probe(&pdev->dev, id->data);
 }
 
