@@ -61,6 +61,9 @@ static int dw_mci_nexell_suspend(struct device *dev)
 {
 	struct dw_mci *host = dev_get_drvdata(dev);
 
+	clk_disable_unprepare(host->biu_clk);
+	clk_disable_unprepare(host->ciu_clk);
+
 	return dw_mci_suspend(host);
 }
 
@@ -69,6 +72,9 @@ static int dw_mci_nexell_resume(struct device *dev)
 	struct dw_mci *host = dev_get_drvdata(dev);
 
 	dw_mci_nexell_priv_init(host);
+	clk_prepare_enable(host->biu_clk);
+	clk_prepare_enable(host->ciu_clk);
+
 	return dw_mci_resume(host);
 }
 
