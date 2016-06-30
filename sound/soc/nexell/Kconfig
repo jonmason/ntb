@@ -59,3 +59,8 @@ config SND_CODEC_RT5640
 	tristate "RT5640 I2S audio codec."
 	depends on SND_NX_I2S
 	select SND_SOC_RT5640
+
+config SND_CODEC_ALC5623
+	tristate "ALC5623 I2S audio codec."
+	depends on SND_NX_I2S
+	select SND_SOC_ALC5623
