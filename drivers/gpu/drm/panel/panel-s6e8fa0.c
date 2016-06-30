@@ -424,6 +424,9 @@ static int s6e8fa0_probe(struct mipi_dsi_device *dsi)
 	struct s6e8fa0 *ctx;
 	int ret;
 
+	if (!drm_panel_connected("s6e8fa0"))
+		return -ENODEV;
+
 	ctx = devm_kzalloc(dev, sizeof(struct s6e8fa0), GFP_KERNEL);
 	if (!ctx)
 		return -ENOMEM;
