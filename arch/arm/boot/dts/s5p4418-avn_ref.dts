@@ -29,7 +29,9 @@
 	};
 
 	aliases {
+		i2c1 = &i2c_gpio1;
 		i2c2 = &i2c_gpio2;
+		i2c3 = &i2c_gpio3;
 		i2c5 = &i2c_gpio5;
 		i2c6 = &i2c_gpio6;
 	};
@@ -264,11 +266,77 @@
 		enable-active-high;
 	};
 
+	vcc_spk: regulator-fix@2 {
+		compatible = "regulator-fixed";
+
+		regulator-name = "SPK Vcc";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-boot-on;
+		regulator-always-on;
+
+		gpio = <&gpio_d 3 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+
+	vdd_a: regulator-fix@3 {
+		compatible = "regulator-fixed";
+
+		regulator-name = "A Vdd";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-boot-on;
+		regulator-always-on;
+
+		gpio = <&gpio_e 17 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+
+	vdd_db: regulator-fix@4 {
+		compatible = "regulator-fixed";
+
+		regulator-name = "DB Vdd";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+		regulator-always-on;
+
+		gpio = <&gpio_e 20 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+
+	vcc_monoamp: regulator-fix@5 {
+		compatible = "regulator-fixed";
+
+		regulator-name = "MONOAMP Vcc";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-boot-on;
+		regulator-always-on;
+
+		gpio = <&gpio_d 24 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+
+	i2c_gpio1: i2c@1 {
+		compatible = "i2c-gpio";
+		gpios = <&gpio_d 5 0 /* sda */
+		    &gpio_d 4 0 /* scl */>;
+		i2c-gpio,delay-us = <100>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		rt5640: rt5640@1c {
+			compatible = "realtek,rt5640";
+			reg = <0x1c>;
+			realtek,ldo1-en-gpios = <&gpio_c 4 GPIO_ACTIVE_HIGH>;
+		};
+	};
+
 	i2c_gpio2: i2c@2 {
 		compatible = "i2c-gpio";
 		gpios = <&gpio_d 7 0 /* sda */
-		    &gpio_d 6 0 /* scl */
-		    >;
+		    &gpio_d 6 0 /* scl */>;
 		i2c-gpio,delay-us = <100>;
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -282,6 +350,20 @@
 			pinctrl-0 = <&toutchpanel_irq>;
 			reg = <0x48>;
 			ti,x-plate-ohms = <180>;
+		};
+	};
+
+	i2c_gpio3: i2c@3 {
+		compatible = "i2c-gpio";
+		gpios = <&gpio_b 16 0 /* sda */
+		    &gpio_b 18 0 /* scl */>;
+		i2c-gpio,delay-us = <100>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		alc5623: alc5623@1a {
+			compatible = "realtek,alc5623";
+			reg = <0x1a>;
 		};
 	};
 
@@ -310,6 +392,25 @@
 		i2c-gpio,delay-us = <100>;
 		#address-cells = <1>;
 		#size-cells = <0>;
+	};
+
+	sound0 {
+		compatible = "nexell,nexell-rt5640";
+		ch = <0>;
+		sample-rate = <48000>;
+		format = "S16";
+		i2s-controller = <&i2s_0>;
+		audio-codec = <&rt5640>;
+	};
+
+	sound1 {
+		compatible = "nexell,nexell-alc5623";
+		ch = <1>;
+		sample-rate = <48000>;
+		format = "S16";
+		i2s-controller = <&i2s_1>;
+		audio-codec = <&alc5623>;
+		amp-gpio = <&gpio_d 25 0>;
 	};
 
 	spdif_out: spdif-out {
