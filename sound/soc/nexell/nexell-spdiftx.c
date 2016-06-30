@@ -532,6 +532,7 @@ static int nx_spdif_dai_remove(struct snd_soc_dai *dai)
 
 static struct snd_soc_dai_driver spdif_dai_driver = {
 	.playback	= {
+		.stream_name = "Playback",
 		.channels_min	= 2,
 		.channels_max	= 2,
 		.formats	= SND_SOC_SPDIF_TX_FORMATS,
