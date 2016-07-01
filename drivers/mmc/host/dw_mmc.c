@@ -39,6 +39,10 @@
 #include <linux/of_gpio.h>
 #include <linux/mmc/slot-gpio.h>
 
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+#include <linux/soc/nexell/cpufreq.h>
+#endif
+
 #include "dw_mmc.h"
 
 /* Common flag combinations */
@@ -1483,6 +1487,10 @@ static void dw_mci_init_card(struct mmc_host *mmc, struct mmc_card *card)
 	struct dw_mci_slot *slot = mmc_priv(mmc);
 	struct dw_mci *host = slot->host;
 
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+	if (card->type == MMC_TYPE_SDIO)
+		nx_bus_qos_update(NX_BUS_CLK_HIGH_KHZ);
+#endif
 	/*
 	 * Low power mode will stop the card clock when idle.  According to the
 	 * description of the CLKENA register we should disable low power mode
