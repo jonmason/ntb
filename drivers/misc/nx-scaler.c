@@ -21,7 +21,6 @@
 #include <linux/slab.h>
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
-#include <linux/workqueue.h>
 #include <linux/module.h>
 #include <linux/miscdevice.h>
 #include <linux/interrupt.h>
@@ -962,7 +961,6 @@ static irqreturn_t _scaler_irq_handler(int irq, void *param)
 
 	_clear_running(me);
 	wake_up_interruptible(&me->wq_end);
-	wake_up_interruptible(&me->wq_start);
 
 	return IRQ_HANDLED;
 }
@@ -1158,22 +1156,7 @@ static int _make_command_buffer(struct nx_scaler *me,
 static int _set_and_run(struct nx_scaler *me,
 	struct nx_scaler_ioctl_data *data)
 {
-	unsigned long flags;
-
-	spin_lock_irqsave(&me->running_lock, flags);
-	if (_is_running(me)) {
-		spin_unlock_irqrestore(&me->running_lock, flags);
-		if (!wait_event_interruptible_timeout(me->wq_start,
-			      _is_running(me) == false, WAIT_TIMEOUT_HZ)) {
-			spin_unlock_irqrestore(&me->running_lock, flags);
-			pr_err("wait timeout for starting\n");
-
-			return 0;
-		}
-		spin_lock_irqsave(&me->running_lock, flags);
-	}
 	_set_running(me);
-	spin_unlock_irqrestore(&me->running_lock, flags);
 
 	_make_command_buffer(me, data);
 	nx_scaler_set_cmd_buf_addr(0, me->command_buffer_phy);
@@ -1246,28 +1229,33 @@ static long nx_scaler_ioctl(struct file *file, unsigned int cmd,
 				 unsigned long arg)
 {
 	long ret = 0;
+	struct nx_scaler *me = (struct nx_scaler *)file->private_data;
+
+	mutex_lock(&me->mutex);
 
 	switch (cmd) {
 	case IOCTL_SCALER_SET_AND_RUN:
 		{
-			struct nx_scaler *me =
-				(struct nx_scaler *)file->private_data;
 			struct nx_scaler_ioctl_data data;
 
 			if (copy_from_user(&data, (void __user *)arg,
 				sizeof(struct nx_scaler_ioctl_data))) {
 				pr_info("%s: failed to copy_from_user()\n",
 					__func__);
+				ret = -EFAULT;
 
-				return -EFAULT;
+				goto END;
 			}
 
 			ret = _set_and_run(me, &data);
 		}
 		break;
 	default:
-		return -EFAULT;
+		ret = -EFAULT;
 	}
+
+END:
+	mutex_unlock(&me->mutex);
 
 	return ret;
 }
@@ -1324,10 +1312,11 @@ static int nx_scaler_probe(struct platform_device *pdev)
 
 	dev_set_drvdata(&pdev->dev, me);
 
+	mutex_init(&me->mutex);
+
 	atomic_set(&me->open_count, 0);
 	atomic_set(&me->running, 0);
 
-	init_waitqueue_head(&me->wq_start);
 	init_waitqueue_head(&me->wq_end);
 
 	if (me->miscdev.this_device) {

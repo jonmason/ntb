@@ -22,6 +22,7 @@
 #include <linux/spinlock.h>
 #include <linux/wait.h>
 #include <linux/miscdevice.h>
+#include <linux/mutex.h>
 
 struct list_head;
 struct nx_scaler_ioctl_data;
@@ -38,11 +39,10 @@ struct nx_scaler {
 	dma_addr_t			command_buffer_phy;
 
 	atomic_t			open_count;
-	struct completion		work_done;
-	wait_queue_head_t		wq_start;
 	wait_queue_head_t		wq_end;
 	struct nx_scaler_ioctl_data	*ioctl_data;
-	spinlock_t			running_lock;
 	atomic_t			running;
+
+	struct mutex mutex;
 };
 #endif
