@@ -1368,6 +1368,39 @@ static int nx_scaler_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int nx_scaler_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	struct nx_scaler *me = platform_get_drvdata(pdev);
+
+	if (atomic_read(&me->open_count) > 0) {
+		mutex_lock(&me->mutex);
+
+		nx_scaler_stop(0);
+		nx_scaler_set_interrupt_enable_all(0, false);
+		nx_scaler_clear_interrupt_pending_all(0);
+
+		if (!IS_ERR(me->clk))
+			clk_disable_unprepare(me->clk);
+
+		mutex_unlock(&me->mutex);
+	}
+
+	return 0;
+}
+
+static int nx_scaler_resume(struct platform_device *pdev)
+{
+	struct nx_scaler *me = platform_get_drvdata(pdev);
+
+	if (atomic_read(&me->open_count) > 0) {
+		_hw_init(me);
+		_hw_set_filter_table(me, &_default_filter_table);
+		_hw_set_format(me);
+	}
+
+	return 0;
+}
+
 static const struct of_device_id nx_scaler_match[] = {
 	{ .compatible = "nexell,scaler", },
 	{},
@@ -1377,6 +1410,8 @@ MODULE_DEVICE_TABLE(of, nx_scaler_match);
 static struct platform_driver nx_scaler_driver = {
 	.probe		= nx_scaler_probe,
 	.remove		= nx_scaler_remove,
+	.suspend	= nx_scaler_suspend,
+	.resume		= nx_scaler_resume,
 	.driver		= {
 		.name	= drv_name,
 		.of_match_table	= nx_scaler_match,
