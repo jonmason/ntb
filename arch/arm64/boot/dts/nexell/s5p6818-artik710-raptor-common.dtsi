@@ -62,16 +62,9 @@
 
 		clocks {
 			vip0:vip@c00c1000 { clock-frequency = <300000000>;};
-			sdhc0:sdhc@c00c5000 {
-				      clk-input = <(I_PLL2 | I_GATE_PCLK)>;
-			};
-			sdhc1:sdhc@c00cc000 {
-				      clk-input = <(I_PLL2 | I_GATE_PCLK)>;
-			};
 			sdhc2:sdhc@c00cd000 {
 				      clk-input = <(I_PLL2 | I_GATE_PCLK)>;
 			};
-
 		};
 
 		serial2:serial@c00a2000 {
