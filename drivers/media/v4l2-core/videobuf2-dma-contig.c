@@ -98,6 +98,10 @@ static void vb2_dc_prepare(void *buf_priv)
 	struct vb2_dc_buf *buf = buf_priv;
 	struct sg_table *sgt = buf->dma_sgt;
 
+	if (buf->use_cached_buffer)
+		dma_sync_single_for_device(buf->dev, buf->dma_addr, buf->size,
+					   buf->dma_dir);
+
 	/* DMABUF exporter will flush the cache for us */
 	if (!sgt || buf->db_attach)
 		return;
@@ -110,6 +114,10 @@ static void vb2_dc_finish(void *buf_priv)
 {
 	struct vb2_dc_buf *buf = buf_priv;
 	struct sg_table *sgt = buf->dma_sgt;
+
+	if (buf->use_cached_buffer)
+		dma_sync_single_for_cpu(buf->dev, buf->dma_addr, buf->size,
+					buf->dma_dir);
 
 	/* DMABUF exporter will flush the cache for us */
 	if (!sgt || buf->db_attach)
@@ -167,6 +175,8 @@ static void *vb2_dc_alloc(void *alloc_ctx, unsigned long size,
 	buf->handler.arg = buf;
 
 	buf->use_cached_buffer = conf->mmap_cached;
+	if (buf->use_cached_buffer)
+		buf->dma_dir = DMA_FROM_DEVICE;
 
 	atomic_inc(&buf->refcount);
 
