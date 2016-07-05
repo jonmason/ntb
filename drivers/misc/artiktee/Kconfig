@@ -1,0 +1,22 @@
+#
+# To support TEE for ARTIK
+#
+menu "ARTIK TEE(Trusted Execution Environment)"
+
+config ARTIK_TRUSTZONE_DRIVER
+	tristate "ARTIK TrustZone driver"
+	depends on ((ARM_TRUSTZONE && (SOC_EXYNOS3250 || SOC_EXYNOS5422)) ||\
+				ARCH_S5P6818)
+	default n
+	help
+	  This driver allows you can communicate with ARTIK Secure OS.
+	  When you use this driver, the platform has to support Secure OS.
+
+config ARTIK_FETCH_TEE_INFO
+	bool "ARTIK Fetch TEE information"
+	depends on (ARTIK_TRUSTZONE_DRIVER)
+	default n
+	help
+	  This driver supports to fetch information in TEE side for ARTIK.
+	  If Secure OS is built in Debug mode, you can use this feature.
+endmenu
