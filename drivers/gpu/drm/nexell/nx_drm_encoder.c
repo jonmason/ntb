@@ -19,6 +19,11 @@
 #include <drm/drm_crtc_helper.h>
 #include <linux/of_address.h>
 
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+#include <linux/pm_qos.h>
+#include <linux/soc/nexell/cpufreq.h>
+#endif
+
 #include "nx_drm_drv.h"
 #include "nx_drm_crtc.h"
 #include "nx_drm_encoder.h"
@@ -29,6 +34,18 @@
 		struct dp_control_dev *dpc = drm_dev_get_dpc(d);	\
 		dpc->module = p;	\
 	}
+
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+static struct pm_qos_request nx_disp_qos;
+
+static void nx_disp_qos_update(int val)
+{
+	if (!pm_qos_request_active(&nx_disp_qos))
+		pm_qos_add_request(&nx_disp_qos, PM_QOS_BUS_THROUGHPUT, val);
+	else
+		pm_qos_update_request(&nx_disp_qos, val);
+}
+#endif
 
 static void nx_drm_encoder_dpms(struct drm_encoder *encoder, int mode)
 {
@@ -51,6 +68,9 @@ static void nx_drm_encoder_dpms(struct drm_encoder *encoder, int mode)
 
 	switch (mode) {
 	case DRM_MODE_DPMS_ON:
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+		nx_disp_qos_update(NX_BUS_CLK_DISP_KHZ);
+#endif
 		nx_drm_dp_encoder_dpms(encoder, true);
 		if (ops && ops->dpms)
 			ops->dpms(display->dev, mode);
@@ -61,6 +81,9 @@ static void nx_drm_encoder_dpms(struct drm_encoder *encoder, int mode)
 		if (ops && ops->dpms)
 				ops->dpms(display->dev, mode);
 		nx_drm_dp_encoder_dpms(encoder, false);
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+		nx_disp_qos_update(NX_BUS_CLK_IDLE_KHZ);
+#endif
 		break;
 
 	default:
