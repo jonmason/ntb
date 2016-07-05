@@ -186,6 +186,8 @@
 	nx-devfreq {
 		compatible = "nexell,s5pxx18-devfreq";
 		pll = <0>;
+		supply_name = "vdd_arm_regulator";
+		vdd_arm_regulator-supply = <&VCC_DCDC1>;
 		status = "disabled";
 	};
 
