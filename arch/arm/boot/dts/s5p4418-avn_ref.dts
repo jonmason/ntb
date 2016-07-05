@@ -36,10 +36,15 @@
 		i2c6 = &i2c_gpio6;
 	};
 
+	nx-v4l2 {
+		status = "okay";
+	};
+
 	soc {
 		#include "s5p4418-pinctrl.dtsi"
 		clocks {
 			uart3:uart@c00ab000 { clock-frequency = <147500000>; };
+			vip0:vip@c00c1000 { src-force = <4>; };
 		};
 
 		serial0:serial@c00a1000 {
@@ -461,6 +466,37 @@
 			gpios = <&alive_0 4 0>;
 			linux,code = <KEY_HOMEPAGE>;
 		};
+	};
+};
+
+&vip_0 {
+	status = "okay";
+};
+
+&clipper_0 {
+	interface_type = <NX_CAPTURE_INTERFACE_PARALLEL>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&vid0_data_clk &vid0_sync>;
+	gpios = <&gpio_c 9 0 &gpio_e 16 0 &gpio_e 12 0>;
+	data_order = <NX_VIN_CBY0CRY1>;
+	port = <0>;
+	external_sync = <0>;
+	interlace = <1>;
+	status = "okay";
+
+	sensor {
+		type = <NX_CAPTURE_SENSOR_I2C>;
+		i2c_name = "tw9900";
+		i2c_adapter = <5>;
+		addr = <0x44>;
+	};
+
+	power {
+		enable_seq = <
+		NX_ACTION_START NX_ACTION_TYPE_GPIO 2 0 1 0 10 NX_ACTION_END
+		NX_ACTION_START NX_ACTION_TYPE_GPIO 1 0 1 0 10 NX_ACTION_END
+		NX_ACTION_START NX_ACTION_TYPE_GPIO 0 1 10 NX_ACTION_END
+		>;
 	};
 };
 
