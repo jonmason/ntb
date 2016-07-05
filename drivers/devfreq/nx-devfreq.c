@@ -26,6 +26,7 @@
 #include <linux/of.h>
 #include <linux/devfreq.h>
 #include <linux/soc/nexell/cpufreq.h>
+#include <linux/regulator/consumer.h>
 
 #include "governor.h"
 
@@ -39,6 +40,8 @@ struct nx_devfreq {
 	atomic_t req_freq;
 	atomic_t cur_freq;
 	u32 pll;
+	char *supply_name;
+	struct regulator *regulator;
 	struct device *dev;
 	atomic_t usage_cnt;
 };
@@ -69,24 +72,26 @@ EXPORT_SYMBOL(nx_bus_qos_update);
 /* soc specific */
 struct pll_pms {
 	unsigned long rate;
+	unsigned long voltage;
 	u32 P;
 	u32 M;
 	u32 S;
 };
 
 static struct pll_pms pll0_1_pms[] = {
-	[0] = { .rate =  NX_BUS_CLK_HIGH_KHZ, .P = 3, .M = 200, .S = 2, },
-	[1] = { .rate =  NX_BUS_CLK_MID_KHZ,  .P = 3, .M = 260, .S = 3, },
-	[2] = { .rate =  NX_BUS_CLK_LOW_KHZ,  .P = 3, .M = 210, .S = 3, },
+	[0] = { .rate =  NX_BUS_CLK_HIGH_KHZ, .voltage = 1200000, .P = 3, .M = 200, .S = 1, },
+	[1] = { .rate =  NX_BUS_CLK_MID_KHZ,  .voltage = 1000000, .P = 3, .M = 280, .S = 3, },
+	[2] = { .rate =  NX_BUS_CLK_LOW_KHZ,  .voltage = 1000000, .P = 3, .M = 200, .S = 3, },
 };
 
 static struct pll_pms pll2_3_pms[] = {
-	[0] = { .rate =  NX_BUS_CLK_HIGH_KHZ, .P = 3, .M = 200, .S = 2, },
-	[1] = { .rate =  NX_BUS_CLK_MID_KHZ,  .P = 3, .M = 200, .S = 3, },
-	[2] = { .rate =  NX_BUS_CLK_LOW_KHZ,  .P = 3, .M = 250, .S = 4, },
+	[0] = { .rate =  NX_BUS_CLK_HIGH_KHZ, .voltage = 1200000, .P = 3, .M = 200, .S = 2, },
+	[1] = { .rate =  NX_BUS_CLK_MID_KHZ,  .voltage = 1000000, .P = 3, .M = 200, .S = 3, },
+	[2] = { .rate =  NX_BUS_CLK_LOW_KHZ,  .voltage = 1000000, .P = 3, .M = 250, .S = 4, },
 };
 
-static int get_pll_data(u32 pll, unsigned long rate, u32 *pll_data)
+static int get_pll_data(u32 pll, unsigned long rate, u32 *pll_data,
+			unsigned long *voltage)
 {
 	struct pll_pms *p;
 	int len;
@@ -115,6 +120,7 @@ static int get_pll_data(u32 pll, unsigned long rate, u32 *pll_data)
 
 	if (freq) {
 		*pll_data = (p->P << 24) | (p->M << 8) | (p->S << 2) | pll;
+		*voltage = p->voltage;
 		return 0;
 	}
 
@@ -141,6 +147,8 @@ static int nx_devfreq_target(struct device *dev, unsigned long *freq, u32 flags)
 	struct nx_devfreq *nx_devfreq = dev_get_drvdata(dev);
 	struct dev_pm_opp *opp;
 	unsigned long rate = *freq * KHZ;
+	unsigned long voltage;
+	bool is_up = false;
 
 	rcu_read_lock();
 	opp = devfreq_recommended_opp(dev, freq, flags);
@@ -157,11 +165,17 @@ static int nx_devfreq_target(struct device *dev, unsigned long *freq, u32 flags)
 	if (atomic_read(&nx_devfreq->cur_freq) == *freq)
 		return 0;
 
-	err = get_pll_data(nx_devfreq->pll, *freq, &pll_data);
+	if (atomic_read(&nx_devfreq->cur_freq) < *freq)
+		is_up = true;
+
+	err = get_pll_data(nx_devfreq->pll, *freq, &pll_data, &voltage);
 	if (err) {
 		dev_err(dev, "failed to get pll data of freq %lu KHz\n", *freq);
 		return err;
 	}
+
+	if (is_up)
+		regulator_set_voltage(nx_devfreq->regulator, voltage, voltage);
 
 	err = change_bus_freq(pll_data);
 	if (err) {
@@ -169,7 +183,18 @@ static int nx_devfreq_target(struct device *dev, unsigned long *freq, u32 flags)
 		return err;
 	}
 
+	if (!is_up)
+		regulator_set_voltage(nx_devfreq->regulator, voltage, voltage);
+
 	atomic_set(&nx_devfreq->cur_freq, *freq);
+	return 0;
+}
+
+static int nx_devfreq_get_cur_freq(struct device *dev, unsigned long *freq)
+{
+	struct nx_devfreq *nx_devfreq = dev_get_drvdata(dev);
+
+	*freq = atomic_read(&nx_devfreq->cur_freq);
 	return 0;
 }
 
@@ -187,6 +212,7 @@ static int nx_devfreq_get_dev_status(struct device *dev,
 static struct devfreq_dev_profile nx_devfreq_profile = {
 	.target = nx_devfreq_target,
 	.get_dev_status = nx_devfreq_get_dev_status,
+	.get_cur_freq = nx_devfreq_get_cur_freq,
 };
 
 /* notifier */
@@ -203,6 +229,9 @@ static int nx_devfreq_pm_qos_notifier(struct notifier_block *nb,
 	nx_devfreq = devfreq_nb->df->data;
 
 	dev_info(nx_devfreq->dev, "%s: val --> %ld\n", __func__, val);
+	if (val == PM_QOS_DEFAULT_VALUE)
+		val = nx_devfreq_profile.initial_freq;
+
 	cur_freq = atomic_read(&nx_devfreq->cur_freq);
 
 	if (val > cur_freq) {
@@ -212,7 +241,7 @@ static int nx_devfreq_pm_qos_notifier(struct notifier_block *nb,
 	} else if (val < cur_freq) {
 		if (atomic_read(&nx_devfreq->usage_cnt) > 0)
 			atomic_dec(&nx_devfreq->usage_cnt);
-		if (atomic_read(&nx_devfreq->usage_cnt)) {
+		if (!atomic_read(&nx_devfreq->usage_cnt)) {
 			cur_freq = val;
 			changed = true;
 		}
@@ -246,7 +275,7 @@ static int nx_devfreq_unregister_notifier(struct devfreq *devfreq)
 {
 	struct nx_devfreq *nx_devfreq = devfreq->data;
 
-	dev_dbg(nx_devfreq->dev, "%s: E\n", __func__);
+	dev_info(nx_devfreq->dev, "%s: E\n", __func__);
 	return pm_qos_remove_notifier(nx_devfreq->pm_qos_class,
 				      &nx_devfreq->nb.nb);
 }
@@ -324,6 +353,12 @@ static int nx_devfreq_parse_dt(struct device *dev,
 		return -EINVAL;
 	}
 
+	if (of_property_read_string(np, "supply_name",
+				    (const char **)&nx_devfreq->supply_name)) {
+		dev_err(dev, "failed to get dt supply name\n");
+		return -EINVAL;
+	}
+
 	return 0;
 }
 
@@ -339,6 +374,14 @@ static int nx_devfreq_probe(struct platform_device *pdev)
 
 	if (nx_devfreq_parse_dt(&pdev->dev, nx_devfreq))
 		return -EINVAL;
+
+	nx_devfreq->regulator = regulator_get(&pdev->dev,
+					      nx_devfreq->supply_name);
+	if (IS_ERR(nx_devfreq->regulator)) {
+		dev_err(&pdev->dev, "failed to regulator_get for supply %s\n",
+			nx_devfreq->supply_name);
+		return PTR_ERR(nx_devfreq->regulator);
+	}
 
 	nx_devfreq->bclk = devm_clk_get(&pdev->dev, "bclk");
 	if (IS_ERR(nx_devfreq->bclk)) {
@@ -359,10 +402,7 @@ static int nx_devfreq_probe(struct platform_device *pdev)
 	}
 
 	nx_devfreq->pm_qos_class = PM_QOS_BUS_THROUGHPUT;
-	/* FIXME: after testing end, initial_freq must set to NX_BUS_CLK_LOW_KHZ
-	 */
-	/* nx_devfreq_profile.initial_freq = NX_BUS_CLK_LOW_KHZ; */
-	nx_devfreq_profile.initial_freq = NX_BUS_CLK_HIGH_KHZ;
+	nx_devfreq_profile.initial_freq = NX_BUS_CLK_LOW_KHZ;
 	nx_devfreq->devfreq = devm_devfreq_add_device(&pdev->dev,
 						      &nx_devfreq_profile,
 						      "nx_devfreq_gov",
@@ -374,13 +414,8 @@ static int nx_devfreq_probe(struct platform_device *pdev)
 
 	pm_qos_add_request(&nx_bus_qos, PM_QOS_BUS_THROUGHPUT,
 			   nx_devfreq_profile.initial_freq);
-	/* FIXME: after testing end, default bus clock must set to
-	 * initial_freq(210000KHz)
-	 */
-#if 0
 	pm_qos_update_request_timeout(&nx_bus_qos, NX_BUS_CLK_HIGH_KHZ,
 				      60 * 1000 * 1000);
-#endif
 
 	return 0;
 }

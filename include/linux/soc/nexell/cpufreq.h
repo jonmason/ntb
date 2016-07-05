@@ -33,8 +33,19 @@ void nx_pll_set_rate(int PLL, int P, int M, int S);
 
 /* BUS CLOCK */
 #define NX_BUS_CLK_HIGH_KHZ     400000
-#define NX_BUS_CLK_MID_KHZ      260000
-#define NX_BUS_CLK_LOW_KHZ      210000
+#define NX_BUS_CLK_MID_KHZ      140000
+#define NX_BUS_CLK_LOW_KHZ      100000
+
+/* defines for per IP */
+#define NX_BUS_CLK_GPU_KHZ	NX_BUS_CLK_HIGH_KHZ
+#define NX_BUS_CLK_VPU_KHZ	NX_BUS_CLK_HIGH_KHZ
+#define NX_BUS_CLK_MMC_KHZ	NX_BUS_CLK_HIGH_KHZ
+#define NX_BUS_CLK_SPI_KHZ	NX_BUS_CLK_HIGH_KHZ
+#define NX_BUS_CLK_VIP_KHZ	NX_BUS_CLK_MID_KHZ
+#define NX_BUS_CLK_DISP_KHZ	NX_BUS_CLK_MID_KHZ
+#define NX_BUS_CLK_AUDIO_KHZ	NX_BUS_CLK_MID_KHZ
+#define NX_BUS_CLK_IDLE_KHZ	NX_BUS_CLK_LOW_KHZ
+
 
 void nx_bus_qos_update(int val);
 
