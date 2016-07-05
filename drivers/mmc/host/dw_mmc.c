@@ -40,6 +40,7 @@
 #include <linux/mmc/slot-gpio.h>
 
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+#include <linux/pm_qos.h>
 #include <linux/soc/nexell/cpufreq.h>
 #endif
 
@@ -105,6 +106,18 @@ struct idmac_desc {
 
 /* Each descriptor can transfer up to 4KB of data in chained mode */
 #define DW_MCI_DESC_DATA_LENGTH	0x1000
+
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+static struct pm_qos_request nx_mmc_qos;
+
+static void nx_mmc_qos_update(int val)
+{
+	if (!pm_qos_request_active(&nx_mmc_qos))
+		pm_qos_add_request(&nx_mmc_qos, PM_QOS_BUS_THROUGHPUT, val);
+	else
+		pm_qos_update_request(&nx_mmc_qos, val);
+}
+#endif
 
 static bool dw_mci_reset(struct dw_mci *host);
 static bool dw_mci_ctrl_reset(struct dw_mci *host, u32 reset);
@@ -1489,7 +1502,7 @@ static void dw_mci_init_card(struct mmc_host *mmc, struct mmc_card *card)
 
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
 	if (card->type == MMC_TYPE_SDIO)
-		nx_bus_qos_update(NX_BUS_CLK_HIGH_KHZ);
+		nx_mmc_qos_update(NX_BUS_CLK_MMC_KHZ);
 #endif
 	/*
 	 * Low power mode will stop the card clock when idle.  According to the
