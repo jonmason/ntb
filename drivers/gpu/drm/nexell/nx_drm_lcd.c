@@ -48,8 +48,6 @@ struct mipi_resource {
 struct lcd_context {
 	struct drm_connector *connector;
 	int crtc_pipe;
-	struct reset_control *reset;
-	void *base;
 	struct nx_drm_device *display;
 	struct mutex lock;
 	bool local_timing;
@@ -203,6 +201,10 @@ static void panel_lcd_enable(struct device *dev, struct drm_panel *panel)
 {
 	struct lcd_context *ctx = dev_get_drvdata(dev);
 	struct nx_drm_device *display = ctx->display;
+	bool suspended = display->suspended;
+
+	if (suspended)
+		nx_drm_dp_panel_res_resume(dev, display);
 
 	nx_drm_dp_lcd_prepare(display, panel);
 	drm_panel_prepare(panel);
@@ -215,10 +217,16 @@ static void panel_lcd_disable(struct device *dev, struct drm_panel *panel)
 {
 	struct lcd_context *ctx = dev_get_drvdata(dev);
 	struct nx_drm_device *display = ctx->display;
+	bool suspend = display->suspended;
 
+	if (suspend)
+		nx_drm_dp_panel_res_suspend(dev, display);
+
+	/* panel disable */
 	drm_panel_unprepare(panel);
 	drm_panel_disable(panel);
 
+	/* control disable */
 	nx_drm_dp_lcd_unprepare(display, panel);
 	nx_drm_dp_lcd_disable(display, panel);
 }
@@ -455,7 +463,6 @@ static int panel_lcd_driver_setup(struct platform_device *pdev,
 	const struct of_device_id *id;
 	enum dp_panel_type type;
 	struct device *dev = &pdev->dev;
-	struct device_node *node = dev->of_node;
 	struct nx_drm_res *res = &ctx->display->res;
 	int err;
 
@@ -467,11 +474,7 @@ static int panel_lcd_driver_setup(struct platform_device *pdev,
 
 	DRM_INFO("Load %s panel\n", dp_panel_type_name(type));
 
-	err = nx_drm_dp_panel_drv_res_parse(dev, &ctx->base, &ctx->reset);
-	if (0 > err)
-		return -EINVAL;
-
-	err = nx_drm_dp_panel_dev_res_parse(dev, node, res, type);
+	err = nx_drm_dp_panel_res_parse(dev, res, type);
 	if (0 > err)
 		return -EINVAL;
 
@@ -541,8 +544,7 @@ static int panel_lcd_remove(struct platform_device *pdev)
 	if (!ctx)
 		return 0;
 
-	nx_drm_dp_panel_dev_res_free(dev, &ctx->display->res);
-	nx_drm_dp_panel_drv_res_free(dev, ctx->base, ctx->reset);
+	nx_drm_dp_panel_res_free(dev, &ctx->display->res);
 	nx_drm_dp_panel_dev_release(dev, ctx->display);
 
 	devm_kfree(&pdev->dev, ctx);

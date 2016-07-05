@@ -100,8 +100,10 @@ static int nx_drm_crtc_mode_set(struct drm_crtc *crtc,
 {
 	struct drm_framebuffer *fb = crtc->primary->fb;
 	struct nx_drm_crtc *nx_crtc = to_nx_crtc(crtc);
+	struct drm_plane *plane = crtc->primary;
 	struct videomode vm;
 	unsigned int src_w, src_h, dst_w, dst_h;
+	int ret = 0;
 
 	DRM_DEBUG_KMS("enter\n");
 
@@ -119,9 +121,16 @@ static int nx_drm_crtc_mode_set(struct drm_crtc *crtc,
 	dst_w = fb->width - x;
 	dst_h = fb->height - y;
 
-	return nx_drm_dp_crtc_mode_set(crtc,
-				crtc->primary, crtc->primary->fb,
+	ret = nx_drm_dp_plane_mode_set(crtc,
+				crtc->primary, fb,
 				0, 0, src_w, src_h, x, y, dst_w, dst_h);
+	if (0 > ret)
+		return ret;
+
+	plane->crtc = crtc;
+	to_nx_plane(plane)->enabled = true;
+
+	return ret;
 }
 
 static int nx_drm_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
@@ -154,6 +163,7 @@ static int nx_drm_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 static void nx_drm_crtc_disable(struct drm_crtc *crtc)
 {
 	struct drm_plane *plane;
+	struct drm_mode_config *config = &crtc->dev->mode_config;
 	int ret;
 
 	DRM_DEBUG_KMS("enter\n");
@@ -264,13 +274,7 @@ static void nx_drm_crtc_destroy(struct drm_crtc *crtc)
 	devm_kfree(drm->dev, nx_crtc);
 }
 
-static void nx_drm_crtc_reset(struct drm_crtc *crtc)
-{
-	DRM_DEBUG_KMS("enter\n");
-}
-
 static struct drm_crtc_funcs nx_crtc_funcs = {
-	.reset = nx_drm_crtc_reset,
 	.set_config = drm_crtc_helper_set_config,
 	.page_flip = nx_drm_crtc_page_flip,
 	.destroy = nx_drm_crtc_destroy,
@@ -428,7 +432,6 @@ static int nx_drm_crtc_parse_dt_setup(struct drm_device *drm,
 			struct drm_crtc *crtc, int pipe)
 {
 	struct device_node *np;
-	struct reset_control *rsc;
 	struct device *dev = &drm->platformdev->dev;
 	struct device_node *node = dev->of_node;
 	struct nx_drm_crtc *nx_crtc = to_nx_crtc(crtc);
@@ -442,12 +445,12 @@ static int nx_drm_crtc_parse_dt_setup(struct drm_device *drm,
 	/*
 	 * parse base address
 	 */
-	err = nx_drm_dp_crtc_drv_parse(drm->platformdev, pipe, &irq, &rsc);
+	err = nx_drm_dp_crtc_res_parse(drm->platformdev, pipe, &irq,
+				nx_crtc->resets, &nx_crtc->num_resets);
 	if (0 > err)
 		return -EINVAL;
 
 	nx_crtc->pipe_irq = irq;
-	nx_crtc->reset_ctrl = rsc;
 
 	if (INVALID_IRQ != nx_crtc->pipe_irq) {
 		err = nx_drm_crtc_irq_install(drm, crtc);
@@ -512,7 +515,7 @@ static int nx_drm_crtc_create_planes(struct drm_device *drm,
 		return PTR_ERR(planes);
 
 	for (i = 0; top->num_planes > i; i++) {
-		unsigned int plane_type = top->plane_type[i];
+		enum drm_plane_type drm_type = top->plane_type[i];
 		bool video = top->plane_flag[i] == PLANE_FLAG_VIDEO ?
 						true : false;
 
@@ -522,13 +525,13 @@ static int nx_drm_crtc_create_planes(struct drm_device *drm,
 		plane_num = video ? PLANE_VIDEO_NUM : num++;
 
 		plane = nx_drm_plane_init(
-				drm, crtc, (1 << pipe), plane_type, plane_num);
+				drm, crtc, (1 << pipe), drm_type, plane_num);
 		if (IS_ERR(plane)) {
 			ret = PTR_ERR(plane);
 			goto err_plane;
 		}
 
-		if (DRM_PLANE_TYPE_PRIMARY == plane_type) {
+		if (DRM_PLANE_TYPE_PRIMARY == drm_type) {
 			top->primary_plane = i;
 			ret = drm_crtc_init_with_planes(drm,
 					crtc, plane, NULL, &nx_crtc_funcs);

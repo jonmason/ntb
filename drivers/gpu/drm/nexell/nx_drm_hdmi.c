@@ -50,8 +50,6 @@ struct hdmi_resource {
 struct hdmi_context {
 	struct drm_connector *connector;
 	int crtc_pipe;
-	struct reset_control *reset;
-	void *base;
 	struct nx_drm_device *display;
 	struct delayed_work	 work;
 	struct gpio_desc *enable_gpio;
@@ -235,15 +233,23 @@ static void panel_hdmi_commit(struct device *dev)
 static void panel_hdmi_enable(struct device *dev)
 {
 	struct hdmi_context *ctx = dev_get_drvdata(dev);
+	struct nx_drm_device *display = ctx->display;
 
-	nx_dp_hdmi_power(ctx->display, true);
+	if (display->suspended)
+		return;
+
+	nx_dp_hdmi_power(display, true);
 }
 
 static void panel_hdmi_disable(struct device *dev)
 {
 	struct hdmi_context *ctx = dev_get_drvdata(dev);
+	struct nx_drm_device *display = ctx->display;
 
-	nx_dp_hdmi_power(ctx->display, false);
+	if (display->suspended)
+		return;
+
+	nx_dp_hdmi_power(display, false);
 }
 
 static void panel_hdmi_dmps(struct device *dev, int mode)
@@ -521,15 +527,10 @@ static int panel_hdmi_driver_setup(struct platform_device *pdev,
 			struct hdmi_context *ctx)
 {
 	struct device *dev = &pdev->dev;
-	struct device_node *node = dev->of_node;
 	struct nx_drm_res *res = &ctx->display->res;
 	int err;
 
-	err = nx_drm_dp_panel_drv_res_parse(dev, &ctx->base, &ctx->reset);
-	if (0 > err)
-		return -EINVAL;
-
-	err = nx_drm_dp_panel_dev_res_parse(dev, node, res, dp_panel_type_hdmi);
+	err = nx_drm_dp_panel_res_parse(dev, res, dp_panel_type_hdmi);
 	if (0 > err)
 		return -EINVAL;
 
@@ -598,8 +599,7 @@ static int panel_hdmi_remove(struct platform_device *pdev)
 	if (hdmi->ddc_adpt)
 		put_device(&hdmi->ddc_adpt->dev);
 
-	nx_drm_dp_panel_dev_res_free(dev, &ctx->display->res);
-	nx_drm_dp_panel_drv_res_free(dev, ctx->base, ctx->reset);
+	nx_drm_dp_panel_res_free(dev, &ctx->display->res);
 	nx_drm_dp_panel_dev_release(dev, ctx->display);
 
 	devm_kfree(&pdev->dev, ctx);
@@ -610,12 +610,26 @@ static int panel_hdmi_remove(struct platform_device *pdev)
 #ifdef CONFIG_PM_SLEEP
 static int panel_hdmi_suspend(struct device *dev)
 {
-	return 0;
+	struct hdmi_context *ctx = dev_get_drvdata(dev);
+
+	if (!ctx || !ctx->display)
+		return 0;
+
+	ctx->plug = false;
+
+	drm_helper_hpd_irq_event(ctx->connector->dev);
+
+	return nx_drm_dp_panel_res_suspend(dev, ctx->display);
 }
 
 static int panel_hdmi_resume(struct device *dev)
 {
-	return 0;
+	struct hdmi_context *ctx = dev_get_drvdata(dev);
+
+	if (!ctx || !ctx->display)
+		return 0;
+
+	return nx_drm_dp_panel_res_resume(dev, ctx->display);
 }
 #endif
 

@@ -39,12 +39,12 @@ static void lvds_phy_reset(struct reset_control *rsc[], int num)
 }
 
 static void nx_soc_dp_lvds_set_base(struct dp_control_dev *dpc,
-			void __iomem *base)
+			void __iomem **base, int num)
 {
 	BUG_ON(!base);
 	pr_debug("%s: dev mipi\n", __func__);
 
-	nx_lvds_set_base_address(0, base);
+	nx_lvds_set_base_address(0, base[0]);
 }
 
 static int nx_soc_dp_lvds_set_prepare(struct dp_control_dev *dpc,
@@ -237,7 +237,7 @@ static struct dp_control_ops lvds_dp_ops = {
 	.disable = nx_soc_dp_lvds_set_disable,
 };
 
-int nx_soc_dp_lvds_register(struct device *dev,
+int nx_dp_device_lvds_register(struct device *dev,
 			struct device_node *np, struct dp_control_dev *dpc,
 			void *resets, int num_resets)
 {

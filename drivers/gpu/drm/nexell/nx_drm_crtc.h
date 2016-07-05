@@ -28,9 +28,10 @@ struct nx_drm_crtc {
 	struct dp_plane_top top;
 	struct drm_pending_vblank_event *event;
 	unsigned int dpms_mode;
+	struct reset_control *resets[2];
 	int num_resets;
-	struct reset_control *reset_ctrl;
 	bool post_closed;
+	bool suspended;
 };
 
 #define to_nx_crtc(x)	\

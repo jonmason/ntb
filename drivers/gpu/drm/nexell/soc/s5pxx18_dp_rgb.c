@@ -27,7 +27,7 @@
 		v = _v;	\
 	}
 
-int nx_soc_dp_rgb_register(struct device *dev,
+int nx_dp_device_rgb_register(struct device *dev,
 			struct device_node *np, struct dp_control_dev *dpc)
 {
 	struct dp_rgb_dev *out;

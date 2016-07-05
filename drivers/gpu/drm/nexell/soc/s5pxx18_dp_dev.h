@@ -137,14 +137,17 @@ struct dp_control_dev {
 	enum dp_panel_type panel_type;
 	void *dp_output;
 	struct dp_control_ops *ops;
+	void *regs[sizeof(struct nx_dpc_register_set)/sizeof(void *)];
 };
 
 struct dp_control_ops {
-	void (*set_base)(struct dp_control_dev *dpc, void *base);
+	void (*set_base)(struct dp_control_dev *dpc, void **base, int num);
 	int  (*prepare)(struct dp_control_dev *dpc, unsigned int flags);
 	int  (*unprepare)(struct dp_control_dev *dpc);
 	int  (*enable)(struct dp_control_dev *dpc, unsigned int flags);
 	int  (*disable)(struct dp_control_dev *dpc);
+	int  (*suspend)(struct dp_control_dev *dpc);
+	int  (*resume)(struct dp_control_dev *dpc);
 };
 
 enum {
@@ -224,6 +227,7 @@ struct dp_plane_top {
 	unsigned int color_key;
 	int interlace;
 	int enable;
+	void *regs[sizeof(struct nx_mlc_register_set)/sizeof(void *)];
 };
 
 /*
@@ -295,69 +299,70 @@ struct dp_plane_layer {
 
 const char *dp_panel_type_name(enum dp_panel_type panel);
 
-void nx_soc_dp_device_dpc_base(int module, void __iomem *base);
-void nx_soc_dp_device_mlc_base(int module, void __iomem *base);
-void nx_soc_dp_device_top_base(int module, void __iomem *base);
-void nx_soc_dp_device_clk_base(int id, void __iomem *base);
-void nx_soc_dp_device_lvds_base(void __iomem *base);
+void nx_soc_dp_cont_dpc_base(int module, void __iomem *base);
+void nx_soc_dp_cont_mlc_base(int module, void __iomem *base);
+void nx_soc_dp_cont_top_base(int module, void __iomem *base);
+void nx_soc_dp_cont_top_clk_base(int id, void __iomem *base);
+void nx_soc_dp_cont_top_clk_on(int id);
 
-void nx_soc_dp_plane_top_setup(struct dp_plane_top *top);
+void nx_soc_dp_cont_dpc_clk_on(struct dp_control_dev *dpc);
+int  nx_soc_dp_cont_prepare(struct dp_control_dev *dpc);
+int  nx_soc_dp_cont_power_status(struct dp_control_dev *dpc);
+void nx_soc_dp_cont_power_on(struct dp_control_dev *dpc, bool on);
+void nx_soc_dp_cont_irq_on(int module, bool on);
+void nx_soc_dp_cont_irq_done(int module);
+
+void nx_soc_dp_plane_top_prepare(struct dp_plane_top *top);
 void nx_soc_dp_plane_top_set_format(struct dp_plane_top *top,
 			int width, int height);
 void nx_soc_dp_plane_top_set_bg_color(struct dp_plane_top *top);
 int nx_soc_dp_plane_top_set_enable(struct dp_plane_top *top, bool on);
 
-int nx_soc_dp_rgb_set_format(struct dp_plane_layer *layer,
+int nx_soc_dp_plane_rgb_set_format(struct dp_plane_layer *layer,
 			unsigned int format, int pixelbyte, bool adjust);
-int nx_soc_dp_rgb_set_position(struct dp_plane_layer *layer,
+int nx_soc_dp_plane_rgb_set_position(struct dp_plane_layer *layer,
 			int src_x, int src_y, int src_w, int src_h,
 			int dst_x, int dst_y, int dst_w, int dst_h,
 			bool adjust);
-void nx_soc_dp_rgb_set_address(struct dp_plane_layer *layer,
+void nx_soc_dp_plane_rgb_set_address(struct dp_plane_layer *layer,
 			unsigned int paddr, unsigned int pixelbyte,
 			unsigned int stride, bool adjust);
-void nx_soc_dp_rgb_set_enable(struct dp_plane_layer *layer,
+void nx_soc_dp_plane_rgb_set_enable(struct dp_plane_layer *layer,
 			bool on, bool adjust);
-void nx_soc_dp_rgb_set_color(struct dp_plane_layer *layer, unsigned int type,
-			unsigned int color, bool on, bool adjust);
+void nx_soc_dp_plane_rgb_set_color(struct dp_plane_layer *layer,
+			unsigned int type, unsigned int color,
+			bool on, bool adjust);
 
-int nx_soc_dp_video_set_format(struct dp_plane_layer *layer,
+int nx_soc_dp_plane_video_set_format(struct dp_plane_layer *layer,
 			unsigned int format, bool adjust);
-int nx_soc_dp_video_set_position(struct dp_plane_layer *layer,
+int nx_soc_dp_plane_video_set_position(struct dp_plane_layer *layer,
 			int src_x, int src_y, int src_w, int src_h,
 			int dst_x, int dst_y, int dst_w, int dst_h,
 			bool adjust);
-void nx_soc_dp_video_set_address_1plane(struct dp_plane_layer *layer,
+void nx_soc_dp_plane_video_set_address_1p(struct dp_plane_layer *layer,
 			unsigned int addr, unsigned int stride,
 			bool adjust);
-void nx_soc_dp_video_set_address_3plane(struct dp_plane_layer *layer,
+void nx_soc_dp_plane_video_set_address_3p(struct dp_plane_layer *layer,
 			unsigned int lu_a, unsigned int lu_s,
 			unsigned int cb_a, unsigned int cb_s,
 			unsigned int cr_a, unsigned int cr_s,
 			bool adjust);
-void nx_soc_dp_video_set_enable(struct dp_plane_layer *layer,
+void nx_soc_dp_plane_video_set_enable(struct dp_plane_layer *layer,
 			bool on, bool adjust);
 
-void nx_soc_dp_device_setup(struct dp_control_dev *dpc);
-int  nx_soc_dp_device_prepare(struct dp_control_dev *dpc);
-int  nx_soc_dp_device_power_status(struct dp_control_dev *dpc);
-void nx_soc_dp_device_power_on(struct dp_control_dev *dpc, bool on);
-void nx_soc_dp_device_irq_on(struct dp_control_dev *dpc, bool on);
-void nx_soc_dp_device_irq_done(struct dp_control_dev *dpc);
-
 #ifdef CONFIG_DRM_NX_RGB
-int nx_soc_dp_rgb_register(struct device *dev,
+int nx_dp_device_rgb_register(struct device *dev,
 			struct device_node *np, struct dp_control_dev *dpc);
 #endif
 
 #ifdef CONFIG_DRM_NX_LVDS
-int nx_soc_dp_lvds_register(struct device *dev,
+int nx_dp_device_lvds_register(struct device *dev,
 			struct device_node *np, struct dp_control_dev *dpc,
 			void *resets, int num_resets);
 #endif
 
 #ifdef CONFIG_DRM_NX_MIPI_DSI
-int nx_soc_dp_mipi_register(struct device *dev,
+int nx_dp_device_mipi_register(struct device *dev,
 			struct device_node *np, struct dp_control_dev *dpc);
 int nx_soc_dp_mipi_tx_transfer(struct dp_mipi_xfer *xfer);
 int nx_soc_dp_mipi_rx_transfer(struct dp_mipi_xfer *xfer);

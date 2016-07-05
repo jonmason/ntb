@@ -55,14 +55,20 @@ struct nx_drm_panel {
 	bool is_connected;
 };
 
+#define	MAX_RES_NUM		8
+
 struct nx_drm_res {
-	void *vir_base;
-	void *clk_bases[8];
-	int   clk_ids[8];
-	int   num_clks;
-	struct reset_control *resets[8];
-	int   num_resets;
-	u32 tieoffs[4][2];
+	void *base;
+	struct reset_control *reset;
+	/* sub devices */
+	void *dev_bases[MAX_RES_NUM];
+	int   num_devs;
+	void *dev_clk_bases[MAX_RES_NUM];
+	int   dev_clk_ids[MAX_RES_NUM];
+	int   num_dev_clks;
+	struct reset_control *dev_resets[MAX_RES_NUM];
+	int   num_dev_resets;
+	u32 tieoffs[MAX_RES_NUM][2];
 	int   num_tieoffs;
 };
 
@@ -72,6 +78,7 @@ struct nx_drm_device {
 	struct nx_drm_panel panel;
 	struct nx_drm_ctrl ctrl;
 	struct nx_drm_res res;
+	bool suspended;
 };
 
 #define	drm_dev_get_dpc(d)	(&d->ctrl.dpc)
@@ -81,28 +88,28 @@ const char *dp_panel_type_name(enum dp_panel_type panel);
 
 void nx_drm_dp_crtc_init(struct drm_device *drm, struct drm_crtc *crtc,
 			int index);
-int nx_drm_dp_crtc_mode_set(struct drm_crtc *crtc,
-			struct drm_plane *plane, struct drm_framebuffer *fb,
-			int crtc_x, int crtc_y,
-			unsigned int crtc_w, unsigned int crtc_h,
-			uint32_t src_x, uint32_t src_y,
-			uint32_t src_w, uint32_t src_h);
-
 void nx_drm_dp_crtc_commit(struct drm_crtc *crtc);
 void nx_drm_dp_crtc_dpms(struct drm_crtc *crtc, int mode);
 void nx_drm_dp_crtc_irq_on(struct drm_crtc *crtc, int pipe);
 void nx_drm_dp_crtc_irq_off(struct drm_crtc *crtc, int pipe);
 void nx_drm_dp_crtc_irq_done(struct drm_crtc *crtc, int pipe);
+void nx_drm_dp_crtc_reset(struct drm_crtc *crtc);
 
 void nx_drm_dp_plane_init(struct drm_device *drm, struct drm_crtc *crtc,
 			struct drm_plane *plane, int plane_num);
+int nx_drm_dp_plane_mode_set(struct drm_crtc *crtc,
+			struct drm_plane *plane, struct drm_framebuffer *fb,
+			int crtc_x, int crtc_y,
+			unsigned int crtc_w, unsigned int crtc_h,
+			uint32_t src_x, uint32_t src_y,
+			uint32_t src_w, uint32_t src_h);
 int nx_drm_dp_plane_update(struct drm_plane *plane,
 			struct drm_framebuffer *fb,
 			int crtc_x, int crtc_y,
 			unsigned int crtc_w, unsigned int crtc_h,
 			uint32_t src_x, uint32_t src_y,
 			uint32_t src_w, uint32_t src_h);
-void nx_drm_dp_plane_disable(struct drm_plane *plane);
+int nx_drm_dp_plane_disable(struct drm_plane *plane);
 void nx_drm_dp_plane_set_color(struct drm_plane *plane,
 			enum dp_color_type type, unsigned int color);
 
@@ -113,7 +120,6 @@ void nx_drm_dp_encoder_prepare(struct drm_encoder *encoder,
 			int index, bool irqon);
 void nx_drm_dp_encoder_unprepare(struct drm_encoder *encoder);
 void nx_drm_dp_encoder_commit(struct drm_encoder *encoder);
-
 void nx_drm_dp_encoder_dpms(struct drm_encoder *encoder, bool poweron);
 int nx_drm_dp_encoder_get_dpms(struct drm_encoder *encoder);
 
@@ -129,15 +135,15 @@ int nx_drm_dp_lcd_disable(struct nx_drm_device *display,
 int nx_drm_dp_mipi_transfer(struct mipi_dsi_host *host,
 			const struct mipi_dsi_msg *msg);
 
-int nx_drm_dp_panel_drv_res_parse(struct device *dev,
-			void **base, struct reset_control **reset);
-void nx_drm_dp_panel_drv_res_free(struct device *dev,
-			void *base, struct reset_control *reset);
-int nx_drm_dp_panel_dev_res_parse(struct device *dev,
-			struct device_node *node, struct nx_drm_res *res,
-			enum dp_panel_type panel_type);
-void nx_drm_dp_panel_dev_res_free(struct device *dev,
+int nx_drm_dp_panel_res_parse(struct device *dev,
+			struct nx_drm_res *res, enum dp_panel_type panel_type);
+void nx_drm_dp_panel_res_free(struct device *dev,
 			struct nx_drm_res *res);
+
+int nx_drm_dp_panel_res_resume(struct device *dev,
+			struct nx_drm_device *display);
+int nx_drm_dp_panel_res_suspend(struct device *dev,
+			struct nx_drm_device *display);
 
 int nx_drm_dp_panel_dev_register(struct device *dev,
 			struct device_node *np, enum dp_panel_type type,
@@ -147,8 +153,9 @@ void nx_drm_dp_panel_dev_release(struct device *dev,
 
 void nx_drm_dp_panel_ctrl_dump(struct nx_drm_device *display);
 
-int nx_drm_dp_crtc_drv_parse(struct platform_device *pdev, int pipe,
-			int *irqno, struct reset_control **reset);
+int nx_drm_dp_crtc_res_parse(struct platform_device *pdev, int pipe,
+			int *irqno, struct reset_control **resets,
+			int *num_resets);
 
 int  nx_drm_dp_panel_ctrl_parse(struct device_node *np,
 			struct nx_drm_device *display);

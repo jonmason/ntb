@@ -158,12 +158,12 @@ static int dp_mipi_phy_pll(int bitrate, unsigned int *pllpms,
 }
 
 static void nx_soc_dp_mipi_set_base(struct dp_control_dev *dpc,
-			void __iomem *base)
+			void __iomem **base, int num)
 {
 	BUG_ON(!base);
 	pr_debug("%s: dev mipi\n", __func__);
 
-	nx_mipi_set_base_address(0, base);
+	nx_mipi_set_base_address(0, base[0]);
 }
 
 static int nx_soc_dp_mipi_set_prepare(struct dp_control_dev *dpc,
@@ -449,7 +449,7 @@ static struct dp_control_ops mipi_dp_ops = {
 		v = _v;	\
 	}
 
-int nx_soc_dp_mipi_register(struct device *dev,
+int nx_dp_device_mipi_register(struct device *dev,
 			struct device_node *np, struct dp_control_dev *dpc)
 {
 	struct dp_mipi_dev *out;

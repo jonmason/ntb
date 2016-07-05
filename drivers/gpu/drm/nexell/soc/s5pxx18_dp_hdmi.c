@@ -766,6 +766,37 @@ int hdmi_find_mode(struct videomode *vm, int refresh,
 	return -EINVAL;
 }
 
+static void hdmi_ops_base(struct dp_control_dev *dpc,
+				void __iomem **base, int num)
+{
+	u32 hdp_mask = (1 << 6) | (1 << 3) | (1 << 2);
+
+	hdmi_set_base(base[0]);
+
+	/* HPD interrupt control: INTC_CON */
+	hdmi_write(HDMI_INTC_CON_0, hdp_mask);
+}
+
+int hdmi_ops_resume(struct dp_control_dev *dpc)
+{
+
+	u32 hdp_mask = (1 << 6) | (1 << 3) | (1 << 2);
+
+	pr_debug("%s\n", __func__);
+
+	/* HPD interrupt control: INTC_CON */
+	hdmi_write(HDMI_INTC_CON_0, hdp_mask);
+
+	return 0;
+}
+
+int nx_dp_hdmi_suspend(struct nx_drm_device *display)
+{
+	pr_debug("%s\n", __func__);
+
+	return 0;
+}
+
 bool nx_dp_hdmi_is_connected(void)
 {
 	int state = hdmi_hpd_status();
@@ -773,17 +804,6 @@ bool nx_dp_hdmi_is_connected(void)
 	pr_debug("%s: %s\n", __func__, state ? "connected" : "disconnected");
 
 	return state ? true : false;
-}
-
-static void nx_dp_hdmi_set_base(struct dp_control_dev *dpc,
-				void __iomem *base)
-{
-	u32 mask = (1 << 6) | (1 << 3) | (1 << 2);
-
-	hdmi_set_base(base);
-
-	/* HPD interrupt control: INTC_CON */
-	hdmi_write(HDMI_INTC_CON_0, mask);
 }
 
 u32 nx_dp_hdmi_hpd_event(int irq)
@@ -942,7 +962,7 @@ int nx_dp_hdmi_mode_commit(struct nx_drm_device *display, int pipe)
 	pr_debug("%s %s\n", __func__, preset->mode.name);
 
 	/* HDMI setup */
-	hdmi_reset(res->resets, res->num_resets);
+	hdmi_reset(res->dev_resets, res->num_dev_resets);
 
 	hdmi_phy_set(conf, HDMI_PHY_TABLE_SIZE);
 
@@ -1008,10 +1028,11 @@ void nx_dp_hdmi_power(struct nx_drm_device *display, bool on)
 }
 
 static struct dp_control_ops hdmi_dp_ops = {
-	.set_base = nx_dp_hdmi_set_base,
+	.set_base = hdmi_ops_base,
+	.resume = hdmi_ops_resume,
 };
 
-int nx_soc_dp_hdmi_register(struct device *dev,
+int nx_dp_device_hdmi_register(struct device *dev,
 			struct device_node *np, struct dp_control_dev *dpc)
 {
 	struct dp_hdmi_dev *out;

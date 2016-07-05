@@ -74,6 +74,9 @@ static int nx_drm_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 	if (!ret)
 		nx_plane->enabled = true;
 
+	/* link to plane's crtc */
+	plane->crtc = crtc;
+
 	return ret;
 }
 

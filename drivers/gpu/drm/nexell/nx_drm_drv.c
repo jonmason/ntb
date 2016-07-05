@@ -25,10 +25,22 @@
 
 #include "nx_drm_drv.h"
 #include "nx_drm_crtc.h"
+#include "nx_drm_connector.h"
 #include "nx_drm_encoder.h"
 #include "nx_drm_fb.h"
 #include "nx_drm_plane.h"
 #include "nx_drm_gem.h"
+
+/*
+ * DRM Configuration
+ *
+ * CRTC		: MLC top control (and display interrupt, reset, clock, ...)
+ * Plane	: MLC layer control
+ * Encoder	: DPC control
+ * Connector	: DRM connetcor for LCD, LVDS, MiPi, HDMI,...
+ * Panel	: Display device control (LCD, LVDS, MiPi, HDMI,...)
+ *
+ */
 
 static void nx_drm_output_poll_changed(struct drm_device *drm)
 {
@@ -351,6 +363,80 @@ static const struct of_device_id dt_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, dt_of_match);
 
+
+static int nx_drm_pm_suspend(struct device *dev)
+{
+	struct drm_connector *connector;
+	struct drm_device *drm = dev_get_drvdata(dev);
+	struct nx_drm_priv *priv = drm->dev_private;
+	int i;
+
+	DRM_DEBUG_DRIVER("enter %s\n", dev_name(dev));
+
+	drm_modeset_lock_all(drm);
+
+	for (i = 0; i < priv->num_crtcs; i++)
+		to_nx_crtc(priv->crtcs[i])->suspended = true;
+
+	list_for_each_entry(connector, &drm->mode_config.connector_list, head) {
+		int old_dpms = connector->dpms;
+		struct nx_drm_device *display =
+				to_nx_connector(connector)->display;
+
+		if (display)
+			display->suspended = true;
+
+		if (connector->funcs->dpms)
+			connector->funcs->dpms(connector, DRM_MODE_DPMS_OFF);
+
+		/* Set the old mode back to the connector for resume */
+		connector->dpms = old_dpms;
+	}
+
+	drm_modeset_unlock_all(drm);
+
+	return 0;
+}
+
+static int nx_drm_pm_resume(struct device *dev)
+{
+	struct drm_connector *connector;
+	struct drm_device *drm = dev_get_drvdata(dev);
+	struct nx_drm_priv *priv = drm->dev_private;
+	int i;
+
+	DRM_DEBUG_DRIVER("enter %s\n", dev_name(dev));
+
+	drm_modeset_lock_all(drm);
+
+	for (i = 0; i < priv->num_crtcs; i++)
+		nx_drm_dp_crtc_reset(priv->crtcs[i]);
+
+	list_for_each_entry(connector, &drm->mode_config.connector_list, head) {
+		if (connector->funcs->dpms) {
+			int dpms = connector->dpms;
+			struct nx_drm_device *display =
+					to_nx_connector(connector)->display;
+
+			connector->dpms = DRM_MODE_DPMS_OFF;
+			connector->funcs->dpms(connector, dpms);
+			if (display)
+				display->suspended = false;
+		}
+	}
+
+	for (i = 0; i < priv->num_crtcs; i++)
+		to_nx_crtc(priv->crtcs[i])->suspended = false;
+
+	drm_modeset_unlock_all(drm);
+
+	return 0;
+}
+
+static const struct dev_pm_ops nx_drm_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(nx_drm_pm_suspend, nx_drm_pm_resume)
+};
+
 static struct platform_driver nx_drm_platform_drv = {
 	.probe = nx_drm_probe,
 	.remove = nx_drm_remove,
@@ -358,6 +444,7 @@ static struct platform_driver nx_drm_platform_drv = {
 		   .owner = THIS_MODULE,
 		   .name = "nexell,display_drm",
 		   .of_match_table = dt_of_match,
+		   .pm	= &nx_drm_pm_ops,
 		   },
 };
 module_platform_driver(nx_drm_platform_drv);
