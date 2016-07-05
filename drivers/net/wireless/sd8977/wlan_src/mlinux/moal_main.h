@@ -1759,7 +1759,7 @@ extern t_u32 drvdbg;
 } while (0)
 #define	PRINTM_MMSG(level, msg...) do { \
 	woal_print(level, msg); \
-	if (drvdbg & MMSG) printk(KERN_ALERT msg); \
+	if (drvdbg & MMSG) printk(KERN_INFO msg); \
 } while (0)
 
 static inline void
