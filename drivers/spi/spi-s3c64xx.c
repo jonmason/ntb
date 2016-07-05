@@ -31,6 +31,7 @@
 #include <linux/platform_data/spi-s3c64xx.h>
 
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+#include <linux/pm_qos.h>
 #include <linux/soc/nexell/cpufreq.h>
 #endif
 
@@ -202,6 +203,18 @@ struct s3c64xx_spi_driver_data {
 	struct s3c64xx_spi_port_config	*port_conf;
 	unsigned int			port_id;
 };
+
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+static struct pm_qos_request nx_spi_qos;
+
+static void nx_spi_qos_update(int val)
+{
+	if (!pm_qos_request_active(&nx_spi_qos))
+		pm_qos_add_request(&nx_spi_qos, PM_QOS_BUS_THROUGHPUT, val);
+	else
+		pm_qos_update_request(&nx_spi_qos, val);
+}
+#endif
 
 static void flush_fifo(struct s3c64xx_spi_driver_data *sdd)
 {
@@ -685,7 +698,7 @@ static int s3c64xx_spi_transfer_one(struct spi_master *master,
 	int use_dma;
 
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
-	nx_bus_qos_update(NX_BUS_CLK_HIGH_KHZ);
+	nx_spi_qos_update(NX_BUS_CLK_SPI_KHZ);
 #endif
 
 	reinit_completion(&sdd->xfer_completion);
@@ -750,7 +763,7 @@ static int s3c64xx_spi_transfer_one(struct spi_master *master,
 	}
 
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
-	nx_bus_qos_update(NX_BUS_CLK_LOW_KHZ);
+	nx_spi_qos_update(NX_BUS_CLK_IDLE_KHZ);
 #endif
 
 	return status;
