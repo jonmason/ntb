@@ -53,6 +53,7 @@
 			nexell,drive_shift = <0x02>;
 			nexell,sample_dly = <0x00>;
 			nexell,sample_shift = <0x01>;
+			disable-data-tag;
 		};
 
 		pinctrl@C0010000 {
