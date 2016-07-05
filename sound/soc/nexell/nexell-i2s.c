@@ -32,6 +32,7 @@
 #endif
 
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+#include <linux/pm_qos.h>
 #include <linux/soc/nexell/cpufreq.h>
 #endif
 
@@ -120,6 +121,20 @@ struct i2s_register {
 
 #define FIC_FLUSH_EN			1
 
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+static bool i2s_qos_added;
+static struct pm_qos_request nx_i2s_qos;
+
+static void nx_i2s_qos_update(int val)
+{
+	if (!i2s_qos_added) {
+		pm_qos_add_request(&nx_i2s_qos, PM_QOS_BUS_THROUGHPUT, val);
+		i2s_qos_added = true;
+	} else {
+		pm_qos_update_request(&nx_i2s_qos, val);
+	}
+}
+#endif
 
 struct clock_ratio {
 	unsigned int sample_rate;
@@ -623,7 +638,7 @@ static int nx_i2s_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_START:
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
 		snd_pcm_stream_unlock_irq(substream);
-		nx_bus_qos_update(NX_BUS_CLK_MID_KHZ);
+		nx_i2s_qos_update(NX_BUS_CLK_AUDIO_KHZ);
 		snd_pcm_stream_lock_irq(substream);
 #endif
 		i2s_start(dai, stream);
@@ -634,7 +649,7 @@ static int nx_i2s_trigger(struct snd_pcm_substream *substream,
 		i2s_stop(dai, stream);
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
 		snd_pcm_stream_unlock_irq(substream);
-		nx_bus_qos_update(NX_BUS_CLK_LOW_KHZ);
+		nx_i2s_qos_update(NX_BUS_CLK_IDLE_KHZ);
 		snd_pcm_stream_lock_irq(substream);
 #endif
 		break;
