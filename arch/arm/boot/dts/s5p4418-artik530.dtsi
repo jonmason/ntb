@@ -155,7 +155,9 @@
 &dw_mmc_1 {
 	status = "okay";
 	num-slots = <1>;
+	bus-width = <4>;
 	cap-sd-highspeed;
+
 	broken-cd;
 	clock-frequency = <100000000>;
 	supports-detect-complete;
@@ -167,10 +169,4 @@
 
 	pinctrl-names = "default";
 	pinctrl-0 = <&sdmmc1_cclk &sdmmc1_cmd &sdmmc1_bus4 &cfg_wlanhostwake>;
-
-	slot@0 {
-		reg = <0>;
-		bus-width = <4>;
-		disable-wp;
-	};
 };
