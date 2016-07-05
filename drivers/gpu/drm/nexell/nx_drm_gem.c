@@ -17,6 +17,7 @@
  */
 #include <drm/drmP.h>
 #include <drm/drm_vma_manager.h>
+#include <drm/drm_gem_cma_helper.h>
 
 #include <linux/shmem_fs.h>
 #include <drm/nexell_drm.h>
@@ -46,6 +47,17 @@ struct sg_table *nx_drm_gem_prime_get_sg_table(struct drm_gem_object *obj)
 out:
 	kfree(sgt);
 	return NULL;
+}
+
+int nx_drm_gem_dumb_create(struct drm_file *file_priv,
+			    struct drm_device *drm,
+			    struct drm_mode_create_dumb *args)
+{
+	args->pitch = DIV_ROUND_UP(args->width * args->bpp, 8);
+	/* The pitch should be aligned by 8 */
+	args->pitch = ALIGN(args->pitch, 8);
+
+	return drm_gem_cma_dumb_create_internal(file_priv, drm, args);
 }
 
 int nx_drm_gem_get_ioctl(struct drm_device *dev, void *data,

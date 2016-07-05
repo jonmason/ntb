@@ -30,6 +30,10 @@
 int nx_drm_gem_create_ioctl(struct drm_device *drm, void *data,
 			struct drm_file *file_priv);
 
+int nx_drm_gem_dumb_create(struct drm_file *file_priv,
+			    struct drm_device *drm,
+			    struct drm_mode_create_dumb *args);
+
 /* get buffer information to memory region allocated by gem. */
 int nx_drm_gem_get_ioctl(struct drm_device *drm, void *data,
 			struct drm_file *file_priv);
