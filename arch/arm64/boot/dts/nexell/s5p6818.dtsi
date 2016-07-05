@@ -786,8 +786,9 @@
 			interrupts = < 0 IRQ_DPC_P 0 >, <0 IRQ_DPC_S 0>;
 			interrupts-names = "dpc.0", "dpc.1";
 
-			resets = <&nexell_reset RESET_ID_DISPLAY>;
-			reset-names = "rsc-display";
+			resets = <&nexell_reset RESET_ID_DISPLAY>,
+					<&nexell_reset RESET_ID_DISP_TOP>;
+			reset-names = "rsc-display", "rsc-display-top";
 
 			status = "disabled";
 
@@ -819,7 +820,7 @@
 			status = "disabled";
 
 			dp-resource {
-				reg_base = <0xc010a000>;
+				reg_base = <0xc010a000 0x100>;
 				clk_base = <0xc0108000 3>;
 				resets = <&nexell_reset RESET_ID_LVDS>;
 				reset-names = "rsc-lvds-phy";
@@ -836,7 +837,7 @@
 			status = "disabled";
 
 			dp-resource {
-				reg_base = <0xc00d0000>;
+				reg_base = <0xc00d0000 0x100>;
 				clk_base = <0xc0105000 2>;
 
 				resets = <&nexell_reset RESET_ID_MIPI>,
