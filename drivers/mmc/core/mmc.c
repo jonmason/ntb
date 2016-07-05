@@ -569,7 +569,8 @@ static int mmc_decode_ext_csd(struct mmc_card *card, u8 *ext_csd)
 			card->ext_csd.data_sector_size = 512;
 
 		if ((ext_csd[EXT_CSD_DATA_TAG_SUPPORT] & 1) &&
-		    (ext_csd[EXT_CSD_TAG_UNIT_SIZE] <= 8)) {
+		    (ext_csd[EXT_CSD_TAG_UNIT_SIZE] <= 8) &&
+		    !(card->host->caps2 & MMC_CAP2_NO_DATA_TAG)) {
 			card->ext_csd.data_tag_unit_size =
 			((unsigned int) 1 << ext_csd[EXT_CSD_TAG_UNIT_SIZE]) *
 			(card->ext_csd.data_sector_size);
