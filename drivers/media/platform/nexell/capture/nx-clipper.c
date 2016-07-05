@@ -42,6 +42,7 @@
 #include <dt-bindings/media/nexell-vip.h>
 
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+#include <linux/pm_qos.h>
 #include <linux/soc/nexell/cpufreq.h>
 #endif
 
@@ -57,6 +58,18 @@
 #include <linux/timer.h>
 
 #define DEBUG_SYNC_TIMEOUT_MS	(1000)
+#endif
+
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+static struct pm_qos_request nx_clipper_qos;
+
+static void nx_clipper_qos_update(int val)
+{
+	if (!pm_qos_request_active(&nx_clipper_qos))
+		pm_qos_add_request(&nx_clipper_qos, PM_QOS_BUS_THROUGHPUT, val);
+	else
+		pm_qos_update_request(&nx_clipper_qos, val);
+}
 #endif
 
 enum {
@@ -1109,7 +1122,7 @@ static int nx_clipper_s_stream(struct v4l2_subdev *sd, int enable)
 			}
 
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
-			nx_bus_qos_update(NX_BUS_CLK_HIGH_KHZ);
+			nx_clipper_qos_update(NX_BUS_CLK_VIP_KHZ);
 #endif
 
 			set_vip(me);
@@ -1176,7 +1189,7 @@ static int nx_clipper_s_stream(struct v4l2_subdev *sd, int enable)
 			NX_ATOMIC_CLEAR_MASK(STATE_CLIP_RUNNING, &me->state);
 
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
-			nx_bus_qos_update(NX_BUS_CLK_LOW_KHZ);
+			nx_clipper_qos_update(NX_BUS_CLK_IDLE_KHZ);
 #endif
 
 #ifndef CONFIG_VIDEO_NEXELL_CLIPPER
