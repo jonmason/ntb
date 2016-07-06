@@ -31,3 +31,10 @@ config ARCH_S5P4418
 config SECURE_REG_ACCESS
 	bool "Secure register access in non-secure mode"
 	depends on ARCH_S5P4418
+	  Support for nexell S5P4418 dual/quad core (ARM Cortex A9) platform
+
+config CPU_NXP4330
+	bool "Nexell NXP4330 CPU"
+	depends on ARCH_S5P4418
+	help
+	  Support for nexell nxp4330 cpu.
