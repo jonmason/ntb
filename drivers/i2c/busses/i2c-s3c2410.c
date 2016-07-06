@@ -1331,6 +1331,22 @@ static int s3c24xx_i2c_resume_noirq(struct device *dev)
 	ret = clk_enable(i2c->clk);
 	if (ret)
 		return ret;
+	/*
+	 * patch for s5p6818
+	 * s5p6818 i2c must be reset when resuming
+	 */
+#ifdef CONFIG_RESET_CONTROLLER
+	if (of_device_is_compatible(dev->of_node, "nexell,s5p6818-i2c")) {
+		struct reset_control *rst =
+			devm_reset_control_get(i2c->dev, "i2c-reset");
+		if (IS_ERR(rst)) {
+			dev_err(&pdev->dev,
+				"I2C controller failed to get reset_control\n");
+			return -EINVAL;
+		}
+		reset_control_reset(rst);
+	}
+#endif
 	s3c24xx_i2c_init(i2c);
 	clk_disable(i2c->clk);
 	i2c->suspended = 0;
