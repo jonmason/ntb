@@ -25,6 +25,7 @@ Requires node properties:
 		Status change is possible.
 - "io-channels"	Channel node of ADC to be used for
 		conversion.
+- "compensation" Compensation temperature in milli-degree.
 
 Optional node properties:
 - "#thermal-sensor-cells" Used to expose itself to thermal fw.
