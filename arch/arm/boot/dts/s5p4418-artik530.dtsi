@@ -114,6 +114,7 @@
 		pullup-ohm = <100000>;   /* 100K */
 		pulldown-ohm = <0>; /* 100K */
 		io-channels = <&adc 6>;  /* AP temperature */
+		compensation = <17000>; /* Compensation temp */
 	};
 
 	thermal-zones {
