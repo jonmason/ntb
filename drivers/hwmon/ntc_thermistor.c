@@ -309,6 +309,8 @@ ntc_thermistor_parse_dt(struct platform_device *pdev)
 		return ERR_PTR(-ENODEV);
 	if (of_property_read_u32(np, "pulldown-ohm", &pdata->pulldown_ohm))
 		return ERR_PTR(-ENODEV);
+	if (of_property_read_u32(np, "compensation", &pdata->compensat_temp))
+		return ERR_PTR(-ENODEV);
 
 	if (of_find_property(np, "connected-positive", NULL))
 		pdata->connect = NTC_CONNECTED_POSITIVE;
@@ -486,7 +488,7 @@ static int ntc_read_temp(void *dev, int *temp)
 	if (ohm < 0)
 		return ohm;
 
-	*temp = get_temp_mc(data, ohm);
+	*temp = get_temp_mc(data, ohm) + data->pdata->compensat_temp;
 
 	return 0;
 }
