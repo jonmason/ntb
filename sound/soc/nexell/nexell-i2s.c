@@ -121,21 +121,6 @@ struct i2s_register {
 
 #define FIC_FLUSH_EN			1
 
-#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
-static bool i2s_qos_added;
-static struct pm_qos_request nx_i2s_qos;
-
-static void nx_i2s_qos_update(int val)
-{
-	if (!i2s_qos_added) {
-		pm_qos_add_request(&nx_i2s_qos, PM_QOS_BUS_THROUGHPUT, val);
-		i2s_qos_added = true;
-	} else {
-		pm_qos_update_request(&nx_i2s_qos, val);
-	}
-}
-#endif
-
 struct clock_ratio {
 	unsigned int sample_rate;
 	unsigned int ratio_256;
@@ -184,7 +169,28 @@ struct nx_i2s_snd_param {
 	/* Register */
 	void __iomem *base_addr;
 	struct i2s_register i2s;
+
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+	struct work_struct qos_work;
+#endif
 };
+
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+static struct pm_qos_request nx_i2s_qos;
+
+static void nx_i2s_qos_update(int val)
+{
+	if (!pm_qos_request_active(&nx_i2s_qos))
+		pm_qos_add_request(&nx_i2s_qos, PM_QOS_BUS_THROUGHPUT, val);
+	else
+		pm_qos_update_request(&nx_i2s_qos, val);
+}
+
+static void qos_worker(struct work_struct *work)
+{
+	nx_i2s_qos_update(NX_BUS_CLK_IDLE_KHZ);
+}
+#endif
 
 #define	SND_I2S_LOCK_INIT(x)		spin_lock_init(x)
 #define	SND_I2S_LOCK(x, f)		spin_lock_irqsave(x, f)
@@ -629,6 +635,9 @@ static int nx_i2s_trigger(struct snd_pcm_substream *substream,
 				int cmd, struct snd_soc_dai *dai)
 {
 	int stream = substream->stream;
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+	struct nx_i2s_snd_param *par = snd_soc_dai_get_drvdata(dai);
+#endif
 
 	dev_dbg(dai->dev, "%s: %s cmd=%d\n", __func__, STREAM_STR(stream), cmd);
 
@@ -648,9 +657,7 @@ static int nx_i2s_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_STOP:
 		i2s_stop(dai, stream);
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
-		snd_pcm_stream_unlock_irq(substream);
-		nx_i2s_qos_update(NX_BUS_CLK_IDLE_KHZ);
-		snd_pcm_stream_lock_irq(substream);
+		schedule_work(&par->qos_work);
 #endif
 		break;
 
@@ -835,6 +842,10 @@ static int nx_i2s_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "fail, snd_soc_register_platform ...\n");
 		goto err_out;
 	}
+
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+	INIT_WORK(&par->qos_work, qos_worker);
+#endif
 
 	dev_set_drvdata(&pdev->dev, par);
 	return ret;
