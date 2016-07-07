@@ -115,7 +115,7 @@ static bool panel_lcd_is_connected(struct device *dev,
 	}
 
 	if (!panel_node && false == ctx->local_timing) {
-		DRM_ERROR("not exist %s panel & timing %s !\n",
+		DRM_DEBUG_DRIVER("not exist %s panel & timing %s !\n",
 			dp_panel_type_name(panel_type), dev_name(dev));
 		return false;
 	}
