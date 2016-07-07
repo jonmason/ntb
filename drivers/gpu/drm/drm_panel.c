@@ -27,12 +27,12 @@
 #include <drm/drm_crtc.h>
 #include <drm/drm_panel.h>
 
-static char connected_panel_name[64] __initdata;
+static char connected_panel_name[64];
 
 static DEFINE_MUTEX(panel_lock);
 static LIST_HEAD(panel_list);
 
-static int __init drm_connected_panel_setup(char *line)
+static int drm_connected_panel_setup(char *line)
 {
 	strlcpy(connected_panel_name, line, sizeof(connected_panel_name));
 	return 1;
