@@ -111,7 +111,7 @@ static bool panel_lcd_is_connected(struct device *dev,
 		 */
 		DRM_DEBUG_KMS("Not find panel driver for %s ...\n",
 			dp_panel_type_name(panel_type));
-		return true;
+		return false;
 	}
 
 	if (!panel_node && false == ctx->local_timing) {
