@@ -2154,6 +2154,8 @@ static int sensor_4ec_stream_off(struct v4l2_subdev *subdev)
 	cam_info("preview off done check finished after %d ms\n",
 		poll_time_ms);
 
+	s5k4ec_state->fps = FRAME_RATE_30; /* default frame rate */
+
 	cam_info("stream off\n");
 
 p_err:
@@ -3630,6 +3632,8 @@ int sensor_4ec_probe(struct i2c_client *client,
 		sensor_4ec_set_focus_work);
 	INIT_WORK(&s5k4ec_state->af_work, sensor_4ec_af_worker);
 	INIT_WORK(&s5k4ec_state->af_stop_work, sensor_4ec_af_stop_worker);
+
+	s5k4ec_state->fps = FRAME_RATE_30; /* default frame rate */
 
 p_err:
 	cam_info("(%d)\n", ret);
