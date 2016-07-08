@@ -1965,6 +1965,24 @@ static int s3c24xx_serial_resume_noirq(struct device *dev)
 	struct uart_port *port = s3c24xx_dev_to_port(dev);
 
 	if (port) {
+		/*
+		 * patch for s5p6818
+		 * s5p6818 uart needs reset before enabled
+		 */
+#ifdef CONFIG_RESET_CONTROLLER
+		struct s3c24xx_uart_port *ourport = to_ourport(port);
+
+		if (ourport->info->has_reset_control) {
+			struct reset_control *rst;
+
+			rst = devm_reset_control_get(dev, "uart-reset");
+			if (!rst) {
+				dev_err(dev, "failed to get reset control\n");
+				return -EINVAL;
+			}
+			reset_control_reset(rst);
+		}
+#endif
 		/* restore IRQ mask */
 		if (s3c24xx_serial_has_interrupt_mask(port)) {
 			unsigned int uintm = 0xf;
