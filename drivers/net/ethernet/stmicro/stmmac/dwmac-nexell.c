@@ -16,12 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <linux/platform_device.h>
 #include <linux/stmmac.h>
 #include <linux/clk.h>
 #include <linux/phy.h>
 #include <linux/of_net.h>
+#include <linux/reset.h>
 
 #include "stmmac_platform.h"
+#include "stmmac.h"
 
 struct nexell_priv_data {
 	int clk_enabled;
@@ -50,7 +53,15 @@ static void *nexell_gmac_setup(struct platform_device *pdev)
 
 static int nexell_gmac_init(struct platform_device *pdev, void *priv)
 {
+	struct net_device *ndev = platform_get_drvdata(pdev);
+	struct stmmac_priv *stpriv = NULL;
 	struct nexell_priv_data *gmac = priv;
+
+	if (ndev)
+		stpriv = netdev_priv(ndev);
+
+	if (stpriv && stpriv->stmmac_rst)
+		reset_control_deassert(stpriv->stmmac_rst);
 
 	clk_set_rate(gmac->tx_clk, GMAC_GMII_RGMII_RATE);
 	clk_prepare_enable(gmac->tx_clk);
