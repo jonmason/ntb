@@ -1301,6 +1301,29 @@ static int s3c64xx_spi_resume(struct device *dev)
 	struct s3c64xx_spi_info *sci = sdd->cntrlr_info;
 	int ret;
 
+#ifdef CONFIG_RESET_CONTROLLER
+	if (of_device_is_compatible(dev->of_node, "nexell,s5p6818-spi")) {
+		struct reset_control *rst;
+		struct reset_control *prst;
+
+		prst = devm_reset_control_get(dev, "pre-reset");
+		if (IS_ERR(prst)) {
+			dev_err(dev, "failed to get pre-reset control\n");
+			return -EINVAL;
+		}
+		if (reset_control_status(prst))
+			reset_control_reset(prst);
+
+		rst = devm_reset_control_get(dev, "spi-reset");
+		if (IS_ERR(rst)) {
+			dev_err(dev, "failed to get reset control\n");
+			return -EINVAL;
+		}
+		if (reset_control_status(rst))
+			reset_control_reset(rst);
+	};
+#endif
+
 	if (sci->cfg_gpio)
 		sci->cfg_gpio();
 
