@@ -420,7 +420,7 @@ static ssize_t sd8x_pwr_store(struct device *dev,
 		}
  	}
 
-	pr_err("sd8x_pwr check power state - in(%d), cur(%d), next(%d)\n", pwr_ctrl, prev_pwr_state, sd8x_pwr_state);
+	pr_info("sd8x_pwr check power state - in(%d), cur(%d), next(%d)\n", pwr_ctrl, prev_pwr_state, sd8x_pwr_state);
 	
 	if((sd8x_pwr_state == 0 && prev_pwr_state == 0) ||
 		(sd8x_pwr_state != 0 && prev_pwr_state != 0)) {
@@ -473,13 +473,13 @@ static int sd8x_rfkill_probe_dt(struct platform_device *pdev)
 		pdata->pin_off = pinctrl_lookup_state(pdata->pinctrl, "off");
 		if (IS_ERR(pdata->pin_off)) {
 			pdata->pin_off = NULL;
-			dev_err(&pdev->dev, "could not get off pinstate.\n");
+			dev_warn(&pdev->dev, "could not get off pinstate.\n");
 		}
 
 		pdata->pin_on = pinctrl_lookup_state(pdata->pinctrl, "on");
 		if (IS_ERR(pdata->pin_on)) {
 			pdata->pin_on = NULL;
-			dev_err(&pdev->dev, "could not get on pinstate.\n");
+			dev_warn(&pdev->dev, "could not get on pinstate.\n");
 		}
 	}
 
