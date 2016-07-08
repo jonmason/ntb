@@ -136,7 +136,7 @@ extern u32 mbt_drvdbg;
 /** Print error message */
 #define	PRINTM_ERROR(msg...) \
 	do {if (mbt_drvdbg & DBG_ERROR) \
-		printk(KERN_ERR msg); } while (0)
+		printk(KERN_NOTICE msg); } while (0)
 /** Print fatal message */
 #define	PRINTM_FATAL(msg...) \
 	do {if (mbt_drvdbg & DBG_FATAL) \
@@ -144,7 +144,7 @@ extern u32 mbt_drvdbg;
 /** Print message */
 #define	PRINTM_MSG(msg...)   \
 	do {if (mbt_drvdbg & DBG_MSG)   \
-		printk(KERN_ALERT msg); } while (0)
+		printk(KERN_INFO msg); } while (0)
 
 /** Print data dump message */
 #define	PRINTM_DAT_D(msg...)  \
