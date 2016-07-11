@@ -746,7 +746,7 @@ int hdmi_find_mode(struct videomode *vm, int refresh,
 		if (mode->h_as != vm->hactive || mode->v_as != vm->vactive)
 			continue;
 
-		if ((flags & HDMI_CHECK_REFRESH) && (mode->refresh != refresh))
+		if (refresh && (mode->refresh != refresh))
 			continue;
 
 		if ((flags & HDMI_CHECK_PIXCLOCK) &&
@@ -817,7 +817,7 @@ u32 nx_dp_hdmi_hpd_event(int irq)
 
 bool nx_dp_hdmi_mode_valid(struct videomode *vm, int refresh, int pixelclock)
 {
-	unsigned int flags = HDMI_CHECK_REFRESH | HDMI_CHECK_PIXCLOCK;
+	unsigned int flags = HDMI_CHECK_PIXCLOCK;
 	int err;
 
 	err = hdmi_find_mode(vm, refresh, pixelclock, flags);
@@ -836,7 +836,7 @@ bool nx_dp_hdmi_mode_get(int width, int height, int refresh,
 	vm->hactive = width;
 	vm->vactive = height;
 
-	if (!width || !height || !refresh)
+	if (!width || !height)
 		return false;
 
 	err = hdmi_find_mode(vm, refresh, 0, flags);
@@ -882,7 +882,7 @@ int nx_dp_hdmi_mode_set(struct nx_drm_device *display,
 	const struct hdmi_conf *conf;
 	struct hdmi_preset *preset;
 	struct dp_control_dev *dpc = display_to_dpc(display);
-	unsigned int flags = HDMI_CHECK_REFRESH | HDMI_CHECK_PIXCLOCK;
+	unsigned int flags = HDMI_CHECK_PIXCLOCK;
 	int refresh = mode->vrefresh;
 	int pixelclock = mode->clock * 1000;
 	int err;
