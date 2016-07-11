@@ -456,6 +456,7 @@ clocks {
 		clk-input  = <CLK_INPUT_EHCI>;
 		clk-input1 = <CLK_INPUT_EHCI_IN1>;
 		clock-output-names = "usbhost";
+		clock-frequency = <12000000>;
 	};
 
 	otg:otg@6c00b000 {
