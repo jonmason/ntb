@@ -880,6 +880,9 @@ unsigned mmc_sd_get_max_clock(struct mmc_card *card)
 		max_dtr = card->csd.max_dtr;
 	}
 
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+	max_dtr = 52000000;
+#endif
 	return max_dtr;
 }
 
