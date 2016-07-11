@@ -44,6 +44,7 @@ struct nx_devfreq {
 	struct regulator *regulator;
 	struct device *dev;
 	atomic_t usage_cnt;
+	unsigned long suspend_freq;
 };
 
 struct bus_opp_table {
@@ -304,6 +305,30 @@ static int nx_governor_get_target(struct devfreq *devfreq, unsigned long *freq)
 	return 0;
 }
 
+static void governor_suspend(struct devfreq *devfreq)
+{
+	struct nx_devfreq *nx_devfreq = devfreq->data;
+	unsigned long freq;
+
+	nx_devfreq->suspend_freq = 0;
+	if (atomic_read(&nx_devfreq->cur_freq) != NX_BUS_CLK_HIGH_KHZ) {
+		freq = NX_BUS_CLK_HIGH_KHZ;
+		nx_devfreq->suspend_freq = atomic_read(&nx_devfreq->cur_freq);
+		nx_devfreq_target(devfreq->dev.parent, &freq, 0);
+	}
+}
+
+static void governor_resume(struct devfreq *devfreq)
+{
+	struct nx_devfreq *nx_devfreq = devfreq->data;
+	unsigned long freq;
+
+	if (nx_devfreq->suspend_freq != 0) {
+		freq = nx_devfreq->suspend_freq;
+		nx_devfreq_target(devfreq->dev.parent, &freq, 0);
+	}
+}
+
 static int nx_governor_event_handler(struct devfreq *devfreq,
 				     unsigned int event, void *data)
 {
@@ -325,10 +350,12 @@ static int nx_governor_event_handler(struct devfreq *devfreq,
 		break;
 
 	case DEVFREQ_GOV_SUSPEND:
+		governor_suspend(devfreq);
 		devfreq_monitor_suspend(devfreq);
 		break;
 
 	case DEVFREQ_GOV_RESUME:
+		governor_resume(devfreq);
 		devfreq_monitor_resume(devfreq);
 		break;
 	}
@@ -425,6 +452,29 @@ static int nx_devfreq_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM_SLEEP
+static int nx_devfreq_pm_prepare(struct device *dev)
+{
+	struct nx_devfreq *nx_devfreq = dev_get_drvdata(dev);
+	struct devfreq *devfreq = nx_devfreq->devfreq;
+
+	return devfreq_suspend_device(devfreq);
+}
+
+static void nx_devfreq_pm_complete(struct device *dev)
+{
+	struct nx_devfreq *nx_devfreq = dev_get_drvdata(dev);
+	struct devfreq *devfreq = nx_devfreq->devfreq;
+
+	devfreq_resume_device(devfreq);
+}
+
+static const struct dev_pm_ops nx_devfreq_pm_ops = {
+	.prepare = nx_devfreq_pm_prepare,
+	.complete = nx_devfreq_pm_complete,
+};
+#endif
+
 static const struct of_device_id nx_devfreq_of_match[] = {
 	{ .compatible = "nexell,s5pxx18-devfreq" },
 	{ },
@@ -438,6 +488,9 @@ static struct platform_driver nx_devfreq_driver = {
 	.driver = {
 		.name = "nx-devfreq",
 		.of_match_table = nx_devfreq_of_match,
+#ifdef CONFIG_PM_SLEEP
+		.pm = &nx_devfreq_pm_ops,
+#endif
 	},
 };
 
