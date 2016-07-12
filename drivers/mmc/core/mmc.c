@@ -582,6 +582,17 @@ static int mmc_decode_ext_csd(struct mmc_card *card, u8 *ext_csd)
 			ext_csd[EXT_CSD_MAX_PACKED_WRITES];
 		card->ext_csd.max_packed_reads =
 			ext_csd[EXT_CSD_MAX_PACKED_READS];
+
+		if(!(card->ext_csd.rst_n_function & EXT_CSD_RST_N_EN_MASK)) {
+			err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
+				EXT_CSD_RST_N_FUNCTION,
+				card->ext_csd.rst_n_function | EXT_CSD_RST_N_ENABLED,
+				card->ext_csd.generic_cmd6_time);
+			if(!err)
+				card->ext_csd.rst_n_function |= EXT_CSD_RST_N_ENABLED;
+			else
+				err = 0;
+		}
 	} else {
 		card->ext_csd.data_sector_size = 512;
 	}
