@@ -91,6 +91,7 @@
 			nexell,sample_dly = <0x00>;
 			nexell,sample_shift = <0x01>;
 			disable-data-tag;
+			cap-mmc-hw-reset;
 		};
 
 		dynamic-freq@bb000 {
