@@ -26,8 +26,8 @@
 #include <linux/sched.h>
 #include <linux/suspend.h>
 
-/* Booting time 60s */
-#define BOOTING_TIME 600
+/* Booting time 90s */
+#define BOOTING_TIME 900
 
 static struct delayed_work hotplug_work;
 static struct delayed_work start_hotplug;
@@ -105,7 +105,7 @@ static struct hotplug_ctrl ctrl_hotplug = {
 	.up_freq = 1300000,			/* MHz */
 	.up_threshold = 3,
 	.down_threshold = 3,
-	.up_tasks = 8,
+	.up_tasks = 4,
 	.down_tasks = 6,
 	.force_hstate = -1,
 	.min_lock = -1,
@@ -118,7 +118,7 @@ static DEFINE_MUTEX(hotplug_lock);
 static DEFINE_SPINLOCK(hstate_status_lock);
 
 static atomic_t freq_history[STAY] =  {ATOMIC_INIT(0), ATOMIC_INIT(0)};
-static bool lcd_on = true;
+static bool lcd_on = false;
 
 /* check the core count */
 static int get_core_count(enum hstate state)
@@ -716,10 +716,8 @@ static int __init dm_cluster_hotplug_init(void)
 		goto err_pm;
 	}
 
-/* We will enable this workqueue after stabilization testing.
 	queue_delayed_work_on(0, khotplug_wq, &start_hotplug,
 		msecs_to_jiffies(ctrl_hotplug.sampling_rate) * BOOTING_TIME);
-*/
 
 	return 0;
 
