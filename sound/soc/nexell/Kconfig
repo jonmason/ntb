@@ -41,6 +41,10 @@ config SND_SPDIF_TRANSCEIVER
 	select SND_NX_SPDIF_TX
 	select SND_SOC_SPDIF
 
+config SND_CODEC_NULL
+	tristate "I2S audio null codec."
+	depends on SND_NX_I2S
+
 config SND_CODEC_ES8316
 	tristate "es8316 I2S audio codec."
 	depends on SND_NX_I2S
