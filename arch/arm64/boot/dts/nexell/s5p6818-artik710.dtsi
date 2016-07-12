@@ -220,6 +220,7 @@
 	cap-sd-highspeed;
 	cd-type-external;
 	broken-cd;
+	keep-power-in-suspend;
 	cd-type = <2>;
 	clock-frequency = <100000000>;
 	nexell,drive_dly = <0x0>;
