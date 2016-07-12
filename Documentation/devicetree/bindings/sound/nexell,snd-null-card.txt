@@ -1,0 +1,23 @@
+Nexell Null card
+
+This device supports I2S Null card
+
+Required Properties:
+
+- compatible : should be one of the following.
+   - nexell,snd-null-card: for I2S Null card.
+- ch             : i2s channel of the Null audio codec
+- sample_rate    : sample rate of the Null audio codec
+- format         : audio format of the Null audio codec
+- i2s-controller : The i2s controller phandle of the Null audio codec
+
+
+Example:
+
+snd_null_card_0:snd-_null_card@0 {
+	compatible = "nexell,snd-null-card";
+	ch = <0>;
+	sample-rate = <48000>;
+	format = "S16";
+	i2s-controller = <&i2s_0>;
+};
