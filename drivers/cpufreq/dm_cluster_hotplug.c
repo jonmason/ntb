@@ -136,27 +136,35 @@ static int get_core_count(enum hstate state)
 
 static void __ref cluster_down(enum hstate state)
 {
+	struct device *cdev;
 	int i, count, cpu;
 
 	count = get_core_count(state);
 
 	for (i = 0; i < count; i++) {
 		cpu = num_online_cpus() - 1;
-		if (cpu > 0 && cpu_online(cpu))
+		if (cpu > 0 && cpu_online(cpu)) {
 			cpu_down(cpu);
+			cdev = get_cpu_device(cpu);
+			cdev->offline = true;
+		}
 	}
 }
 
 static void __ref cluster_up(enum hstate state)
 {
+	struct device *cdev;
 	int i, count, cpu;
 
 	count = get_core_count(state);
 
 	for (i = 0; i < count; i++) {
 		cpu = num_online_cpus();
-		if (cpu < num_possible_cpus() && !cpu_online(cpu))
+		if (cpu < num_possible_cpus() && !cpu_online(cpu)) {
 			cpu_up(cpu);
+			cdev = get_cpu_device(cpu);
+			cdev->offline = false;
+		}
 	}
 }
 
