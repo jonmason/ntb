@@ -2591,8 +2591,10 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
 	if (host->pdata->caps)
 		mmc->caps = host->pdata->caps;
 
-	if (host->pdata->pm_caps)
+	if (host->pdata->pm_caps) {
 		mmc->pm_caps = host->pdata->pm_caps;
+		mmc->pm_flags = mmc->pm_caps;
+	}
 
 	if (host->dev->of_node) {
 		ctrl_id = of_alias_get_id(host->dev->of_node, "mshc");
@@ -2979,6 +2981,9 @@ static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 		dev_info(dev, "supports-highspeed property is deprecated.\n");
 		pdata->caps |= MMC_CAP_SD_HIGHSPEED | MMC_CAP_MMC_HIGHSPEED;
 	}
+
+	if (of_find_property(np, "pm-ignore-notify", NULL))
+		pdata->pm_caps |= MMC_PM_IGNORE_PM_NOTIFY;
 
 	if (of_find_property(np, "cd-type-external", NULL)) {
 		pdata->cd_type = DW_MCI_CD_EXTERNAL;
