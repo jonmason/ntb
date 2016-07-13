@@ -81,7 +81,7 @@ struct pll_pms {
 
 static struct pll_pms pll0_1_pms[] = {
 	[0] = { .rate =  NX_BUS_CLK_HIGH_KHZ, .voltage = 1200000, .P = 3, .M = 200, .S = 1, },
-	[1] = { .rate =  NX_BUS_CLK_MID_KHZ,  .voltage = 1000000, .P = 3, .M = 280, .S = 3, },
+	[1] = { .rate =  NX_BUS_CLK_MID_KHZ,  .voltage = 1000000, .P = 3, .M = 300, .S = 3, },
 	[2] = { .rate =  NX_BUS_CLK_LOW_KHZ,  .voltage = 1000000, .P = 3, .M = 200, .S = 3, },
 };
 

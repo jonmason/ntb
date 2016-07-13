@@ -33,7 +33,7 @@ void nx_pll_set_rate(int PLL, int P, int M, int S);
 
 /* BUS CLOCK */
 #define NX_BUS_CLK_HIGH_KHZ     400000
-#define NX_BUS_CLK_MID_KHZ      140000
+#define NX_BUS_CLK_MID_KHZ      150000
 #define NX_BUS_CLK_LOW_KHZ      100000
 
 /* defines for per IP */
