@@ -220,6 +220,7 @@
 	cap-sd-highspeed;
 	cd-type-external;
 	broken-cd;
+	pm-ignore-notify;
 	keep-power-in-suspend;
 	cd-type = <2>;
 	clock-frequency = <100000000>;
