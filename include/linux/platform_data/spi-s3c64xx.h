@@ -36,6 +36,7 @@ struct s3c64xx_spi_csinfo {
  * @cfg_gpio: Configure pins for this SPI controller.
  */
 struct s3c64xx_spi_info {
+	u32 hierarchy;
 	int src_clk_nr;
 	int num_cs;
 	int (*cfg_gpio)(void);

@@ -136,6 +136,9 @@
 #define RXBUSY    (1<<2)
 #define TXBUSY    (1<<3)
 
+#define SSP_MASTER	0
+#define SSP_SLAVE	1
+
 struct s3c64xx_spi_dma_data {
 	struct dma_chan *ch;
 	enum dma_transfer_direction direction;
@@ -493,8 +496,10 @@ static int wait_for_dma(struct s3c64xx_spi_driver_data *sdd,
 
 	/* millisecs to xfer 'len' bytes @ 'cur_speed' */
 	ms = xfer->len * 8 * 1000 / sdd->cur_speed;
-	ms += 10; /* some tolerance */
-
+	if(sdd->cntrlr_info->hierarchy == SSP_SLAVE)
+		ms += 1000; /* some tolerance */
+	else
+		ms += 10;
 	val = msecs_to_jiffies(ms) + 10;
 	val = wait_for_completion_timeout(&sdd->xfer_completion, val);
 
@@ -539,8 +544,10 @@ static int wait_for_pio(struct s3c64xx_spi_driver_data *sdd,
 
 	/* millisecs to xfer 'len' bytes @ 'cur_speed' */
 	ms = xfer->len * 8 * 1000 / sdd->cur_speed;
-	ms += 10; /* some tolerance */
-
+	if(sdd->cntrlr_info->hierarchy == SSP_SLAVE)
+		ms += 10000; /* some tolerance */
+	else
+		ms += 10; /* some tolerance */
 	val = msecs_to_loops(ms);
 	do {
 		status = readl(regs + S3C64XX_SPI_STATUS);
@@ -593,6 +600,7 @@ static int wait_for_pio(struct s3c64xx_spi_driver_data *sdd,
 static void s3c64xx_spi_config(struct s3c64xx_spi_driver_data *sdd)
 {
 	void __iomem *regs = sdd->regs;
+	struct s3c64xx_spi_info *sci = sdd->cntrlr_info;
 	u32 val;
 
 	/* Disable Clock */
@@ -609,6 +617,8 @@ static void s3c64xx_spi_config(struct s3c64xx_spi_driver_data *sdd)
 	val &= ~(S3C64XX_SPI_CH_SLAVE |
 			S3C64XX_SPI_CPOL_L |
 			S3C64XX_SPI_CPHA_B);
+	if(sci->hierarchy == SSP_SLAVE)
+		val |= S3C64XX_SPI_CH_SLAVE;
 
 	if (sdd->cur_mode & SPI_CPOL)
 		val |= S3C64XX_SPI_CPOL_L;
@@ -1007,6 +1017,7 @@ static struct s3c64xx_spi_info *s3c64xx_spi_parse_dt(struct device *dev)
 {
 	struct s3c64xx_spi_info *sci;
 	u32 temp;
+	u32 hierarchy =0;
 
 	sci = devm_kzalloc(dev, sizeof(*sci), GFP_KERNEL);
 	if (!sci)
@@ -1025,6 +1036,10 @@ static struct s3c64xx_spi_info *s3c64xx_spi_parse_dt(struct device *dev)
 	} else {
 		sci->num_cs = temp;
 	}
+	if (of_property_read_u32(dev->of_node, "hierarchy", &hierarchy))
+		sci->hierarchy = SSP_MASTER;
+	else
+		sci->hierarchy = hierarchy;
 
 	return sci;
 }
@@ -1060,7 +1075,7 @@ static int s3c64xx_spi_probe(struct platform_device *pdev)
 	struct spi_master *master;
 	int ret, irq;
 	char clk_name[16];
-
+	u32 val;
 	if (!sci && pdev->dev.of_node) {
 		sci = s3c64xx_spi_parse_dt(&pdev->dev);
 		if (IS_ERR(sci))
@@ -1233,9 +1248,11 @@ static int s3c64xx_spi_probe(struct platform_device *pdev)
 		goto err3;
 	}
 
-	writel(S3C64XX_SPI_INT_RX_OVERRUN_EN | S3C64XX_SPI_INT_RX_UNDERRUN_EN |
-	       S3C64XX_SPI_INT_TX_OVERRUN_EN | S3C64XX_SPI_INT_TX_UNDERRUN_EN,
-	       sdd->regs + S3C64XX_SPI_INT_EN);
+	val  = S3C64XX_SPI_INT_RX_OVERRUN_EN | S3C64XX_SPI_INT_RX_UNDERRUN_EN |
+	       S3C64XX_SPI_INT_TX_OVERRUN_EN;
+	if(sci->hierarchy == SSP_MASTER)
+		val |=  S3C64XX_SPI_INT_TX_UNDERRUN_EN;
+	writel(val, sdd->regs + S3C64XX_SPI_INT_EN);
 
 	ret = devm_spi_register_master(&pdev->dev, master);
 	if (ret != 0) {
