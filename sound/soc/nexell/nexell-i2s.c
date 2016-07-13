@@ -621,7 +621,12 @@ static int nx_i2s_startup(struct snd_pcm_substream *substream,
 		= SNDRV_PCM_STREAM_PLAYBACK == substream->stream ?
 		&par->play : &par->capt;
 
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+	nx_i2s_qos_update(NX_BUS_CLK_AUDIO_KHZ);
+#endif
+
 	snd_soc_dai_set_dma_data(dai, substream, dmap);
+
 	return 0;
 }
 
@@ -629,15 +634,16 @@ static void nx_i2s_shutdown(struct snd_pcm_substream *substream,
 				struct snd_soc_dai *dai)
 {
 	i2s_stop(dai, substream->stream);
+
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+	nx_i2s_qos_update(NX_BUS_CLK_IDLE_KHZ);
+#endif
 }
 
 static int nx_i2s_trigger(struct snd_pcm_substream *substream,
 				int cmd, struct snd_soc_dai *dai)
 {
 	int stream = substream->stream;
-#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
-	struct nx_i2s_snd_param *par = snd_soc_dai_get_drvdata(dai);
-#endif
 
 	dev_dbg(dai->dev, "%s: %s cmd=%d\n", __func__, STREAM_STR(stream), cmd);
 
@@ -645,20 +651,12 @@ static int nx_i2s_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 	case SNDRV_PCM_TRIGGER_START:
-#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
-		snd_pcm_stream_unlock_irq(substream);
-		nx_i2s_qos_update(NX_BUS_CLK_AUDIO_KHZ);
-		snd_pcm_stream_lock_irq(substream);
-#endif
 		i2s_start(dai, stream);
 		break;
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 	case SNDRV_PCM_TRIGGER_STOP:
 		i2s_stop(dai, stream);
-#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
-		schedule_work(&par->qos_work);
-#endif
 		break;
 
 	default:
