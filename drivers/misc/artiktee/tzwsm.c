@@ -28,7 +28,7 @@
 #include "wsm.h"
 #include "tzlog_print.h"
 
-int tzswm_register_tzdev_memory(uint64_t ctx_id, struct page **pages,
+int tzwsm_register_tzdev_memory(uint64_t ctx_id, struct page **pages,
 				size_t num_pages, gfp_t gfp, int for_kernel)
 {
 	struct page *level0_page = NULL;
@@ -86,7 +86,8 @@ int tzswm_register_tzdev_memory(uint64_t ctx_id, struct page **pages,
 				goto err2;
 			}
 
-			level0->address[i] = page_to_phys(pages[i]) | NS_PHYS_ADDR_IS_LEVEL_1;
+			level0->address[i] = page_to_phys(pages[i]) |
+					NS_PHYS_ADDR_IS_LEVEL_1;
 		}
 
 		for (i = 0; i < num_pages;) {
@@ -190,7 +191,7 @@ int tzwsm_register_kernel_memory(const void *ptr, size_t size, gfp_t gfp)
 		}
 	}
 
-	result = tzswm_register_tzdev_memory(0, pages, size, gfp, 1);
+	result = tzwsm_register_tzdev_memory(0, pages, size, gfp, 1);
 
 	kfree(pages);
 
@@ -252,7 +253,7 @@ int tzwsm_register_user_memory(uint64_t ctx_id, const void *__user ptr,
 		return -EFAULT;
 	}
 
-	error = tzswm_register_tzdev_memory(ctx_id, pages, num_pages, gfp, 0);
+	error = tzwsm_register_tzdev_memory(ctx_id, pages, num_pages, gfp, 0);
 
 	if (error < 0) {
 		for (i = 0; i < num_pages; ++i)

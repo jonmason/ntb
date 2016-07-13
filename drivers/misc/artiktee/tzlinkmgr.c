@@ -48,7 +48,7 @@ static struct tzio_link *tzio_alloc_link(gfp_t gfp)
 	}
 
 	link->mux_link = page_address(link->pg);
-	link->id = tzswm_register_tzdev_memory(0, &link->pg, 1, gfp, 1);
+	link->id = tzwsm_register_tzdev_memory(0, &link->pg, 1, gfp, 1);
 
 	if (link->id < 0) {
 		tzlog_print(TZLOG_ERROR,

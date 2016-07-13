@@ -28,16 +28,16 @@
 #include <linux/kthread.h>
 #include <linux/semaphore.h>
 
-#include "sstransaction.h"
+#include "nsrpc_ree_slave.h"
 #include "tzdev.h"
 #include "tzdev_internal.h"
 #include "tzlog_print.h"
 
-/* If you update this, also update sstransaction.h in Secure Kernel */
+/* If you update this, also update nsrpc.h in Secure Kernel */
 
-#define SSTRANSACTION_CHANNEL_SSDEV			1
+#define NSRPC_CHANNEL_SSDEV			1
 
-struct sstransaction_rpc_data {
+struct nsrpc_rpc_data {
 	uint64_t transaction_id;	/* 8 - filled by kernel */
 	uint32_t channel;	/* 12 */
 	uint32_t command;	/* 16 */
@@ -48,18 +48,18 @@ struct sstransaction_rpc_data {
 	char payload[128];	/* 188 - can be updated by NWd */
 };
 
-struct SSTransaction_s {
+struct NSRPCTransaction_s {
 	struct list_head tsx_queue;
-	struct sstransaction_rpc_data rpc_data;
+	struct nsrpc_rpc_data rpc_data;
 };
 
-static struct kmem_cache *s_sstransaction_cache;
+static struct kmem_cache *s_nsrpc_cache;
 
-static DEFINE_SEMAPHORE(s_sstransaction_sem);
-static DEFINE_SPINLOCK(s_sstransaction_lock);
-static LIST_HEAD(s_sstransaction_queue);
-static DEFINE_SPINLOCK(s_sstransaction_completion_lock);
-static LIST_HEAD(s_sstransaction_completion_queue);
+static DEFINE_SEMAPHORE(s_nsrpc_sem);
+static DEFINE_SPINLOCK(s_nsrpc_lock);
+static LIST_HEAD(s_nsrpc_queue);
+static DEFINE_SPINLOCK(s_nsrpc_completion_lock);
+static LIST_HEAD(s_nsrpc_completion_queue);
 static atomic_t s_completion_count = ATOMIC_INIT(0);
 
 #define NUM_EMERGENCY_TRANSACTIONS		8
@@ -67,39 +67,39 @@ static atomic_t s_completion_count = ATOMIC_INIT(0);
 
 static DEFINE_SPINLOCK(s_emergency_transaction_lock);
 static LIST_HEAD(s_emergency_transactions);
-static SSTransaction_t s_emerg_pool[NUM_EMERGENCY_TRANSACTIONS];
+static NSRPCTransaction_t s_emerg_pool[NUM_EMERGENCY_TRANSACTIONS];
 
-#define SSTRANSACTION_MAX_WORKERS		8
+#define NSRPC_MAX_WORKERS		8
 
-static struct task_struct *s_worker_task[SSTRANSACTION_MAX_WORKERS];
+static struct task_struct *s_worker_task[NSRPC_MAX_WORKERS];
 
-void sstransaction_handler(SSTransaction_t *txn_object);
+void nsrpc_handler(NSRPCTransaction_t *txn_object);
 
-static int sstransaction_worker(void *arg)
+static int nsrpc_worker(void *arg)
 {
 	unsigned long flags;
-	SSTransaction_t *tsx;
+	NSRPCTransaction_t *tsx;
 	int ret;
 
 	tzlog_print(TZLOG_DEBUG,
-		    "Creating sstransaction worker thread %s. Started on CPU #%d\n",
+		    "Creating nsrpc worker thread %s. Started on CPU #%d\n",
 		    current->comm, raw_smp_processor_id());
 
 	while (!kthread_should_stop()) {
-		ret = down_timeout(&s_sstransaction_sem, 10 * HZ);
+		ret = down_timeout(&s_nsrpc_sem, 10 * HZ);
 
 		(void)ret;
 
 		tsx = NULL;
 
-		spin_lock_irqsave(&s_sstransaction_lock, flags);
-		if (!list_empty(&s_sstransaction_queue)) {
+		spin_lock_irqsave(&s_nsrpc_lock, flags);
+		if (!list_empty(&s_nsrpc_queue)) {
 			tsx =
-			    list_entry(s_sstransaction_queue.next,
-				       struct SSTransaction_s, tsx_queue);
+			    list_entry(s_nsrpc_queue.next,
+				       struct NSRPCTransaction_s, tsx_queue);
 			list_del(&tsx->tsx_queue);
 		}
-		spin_unlock_irqrestore(&s_sstransaction_lock, flags);
+		spin_unlock_irqrestore(&s_nsrpc_lock, flags);
 
 		if (tsx) {
 			tzlog_print(TZLOG_DEBUG,
@@ -109,46 +109,46 @@ static int sstransaction_worker(void *arg)
 
 			switch (tsx->rpc_data.channel) {
 #ifndef CONFIG_SECOS_NO_SECURE_STORAGE
-			case SSTRANSACTION_CHANNEL_SSDEV:
-				sstransaction_handler(tsx);
+			case NSRPC_CHANNEL_SSDEV:
+				nsrpc_handler(tsx);
 				break;
 #endif
 			default:
 				tzlog_print(TZLOG_ERROR,
 					    "Sending SCM transaction to unknown channel %x\n",
 					    tsx->rpc_data.channel);
-				sstransaction_complete(tsx, -EINVAL);
+				nsrpc_complete(tsx, -EINVAL);
 				break;
 			}
 		} else {
-			/* tzlog_print(TZLOG_DEBUG, "Spurious wakeup of sstransaction worker\n"); */
+			/* tzlog_print(TZLOG_DEBUG,
+				"Spurious wakeup of nsrpc worker\n"); */
 		}
 	}
 
 	return 0;
 }
 
-int sstransaction_add(const void *buffer, size_t size)
+int nsrpc_add(const void *buffer, size_t size)
 {
-	SSTransaction_t *tsx;
+	NSRPCTransaction_t *tsx;
 	unsigned long flags;
 
-	if (size != sizeof(struct sstransaction_rpc_data)) {
+	if (size != sizeof(struct nsrpc_rpc_data)) {
 		tzlog_print(TZLOG_ERROR,
-			    "sstransaction structure incompatibility detected (%zd bytes, should be %zd)\n",
-			    size, sizeof(struct sstransaction_rpc_data));
+			"nsrpc structure incompatibility detected (%zd bytes, should be %zd)\n",
+			size, sizeof(struct nsrpc_rpc_data));
 		return -EINVAL;
 	}
 
-	tsx = kmem_cache_zalloc(s_sstransaction_cache, GFP_ATOMIC);
+	tsx = kmem_cache_zalloc(s_nsrpc_cache, GFP_ATOMIC);
 	if (!tsx) {
 		spin_lock_irqsave(&s_emergency_transaction_lock, flags);
 		if (!list_empty(&s_emergency_transactions)) {
 			tzlog_print(TZLOG_ERROR,
-				    "Allocating memory from emergency pool for SS Transaction\n");
-			tsx =
-			    list_entry(s_emergency_transactions.next,
-				       struct SSTransaction_s, tsx_queue);
+				"Allocating memory from emergency pool for SS Transaction\n");
+			tsx = list_entry(s_emergency_transactions.next,
+					struct NSRPCTransaction_s, tsx_queue);
 			list_del(&tsx->tsx_queue);
 		}
 		spin_unlock_irqrestore(&s_emergency_transaction_lock, flags);
@@ -160,37 +160,39 @@ int sstransaction_add(const void *buffer, size_t size)
 		return -ENOMEM;
 	}
 
-	memcpy(&tsx->rpc_data, buffer, sizeof(struct sstransaction_rpc_data));
+	memcpy(&tsx->rpc_data, buffer, sizeof(struct nsrpc_rpc_data));
 
-	tzlog_print(TZLOG_DEBUG, "Added RPC transaction %llx for channel %x\n",
-		    tsx->rpc_data.transaction_id, tsx->rpc_data.channel);
+	tzlog_print(TZLOG_DEBUG,
+		"Added RPC transaction %llx for channel %x\n",
+		tsx->rpc_data.transaction_id,
+		tsx->rpc_data.channel);
 
-	spin_lock_irqsave(&s_sstransaction_lock, flags);
-	list_add_tail(&tsx->tsx_queue, &s_sstransaction_queue);
-	spin_unlock_irqrestore(&s_sstransaction_lock, flags);
+	spin_lock_irqsave(&s_nsrpc_lock, flags);
+	list_add_tail(&tsx->tsx_queue, &s_nsrpc_queue);
+	spin_unlock_irqrestore(&s_nsrpc_lock, flags);
 
 	tzlog_print(TZLOG_DEBUG, "Wake up RPC worker\n");
 
-	up(&s_sstransaction_sem);
+	up(&s_nsrpc_sem);
 
 	return 0;
 }
 
 void tzdev_notify_worker(void);
 
-void sstransaction_complete(SSTransaction_t *tsx, int code)
+void nsrpc_complete(NSRPCTransaction_t *tsx, int code)
 {
 	unsigned long flags;
 
 	tzlog_print(TZLOG_DEBUG,
-		    "Complete transaction %p (%llx) with code %d\n", tsx,
-		    tsx->rpc_data.transaction_id, code);
+		"Complete transaction %p (%llx) with code %d\n", tsx,
+		tsx->rpc_data.transaction_id, code);
 
 	tsx->rpc_data.result = code;
 
-	spin_lock_irqsave(&s_sstransaction_completion_lock, flags);
-	list_add_tail(&tsx->tsx_queue, &s_sstransaction_completion_queue);
-	spin_unlock_irqrestore(&s_sstransaction_completion_lock, flags);
+	spin_lock_irqsave(&s_nsrpc_completion_lock, flags);
+	list_add_tail(&tsx->tsx_queue, &s_nsrpc_completion_queue);
+	spin_unlock_irqrestore(&s_nsrpc_completion_lock, flags);
 
 	atomic_inc(&s_completion_count);
 
@@ -199,55 +201,61 @@ void sstransaction_complete(SSTransaction_t *tsx, int code)
 	tzdev_notify_worker();
 }
 
-int sstransaction_count_completions(void)
+int nsrpc_count_completions(void)
 {
 	return atomic_read(&s_completion_count);
 }
 
-int sstransaction_get_next_completion(void *buffer,
+int nsrpc_get_next_completion(void *buffer,
 				      size_t avail_size,
 				      size_t *remaining_size,
 				      size_t *obj_size)
 {
 	unsigned long flags;
-	SSTransaction_t *tsx;
+	NSRPCTransaction_t *tsx;
+
+	/*
+	 tzlog_print(TZLOG_DEBUG,
+		"Get next nsrpc completion, buffer = %p, avail = %zd,
+		remaining = %zd\n", buffer, avail_size, *remaining_size);
+	 */
 
 	if (!atomic_add_unless(&s_completion_count, -1, 0)) {
-   		/*  tzlog_print(TZLOG_DEBUG, "No more completions available\n");*/
+		/*tzlog_print(TZLOG_DEBUG, "No more completions available\n");*/
 		return -ENOENT;
 	}
 
-	spin_lock_irqsave(&s_sstransaction_completion_lock, flags);
-	if (list_empty(&s_sstransaction_completion_queue)) {
-    		/*  tzlog_print(TZLOG_WARNING, "Completion list empty\n"); */
-		spin_unlock_irqrestore(&s_sstransaction_completion_lock, flags);
+	spin_lock_irqsave(&s_nsrpc_completion_lock, flags);
+	if (list_empty(&s_nsrpc_completion_queue)) {
+		/*tzlog_print(TZLOG_WARNING, "Completion list empty\n");*/
+		spin_unlock_irqrestore(&s_nsrpc_completion_lock, flags);
 		return -ENOENT;
 	}
 
-	if (avail_size < sizeof(struct sstransaction_rpc_data)) {
+	if (avail_size < sizeof(struct nsrpc_rpc_data)) {
 		/*
 		 * Balance s_completion_count, because we have 1 pending item
 		 * and we can't put it right now, so next retry will need this
 		 * coubnter value
 		 */
 		atomic_inc(&s_completion_count);
-		spin_unlock_irqrestore(&s_sstransaction_completion_lock, flags);
+		spin_unlock_irqrestore(&s_nsrpc_completion_lock, flags);
 		return -ENOSPC;
 	}
 
-	tsx = list_entry(s_sstransaction_completion_queue.next,
-			struct SSTransaction_s, tsx_queue);
+	tsx = list_entry(s_nsrpc_completion_queue.next,
+			struct NSRPCTransaction_s, tsx_queue);
 	list_del(&tsx->tsx_queue);
 
-	spin_unlock_irqrestore(&s_sstransaction_completion_lock, flags);
+	spin_unlock_irqrestore(&s_nsrpc_completion_lock, flags);
 
 	tzlog_print(TZLOG_DEBUG, "Send completion for transaction %llx\n",
 		    tsx->rpc_data.transaction_id);
 
-	memcpy(buffer, &tsx->rpc_data, sizeof(struct sstransaction_rpc_data));
+	memcpy(buffer, &tsx->rpc_data, sizeof(struct nsrpc_rpc_data));
 
-	*remaining_size -= sizeof(struct sstransaction_rpc_data);
-	*obj_size = sizeof(struct sstransaction_rpc_data);
+	*remaining_size -= sizeof(struct nsrpc_rpc_data);
+	*obj_size = sizeof(struct nsrpc_rpc_data);
 
 	if ((unsigned long)tsx >= (unsigned long)s_emerg_pool &&
 	    (unsigned long)tsx <
@@ -262,44 +270,44 @@ int sstransaction_get_next_completion(void *buffer,
 		tzlog_print(TZLOG_DEBUG,
 			"Free transaction %p using SLAB\n", tsx);
 
-		kmem_cache_free(s_sstransaction_cache, tsx);
+		kmem_cache_free(s_nsrpc_cache, tsx);
 	}
 
 	return 0;
 }
 
-uint32_t sstransaction_get_arg(SSTransaction_t *tsx, int arg)
+uint32_t nsrpc_get_arg(NSRPCTransaction_t *tsx, int arg)
 {
 	return tsx->rpc_data.arg[arg];
 }
 
-uint32_t sstransaction_get_command(SSTransaction_t *tsx)
+uint32_t nsrpc_get_command(NSRPCTransaction_t *tsx)
 {
 	return tsx->rpc_data.command;
 }
 
-void sstransaction_set_arg(SSTransaction_t *tsx, int arg, uint32_t value)
+void nsrpc_set_arg(NSRPCTransaction_t *tsx, int arg, uint32_t value)
 {
 	tsx->rpc_data.arg[arg] = value;
 }
 
-void *sstransaction_payload_ptr(SSTransaction_t *tsx)
+void *nsrpc_payload_ptr(NSRPCTransaction_t *tsx)
 {
 	return tsx->rpc_data.payload;
 }
 
-unsigned int sstransaction_wsm_offset(SSTransaction_t *tsx, size_t *p_size)
+unsigned int nsrpc_wsm_offset(NSRPCTransaction_t *tsx, size_t *p_size)
 {
 	*p_size = tsx->rpc_data.wsm_size;
 	return tsx->rpc_data.wsm_offset;
 }
 
-int __init sstransaction_init_early(void)
+int __init nsrpc_init_early(void)
 {
 	int i;
 
-	s_sstransaction_cache = KMEM_CACHE(SSTransaction_s, 0);
-	if (!s_sstransaction_cache)
+	s_nsrpc_cache = KMEM_CACHE(NSRPCTransaction_s, 0);
+	if (!s_nsrpc_cache)
 		return -ENOMEM;
 
 	for (i = 0; i < NUM_EMERGENCY_TRANSACTIONS; ++i) {
@@ -310,15 +318,15 @@ int __init sstransaction_init_early(void)
 	return 0;
 }
 
-int __init sstransaction_init(void)
+int __init nsrpc_init(void)
 {
 	int num_workers = 0;
 	int cpu;
 
 	for_each_online_cpu(cpu) {
 		s_worker_task[num_workers] =
-		    kthread_create(sstransaction_worker, NULL,
-				   "sstransaction:%d", cpu);
+		    kthread_create(nsrpc_worker, NULL,
+				   "nsrpc:%d", cpu);
 
 		if (!IS_ERR(s_worker_task[num_workers])) {
 			kthread_bind(s_worker_task[num_workers], cpu);

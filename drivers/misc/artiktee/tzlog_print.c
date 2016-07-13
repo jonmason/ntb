@@ -40,6 +40,7 @@ static int tzlog_print_common(log_header_info header_info,
 	int write_len = 0;
 	int buf_size = 0;
 	char *printk_buf = NULL;
+
 	if (is_ree == 1) {
 		printk_buf = buf_for_local;
 		buf_size = sizeof(buf_for_local);
@@ -193,6 +194,7 @@ void tzlog_print_for_tee(log_header_info header_info,
 {
 	int ret;
 	va_list ap;
+
 	if (!(default_tzdev_tee_log_level >= level))
 		return;
 

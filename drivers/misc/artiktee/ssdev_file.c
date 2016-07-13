@@ -24,7 +24,7 @@
 #include <linux/namei.h>
 #include <linux/fs.h>
 
-#include "ss_file.h"
+#include "ssdev_file.h"
 #include "tzlog_print.h"
 
 #ifndef CONFIG_SECOS_NO_SECURE_STORAGE
@@ -68,9 +68,8 @@ int ss_file_create_object(char *path, char *buf, size_t size)
 
 	filp_close(file, NULL);
 
-	if (write_size != size) {
+	if (write_size != size)
 		ss_file_delete_object(path);
-	}
 
 	return write_size;
 }
@@ -183,4 +182,4 @@ int ss_file_object_size(char *path)
 	return size;
 }
 
-#endif /* CONFIG_SECOS_NO_SECURE_STORAGE */
+#endif

@@ -242,6 +242,7 @@ void tzlog_transfer_to_tzdaemon(s_tzlog_data *src_data, int src_buffer_size)
 		/* Wait for tzdaemon's read */
 		{
 			DEFINE_WAIT(__wait);
+
 			tzlog_print(K_INFO,
 				"tzdaemon log full. wait for drain(src:%d,avail:%d)\n",
 				src_size, avail);
@@ -285,6 +286,7 @@ static void tzlog_print_with_header(log_header_type *header, int body_size)
 	char *read_body = NULL;
 	char *temp_read_body = NULL;
 	static char keep_read_body[TZLOG_COPY_TEMP_SIZE] = { 0, };
+
 	memset(keep_read_body, 0, sizeof(keep_read_body));
 
 	if (sizeof(keep_read_body) - 1 > body_size) {
@@ -341,6 +343,7 @@ void tzlog_transfer_to_local(s_tzlog_data *src_data, int src_buffer_size)
 		    ring_data_origin_size);
 	if (ring_data_origin_size > 0) {
 		char temp_buf[1024] = { 0, };
+
 		chimera_ring_buffer_peek(log_data_for_local.ring, 0, temp_buf,
 					 sizeof(temp_buf),
 					 TZLOG_LOCAL_BUFFERING_SIZE);
@@ -369,6 +372,7 @@ continue_read:
 		int head_size = LHDSIZE;
 		int body_size = 0;
 		char header[LHDSIZE + 1] = { 0, };
+
 		chimera_ring_buffer_peek(log_data_for_local.ring, 0, header,
 					 LHDSIZE, TZLOG_LOCAL_BUFFERING_SIZE);
 
@@ -471,6 +475,7 @@ continue_read:
 		if (ring_data_remain_size > 0) {
 			int magic_ret = 0;
 			char header[LHDSIZE + 1] = { 0, };
+
 			chimera_ring_buffer_peek(log_data_for_local.ring, 0,
 						 header, ring_data_remain_size,
 						 TZLOG_LOCAL_BUFFERING_SIZE);

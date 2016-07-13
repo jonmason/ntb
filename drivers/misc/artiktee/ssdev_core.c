@@ -29,17 +29,15 @@
 #include <linux/vmalloc.h>
 #include <linux/crc32.h>
 
-#include "ss_rpmb.h"
-#include "ss_core.h"
-#include "ss_dev.h"
-#include "ss_file.h"
+#include "ssdev_rpmb.h"
+#include "ssdev_core.h"
+#include "ssdev_file.h"
 
 #include "tzdev.h"
 #include "tzpage.h"
 #include "tzdev_internal.h"
 #include "tzdev_smc.h"
-
-#include "sstransaction.h"
+#include "nsrpc_ree_slave.h"
 #include "tzlog_print.h"
 
 #ifndef CONFIG_SECOS_NO_SECURE_STORAGE
@@ -159,19 +157,18 @@ enum ss_file_main_back {
 
 static struct ss_wsm ss_wsm_channel;
 
-static void ssdev_query_object(SSTransaction_t *tsx)
+static void ssdev_query_object(NSRPCTransaction_t *tsx)
 {
 	tzlog_print(TZLOG_DEBUG,
 		    "Query object of requested storage %d, RPMB object exists = %d\n",
-		    sstransaction_get_arg(tsx, 0), sstransaction_get_arg(tsx,
-									 1));
+		    nsrpc_get_arg(tsx, 0), nsrpc_get_arg(tsx, 1));
 	/*
 	 Transaction arguments:
 	 0 - requested type
 	 1 - true if RPMB object of this type exists
 	*/
 
-	if (sstransaction_get_arg(tsx, 0) ==
+	if (nsrpc_get_arg(tsx, 0) ==
 			TEE_STORAGE_PRIVATE) {
 		/*PATH + 64 Bytes UUID hash name + ".dat" + NULL */
 		char file_main[128] = { 0 };
@@ -179,7 +176,7 @@ static void ssdev_query_object(SSTransaction_t *tsx)
 		int *p = NULL;
 		int file_size;
 
-		p = (int *)sstransaction_payload_ptr(tsx);
+		p = (int *)nsrpc_payload_ptr(tsx);
 
 		snprintf(file_main, sizeof(file_main),
 			 OBJECT_FILE_PATH "%08x%08x%08x%08x%08x%08x%08x%08x"
@@ -195,37 +192,36 @@ static void ssdev_query_object(SSTransaction_t *tsx)
 
 		file_size = ss_file_object_size(file_main);
 		if (file_size > 0) {
-			sstransaction_set_arg(tsx, 0, TEE_STORAGE_PRIVATE);
+			nsrpc_set_arg(tsx, 0, TEE_STORAGE_PRIVATE);
 			tzlog_print(TZLOG_DEBUG,
 					" Same object id in main File.\n");
 		} else {
 			file_size = ss_file_object_size(file_back);
 			if (file_size > 0) {
-				sstransaction_set_arg(tsx, 0, TEE_STORAGE_PRIVATE);
+				nsrpc_set_arg(tsx, 0, TEE_STORAGE_PRIVATE);
 				tzlog_print(TZLOG_DEBUG,
 						" Same object id in back File.\n");
-			}
-			else {
-				sstransaction_set_arg(tsx, 0, 0);
+			} else {
+				nsrpc_set_arg(tsx, 0, 0);
 				tzlog_print(TZLOG_DEBUG,
 						" object id does not found in normal world.\n");
 			}
 		}
-	} else if (sstransaction_get_arg(tsx, 0) == TEE_STORAGE_RPMB) {
-		if (sstransaction_get_arg(tsx, 1)) {
-			sstransaction_set_arg(tsx, 0, TEE_STORAGE_RPMB);
+	} else if (nsrpc_get_arg(tsx, 0) == TEE_STORAGE_RPMB) {
+		if (nsrpc_get_arg(tsx, 1)) {
+			nsrpc_set_arg(tsx, 0, TEE_STORAGE_RPMB);
 			tzlog_print(TZLOG_DEBUG, " Same object id in RPMB.\n");
 		} else {
-			sstransaction_set_arg(tsx, 0, 0);
+			nsrpc_set_arg(tsx, 0, 0);
 			tzlog_print(TZLOG_DEBUG,
 				    " object id does not found in normal world.\n");
 		}
 	} else {
 		tzlog_print(TZLOG_DEBUG, " Query incorrect object type.\n");
-		sstransaction_set_arg(tsx, 0, 0);
+		nsrpc_set_arg(tsx, 0, 0);
 	}
 
-	sstransaction_complete(tsx, 0);
+	nsrpc_complete(tsx, 0);
 }
 
 static int ssdev_file_copy_object(char *dest, char *src)
@@ -274,7 +270,7 @@ static int ssdev_file_copy_object(char *dest, char *src)
 	return 0;
 }
 
-static void ssdev_file_load_object(SSTransaction_t *tsx)
+static void ssdev_file_load_object(NSRPCTransaction_t *tsx)
 {
 	char file_main[128] = { 0 };
 	char file_back[128] = { 0 };
@@ -282,7 +278,7 @@ static void ssdev_file_load_object(SSTransaction_t *tsx)
 	ssize_t obj_size;
 
 	char *paths[] = { file_main, file_back };
-	int *p = (int *)sstransaction_payload_ptr(tsx);
+	int *p = (int *)nsrpc_payload_ptr(tsx);
 
 	snprintf(file_main, sizeof(file_main),
 		 OBJECT_FILE_PATH "%08x%08x%08x%08x%08x%08x%08x%08x"
@@ -304,7 +300,8 @@ static void ssdev_file_load_object(SSTransaction_t *tsx)
 		}
 
 		obj_size = ss_file_object_size(paths[index]);
-		if (obj_size <= 0 || obj_size > (MAX_FILE_OBJECT_SIZE + OBJ_HEADER_SIZE)) {
+		if ((obj_size <= 0) ||
+			(obj_size > (MAX_FILE_OBJECT_SIZE + OBJ_HEADER_SIZE))) {
 			tzlog_print(TZLOG_DEBUG,
 				    "Failed to obtain proper object size. obj_size = %zd\n",
 				    obj_size);
@@ -315,74 +312,75 @@ static void ssdev_file_load_object(SSTransaction_t *tsx)
 			    paths[index], obj_size);
 
 		/* Attach pointer to secure transaction object */
-		sstransaction_set_arg(tsx, 0, obj_size);
-		memcpy(sstransaction_payload_ptr(tsx), paths[index],
+		nsrpc_set_arg(tsx, 0, obj_size);
+		memcpy(nsrpc_payload_ptr(tsx), paths[index],
 		       strlen(paths[index]) + 1);
 
-		sstransaction_complete(tsx, 0);
+		nsrpc_complete(tsx, 0);
 		return;
 	}
 
 	tzlog_print(TZLOG_ERROR, "File '%s' doesn't exist\n", paths[0]);
-	sstransaction_complete(tsx, -ENOENT);
+	nsrpc_complete(tsx, -ENOENT);
 }
 
-static void ssdev_file_read_data(SSTransaction_t *tsx)
+static void ssdev_file_read_data(NSRPCTransaction_t *tsx)
 {
-	char *fileName = sstransaction_payload_ptr(tsx);
+	char *fileName = nsrpc_payload_ptr(tsx);
 	size_t wsm_size = 0;
 	void *wsm_buffer =
-	    (char *)ss_wsm_channel.payload + sstransaction_wsm_offset(tsx,
-								      &wsm_size);
+	    (char *)ss_wsm_channel.payload +
+	    nsrpc_wsm_offset(tsx, &wsm_size);
 	int read_size;
 
-	if (wsm_size < sstransaction_get_arg(tsx, 0)) {
-		sstransaction_complete(tsx, -E2BIG);
+	if (wsm_size < nsrpc_get_arg(tsx, 0)) {
+		nsrpc_complete(tsx, -E2BIG);
 		return;
 	}
 
 	tzlog_print(TZLOG_DEBUG,
 		    "Read file data '%s' at offset %d and length %d\n",
-		    fileName, sstransaction_get_arg(tsx, 0),
-		    sstransaction_get_arg(tsx, 1));
+		    fileName, nsrpc_get_arg(tsx, 0),
+		    nsrpc_get_arg(tsx, 1));
 
 	read_size = ss_file_read_object(fileName,
 					wsm_buffer,
-					sstransaction_get_arg(tsx, 0),
-					sstransaction_get_arg(tsx, 1));
+					nsrpc_get_arg(tsx, 0),
+					nsrpc_get_arg(tsx, 1));
 
-	if (read_size != sstransaction_get_arg(tsx, 0)) {
+	if (read_size != nsrpc_get_arg(tsx, 0)) {
 		tzlog_print(TZLOG_WARNING, "Unable to read file data (%d)\n",
 			    read_size);
 
-		sstransaction_complete(tsx, -EIO);
+		nsrpc_complete(tsx, -EIO);
 	} else {
 		tzlog_print(TZLOG_DEBUG, "File data read complete\n");
 #ifdef _STORAGE_DEBUG_
 		print_hex_dump(KERN_DEBUG, "file data: ", DUMP_PREFIX_ADDRESS,
 			       16, 4, wsm_buffer, wsm_size, 1);
 #endif
-		sstransaction_complete(tsx, 0);
+		nsrpc_complete(tsx, 0);
 	}
 }
 
-static void ssdev_file_delete_file(SSTransaction_t *tsx)
+static void ssdev_file_delete_file(NSRPCTransaction_t *tsx)
 {
-	ss_file_delete_object((char *)sstransaction_payload_ptr(tsx));
-	sstransaction_complete(tsx, 0);
+	ss_file_delete_object((char *)nsrpc_payload_ptr(tsx));
+	nsrpc_complete(tsx, 0);
 }
 
-static void ssdev_file_create_data(SSTransaction_t *tsx)
+static void ssdev_file_create_data(NSRPCTransaction_t *tsx)
 {
-	char file_main[128] = { 0 };	/*PATH + 32 Bytes UUID hash + ".dat" + NULL */
+	/*PATH + 32 Bytes UUID hash + ".dat" + NULL */
+	char file_main[128] = { 0 };
 	char file_back[128] = { 0 };
-	int *p = (int *)sstransaction_payload_ptr(tsx);
+	int *p = (int *)nsrpc_payload_ptr(tsx);
 	size_t wsm_size = 0;
 	int ret;
 	int file_size;
 	void *wsm_buffer =
-	    (char *)ss_wsm_channel.payload + sstransaction_wsm_offset(tsx,
-								      &wsm_size);
+	    (char *)ss_wsm_channel.payload + nsrpc_wsm_offset(tsx,
+								&wsm_size);
 
 	snprintf(file_main, sizeof(file_main),
 		 OBJECT_FILE_PATH "%08x%08x%08x%08x%08x%08x%08x%08x"
@@ -402,10 +400,10 @@ static void ssdev_file_create_data(SSTransaction_t *tsx)
 		tzlog_print(TZLOG_DEBUG, "Copy main to bak file\n");
 
 		ret = ssdev_file_copy_object(file_back, file_main);
-		if(ret < 0)
-		{
-			tzlog_print(TZLOG_WARNING, "Failed to make bak file. result : %d\n", ret);
-			sstransaction_complete(tsx, -EIO);
+		if (ret < 0) {
+			tzlog_print(TZLOG_WARNING,
+				"Failed to make bak file. result : %d\n", ret);
+			nsrpc_complete(tsx, -EIO);
 			return;
 		}
 	}
@@ -424,24 +422,25 @@ static void ssdev_file_create_data(SSTransaction_t *tsx)
 			    "Can't create file '%s' - error = %d\n", file_main,
 			    ret);
 
-		sstransaction_complete(tsx, -EIO);
+		nsrpc_complete(tsx, -EIO);
 	} else {
 		tzlog_print(TZLOG_DEBUG, "Written %d bytes to '%s'\n", ret,
 			    file_main);
 
-		sstransaction_complete(tsx, 0);
+		nsrpc_complete(tsx, 0);
 	}
 }
 
-static void ssdev_file_append_data(SSTransaction_t *tsx)
+static void ssdev_file_append_data(NSRPCTransaction_t *tsx)
 {
-	char file_main[128] = { 0 };	/*PATH + 32 Bytes UUID hash + ".dat" + NULL */
-	int *p = (int *)sstransaction_payload_ptr(tsx);
+	/*PATH + 32 Bytes UUID hash + ".dat" + NULL */
+	char file_main[128] = { 0 };
+	int *p = (int *)nsrpc_payload_ptr(tsx);
 	size_t wsm_size = 0;
 	int ret;
 	void *wsm_buffer =
-	    (char *)ss_wsm_channel.payload + sstransaction_wsm_offset(tsx,
-								      &wsm_size);
+	    (char *)ss_wsm_channel.payload + nsrpc_wsm_offset(tsx,
+								&wsm_size);
 
 	snprintf(file_main, sizeof(file_main),
 		 OBJECT_FILE_PATH "%08x%08x%08x%08x%08x%08x%08x%08x"
@@ -462,20 +461,21 @@ static void ssdev_file_append_data(SSTransaction_t *tsx)
 			    "Can't append to file '%s' - error = %d\n",
 			    file_main, ret);
 
-		sstransaction_complete(tsx, -EIO);
+		nsrpc_complete(tsx, -EIO);
 	} else {
 		tzlog_print(TZLOG_DEBUG, "Appended %d bytes to '%s'\n", ret,
 			    file_main);
 
-		sstransaction_complete(tsx, 0);
+		nsrpc_complete(tsx, 0);
 	}
 }
 
-static void ssdev_file_delete_data(SSTransaction_t *tsx)
+static void ssdev_file_delete_data(NSRPCTransaction_t *tsx)
 {
-	char file_main[128] = { 0 };	/*PATH + 32 Bytes UUID hash + ".dat" + NULL */
+	/*PATH + 32 Bytes UUID hash + ".dat" + NULL */
+	char file_main[128] = { 0 };
 	char file_back[128] = { 0 };
-	int *p = (int *)sstransaction_payload_ptr(tsx);
+	int *p = (int *)nsrpc_payload_ptr(tsx);
 
 	snprintf(file_main, sizeof(file_main),
 		 OBJECT_FILE_PATH "%08x%08x%08x%08x%08x%08x%08x%08x"
@@ -491,11 +491,11 @@ static void ssdev_file_delete_data(SSTransaction_t *tsx)
 
 	ss_file_delete_object(file_main);
 	ss_file_delete_object(file_back);
-	sstransaction_complete(tsx, 0);
+	nsrpc_complete(tsx, 0);
 }
 
 #ifndef CONFIG_SECOS_NO_RPMB
-static void ssdev_rpmb_get_write_counter(SSTransaction_t *tsx)
+static void ssdev_rpmb_get_write_counter(NSRPCTransaction_t *tsx)
 {
 	u32 write_counter = 0;
 
@@ -503,27 +503,27 @@ static void ssdev_rpmb_get_write_counter(SSTransaction_t *tsx)
 	int ret = ss_rpmb_get_wctr(&write_counter);
 #else
 	int ret = -EIO;
-#endif
+#endif /* defined(CONFIG_MMC) && (LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)) */
 
 	if (ret < 0) {
 		tzlog_print(TZLOG_ERROR,
 			    "Can't get RPMB write counter value - error %d\n",
 			    ret);
 
-		sstransaction_complete(tsx, -EIO);
+		nsrpc_complete(tsx, -EIO);
 	} else {
 		tzlog_print(TZLOG_DEBUG, "Got RPMB write counter %u\n",
 			    write_counter);
 
-		sstransaction_set_arg(tsx, 0, write_counter);
-		sstransaction_complete(tsx, 0);
+		nsrpc_set_arg(tsx, 0, write_counter);
+		nsrpc_complete(tsx, 0);
 	}
 }
 
-static void ssdev_rpmb_load_frames(SSTransaction_t *tsx)
+static void ssdev_rpmb_load_frames(NSRPCTransaction_t *tsx)
 {
 #if defined(CONFIG_MMC) && (LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0))
-	const size_t blk_nums = sstransaction_get_arg(tsx, 0);
+	const size_t blk_nums = nsrpc_get_arg(tsx, 0);
 	const size_t object_size = blk_nums * RPMB_SECOTR;
 	const size_t piece_size = RPMB_SECOTR * RPMB_READ_BLOCKS_UNIT;
 	const size_t count = (object_size + piece_size - 1) / piece_size;
@@ -537,10 +537,10 @@ static void ssdev_rpmb_load_frames(SSTransaction_t *tsx)
 	uint8_t *frame_ptr;
 	size_t wsm_size = 0;
 	void *wsm_buffer =
-	    (char *)ss_wsm_channel.payload + sstransaction_wsm_offset(tsx,
-								      &wsm_size);
+	    (char *)ss_wsm_channel.payload + nsrpc_wsm_offset(tsx,
+								&wsm_size);
 
-	start_blk = sstransaction_get_arg(tsx, 1);
+	start_blk = nsrpc_get_arg(tsx, 1);
 
 	tzlog_print(TZLOG_DEBUG,
 		    "Load RPMB %zd blocks. Object size = %zd, piece size = %zd, piece count = %zd, extra = %zd\n",
@@ -558,7 +558,7 @@ static void ssdev_rpmb_load_frames(SSTransaction_t *tsx)
 			    wsm_size,
 			    (size_t) ((16 * count) + total_frames_bytes));
 
-		sstransaction_complete(tsx, -EINVAL);
+		nsrpc_complete(tsx, -EINVAL);
 		return;
 	}
 
@@ -589,7 +589,7 @@ static void ssdev_rpmb_load_frames(SSTransaction_t *tsx)
 			tzlog_print(TZLOG_ERROR,
 				    "Failed to read %zd Bytes data from rpmb.\n",
 				    pkg_size);
-			sstransaction_complete(tsx, -EIO);
+			nsrpc_complete(tsx, -EIO);
 			return;
 		}
 	}
@@ -597,20 +597,20 @@ static void ssdev_rpmb_load_frames(SSTransaction_t *tsx)
 	tzlog_print(TZLOG_DEBUG,
 		    "Complete transaction after reading RPMB blocks\n");
 
-	sstransaction_complete(tsx, 0);
+	nsrpc_complete(tsx, 0);
 #else
-	sstransaction_complete(tsx, -EIO);
+	nsrpc_complete(tsx, -EIO);
 #endif /* defined(CONFIG_MMC) && (LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)) */
 }
 
-static void ssdev_rpmb_store_frames(SSTransaction_t *tsx)
+static void ssdev_rpmb_store_frames(NSRPCTransaction_t *tsx)
 {
 #if defined(CONFIG_MMC) && (LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0))
-	const size_t blk_nums = sstransaction_get_arg(tsx, 0);
+	const size_t blk_nums = nsrpc_get_arg(tsx, 0);
 	size_t wsm_size = 0;
 	void *wsm_buffer =
-	    (char *)ss_wsm_channel.payload + sstransaction_wsm_offset(tsx,
-								      &wsm_size);
+	    (char *)ss_wsm_channel.payload + nsrpc_wsm_offset(tsx,
+								&wsm_size);
 	u32 write_counter;
 	int ret;
 	size_t piece;
@@ -623,18 +623,18 @@ static void ssdev_rpmb_store_frames(SSTransaction_t *tsx)
 			    "WSM size mismatch for RPMB frames - %zd, should be %zd\n",
 			    wsm_size, total_frames_bytes);
 
-		sstransaction_complete(tsx, -EINVAL);
+		nsrpc_complete(tsx, -EINVAL);
 		return;
 	}
 
 	ret = ss_rpmb_get_wctr(&write_counter);
 	if (ret < 0) {
 		tzlog_print(TZLOG_ERROR, "Can't get write counter - %d\n", ret);
-		sstransaction_complete(tsx, -EIO);
+		nsrpc_complete(tsx, -EIO);
 		return;
 	}
 
-	sstransaction_set_arg(tsx, 0, write_counter);
+	nsrpc_set_arg(tsx, 0, write_counter);
 
 	frame = wsm_buffer;
 
@@ -644,7 +644,7 @@ static void ssdev_rpmb_store_frames(SSTransaction_t *tsx)
 			tzlog_print(TZLOG_ERROR,
 				    "Failed to write %d Bytes data to rpmb.\n",
 				    RPMB_SECOTR);
-			sstransaction_complete(tsx, -EIO);
+			nsrpc_complete(tsx, -EIO);
 			return;
 		}
 	}
@@ -652,18 +652,18 @@ static void ssdev_rpmb_store_frames(SSTransaction_t *tsx)
 	ret = ss_rpmb_get_wctr(&write_counter);
 	if (ret < 0) {
 		tzlog_print(TZLOG_ERROR, "Can't get write counter - %d\n", ret);
-		sstransaction_complete(tsx, -EIO);
+		nsrpc_complete(tsx, -EIO);
 		return;
 	}
 
-	sstransaction_set_arg(tsx, 1, write_counter);
+	nsrpc_set_arg(tsx, 1, write_counter);
 
-	sstransaction_complete(tsx, 0);
+	nsrpc_complete(tsx, 0);
 #else
-	sstransaction_complete(tsx, -EIO);
+	nsrpc_complete(tsx, -EIO);
 #endif /* defined(CONFIG_MMC) && (LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)) */
 }
-#endif /* CONFIG_SECOS_NO_RPMB */
+#endif /*CONFIG_SECOS_NO_RPMB*/
 
 int storage_register_wsm(void)
 {
@@ -699,17 +699,17 @@ int storage_register_wsm(void)
 	return 0;
 }
 
-void sstransaction_handler(SSTransaction_t *txn_object)
+void nsrpc_handler(NSRPCTransaction_t *txn_object)
 {
-	uint32_t command = sstransaction_get_command(txn_object);
+	uint32_t command = nsrpc_get_command(txn_object);
 
 	tzlog_print(TZLOG_DEBUG, "Received command %d\n", command);
 
 	switch (command) {
 	case SS_CMD_REGISTER_WSM:
-		sstransaction_set_arg(txn_object, 0, ss_wsm_channel.wsm_id);
-		sstransaction_set_arg(txn_object, 1, ss_wsm_channel.max_size);
-		sstransaction_complete(txn_object, 0);
+		nsrpc_set_arg(txn_object, 0, ss_wsm_channel.wsm_id);
+		nsrpc_set_arg(txn_object, 1, ss_wsm_channel.max_size);
+		nsrpc_complete(txn_object, 0);
 		break;
 	case SS_CMD_QUERY_OBJECT:
 		ssdev_query_object(txn_object);
@@ -746,7 +746,7 @@ void sstransaction_handler(SSTransaction_t *txn_object)
 	default:
 		tzlog_print(TZLOG_WARNING, "Received unsupported command %x\n",
 			    command);
-		sstransaction_complete(txn_object, -EINVAL);
+		nsrpc_complete(txn_object, -EINVAL);
 		break;
 	}
 

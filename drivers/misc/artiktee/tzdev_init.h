@@ -21,10 +21,9 @@
 
 void tzsys_init(void);
 void tzmem_init(void);
-int init_storage(void);
 void tzio_link_init(void);
 
-int sstransaction_init_early(void);
-int sstransaction_init(void);
+int nsrpc_init_early(void);
+int nsrpc_init(void);
 
 #endif /* __SOURCE_TZDEV_INIT_H__ */

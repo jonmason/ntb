@@ -31,7 +31,7 @@
 
 #if defined(CONFIG_MMC) && (LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0))
 
-#include "ss_rpmb.h"
+#include "ssdev_rpmb.h"
 #include "tzlog_print.h"
 
 #define RPMB_DEVICE         "mmcblk0rpmb"
@@ -442,5 +442,6 @@ exit:
 }
 
 #endif /* defined(CONFIG_MMC) && (LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)) */
+
 #endif /* CONFIG_SECOS_NO_SECURE_STORAGE */
 #endif /* CONFIG_SECOS_NO_RPMB */

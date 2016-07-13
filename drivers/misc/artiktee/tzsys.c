@@ -31,7 +31,7 @@
 #include "tzpage.h"
 #include "tzdev_smc.h"
 #include "tzlog_print.h"
-#include "ss_file.h"
+#include "ssdev_file.h"
 
 #ifdef CONFIG_INSTANCE_DEBUG
 #include <linux/vmalloc.h>
@@ -74,7 +74,7 @@ void __init tzsys_init(void)
 
 	tz_syspage = (struct secos_syspage *)page_address(pg);
 
-	memid = tzswm_register_tzdev_memory(0, &pg, 1, GFP_KERNEL, 1);
+	memid = tzwsm_register_tzdev_memory(0, &pg, 1, GFP_KERNEL, 1);
 	BUG_ON(memid < 0);
 
 	rc = scm_syscrash_register(memid);

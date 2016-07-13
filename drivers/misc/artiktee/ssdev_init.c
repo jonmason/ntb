@@ -33,9 +33,9 @@
 #include <linux/time.h>
 #include <linux/semaphore.h>
 
-#include "ss_rpmb.h"
-#include "ss_core.h"
-#include "ss_dev.h"
+#include "ssdev_rpmb.h"
+#include "ssdev_core.h"
+#include "ssdev_init.h"
 #include "tzlog_print.h"
 
 #ifndef CONFIG_SECOS_NO_SECURE_STORAGE
@@ -127,4 +127,4 @@ int __init init_storage(void)
 	return 0;
 }
 
-#endif /* CONFIG_SECOS_NO_SECURE_STORAGE */
+#endif

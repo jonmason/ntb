@@ -121,7 +121,7 @@ struct scm_msg_link {
 
 struct tzio_link *tzio_acquire_link(gfp_t gfp);
 void tzio_release_link(struct tzio_link *link);
-int tzswm_register_tzdev_memory(
+int tzwsm_register_tzdev_memory(
 		uint64_t ctx_id,
 		struct page **pages,
 		size_t num_pages,

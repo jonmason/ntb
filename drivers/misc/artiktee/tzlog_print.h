@@ -29,4 +29,4 @@ void tzlog_print_for_tee(log_header_info header_info,
 		const char *label,
 		const char *fmt, ...);
 
-#endif
+#endif /* __TZLOG_PRINT_H__ */

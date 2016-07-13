@@ -42,4 +42,4 @@ typedef struct tzlog_data {
 void tzlog_notify(void);
 void tzlog_init(void);
 
-#endif
+#endif /* __TZLOG_CORE_H__ */

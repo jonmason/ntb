@@ -413,7 +413,7 @@ static inline void chimera_ring_buffer_flush(
 static inline ssize_t chimera_ring_buffer_read(
 		struct chimera_ring_buffer *buffer,
 		uint8_t *data,
-		size_t length,
+		ssize_t length,
 		size_t buf_size_limit)
 {
 #ifdef __KERNEL__

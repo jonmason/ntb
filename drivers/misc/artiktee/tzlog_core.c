@@ -34,7 +34,7 @@
 #include "tzdev_internal.h"
 #include "tzpage.h"
 #include "tzdev_smc.h"
-#include "ss_file.h"
+#include "ssdev_file.h"
 
 #include "tzlog_process.h"
 #include "tzlog_core.h"
@@ -104,6 +104,7 @@ static int tzlog_output_to_error_log(char *data, int data_size,
 	char path[128];
 	unsigned long long T;
 	struct timeval now;
+
 	tzlog_create_dir(ERROR_PARENT_DIR_PATH, ERROR_DIR_NAME_DEPTH1);
 	snprintf(path, sizeof(path), "%s%s/", ERROR_PARENT_DIR_PATH,
 		 ERROR_DIR_NAME_DEPTH1);
@@ -261,7 +262,7 @@ void __init tzlog_init(void)
 		tzlog_print(TZLOG_DEBUG, "ring size %d\n", log_data.ring->size);
 
 	log_data.log_wsm_id =
-	    tzswm_register_tzdev_memory(0, &log_data.log_page,
+	    tzwsm_register_tzdev_memory(0, &log_data.log_page,
 					1U << TZLOG_PAGE_ORDER, GFP_KERNEL, 1);
 
 	if (log_data.log_wsm_id < 0)

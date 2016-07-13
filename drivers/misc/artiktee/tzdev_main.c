@@ -43,10 +43,12 @@
 #include "tzdev.h"
 #include "tzdev_init.h"
 #include "tzdev_internal.h"
-#include "sstransaction.h"
+#include "nsrpc_ree_slave.h"
 #include "tzpage.h"
 #include "tzdev_smc.h"
 #include "tzdev_plat.h"
+
+#include "ssdev_init.h"
 
 #ifdef CONFIG_FETCH_TEE_INFO
 #include "tzinfo.h"
@@ -200,6 +202,7 @@ void tzio_context_idr_remove_locked(struct tzio_context *ctx)
 void tzio_context_idr_remove(struct tzio_context *ctx)
 {
 	unsigned long flags;
+
 	spin_lock_irqsave(&tzio_context_slock, flags);
 	tzio_context_idr_remove_locked(ctx);
 	spin_unlock_irqrestore(&tzio_context_slock, flags);
@@ -211,9 +214,8 @@ struct tzio_context *tzio_context_get(int id)
 
 	ctx = idr_find(&tzio_context_idr, id);
 
-	if (ctx && !kref_get_unless_zero(&ctx->kref)) {
+	if (ctx && !kref_get_unless_zero(&ctx->kref))
 		ctx = NULL;
-	}
 
 	return ctx;
 }
@@ -262,7 +264,6 @@ int tzdev_scm_watch(unsigned long dev_id, unsigned long func_id,
 
 	return ret;
 }
-
 EXPORT_SYMBOL(tzdev_scm_watch);
 
 static int tzio_flushd(void *unused)
@@ -356,7 +357,8 @@ void tzio_connection_closed(int epid)
 			mb();
 			tmp_node->state = CONTEXT_STATE_COMPLETE;
 			mb();
-			/* Make sure this context is removed so nothing else can access it */
+			/* Make sure this context is removed
+				so nothing else can access it */
 			tzio_context_idr_remove_locked(tmp_node);
 			complete(&tmp_node->comp);
 			tzio_context_put(tmp_node);
@@ -382,10 +384,13 @@ void tzio_file_closed(struct file *filp)
 				    tmp_node, tmp_node->id,
 				    tmp_node->remote_id);
 
-			/* Make sure this context is removed so nothing else can access it */
+			/* Make sure this context is removed
+				so nothing else can access it */
 			tzio_context_idr_remove_locked(tmp_node);
-			tzio_context_put(tmp_node);	/* Put reference owned by file */
-			tzio_context_put(tmp_node);	/* Put reference acquired by tzio_file_closed */
+			/* Put reference owned by file */
+			tzio_context_put(tmp_node);
+			/* Put reference acquired by tzio_file_closed */
+			tzio_context_put(tmp_node);
 		}
 	}
 	spin_unlock_irqrestore(&tzio_context_slock, flags);
@@ -452,22 +457,20 @@ static int tzio_push_completions(struct scm_buffer *ring)
 	scm_msg.length = 0;
 
 	for (;;) {
-		if (scm_ring_tx_avail(ring) < sizeof(scm_msg) * 2) {
+		if (scm_ring_tx_avail(ring) < sizeof(scm_msg) * 2)
 			return -ENOSPC;
-		}
 
 		remaining = scm_ring_tx_avail(ring) - sizeof(scm_msg);
 
 		error =
-		    sstransaction_get_next_completion(ring->buffer +
+		    nsrpc_get_next_completion(ring->buffer +
 						      ring->size +
 						      sizeof(scm_msg),
 						      remaining, &remaining,
 						      &obj_size);
 
-		if (error < 0) {
+		if (error < 0)
 			break;
-		}
 
 		scm_msg.length = obj_size;
 
@@ -491,9 +494,8 @@ static int tzio_pop_message(struct scm_buffer *ring)
 	rx_taken = 0;
 	ring->size = 0;
 
-	if (ring->flags & SCM_FLAG_LOG_AVAIL) {
+	if (ring->flags & SCM_FLAG_LOG_AVAIL)
 		tzlog_notify();
-	}
 
 	while (rx_avail >= sizeof(struct scm_msg_link)) {
 		void *payload = NULL;
@@ -531,10 +533,12 @@ static int tzio_pop_message(struct scm_buffer *ring)
 			if (ctx) {
 				payload = ctx->payload;
 
-				/* Make sure this context is completing so nothing else can access it */
-				if (ctx->state == CONTEXT_STATE_SUBMIT) {
+				/*
+				 * Make sure this context is completing
+				 * so nothing else can access it
+				 */
+				if (ctx->state == CONTEXT_STATE_SUBMIT)
 					ctx->state = CONTEXT_STATE_COMPLETING;
-				}
 			} else {
 				tzlog_print(TZLOG_ERROR,
 					    "can not find ctx mtcp.channel = 0x%x\n",
@@ -555,10 +559,14 @@ static int tzio_pop_message(struct scm_buffer *ring)
 						ctx->payload_size = mtcp.length;
 					}
 
+					/*
+					 * mb() : Ensure status and sleep are
+					 * written before completing
+					 */
 					ctx->status = 0;
-					mb();	/* Ensure status and sleep are written before completing */
+					mb();
 					ctx->state = CONTEXT_STATE_COMPLETE;
-					mb();	/* Ensure status and sleep are written before completing */
+					mb();
 					complete(&ctx->comp);
 				} else {
 					tzlog_print(TZLOG_ERROR,
@@ -592,7 +600,7 @@ static int tzio_pop_message(struct scm_buffer *ring)
 			rx_avail -= sizeof(struct scm_msg_link) + mtcp.length;
 			break;
 		case SCM_LLC_RPC:
-			sstransaction_add(ring->buffer + rx_taken +
+			nsrpc_add(ring->buffer + rx_taken +
 					  sizeof(struct scm_msg_link),
 					  mtcp.length);
 			rx_taken += sizeof(struct scm_msg_link) + mtcp.length;
@@ -626,9 +634,8 @@ static irqreturn_t tzdev_ipc_notify(int irq, void *unused)
 
 	tzsys_crash_check();
 
-	if (tz_syspage->tzlog_data_avail) {
+	if (tz_syspage->tzlog_data_avail)
 		tzlog_notify();
-	}
 
 	up(&tzdev_ipc.sem);
 	return IRQ_HANDLED;
@@ -654,9 +661,8 @@ static int tzdev_ipc_thread(void *__arg)
 
 	link = tzio_acquire_link(GFP_KERNEL);
 
-	if (link == NULL) {
+	if (link == NULL)
 		panic("Can't create tzio link for worker\n");
-	}
 
 	ch = link->mux_link;
 	chan_wsm_id = link->id;
@@ -666,27 +672,27 @@ static int tzdev_ipc_thread(void *__arg)
 
 		if (!had_more_completions &&
 		    !tz_syspage->transaction_data_avail &&
-		    !sstransaction_count_completions()) {
-			/*wakeup every 1s if no command received */
+		    !nsrpc_count_completions()) {
+			/* wakeup every 1s if no command received */
 			ret = down_timeout(&data->sem, HZ * 10);
 
-			/*when software assisted timer is used, always call SecOS on worker */
+			/* when software assisted timer is used,
+				always call SecOS on worker */
 			if ((ret == -ETIME) &&
 			    !atomic_read(&wait_completion_count) &&
 			    !secos_kernel_info.soft_timer &&
 			    !tz_syspage->transaction_data_avail &&
-			    !sstransaction_count_completions()) {
+			    !nsrpc_count_completions()) {
 				continue;
 			}
 		}
 
-		if (kthread_should_stop()) {
+		if (kthread_should_stop())
 			break;
-		}
+
 		/* Ignore other semaphore down calls */
-		while (down_trylock(&data->sem) == 0) {
+		while (down_trylock(&data->sem) == 0)
 			;	/* NULL */
-		}
 
 		mb();
 		tz_syspage->transaction_data_avail = 0;
@@ -697,11 +703,10 @@ static int tzdev_ipc_thread(void *__arg)
 		    SCM_PROCESS_RESCHED;
 
 		do {
-			if (tzio_push_completions(&ch->in) == -ENOSPC) {
+			if (tzio_push_completions(&ch->in) == -ENOSPC)
 				had_more_completions = 1;
-			} else {
+			else
 				had_more_completions = 0;
-			}
 
 			/* Invoke secure environment */
 			ret = scm_invoke_svc(chan_wsm_id, svc_flags);
@@ -768,27 +773,28 @@ int tzio_message_wait(struct tzio_message *__user msg,
 		mb();
 
 		/* Check if we can complete anyway */
-		if (context->state == CONTEXT_STATE_COMPLETE) {
+		if (context->state == CONTEXT_STATE_COMPLETE)
 			break;
-		}
 
 		if (ret < 0) {
 			tzlog_print(TZLOG_DEBUG,
 				    "Syscall trigger for context %d\n", ret);
 			/* We may get syscall */
-			if(unlikely(msg->boost_flag))
+			if (unlikely(msg->boost_flag))
 				plat_postprocess();
 
 			return -EINTR;
 		}
 
 		if (ret == 0) {
-			if (secos_kernel_info.soft_timer) {
+			if (secos_kernel_info.soft_timer)
 				scm_soft_timer();
-			}
 
-			/* For debbuging purpose disable soft lockup detection */
-			/* soft lockup checking start */
+			/*
+			* For debbuging purpose disable soft
+			* lockup detection.
+			* soft lockup checking start
+			*/
 			if (!debugging_started) {
 				if (context->softlock_timer++ > 20) {
 					tzlog_notify();
@@ -800,13 +806,15 @@ int tzio_message_wait(struct tzio_message *__user msg,
 						    context->id,
 						    context->state);
 
-					if (!(context->softlock_timer % 5)) {
+					if (!(context->softlock_timer % 5))
 						scm_softlockup();
-					}
 				}
 
-				if(context->timeout_seconds > 0 && context->softlock_timer > context->timeout_seconds) {
-					tzlog_print(TZLOG_ERROR, "TA %u timed out. Killing all requests\n", context->remote_id);
+				if ((context->timeout_seconds > 0) &&
+					(context->softlock_timer > context->timeout_seconds)) {
+					tzlog_print(TZLOG_ERROR,
+							"TA %u timed out. Killing all requests\n",
+							context->remote_id);
 					tzio_connection_closed(context->remote_id);
 					break;
 				}
@@ -834,7 +842,7 @@ int tzio_message_wait(struct tzio_message *__user msg,
 	tzio_context_idr_remove(context);
 	tzio_context_put(context);
 
-	if(unlikely(msg->boost_flag))
+	if (unlikely(msg->boost_flag))
 		plat_postprocess();
 
 	return ret;
@@ -905,9 +913,8 @@ int tzio_exchange_message(struct file *filp, struct tzio_message *__user msg)
 		return ret;
 	}
 
-	if (restart_context_id) {
+	if (restart_context_id)
 		return tzio_message_restart(msg, filp, restart_context_id);
-	}
 
 	if (copy_from_user(&tzio_msg, msg, sizeof(struct tzio_message))) {
 		tzlog_print(TZLOG_ERROR, "copy_from_user error\n");
@@ -926,9 +933,8 @@ int tzio_exchange_message(struct file *filp, struct tzio_message *__user msg)
 		return -EFAULT;
 	}
 
-	if (tzio_msg.length > TZIO_PAYLOAD_MAX) {
+	if (tzio_msg.length > TZIO_PAYLOAD_MAX)
 		return -EFAULT;
-	}
 
 	context = tzio_context_alloc(GFP_KERNEL);
 
@@ -991,7 +997,7 @@ int tzio_exchange_message(struct file *filp, struct tzio_message *__user msg)
 
 	svc_flags = SCM_PROCESS_RX | SCM_PROCESS_TX | SCM_PROCESS_DPC;
 
-	if(unlikely(msg->boost_flag))
+	if (unlikely(msg->boost_flag))
 		plat_preprocess();
 
 	do {
@@ -1067,12 +1073,11 @@ out:
 
 	tzio_release_link(link);
 
-	if (context->state != CONTEXT_STATE_COMPLETE) {
+	if (context->state != CONTEXT_STATE_COMPLETE)
 		tzdev_notify_worker();
-	}
 
 	if (signal_pending(current)) {
-		if(unlikely(msg->boost_flag))
+		if (unlikely(msg->boost_flag))
 			plat_postprocess();
 		return -EINTR;
 	}
@@ -1089,9 +1094,8 @@ int tzdev_register_notify_handler(uint32_t target_id,
 	tgt =
 	    (struct tzdev_notify_target *)
 	    kmalloc(sizeof(struct tzdev_notify_target), GFP_KERNEL);
-	if (tgt == NULL) {
+	if (tgt == NULL)
 		return -ENOMEM;
-	}
 
 	if (!try_module_get(THIS_MODULE)) {
 		kfree(tgt);
@@ -1108,7 +1112,6 @@ int tzdev_register_notify_handler(uint32_t target_id,
 
 	return 0;
 }
-
 EXPORT_SYMBOL(tzdev_register_notify_handler);
 
 int tzdev_unregister_notify_handler(uint32_t target_id,
@@ -1132,13 +1135,11 @@ int tzdev_unregister_notify_handler(uint32_t target_id,
 
 	up_write(&tzdev_notify_lock);
 
-	if (error == 0) {
+	if (error == 0)
 		module_put(THIS_MODULE);
-	}
 
 	return error;
 }
-
 EXPORT_SYMBOL(tzdev_unregister_notify_handler);
 
 static long tzio_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
@@ -1169,13 +1170,11 @@ static long tzio_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 static ssize_t tzio_read(struct file *filp, char *buf, size_t count,
 			 loff_t *f_pos)
 {
-	if (!count) {
+	if (!count)
 		return 0;
-	}
 
-	if (!access_ok(VERIFY_WRITE, buf, count)) {
+	if (!access_ok(VERIFY_WRITE, buf, count))
 		return -EFAULT;
-	}
 
 	atomic_set(&tzcpu_ev_count, 0);
 
@@ -1350,12 +1349,13 @@ static int tzdev_cpu_idle_notify(struct notifier_block *self,
 	int ret = NOTIFY_OK;
 	unsigned long flags = 0;
 	unsigned long cpu = (unsigned long)get_cpu();
+
 	put_cpu();
 
 	switch (action) {
 	case CPU_PM_EXIT:
 		tzlog_print(TZLOG_DEBUG,
-			    "tzdev_cpu_idle_notify(CPU_PM_EXIT) cpu: %d \n",
+			    "tzdev_cpu_idle_notify(CPU_PM_EXIT) cpu: %d\n",
 			    (int)cpu);
 		if (!(per_cpu(cpu_offline, cpu) & CPU_OFF_LINE)) {
 			/*Record cpu satus after suspend/resume/hotplug */
@@ -1372,13 +1372,13 @@ static int tzdev_cpu_idle_notify(struct notifier_block *self,
 
 	case CPU_PM_ENTER:
 		tzlog_print(TZLOG_DEBUG,
-			    "tzdev_cpu_idle_notify(CPU_PM_ENTER) cpu: %d \n",
+			    "tzdev_cpu_idle_notify(CPU_PM_ENTER) cpu: %d\n",
 			    (int)cpu);
 		if (!(per_cpu(cpu_offline, cpu) & CPU_OFF_LINE)) {
 			ret = scm_cpu_shutdown_for_idle(cpu, flags);
 		} else {
 			tzlog_print(TZLOG_DEBUG,
-				    "tzdev_cpu_idle_notify(CPU_PM_ENTER) not run / cpu: %d \n",
+				    "tzdev_cpu_idle_notify(CPU_PM_ENTER) not run / cpu: %d\n",
 				    (int)cpu);
 		}
 		break;
@@ -1550,8 +1550,8 @@ static void tzdev_l2x0_disable_sec(void)
 {
 
 	int ret = 0;
+
 	scm_cache_notify(0);
-	return;
 }
 
 static void tzdev_set_l2x0_ctrl(void)
@@ -1563,7 +1563,7 @@ static void tzdev_set_l2x0_ctrl(void)
 #endif
 
 #define tzdev_attr(_name)			\
-static struct kobj_attribute _name##_attr = 	\
+static struct kobj_attribute _name##_attr =	\
 	_ATTR(_name, 0644. _name##_show, _name##_store)
 
 static struct kobj_attribute tzdev_attr =
@@ -1607,11 +1607,11 @@ static struct kobject *tzdev_kobj;
 #ifdef CONFIG_TZDEV_EVENT_FORWARD
 extern irqreturn_t(*secos_hook) (int irq, void *unused);
 #endif
-
 static int fetch_kernel_info(void)
 {
 	struct secos_kern_info kinfo;
 	int rc;
+
 	memset(&kinfo, 0, sizeof(kinfo));
 
 	kinfo.size = sizeof(kinfo);
@@ -1623,23 +1623,25 @@ static int fetch_kernel_info(void)
 #endif
 
 	rc = scm_query_kernel_info(&kinfo);
-	if (rc) {
+	if (rc)
 		return rc;
-	}
+
 	if (kinfo.size != sizeof(kinfo)) {
 		tzlog_print(TZLOG_WARNING,
 			    "Kernel info size mismatch detected\n");
 		return -EINVAL;
 	}
+
 	if (kinfo.abi != SECOS_ABI_VERSION) {
 		tzlog_print(TZLOG_WARNING,
 			    "Unsupported ABI version. Outdated tzdev\n");
 		return -EINVAL;
 	}
+
 	memcpy(&secos_kernel_info, &kinfo, sizeof(kinfo));
-	if (kinfo.shmem_base && kinfo.shmem_size) {
+	if (kinfo.shmem_base && kinfo.shmem_size)
 		tzpage_init(kinfo.shmem_base, kinfo.shmem_size);
-	}
+
 	return rc;
 }
 
@@ -1652,7 +1654,7 @@ static int __init init_tzdev(void)
 
 	rc = smc_init_monitor();
 	if (rc < 0) {
-		printk(KERN_WARNING
+		tzlog_print(TZLOG_WARNING,
 		       "Unable to initialize monitor connection\n");
 		return rc;
 	}
@@ -1665,16 +1667,15 @@ static int __init init_tzdev(void)
 	}
 
 	rc = misc_register(&tzdev);
-	if (unlikely(rc)) {
+	if (unlikely(rc))
 		goto err1;
-	}
 
 	rc = misc_register(&tzmem);
-	if (unlikely(rc)) {
+	if (unlikely(rc))
 		goto tzdev_out;
-	}
 
-	tzlog_print(TZLOG_INFO, "tzdev version [%s.%s]\n", TZDEV_MAJOR_VERSION, TZDEV_MINOR_VERSION);
+	tzlog_print(TZLOG_INFO, "tzdev version [%s.%s]\n",
+			TZDEV_MAJOR_VERSION, TZDEV_MINOR_VERSION);
 	tzdev_kobj = kobject_create_and_add("tzdev", NULL);
 	if (!tzdev_kobj) {
 		rc = -EINVAL;
@@ -1696,10 +1697,10 @@ static int __init init_tzdev(void)
 
 	tzio_link_init();
 	/*
-	 * SS transaction must be initialized before event threads as it will handle
-	 * incoming requests from boot time of SecOS
+	 * SS transaction must be initialized before event threads
+	 * as it will handle incoming requests from boot time of SecOS
 	 */
-	sstransaction_init_early();
+	nsrpc_init_early();
 
 	tzsys_init();
 
@@ -1741,7 +1742,7 @@ static int __init init_tzdev(void)
 	}
 #endif
 
-	sstransaction_init();
+	nsrpc_init();
 
 	for_each_possible_cpu(cpu) {
 		struct task_struct *thr = kthread_create(tzio_flushd,
@@ -1749,9 +1750,8 @@ static int __init init_tzdev(void)
 							 cpu,
 							 "tzioflush:%d",
 							 cpu);
-		if (IS_ERR(thr)) {
+		if (IS_ERR(thr))
 			panic("Can't create tzioflushd\n");
-		}
 
 		kthread_bind(thr, cpu);
 		wake_up_process(thr);
