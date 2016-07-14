@@ -171,6 +171,13 @@
 				nexell,pin-strength = <0>;
 			};
 
+			key_wakeup:key_wakeup {
+				nexell,pins = "alive-2";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+
 			touchpanel_irq: touchpanel-irq {
 				nexell,pins = "gpiob-22";
 				nexell,pin-function = <1>;
@@ -368,12 +375,19 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&key_pwr>;
+		pinctrl-0 = <&key_pwr>, <&key_wakeup>;
 
 		power {
 			label = "Power";
 			gpios = <&alive_0 0 1>;
 			linux,code = <KEY_POWER>;
+			gpio-key,wakeup;
+		};
+
+		wakeup {
+			label = "Wakeup";
+			gpios = <&alive_0 1 1>;
+			linux,code = <KEY_WAKEUP>;
 			gpio-key,wakeup;
 		};
 	};
