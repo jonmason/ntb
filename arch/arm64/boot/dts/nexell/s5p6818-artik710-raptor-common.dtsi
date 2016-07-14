@@ -71,6 +71,17 @@
 			sdhc2:sdhc@c00cd000 {
 			      clk-input = <(I_PLL2 | I_GATE_PCLK)>;
 			};
+			timer0:timer@c00b9000 {
+			      clk-input = <I_PLL2>;
+			};
+			timer1:timer@c00bb000 {
+			      clk-input = <I_PLL2>;
+			};
+		};
+
+		timer@c0017000 {
+			clocks =  <&timer0>, <&timer1>;
+			clock-names = "timer0", "timer1";
 		};
 
 		serial2:serial@c00a2000 {
