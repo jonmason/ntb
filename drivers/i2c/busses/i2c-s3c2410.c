@@ -38,6 +38,11 @@
 #include <linux/mfd/syscon.h>
 #include <linux/regmap.h>
 
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+#include <linux/pm_qos.h>
+#include <linux/soc/nexell/cpufreq.h>
+#endif
+
 #include <asm/irq.h>
 
 #include <linux/platform_data/i2c-s3c2410.h>
@@ -145,6 +150,18 @@ static const struct platform_device_id s3c24xx_driver_ids[] = {
 	}, { },
 };
 MODULE_DEVICE_TABLE(platform, s3c24xx_driver_ids);
+
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+static struct pm_qos_request nx_i2c_qos;
+
+static void nx_i2c_qos_update(int val)
+{
+	if (!pm_qos_request_active(&nx_i2c_qos))
+		pm_qos_add_request(&nx_i2c_qos, PM_QOS_BUS_THROUGHPUT, val);
+	else
+		pm_qos_update_request(&nx_i2c_qos, val);
+}
+#endif
 
 static int i2c_s3c_irq_nextbyte(struct s3c24xx_i2c *i2c, unsigned long iicstat);
 
@@ -791,11 +808,18 @@ static int s3c24xx_i2c_xfer(struct i2c_adapter *adap,
 	if (ret)
 		return ret;
 
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+	nx_i2c_qos_update(NX_BUS_CLK_HIGH_KHZ);
+#endif
+
 	for (retry = 0; retry < adap->retries; retry++) {
 
 		ret = s3c24xx_i2c_doxfer(i2c, msgs, num);
 
 		if (ret != -EAGAIN) {
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+			nx_i2c_qos_update(NX_BUS_CLK_IDLE_KHZ);
+#endif
 			clk_disable(i2c->clk);
 			pm_runtime_put(&adap->dev);
 			return ret;
@@ -805,6 +829,10 @@ static int s3c24xx_i2c_xfer(struct i2c_adapter *adap,
 
 		udelay(100);
 	}
+
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+	nx_i2c_qos_update(NX_BUS_CLK_IDLE_KHZ);
+#endif
 
 	clk_disable(i2c->clk);
 	pm_runtime_put(&adap->dev);
