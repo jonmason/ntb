@@ -161,7 +161,7 @@ static int nx_devfreq_target(struct device *dev, unsigned long *freq, u32 flags)
 	rate = dev_pm_opp_get_freq(opp);
 	rcu_read_unlock();
 
-	dev_info(dev, "freq: %lu KHz, rate: %lu\n", *freq, rate);
+	dev_dbg(dev, "freq: %lu KHz, rate: %lu\n", *freq, rate);
 
 	if (atomic_read(&nx_devfreq->cur_freq) == *freq)
 		return 0;
@@ -229,7 +229,7 @@ static int nx_devfreq_pm_qos_notifier(struct notifier_block *nb,
 	devfreq_nb = container_of(nb, struct devfreq_notifier_block, nb);
 	nx_devfreq = devfreq_nb->df->data;
 
-	dev_info(nx_devfreq->dev, "%s: val --> %ld\n", __func__, val);
+	dev_dbg(nx_devfreq->dev, "%s: val --> %ld\n", __func__, val);
 	if (val == PM_QOS_DEFAULT_VALUE)
 		val = nx_devfreq_profile.initial_freq;
 
