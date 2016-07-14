@@ -202,6 +202,10 @@ static void timer_source_suspend(struct clocksource *cs)
 	void __iomem *base = dev->base;
 	int ch = info->channel;
 
+	if (info->clk) {
+		clk_disable_unprepare(info->clk);
+	}
+
 	info->rcount = (info->tcount - timer_read(base, ch));
 	timer_stop(base, ch, 0);
 }
@@ -288,11 +292,6 @@ static void timer_event_resume(struct clock_event_device *evt)
 
 	pr_debug("%s (ch:%d, mux:%d, scale:%d)\n", __func__, ch, info->tmux,
 		 info->prescale);
-
-	if (info->clk) {
-		clk_set_rate(info->clk, info->rate);
-		clk_prepare_enable(info->clk);
-	}
 
 	timer_stop(base, ch, 1);
 	timer_clock(base, ch, info->tmux, info->prescale);
