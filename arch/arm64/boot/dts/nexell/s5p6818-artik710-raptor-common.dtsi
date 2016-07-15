@@ -77,11 +77,19 @@
 			timer1:timer@c00bb000 {
 			      clk-input = <I_PLL2>;
 			};
+			pwm0:pwm0@c00ba000 {
+			      clk-input = <I_PLL2>;
+			};
 		};
 
 		timer@c0017000 {
 			clocks =  <&timer0>, <&timer1>;
 			clock-names = "timer0", "timer1";
+		};
+
+		pwm:pwm@c0018000 {
+			clocks =  <&pwm0>, <&pwm2>;
+			clock-names = "pwm-tclk0", "pwm-tclk1";
 		};
 
 		serial2:serial@c00a2000 {
