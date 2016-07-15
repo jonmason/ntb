@@ -27,6 +27,31 @@ config MALI400_DEBUG
 	---help---
 	  This enabled extra debug checks and messages in the Mali driver.
 
+choice
+	prompt "Platform configuration"
+	depends on (MALI400 || MALI450 || MALI470)
+	default MALI_PLATFORM_S5P6818 if ARM64
+	default MALI_PLATFORM_S5P4418 if ARM
+	help
+	  Select the SOC platform that contains a Mali utgard GPU
+
+config MALI_PLATFORM_S5P4418
+	depends on ARCH_S5P4418
+	bool "Nexell S5P4418"
+	select MALI_SHARED_INTERRUPTS
+	select MALI_DT
+	help
+	  Select S5P4418 SoC configuration
+
+config MALI_PLATFORM_S5P6818
+	depends on ARCH_S5P6818
+	bool "Nexell S5P6818"
+	select MALI_SHARED_INTERRUPTS
+	select MALI_DT
+	help
+	  Select S5P6818 SoC configuration
+endchoice
+
 config MALI400_PROFILING
 	bool "Enable Mali profiling"
 	depends on MALI400

@@ -47,13 +47,22 @@ ifeq ($(USING_GPU_UTILIZATION), 1)
     endif
 endif
 
-ifeq ($(MALI_PLATFORM_FILES),)
+ifeq ($(CONFIG_MALI_PLATFORM_S5P4418),y)
+export MALI_PLATFORM=nexell
+endif
+
+ifeq ($(CONFIG_MALI_PLATFORM_S5P6818),y)
+export MALI_PLATFORM=nexell
+endif
+
 ifeq ($(CONFIG_ARCH_EXYNOS4),y)
-EXTRA_DEFINES += -DMALI_FAKE_PLATFORM_DEVICE=1
 export MALI_PLATFORM=exynos4
+endif
+
+ifeq ($(MALI_PLATFORM_FILES),)
+EXTRA_DEFINES += -DMALI_FAKE_PLATFORM_DEVICE=1
 export MALI_PLATFORM_FILES_BUILDIN = $(notdir $(wildcard $(src)/platform/$(MALI_PLATFORM)/*.c))
 export MALI_PLATFORM_FILES_ADD_PREFIX = $(addprefix platform/$(MALI_PLATFORM)/,$(MALI_PLATFORM_FILES_BUILDIN)) 
-endif
 endif
 
 mali-y += \
