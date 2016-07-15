@@ -3024,6 +3024,9 @@ static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 	if (of_find_property(np, "pm-ignore-notify", NULL))
 		pdata->pm_caps |= MMC_PM_IGNORE_PM_NOTIFY;
 
+	if (of_find_property(np, "powered-resumed-nonremovable-card", NULL))
+		pdata->pm_caps |= MMC_PM_IGNORE_REINIT_SDIO;
+
 	if (of_find_property(np, "cd-type-external", NULL)) {
 		pdata->cd_type = DW_MCI_CD_EXTERNAL;
 		pdata->ext_cd_init = ext_cd_init_callback;
