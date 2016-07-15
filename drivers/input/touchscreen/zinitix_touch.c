@@ -936,7 +936,12 @@ static void zinitix_touch_tmr_work(struct work_struct *work)
 	disable_irq(touch_dev->irq);
 	zinitix_printk("error. timeout occured. maybe ts device dead. so reset & reinit.\r\n");
 	ts_power_control(touch_dev, POWER_OFF);
-	ts_power_control(touch_dev, POWER_ON_SEQUENCE);
+	if (ts_power_control(touch_dev, POWER_ON_SEQUENCE) == false) {
+		zinitix_printk("error: device is disconnected\n");
+		touch_dev->work_proceedure = TS_NO_WORK;
+		up(&touch_dev->work_proceedure_lock);
+		return;
+	}
 
 	zinitix_debug_msg("clear all reported points\r\n");
 	zinitix_clear_report_data(touch_dev);
@@ -949,6 +954,7 @@ static void zinitix_touch_tmr_work(struct work_struct *work)
 	zinitix_printk("tmr queue work ----\r\n");
 
 	return;
+
 fail_time_out_init:
 	zinitix_printk("tmr work : restart error\r\n");
 	ts_esd_timer_start(ZINITIX_CHECK_ESD_TIMER, touch_dev);
@@ -2180,7 +2186,11 @@ static int zinitix_resume(struct device *dev)
 	disable_irq_wake(touch_dev->client->irq);
 #endif
 
-	ts_power_control(touch_dev, POWER_ON_SEQUENCE);
+	if (ts_power_control(touch_dev, POWER_ON_SEQUENCE) == false) {
+		zinitix_printk("resume--\n");
+		up(&touch_dev->work_proceedure_lock);
+		return 0;
+	}
 
 	touch_dev->work_proceedure = TS_NO_WORK;
 	if (ts_mini_init_touch(touch_dev) == false)
