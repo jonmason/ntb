@@ -1106,6 +1106,13 @@ config TOUCHSCREEN_ROHM_BU21023
 	  To compile this driver as a module, choose M here: the
 	  module will be called bu21023_ts.
 
+config TOUCHSCREEN_ZINITIX_BT532
+	tristate "ZINITIX BT532 I2C touchscreen driver"
+	depends on I2C
+	default n
+	help
+	  Say Y here to enable BT532 I2C touchscreen support
+
 config TOUCHSCREEN_GSLX680
 	tristate "GSLX680 touchscreen"
 	depends on I2C
