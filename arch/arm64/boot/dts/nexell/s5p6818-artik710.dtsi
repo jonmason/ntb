@@ -223,6 +223,7 @@
 	broken-cd;
 	pm-ignore-notify;
 	keep-power-in-suspend;
+	powered-resumed-nonremovable-card;
 	cd-type = <2>;
 	clock-frequency = <100000000>;
 	nexell,drive_dly = <0x0>;
