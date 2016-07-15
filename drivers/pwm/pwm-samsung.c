@@ -286,12 +286,16 @@ static unsigned int pwm_samsung_optimal_freq(struct samsung_pwm_chip *chip,
 		return 0;
 	}
 
-	clk = chip->base_clk;
-	clk_rate = clk_get_rate(clk);
-	optimal_freq[1] = calc_base_freq(clk_rate, freq);
+	if (!IS_ERR(chip->base_clk)) {
+		clk = chip->base_clk;
+		clk_rate = clk_get_rate(clk);
+		optimal_freq[1] = calc_base_freq(clk_rate, freq);
 
-	if (optimal_freq[0] >= optimal_freq[1])
+		if (optimal_freq[0] >= optimal_freq[1])
+			pwm_samsung_set_tclk(chip, chan);
+	} else {
 		pwm_samsung_set_tclk(chip, chan);
+	}
 
 	return 0;
 }
@@ -325,6 +329,12 @@ static unsigned long pwm_samsung_calc_tin(struct samsung_pwm_chip *chip,
 
 		dev_warn(chip->chip.dev,
 			"tclk of PWM %d is inoperational, using tdiv\n", chan);
+
+	}
+
+	if (IS_ERR(chip->base_clk)) {
+		dev_err(chip->chip.dev, "You can not use the base clock.\n");
+		return 0;
 	}
 
 	rate = pwm_samsung_get_tin_rate(chip, chan);
@@ -677,15 +687,13 @@ static int pwm_samsung_probe(struct platform_device *pdev)
 		return PTR_ERR(chip->base);
 
 	chip->base_clk = devm_clk_get(&pdev->dev, "timers");
-	if (IS_ERR(chip->base_clk)) {
-		dev_err(dev, "failed to get timer base clk\n");
-		return PTR_ERR(chip->base_clk);
-	}
 
-	ret = clk_prepare_enable(chip->base_clk);
-	if (ret < 0) {
-		dev_err(dev, "failed to enable base clock\n");
-		return ret;
+	if (!IS_ERR(chip->base_clk)) {
+		ret = clk_prepare_enable(chip->base_clk);
+		if (ret < 0) {
+			dev_err(dev, "failed to enable base clock\n");
+			return ret;
+		}
 	}
 
 	/* Following clocks are optional. */
@@ -784,7 +792,8 @@ static int pwm_samsung_remove(struct platform_device *pdev)
 	if (ret < 0)
 		return ret;
 
-	clk_disable_unprepare(chip->base_clk);
+	if (!IS_ERR(chip->base_clk))
+		clk_disable_unprepare(chip->base_clk);
 
 	return 0;
 }
