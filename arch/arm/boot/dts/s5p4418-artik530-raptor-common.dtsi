@@ -128,6 +128,20 @@
 				nexell,pin-pull = <1>;
 				nexell,pin-strength = <0>;
 			};
+
+			tsp_irq: tsp-irq {
+				nexell,pins = "gpiob-8";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+
+			tsp_reset: tsp-reset {
+				nexell,pins = "gpioc-25";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
 		};
 
 		adc:adc@c0053000 {
@@ -508,6 +522,17 @@
 		pinctrl-0 = <&touchpanel_irq>;
 		skip-cfg-load;
 		switch-xy;
+	};
+
+	touchscreen@20 {
+		compatible = "zinitix,zinitix_touch";
+		reg = <0x20>;
+		interrupt-parent = <&gpio_b>;
+		interrupts = <8 IRQ_TYPE_EDGE_FALLING>;
+		reset-gpio = <&gpio_c 25 1>;
+		int-gpio = <&gpio_b 8 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&tsp_irq &tsp_reset>;
 	};
 };
 
