@@ -282,7 +282,12 @@ static enum action select_up_down(void)
 	nr = nr_running();
 
 	c0_freq = cpufreq_quick_get(0);	/* 0 : first cpu number for Cluster 0 */
-	c1_freq = cpufreq_quick_get(4); /* 4 : first cpu number for Cluster 1 */
+
+	/* 4 : first cpu number for Cluster 1 */
+	if (cpu_online(4))
+		c1_freq = cpufreq_quick_get(4);
+	else
+		c1_freq = c0_freq;
 
 	up_threshold = ctrl_hotplug.up_threshold;
 	down_threshold = ctrl_hotplug.down_threshold;
