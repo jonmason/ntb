@@ -70,7 +70,7 @@ enum _zinitix_button_event {
 
 /* ESD Protection */
 /*second : if 0, no use. if you have to use, 3 is recommended*/
-#define	ZINITIX_ESD_TIMER_INTERVAL	1
+#define	ZINITIX_ESD_TIMER_INTERVAL	0
 #define ZINITIX_SCAN_RATE_HZ		100
 #define ZINITIX_CHECK_ESD_TIMER		3
 
