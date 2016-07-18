@@ -615,6 +615,15 @@ static int panel_hdmi_suspend(struct device *dev)
 	if (!ctx || !ctx->display)
 		return 0;
 
+	/*
+	 * if hdmi is connected, prevent to go suspend mode.
+	 * to protect current leakage from HDMI port
+	 */
+	if (ctx->plug) {
+		dev_warn(dev, "HDMI is connected -> prevent suspend !!!\n");
+		return -EIO;
+	}
+
 	ctx->plug = false;
 
 	drm_helper_hpd_irq_event(ctx->connector->dev);
