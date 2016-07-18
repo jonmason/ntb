@@ -152,6 +152,7 @@ static const struct platform_device_id s3c24xx_driver_ids[] = {
 MODULE_DEVICE_TABLE(platform, s3c24xx_driver_ids);
 
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+#define NX_I2C_QOS_TIMEOUT	(1000 * 1000)
 static struct pm_qos_request nx_i2c_qos;
 
 static void nx_i2c_qos_update(int val)
@@ -159,7 +160,8 @@ static void nx_i2c_qos_update(int val)
 	if (!pm_qos_request_active(&nx_i2c_qos))
 		pm_qos_add_request(&nx_i2c_qos, PM_QOS_BUS_THROUGHPUT, val);
 	else
-		pm_qos_update_request(&nx_i2c_qos, val);
+		pm_qos_update_request_timeout(&nx_i2c_qos, val,
+				NX_I2C_QOS_TIMEOUT);
 }
 #endif
 
@@ -817,9 +819,6 @@ static int s3c24xx_i2c_xfer(struct i2c_adapter *adap,
 		ret = s3c24xx_i2c_doxfer(i2c, msgs, num);
 
 		if (ret != -EAGAIN) {
-#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
-			nx_i2c_qos_update(NX_BUS_CLK_IDLE_KHZ);
-#endif
 			clk_disable(i2c->clk);
 			pm_runtime_put(&adap->dev);
 			return ret;
@@ -829,10 +828,6 @@ static int s3c24xx_i2c_xfer(struct i2c_adapter *adap,
 
 		udelay(100);
 	}
-
-#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
-	nx_i2c_qos_update(NX_BUS_CLK_IDLE_KHZ);
-#endif
 
 	clk_disable(i2c->clk);
 	pm_runtime_put(&adap->dev);
