@@ -40,8 +40,7 @@
 #endif
 #include <linux/gpio.h>
 
-/* To do : It must be enabled */
-/*#define BT_LPM_ENABLE*/
+#define BT_LPM_ENABLE
 
 #ifdef CONFIG_SOC_EXYNOS5422
 #define BT_UPORT 2
