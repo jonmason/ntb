@@ -25,6 +25,7 @@
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/suspend.h>
+#include <linux/pm_qos.h>
 
 /* Booting time 90s */
 #define BOOTING_TIME 900
@@ -684,6 +685,95 @@ static struct notifier_block hotplug_cpu_pm_notifier = {
 	.notifier_call = hotplug_pm_notify,
 };
 
+static int __ref cpu_online_min_qos_handler(struct notifier_block *b, unsigned
+		long val, void *v)
+{
+	int max_state = -1;
+	int state = 0;
+
+	state = val;
+
+	mutex_lock(&hotplug_lock);
+
+	if (ctrl_hotplug.force_hstate != -1) {
+		mutex_unlock(&hotplug_lock);
+		return NOTIFY_OK;
+	}
+
+	if (state < 0) {
+		mutex_unlock(&hotplug_lock);
+		goto out;
+	}
+
+	if (ctrl_hotplug.max_lock >= 0)
+		max_state = ctrl_hotplug.max_lock;
+
+	if (max_state >= 0 && state <= max_state)
+		state = max_state;
+
+	if ((int)ctrl_hotplug.old_state < state) {
+		ctrl_hotplug.min_lock = state;
+		mutex_unlock(&hotplug_lock);
+		return NOTIFY_OK;
+	}
+
+	mutex_unlock(&hotplug_lock);
+
+out:
+	__force_hstate(state, &ctrl_hotplug.min_lock);
+
+	return NOTIFY_OK;
+}
+
+static int __ref cpu_online_max_qos_handler(struct notifier_block *b, unsigned
+		long val, void *v)
+{
+	int max_state = -1;
+	int state = 0;
+
+	max_state = val;
+	state = val;
+
+	mutex_lock(&hotplug_lock);
+
+	if (ctrl_hotplug.force_hstate != -1) {
+		mutex_unlock(&hotplug_lock);
+		return NOTIFY_OK;
+	}
+
+	if (state < 0) {
+		mutex_unlock(&hotplug_lock);
+		goto out;
+	}
+
+	if (ctrl_hotplug.min_lock >= 0)
+		state = ctrl_hotplug.min_lock;
+
+	if (max_state >= 0 && state <= max_state)
+		state = max_state;
+
+	if ((int)ctrl_hotplug.old_state > state) {
+		ctrl_hotplug.max_lock = state;
+		mutex_unlock(&hotplug_lock);
+		return NOTIFY_OK;
+	}
+
+	mutex_unlock(&hotplug_lock);
+
+out:
+	__force_hstate(state, &ctrl_hotplug.max_lock);
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block cpu_online_min_qos_notifier= {
+	.notifier_call = cpu_online_min_qos_handler,
+};
+
+static struct notifier_block cpu_online_max_qos_notifier= {
+	.notifier_call = cpu_online_max_qos_handler,
+};
+
 static int __init dm_cluster_hotplug_init(void)
 {
 	int ret = 0;
@@ -720,6 +810,9 @@ static int __init dm_cluster_hotplug_init(void)
 		pr_err("Faile to register pm notifier\n");
 		goto err_pm;
 	}
+
+	pm_qos_add_notifier(PM_QOS_CPU_ONLINE_MIN, &cpu_online_min_qos_notifier);
+	pm_qos_add_notifier(PM_QOS_CPU_ONLINE_MAX, &cpu_online_max_qos_notifier);
 
 	queue_delayed_work_on(0, khotplug_wq, &start_hotplug,
 		msecs_to_jiffies(ctrl_hotplug.sampling_rate) * BOOTING_TIME);
