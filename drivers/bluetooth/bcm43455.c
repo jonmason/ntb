@@ -214,7 +214,6 @@ static irqreturn_t host_wake_isr(int irq, void *dev)
 
 	if (!bt_lpm.uport) {
 		bt_lpm.host_wake = host_wake;
-		pr_err("[BT] host_wake_isr uport is null\n");
 		return IRQ_HANDLED;
 	}
 
