@@ -19,6 +19,7 @@
 #define _S5PXX18_DRM_DP_H_
 
 #include <video/videomode.h>
+#include <soc/nexell/tieoff.h>
 
 #include "s5pxx18_dp_dev.h"
 
@@ -159,7 +160,5 @@ int nx_drm_dp_crtc_res_parse(struct platform_device *pdev, int pipe,
 
 int  nx_drm_dp_panel_ctrl_parse(struct device_node *np,
 			struct nx_drm_device *display);
-
-void nx_tieoff_set(u32 tieoff_index, u32 tieoff_value);
 
 #endif
