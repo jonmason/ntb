@@ -22,7 +22,7 @@
 #include "nx_port_func.h"
 #include "vpu_types.h"
 #include "nx_vpu_config.h"
-
+#include <soc/nexell/tieoff.h>
 
 /* Codec Mode */
 enum {
@@ -532,8 +532,6 @@ int JPU_DecRunFrame(struct nx_vpu_codec_inst *pInst,
 	struct vpu_dec_frame_arg *pRunArg);
 
 
-extern void nx_tieoff_set(u32 tieoff_index, u32 tieoff_value);
-extern u32 nx_tieoff_get(u32 tieoff_index);
 extern void vpu_soc_peri_reset_enter(void *pv);
 extern void vpu_soc_peri_reset_exit(void *pv);
 
