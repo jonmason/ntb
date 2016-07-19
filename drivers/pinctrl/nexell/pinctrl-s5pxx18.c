@@ -549,6 +549,33 @@ static void s5pxx18_suspend(struct nexell_pinctrl_drv_data *drvdata)
 		if (s5pxx18_gpio_suspend(i) < 0)
 			dev_err(drvdata->dev, "failed to suspend bank %d\n", i);
 	}
+
+	nx_alive_clear_wakeup_status();
+}
+
+
+static const char *wake_event_name[] = {
+	[0] = "VDDPOWER",
+	[1] = "RTC",
+	[2] = "ALIVE 0",
+	[3] = "ALIVE 1",
+	[4] = "ALIVE 2",
+	[5] = "ALIVE 3",
+	[6] = "ALIVE 4",
+	[7] = "ALIVE 5",
+};
+
+#define	WAKE_EVENT_NUM	ARRAY_SIZE(wake_event_name)
+
+static void print_wake_event(void)
+{
+	int i = 0;
+	u32 wake_status = nx_alive_get_wakeup_status();
+
+	for (i = 0; WAKE_EVENT_NUM > i; i++) {
+		if (wake_status & (1 << i))
+			pr_notice("WAKE SOURCE [%s]\n", wake_event_name[i]);
+	}
 }
 
 static void s5pxx18_resume(struct nexell_pinctrl_drv_data *drvdata)
@@ -571,6 +598,8 @@ static void s5pxx18_resume(struct nexell_pinctrl_drv_data *drvdata)
 		if (s5pxx18_gpio_resume(i) < 0)
 			dev_err(drvdata->dev, "failed to resume bank %d\n", i);
 	}
+
+	print_wake_event();
 }
 
 static int s5pxx18_base_init(struct nexell_pinctrl_drv_data *drvdata)

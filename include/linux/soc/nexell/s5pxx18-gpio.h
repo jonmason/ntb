@@ -514,4 +514,7 @@ extern int s5pxx18_gpio_resume(int idx);
 extern int s5pxx18_alive_suspend(void);
 extern int s5pxx18_alive_resume(void);
 
+extern u32 nx_alive_get_wakeup_status(void);
+extern void nx_alive_clear_wakeup_status(void);
+
 #endif /* __S5Pxx18_GPIO_H */
