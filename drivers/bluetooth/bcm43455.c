@@ -41,6 +41,7 @@
 #include <linux/gpio.h>
 
 #define BT_LPM_ENABLE
+#define FORCE_ENABLE_BT_WAKE
 
 #ifdef CONFIG_SOC_EXYNOS5422
 #define BT_UPORT 2
@@ -305,7 +306,11 @@ static int bcm43455_bluetooth_probe(struct platform_device *pdev)
 	}
 
 	gpio_direction_input(bt_gpio.bt_hostwake);
+#ifdef FORCE_ENABLE_BT_WAKE
+	gpio_direction_output(bt_gpio.bt_wake, 1);
+#else
 	gpio_direction_output(bt_gpio.bt_wake, 0);
+#endif
 	gpio_direction_output(bt_gpio.bt_en, 0);
 
 #ifdef BT_LPM_ENABLE
