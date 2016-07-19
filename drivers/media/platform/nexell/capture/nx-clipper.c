@@ -70,7 +70,6 @@ static void nx_clipper_qos_update(int val)
 	else
 		pm_qos_update_request(&nx_clipper_qos, val);
 }
-#endif
 
 static struct pm_qos_request nx_clipper_qos_cpu_online;
 
@@ -82,6 +81,7 @@ static void nx_clipper_qos_cpu_online_update(int val)
 	else
 		pm_qos_update_request(&nx_clipper_qos_cpu_online, val);
 }
+#endif
 
 enum {
 	NX_CLIPPER_PAD_SINK,
@@ -1134,8 +1134,8 @@ static int nx_clipper_s_stream(struct v4l2_subdev *sd, int enable)
 
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
 			nx_clipper_qos_update(NX_BUS_CLK_VIP_KHZ);
-#endif
 			nx_clipper_qos_cpu_online_update(1);
+#endif
 
 			set_vip(me);
 			ret = enable_sensor_power(me, true);
@@ -1202,8 +1202,8 @@ static int nx_clipper_s_stream(struct v4l2_subdev *sd, int enable)
 
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
 			nx_clipper_qos_update(NX_BUS_CLK_IDLE_KHZ);
-#endif
 			nx_clipper_qos_cpu_online_update(-1);
+#endif
 
 #ifndef CONFIG_VIDEO_NEXELL_CLIPPER
 		}
