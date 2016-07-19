@@ -71,10 +71,10 @@ static int dw_mci_nexell_resume(struct device *dev)
 {
 	struct dw_mci *host = dev_get_drvdata(dev);
 
-	dw_mci_nexell_priv_init(host);
 	clk_prepare_enable(host->biu_clk);
 	clk_prepare_enable(host->ciu_clk);
 
+	dw_mci_nexell_priv_init(host);
 	return dw_mci_resume(host);
 }
 
