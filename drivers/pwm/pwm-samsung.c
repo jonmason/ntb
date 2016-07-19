@@ -96,6 +96,14 @@ struct samsung_pwm_chip {
 	/* add for s5p4418 */
 	struct clk *tclk2;
 	struct clk *tclk3;
+
+	/* for suspend/resume of s5p4418/s5p6818 */
+	u32 tcfg0;
+	u32 tcfg1;
+	u32 tcon;
+	u32 tcntb[SAMSUNG_PWM_NUM];
+	u32 tcmpb[SAMSUNG_PWM_NUM];
+	u32 is_enabled;
 };
 
 #ifndef CONFIG_CLKSRC_SAMSUNG_PWM
@@ -805,6 +813,46 @@ static int pwm_samsung_suspend(struct device *dev)
 	unsigned int i;
 
 	/*
+	 * patch for s5p4418/s5p6818
+	 * s5p4418/s5p6818 pwm register backup and tclk disable.
+	 */
+	if (of_device_is_compatible(dev->of_node, "nexell,s5p4418-pwm") ||
+	    of_device_is_compatible(dev->of_node, "nexell,s5p6818-pwm")) {
+		chip->tcfg0 = readl(chip->base + REG_TCFG0);
+		chip->tcfg1 = readl(chip->base + REG_TCFG1);
+		chip->tcon = readl(chip->base + REG_TCON);
+		for (i = 0; i < SAMSUNG_PWM_NUM; ++i) {
+			struct pwm_device *pwm = &chip->chip.pwms[i];
+			unsigned int tcon_chan = to_tcon_channel(pwm->hwpwm);
+
+			chip->tcntb[i] = readl(chip->base + REG_TCNTB(i));
+			chip->tcmpb[i] = readl(chip->base + REG_TCMPB(i));
+			if ((chip->tcon & TCON_AUTORELOAD(tcon_chan)) &&
+			    (chip->variant.output_mask & BIT(i))) {
+				chip->is_enabled |= BIT(i);
+				pwm_samsung_disable(&chip->chip, pwm);
+			} else
+				chip->is_enabled &= ~BIT(i);
+		}
+		chip->tcon = readl(chip->base + REG_TCON);
+
+		if (!IS_ERR(chip->tclk0))
+			clk_disable_unprepare(chip->tclk0);
+		if (!IS_ERR(chip->tclk1))
+			clk_disable_unprepare(chip->tclk1);
+
+		if (of_device_is_compatible(dev->of_node,
+					    "nexell,s5p4418-pwm")) {
+			if (chip->tclk2)
+				clk_disable_unprepare(chip->tclk2);
+			if (chip->tclk3)
+				clk_disable_unprepare(chip->tclk3);
+		}
+		if (!IS_ERR(chip->base_clk))
+			clk_disable_unprepare(chip->base_clk);
+	}
+
+	/*
 	 * No one preserves these values during suspend so reset them.
 	 * Otherwise driver leaves PWM unconfigured if same values are
 	 * passed to pwm_config() next time.
@@ -827,6 +875,56 @@ static int pwm_samsung_resume(struct device *dev)
 {
 	struct samsung_pwm_chip *chip = dev_get_drvdata(dev);
 	unsigned int chan;
+
+	/*
+	 * patch for s5p4418/s5p6818
+	 * s5p4418/s5p6818 pwm must be reset before enabled
+	 */
+	if (of_device_is_compatible(dev->of_node, "nexell,s5p4418-pwm") ||
+	    of_device_is_compatible(dev->of_node, "nexell,s5p6818-pwm")) {
+#ifdef CONFIG_RESET_CONTROLLER
+		struct reset_control *rst =
+			devm_reset_control_get(dev, "pwm-reset");
+		if (IS_ERR(rst)) {
+			dev_err(dev, "PWM failed to get reset_control\n");
+			return -EINVAL;
+		}
+
+		if (reset_control_status(rst))
+			reset_control_reset(rst);
+#endif
+		/*
+		 * patch for s5p4418/s5p6818
+		 * s5p4418/s5p6818 pwm register restore and tclk enable.
+		 */
+		if (!IS_ERR(chip->base_clk))
+			clk_prepare_enable(chip->base_clk);
+		if (!IS_ERR(chip->tclk0))
+			clk_prepare_enable(chip->tclk0);
+		if (!IS_ERR(chip->tclk1))
+			clk_prepare_enable(chip->tclk1);
+
+		if (of_device_is_compatible(dev->of_node,
+					    "nexell,s5p4418-pwm")) {
+			if (!IS_ERR(chip->tclk2))
+				clk_prepare_enable(chip->tclk2);
+			if (!IS_ERR(chip->tclk3))
+				clk_prepare_enable(chip->tclk3);
+		}
+		writel(chip->tcfg0, chip->base + REG_TCFG0);
+		writel(chip->tcfg1, chip->base + REG_TCFG1);
+		writel(chip->tcon, chip->base + REG_TCON);
+		for (chan = 0; chan < SAMSUNG_PWM_NUM; ++chan) {
+			struct pwm_device *pwm = &chip->chip.pwms[chan];
+
+			writel(chip->tcntb[chan], chip->base + REG_TCNTB(chan));
+			writel(chip->tcmpb[chan], chip->base + REG_TCMPB(chan));
+			if ((chip->is_enabled & BIT(chan)) &&
+			    (chip->variant.output_mask & BIT(chan))) {
+				pwm_samsung_enable(&chip->chip, pwm);
+			}
+		}
+	}
 
 	/*
 	 * Inverter setting must be preserved across suspend/resume
