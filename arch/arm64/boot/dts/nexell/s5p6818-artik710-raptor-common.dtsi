@@ -556,7 +556,7 @@
 			dcdc3	{ PMIC_PDATA_INIT( 2,
 				"nxe2000_dcdc3",
 				1000000, 3500000,
-				3300000, 1, 1, 0x0)
+				3300000, 1, 1, 0xF)
 				regulator-always-on;
 				regulator-boot-on;};
 		VCC_DCDC3:
@@ -570,40 +570,40 @@
 			dcdc5	{ PMIC_PDATA_INIT( 4,
 				"nxe2000_dcdc5",
 				1000000, 2000000,
-				1500000, 1, 0, 0x4)
+				1500000, 1, 0, 0xF)
 				regulator-always-on;
 				regulator-boot-on;};
 		VCC_LDO0:
 			ldo1	{ PMIC_PDATA_INIT( 5,
 				"nxe2000_ldo1",
 				1000000, 3500000,
-				3300000, 0, 1, 0x0)
+				3300000, 0, 1, 0xF)
 				regulator-boot-on;};
 		VCC_LDO1:
 			ldo2	{ PMIC_PDATA_INIT( 6,
 				"nxe2000_ldo2",
 				1000000, 3500000,
-				3300000, 0, 1, 0x0)
+				3300000, 0, 1, 0xF)
 				regulator-boot-on;};
 		VCC_LDO2:
 			ldo3	{ PMIC_PDATA_INIT( 7,
 				"nxe2000_ldo3",
 				1000000, 3500000,
-				1800000, 1, 1, 0x2)
+				1800000, 1, 1, 0xF)
 				regulator-always-on;
 				regulator-boot-on;};
 		VCC_LDO3:
 			ldo4	{ PMIC_PDATA_INIT( 8,
 				"nxe2000_ldo4",
 				1000000, 3500000,
-				1800000, 1, 1, 0x2)
+				1800000, 1, 1, 0xF)
 				regulator-always-on;
 				regulator-boot-on;};
 		VCC_LDO4:
 			ldo5	{ PMIC_PDATA_INIT( 9,
 				"nxe2000_ldo5",
 				1000000, 3500000,
-				3300000, 0, 1, 0x0)
+				3300000, 0, 1, 0xF)
 				regulator-boot-on;};
 		VCC_LDO5:
 			ldo6	{ PMIC_PDATA_INIT(10,
@@ -616,26 +616,26 @@
 			ldo7	{ PMIC_PDATA_INIT(11,
 				"nxe2000_ldo7",
 				1000000, 3500000,
-				3300000, 1, 1, 0x1)
+				3300000, 1, 1, 0xF)
 				regulator-always-on;
 				regulator-boot-on;};
 		VCC_LDO7:
 			ldo8	{ PMIC_PDATA_INIT(12,
 				"nxe2000_ldo8",
 				1000000, 3500000,
-				3300000, 0, 1, 0xf)
+				3300000, 0, 1, 0xF)
 				regulator-boot-on;};
 		VCC_LDO8:
 			ldo9	{ PMIC_PDATA_INIT(13,
 				"nxe2000_ldo9",
 				1000000, 3500000,
-				1800000, 0, 1, 0x0)
+				1800000, 0, 1, 0xF)
 				regulator-boot-on;};
 		VCC_LDO9:
 			ldo10	{ PMIC_PDATA_INIT(14,
 				"nxe2000_ldo10",
 				1000000, 3500000,
-				1200000, 1, 1, 0x0)
+				1200000, 1, 1, 0xF)
 				regulator-always-on;
 				regulator-boot-on;};
 		VCC_RTC0:
