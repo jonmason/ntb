@@ -381,21 +381,9 @@ static int fb_state_change(struct notifier_block *nb,
 		switch (*blank) {
 		case FB_BLANK_POWERDOWN:
 			lcd_on = false;
-			mutex_lock(&hotplug_lock);
-			if (ctrl_hotplug.force_hstate == -1) {
-				target_state = hotplug_adjust_state(DOWN);
-				hotplug_enter_hstate(false, target_state);
-			}
-			mutex_unlock(&hotplug_lock);
 			break;
 		case FB_BLANK_UNBLANK:
 			lcd_on = true;
-			mutex_lock(&hotplug_lock);
-
-			if (ctrl_hotplug.force_hstate == -1)
-				hotplug_enter_hstate(true, H1);
-
-			mutex_unlock(&hotplug_lock);
 			break;
 		}
 	}
