@@ -47,20 +47,20 @@ module_param(adc_power_delay, int, 0644);
 
 static struct reg_default init_list[] = {
 	{RT5659_BIAS_CUR_CTRL_8,	0xa502},
-	{RT5659_CHOP_DAC,			0x3030},
-	{RT5659_PRE_DIV_1,			0xEF00},
-	{RT5659_PRE_DIV_2,			0xeffc},
-	{RT5659_MONO_GAIN,			0x0003},
-	{RT5659_CLASSD_0,			0x2021},
+	{RT5659_CHOP_DAC,		0x3030},
+	{RT5659_PRE_DIV_1,		0xef00},
+	{RT5659_PRE_DIV_2,		0xeffc},
+	{RT5659_MONO_GAIN,		0x0003},
+	{RT5659_CLASSD_0,		0x2021},
 	{RT5659_HP_CALIB_CTRL_7,	0x0000},
 	{RT5659_MONO_NG2_CTRL_2,	0x003a},
-	{RT5659_ASRC_8,				0x0120},
+	{RT5659_ASRC_8,			0x0120},
 	/* Jack detect (GPIO JD2 to IRQ) */
 	{RT5659_RC_CLK_CTRL,		0x0100},
-	{RT5659_JD_CTRL_2,			0x0600},
-	{RT5659_IRQ_CTRL_1,			0x0008},
+	{RT5659_JD_CTRL_2,		0x0600},
+	{RT5659_IRQ_CTRL_1,		0x0008},
 	{RT5659_GPIO_CTRL_1,		0x8000}, /*set GPIO1 to IRQ*/
-	{RT5659_EJD_CTRL_1,			0x70c0},
+	{RT5659_EJD_CTRL_1,		0x70c0},
 	{RT5659_GPIO_CTRL_2,		0x8000}, /*set GPIO to I2S3*/
 	/* Noise Gain Threshold */
 	{RT5659_STO_NG2_CTRL_2,		0x0041},
@@ -1372,7 +1372,10 @@ static int rt5659_hp_vol_put(struct snd_kcontrol *kcontrol,
 {
 	struct snd_soc_component *component = snd_kcontrol_chip(kcontrol);
 	struct snd_soc_codec *codec = component->codec;
+	struct rt5659_priv *rt5659 = snd_soc_codec_get_drvdata(codec);
 	int ret;
+
+	mutex_lock(&rt5659->calibrate_mutex);
 
 	ret = snd_soc_put_volsw(kcontrol, ucontrol);
 
@@ -1383,6 +1386,7 @@ static int rt5659_hp_vol_put(struct snd_kcontrol *kcontrol,
 			0x8000);
 	}
 
+	mutex_unlock(&rt5659->calibrate_mutex);
 	return ret;
 }
 
@@ -4090,6 +4094,7 @@ static int rt5659_hw_params(struct snd_pcm_substream *substream,
 	unsigned int val_len = 0, val_clk, mask_clk;
 	int pre_div, bclk_ms, frame_size;
 
+	mutex_lock(&rt5659->calibrate_mutex);
 	pr_debug("%s\n", __func__);
 
 	rt5659->lrck[dai->id] = params_rate(params);
@@ -4097,11 +4102,13 @@ static int rt5659_hw_params(struct snd_pcm_substream *substream,
 	if (pre_div < 0) {
 		dev_err(codec->dev, "Unsupported clock setting %d for DAI %d\n",
 			rt5659->lrck[dai->id], dai->id);
+		mutex_unlock(&rt5659->calibrate_mutex);
 		return -EINVAL;
 	}
 	frame_size = snd_soc_params_to_frame_size(params);
 	if (frame_size < 0) {
 		dev_err(codec->dev, "Unsupported frame size: %d\n", frame_size);
+		mutex_unlock(&rt5659->calibrate_mutex);
 		return -EINVAL;
 	}
 
@@ -4127,6 +4134,7 @@ static int rt5659_hw_params(struct snd_pcm_substream *substream,
 		val_len |= RT5659_I2S_DL_8;
 		break;
 	default:
+		mutex_unlock(&rt5659->calibrate_mutex);
 		return -EINVAL;
 	}
 
@@ -4153,6 +4161,7 @@ static int rt5659_hw_params(struct snd_pcm_substream *substream,
 		break;
 	default:
 		dev_err(codec->dev, "Invalid dai->id: %d\n", dai->id);
+		mutex_unlock(&rt5659->calibrate_mutex);
 		return -EINVAL;
 	}
 
@@ -4176,6 +4185,7 @@ static int rt5659_hw_params(struct snd_pcm_substream *substream,
 		break;
 	}
 
+	mutex_unlock(&rt5659->calibrate_mutex);
 	return 0;
 }
 
@@ -4185,6 +4195,7 @@ static int rt5659_set_dai_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 	struct rt5659_priv *rt5659 = snd_soc_codec_get_drvdata(codec);
 	unsigned int reg_val = 0;
 
+	mutex_lock(&rt5659->calibrate_mutex);
 	pr_debug("%s\n", __func__);
 
 	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
@@ -4195,6 +4206,7 @@ static int rt5659_set_dai_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 		rt5659->master[dai->id] = 0;
 		break;
 	default:
+		mutex_unlock(&rt5659->calibrate_mutex);
 		return -EINVAL;
 	}
 
@@ -4205,6 +4217,7 @@ static int rt5659_set_dai_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 		reg_val |= RT5659_I2S_BP_INV;
 		break;
 	default:
+		mutex_unlock(&rt5659->calibrate_mutex);
 		return -EINVAL;
 	}
 
@@ -4221,6 +4234,7 @@ static int rt5659_set_dai_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 		reg_val |= RT5659_I2S_DF_PCM_B;
 		break;
 	default:
+		mutex_unlock(&rt5659->calibrate_mutex);
 		return -EINVAL;
 	}
 
@@ -4239,8 +4253,11 @@ static int rt5659_set_dai_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 		break;
 	default:
 		dev_err(codec->dev, "Invalid dai->id: %d\n", dai->id);
+		mutex_unlock(&rt5659->calibrate_mutex);
 		return -EINVAL;
 	}
+
+	mutex_unlock(&rt5659->calibrate_mutex);
 	return 0;
 }
 
@@ -4251,10 +4268,13 @@ static int rt5659_set_dai_sysclk(struct snd_soc_dai *dai,
 	struct rt5659_priv *rt5659 = snd_soc_codec_get_drvdata(codec);
 	unsigned int reg_val = 0;
 
+	mutex_lock(&rt5659->calibrate_mutex);
 	pr_debug("%s\n", __func__);
 
-	if (freq == rt5659->sysclk && clk_id == rt5659->sysclk_src)
+	if (freq == rt5659->sysclk && clk_id == rt5659->sysclk_src) {
+		mutex_unlock(&rt5659->calibrate_mutex);
 		return 0;
+	}
 
 	switch (clk_id) {
 	case RT5659_SCLK_S_MCLK:
@@ -4268,6 +4288,7 @@ static int rt5659_set_dai_sysclk(struct snd_soc_dai *dai,
 		break;
 	default:
 		dev_err(codec->dev, "Invalid clock id (%d)\n", clk_id);
+		mutex_unlock(&rt5659->calibrate_mutex);
 		return -EINVAL;
 	}
 	snd_soc_update_bits(codec, RT5659_GLB_CLK,
@@ -4277,6 +4298,7 @@ static int rt5659_set_dai_sysclk(struct snd_soc_dai *dai,
 
 	dev_dbg(dai->dev, "Sysclk is %dHz and clock id is %d\n", freq, clk_id);
 
+	mutex_unlock(&rt5659->calibrate_mutex);
 	return 0;
 }
 
@@ -4361,11 +4383,14 @@ static int rt5659_set_dai_pll(struct snd_soc_dai *dai, int pll_id, int Source,
 	struct rt5659_pll_code pll_code;
 	int ret;
 
+	mutex_lock(&rt5659->calibrate_mutex);
 	pr_debug("%s\n", __func__);
 
 	if (Source == rt5659->pll_src && freq_in == rt5659->pll_in &&
-	    freq_out == rt5659->pll_out)
+		freq_out == rt5659->pll_out) {
+		mutex_unlock(&rt5659->calibrate_mutex);
 		return 0;
+	}
 
 	if (!freq_in || !freq_out) {
 		dev_dbg(codec->dev, "PLL disabled\n");
@@ -4374,6 +4399,7 @@ static int rt5659_set_dai_pll(struct snd_soc_dai *dai, int pll_id, int Source,
 		rt5659->pll_out = 0;
 		snd_soc_update_bits(codec, RT5659_GLB_CLK,
 			RT5659_SCLK_SRC_MASK, RT5659_SCLK_SRC_MCLK);
+		mutex_unlock(&rt5659->calibrate_mutex);
 		return 0;
 	}
 
@@ -4396,12 +4422,14 @@ static int rt5659_set_dai_pll(struct snd_soc_dai *dai, int pll_id, int Source,
 		break;
 	default:
 		dev_err(codec->dev, "Unknown PLL Source %d\n", Source);
+		mutex_unlock(&rt5659->calibrate_mutex);
 		return -EINVAL;
 	}
 
 	ret = rt5659_pll_calc(freq_in, freq_out, &pll_code);
 	if (ret < 0) {
 		dev_err(codec->dev, "Unsupport input clock %d\n", freq_in);
+		mutex_unlock(&rt5659->calibrate_mutex);
 		return ret;
 	}
 
@@ -4420,6 +4448,7 @@ static int rt5659_set_dai_pll(struct snd_soc_dai *dai, int pll_id, int Source,
 	rt5659->pll_out = freq_out;
 	rt5659->pll_src = Source;
 
+	mutex_unlock(&rt5659->calibrate_mutex);
 	return 0;
 }
 
@@ -4488,11 +4517,14 @@ static ssize_t rt5659_codec_show(struct device *dev,
 	for (i = 0; i <= RT5659_ADC_R_EQ_POST_VOL; i++) {
 		if (cnt + RT5659_REG_DISP_LEN >= PAGE_SIZE)
 			break;
-		val = snd_soc_read(codec, i);
-		if (!val)
-			continue;
-		cnt += snprintf(buf + cnt, RT5659_REG_DISP_LEN,
-				 "%04x: %04x\n", i, val);
+
+		if (rt5659_readable_register(NULL, i)) {
+			val = snd_soc_read(codec, i);
+			if (!val)
+				continue;
+			cnt += snprintf(buf + cnt, RT5659_REG_DISP_LEN,
+					 "%04x: %04x\n", i, val);
+		}
 	}
 
 	if (cnt >= PAGE_SIZE)
@@ -4667,6 +4699,7 @@ static int rt5659_set_bias_level(struct snd_soc_codec *codec,
 	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 	unsigned int value;
 
+	mutex_lock(&rt5659->calibrate_mutex);
 	pr_debug("%s: level = %d\n", __func__, level);
 
 	switch (level) {
@@ -4714,6 +4747,7 @@ static int rt5659_set_bias_level(struct snd_soc_codec *codec,
 	}
 	dapm->bias_level = level;
 
+	mutex_unlock(&rt5659->calibrate_mutex);
 	return 0;
 }
 
@@ -4853,6 +4887,10 @@ static int rt5659_suspend(struct snd_soc_codec *codec)
 
 static int rt5659_resume(struct snd_soc_codec *codec)
 {
+	struct rt5659_priv *rt5659 = snd_soc_codec_get_drvdata(codec);
+
+	msleep(300);
+	schedule_delayed_work(&rt5659->calibrate_work, msecs_to_jiffies(0));
 	return 0;
 }
 #else
@@ -4999,6 +5037,7 @@ void rt5659_calibrate(struct rt5659_priv *rt5659)
 
 	pr_debug("%s\n", __func__);
 
+	mutex_lock(&rt5659->codec->component.card->dapm_mutex);
 	mutex_lock(&rt5659->calibrate_mutex);
 
 	regcache_cache_bypass(rt5659->regmap, true);
@@ -5196,6 +5235,7 @@ void rt5659_calibrate(struct rt5659_priv *rt5659)
 	regmap_write(rt5659->regmap, RT5659_MICBIAS_2, 0x0080);
 	regmap_write(rt5659->regmap, RT5659_HP_VOL, 0x8080);
 	regmap_write(rt5659->regmap, RT5659_HP_CHARGE_PUMP_1, 0x0c16);
+
 	regmap_write(rt5659->regmap, RT5659_RESET, 0);
 	regcache_cache_bypass(rt5659->regmap, false);
 	regcache_mark_dirty(rt5659->regmap);
@@ -5205,6 +5245,7 @@ void rt5659_calibrate(struct rt5659_priv *rt5659)
 	regmap_write(rt5659->regmap, RT5659_MONO_NG2_CTRL_5, 0x0009);
 
 	mutex_unlock(&rt5659->calibrate_mutex);
+	mutex_unlock(&rt5659->codec->component.card->dapm_mutex);
 }
 
 static void rt5659_i2s_switch_slave_work_0(struct work_struct *work)
@@ -5249,6 +5290,7 @@ static void rt5659_dac1_depop_work(struct work_struct *work)
 		container_of(work, struct rt5659_priv, dac1_depop_work.work);
 	struct snd_soc_codec *codec = rt5659->codec;
 
+	mutex_lock(&rt5659->calibrate_mutex);
 	snd_soc_update_bits(codec, RT5659_STO_DAC_MIXER,
 		RT5659_M_DAC_L1_STO_L | RT5659_M_DAC_R1_STO_L |
 		RT5659_M_DAC_L1_STO_R | RT5659_M_DAC_R1_STO_R,
@@ -5257,6 +5299,7 @@ static void rt5659_dac1_depop_work(struct work_struct *work)
 		RT5659_M_DAC_L1_MONO_L | RT5659_M_DAC_R1_MONO_L |
 		RT5659_M_DAC_L1_MONO_R | RT5659_M_DAC_R1_MONO_R,
 		rt5659->dac1_mono_dac_mixer);
+	mutex_unlock(&rt5659->calibrate_mutex);
 }
 
 static void rt5659_dac2l_depop_work(struct work_struct *work)
@@ -5265,12 +5308,14 @@ static void rt5659_dac2l_depop_work(struct work_struct *work)
 		container_of(work, struct rt5659_priv, dac2l_depop_work.work);
 	struct snd_soc_codec *codec = rt5659->codec;
 
+	mutex_lock(&rt5659->calibrate_mutex);
 	snd_soc_update_bits(codec, RT5659_STO_DAC_MIXER,
 		RT5659_M_DAC_L2_STO_L | RT5659_M_DAC_L2_STO_R,
 		rt5659->dac2l_sto_dac_mixer);
 	snd_soc_update_bits(codec, RT5659_MONO_DAC_MIXER,
 		RT5659_M_DAC_L2_MONO_L | RT5659_M_DAC_L2_MONO_R,
 		rt5659->dac2l_mono_dac_mixer);
+	mutex_unlock(&rt5659->calibrate_mutex);
 }
 
 static void rt5659_dac2r_depop_work(struct work_struct *work)
@@ -5279,18 +5324,25 @@ static void rt5659_dac2r_depop_work(struct work_struct *work)
 		container_of(work, struct rt5659_priv, dac2r_depop_work.work);
 	struct snd_soc_codec *codec = rt5659->codec;
 
+	mutex_lock(&rt5659->calibrate_mutex);
 	snd_soc_update_bits(codec, RT5659_STO_DAC_MIXER,
 		RT5659_M_DAC_R2_STO_L | RT5659_M_DAC_R2_STO_R,
 		rt5659->dac2r_sto_dac_mixer);
 	snd_soc_update_bits(codec, RT5659_MONO_DAC_MIXER,
 		RT5659_M_DAC_R2_MONO_L | RT5659_M_DAC_R2_MONO_R,
 		rt5659->dac2r_mono_dac_mixer);
+	mutex_unlock(&rt5659->calibrate_mutex);
 }
 
 static void rt5659_calibrate_handler(struct work_struct *work)
 {
 	struct rt5659_priv *rt5659 = container_of(work, struct rt5659_priv,
 		calibrate_work.work);
+
+	while (!rt5659->codec->component.card->instantiated) {
+		pr_debug("%s\n", __func__);
+		usleep_range(10000, 11000);
+	}
 
 	rt5659_calibrate(rt5659);
 }
