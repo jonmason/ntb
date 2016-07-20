@@ -454,6 +454,8 @@ static int pwm_samsung_config(struct pwm_chip *chip, struct pwm_device *pwm,
 	struct samsung_pwm_chip *our_chip = to_samsung_pwm_chip(chip);
 	struct samsung_pwm_channel *chan = pwm_get_chip_data(pwm);
 	u32 tin_ns = chan->tin_ns, tcnt, tcmp, oldtcmp;
+	unsigned long tin_rate;
+	u64 correction;
 
 	/*
 	 * We currently avoid using 64bit arithmetic by using the
@@ -472,22 +474,22 @@ static int pwm_samsung_config(struct pwm_chip *chip, struct pwm_device *pwm,
 	/* We need tick count for calculation, not last tick. */
 	++tcnt;
 
+	tin_rate = pwm_samsung_calc_tin(our_chip, pwm->hwpwm,
+			NSEC_PER_SEC / period_ns);
+
 	/* Check to see if we are changing the clock rate of the PWM. */
 	if (chan->period_ns != period_ns) {
-		unsigned long tin_rate;
 		u32 period;
 
 		period = NSEC_PER_SEC / period_ns;
 
 		dev_dbg(our_chip->chip.dev, "duty_ns=%d, period_ns=%d (%u)\n",
 						duty_ns, period_ns, period);
-
-		tin_rate = pwm_samsung_calc_tin(our_chip, pwm->hwpwm, period);
-
 		dev_dbg(our_chip->chip.dev, "tin_rate=%lu\n", tin_rate);
 
 		tin_ns = NSEC_PER_SEC / tin_rate;
-		tcnt = period_ns / tin_ns;
+		correction = ((u64)tin_rate * period_ns) / NSEC_PER_SEC;
+		tcnt = (u32)correction;
 	}
 
 	/* Period is too short. */
@@ -495,7 +497,8 @@ static int pwm_samsung_config(struct pwm_chip *chip, struct pwm_device *pwm,
 		return -ERANGE;
 
 	/* Note that counters count down. */
-	tcmp = duty_ns / tin_ns;
+	correction = ((u64)tin_rate * duty_ns) / NSEC_PER_SEC;
+	tcmp = (u32)correction;
 
 	/* 0% duty is not available */
 	if (!tcmp)
