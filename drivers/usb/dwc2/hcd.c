@@ -1382,6 +1382,11 @@ static void dwc2_conn_id_status_change(struct work_struct *work)
 			dev_err(hsotg->dev,
 				"Connection id status change timed out\n");
 		hsotg->op_state = OTG_STATE_B_PERIPHERAL;
+		if (of_device_is_compatible(hsotg->dev->of_node,
+					    "nexell,nexell-dwc2otg")) {
+			if (hsotg->ext_vbus_io)
+				gpio_set_value(hsotg->ext_vbus_io, 0);
+		}
 		dwc2_core_init(hsotg, false, -1);
 		dwc2_enable_global_interrupts(hsotg);
 		spin_lock_irqsave(&hsotg->lock, flags);
@@ -3025,6 +3030,11 @@ static int dwc2_hcd_resume(struct usb_hcd *hcd)
 	if (gotgctl & GOTGCTL_CONID_B) {
 		dev_dbg(hsotg->dev, "connId B\n");
 		hsotg->op_state = OTG_STATE_B_PERIPHERAL;
+		if (of_device_is_compatible(hsotg->dev->of_node,
+					    "nexell,nexell-dwc2otg")) {
+			if (hsotg->ext_vbus_io)
+				gpio_set_value(hsotg->ext_vbus_io, 0);
+		}
 		s3c_hsotg_core_init_disconnected(hsotg, false);
 		s3c_hsotg_core_connect(hsotg);
 	} else {
@@ -3032,7 +3042,6 @@ static int dwc2_hcd_resume(struct usb_hcd *hcd)
 		dev_dbg(hsotg->dev, "connId A\n");
 		hsotg->op_state = OTG_STATE_A_HOST;
 		dwc2_hcd_start(hsotg);
-		mdelay(100);
 	}
 
 	return 0;

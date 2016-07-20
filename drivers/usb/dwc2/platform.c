@@ -52,15 +52,6 @@
 #include "hcd.h"
 #include "debug.h"
 
-/* FIXME : temporarily patch code for otg vbus gpio control
- * using gpio and pmic.
- */
-#ifdef CONFIG_GPIOLIB
-#include <linux/of_gpio.h>
-#include <linux/gpio.h>
-#include <linux/gpio/consumer.h>
-#endif
-
 #ifdef CONFIG_RESET_CONTROLLER
 #include <linux/reset.h>
 #endif
@@ -474,27 +465,18 @@ static int dwc2_driver_probe(struct platform_device *dev)
 	if (of_device_is_compatible(hsotg->dev->of_node,
 				    "nexell,nexell-dwc2otg")) {
 #ifdef CONFIG_GPIOLIB
-		/* FIXME : temporarily patch code for otg vbus gpio control
-		 * using gpio and pmic.
-		 */
-		unsigned io;
-
-		io = of_get_named_gpio(hsotg->dev->of_node, "gpios", 0);
-		if (gpio_is_valid(io)) {
-			retval = devm_gpio_request(hsotg->dev, io, "otg_vbus");
+		hsotg->ext_vbus_io = of_get_named_gpio(dev->dev.of_node,
+						       "gpios", 0);
+		if (gpio_is_valid(hsotg->ext_vbus_io)) {
+			retval = devm_gpio_request_one(&dev->dev,
+						   hsotg->ext_vbus_io,
+						   GPIOF_OUT_INIT_LOW,
+						   "otg_vbus");
 
 			if (retval < 0) {
 				dev_err(hsotg->dev,
 					"can't request otg_vbus gpio %d\n",
-					io);
-				return 0;
-			}
-
-			retval = gpio_direction_output(io, 1);
-			if (retval < 0) {
-				dev_err(hsotg->dev,
-					"can't request output direction");
-				dev_err(hsotg->dev, "otg_vbus gpio %d\n", io);
+					hsotg->ext_vbus_io);
 				return 0;
 			}
 		}
