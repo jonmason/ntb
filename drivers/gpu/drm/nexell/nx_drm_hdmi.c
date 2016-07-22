@@ -18,7 +18,6 @@
 #include <drm/drmP.h>
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_edid.h>
-#include <drm/drm_fb_cma_helper.h>
 
 #include <linux/wait.h>
 #include <linux/spinlock.h>

@@ -19,13 +19,41 @@
 #define _NX_DRM_FB_H_
 
 #include <drm/drm_fb_helper.h>
-#include <drm/drm_fb_cma_helper.h>
 
-struct nx_framebuffer_dev {
-	struct drm_fbdev_cma *fbdev;
+struct nx_drm_fb {
+	struct drm_framebuffer	fb;
+	struct nx_gem_object *obj[4];
 };
 
-int nx_drm_framebuffer_dev_init(struct drm_device *dev);
-void nx_drm_framebuffer_dev_fini(struct drm_device *dev);
+struct nx_drm_fbdev {
+	struct drm_fb_helper fb_helper;
+	struct nx_drm_fb *fb;
+};
 
+struct nx_framebuffer_dev {
+	struct nx_drm_fbdev *fbdev;
+};
+
+static inline struct nx_drm_fbdev *to_nx_drm_fbdev(struct drm_fb_helper *helper)
+{
+	return container_of(helper, struct nx_drm_fbdev, fb_helper);
+}
+
+static inline struct nx_drm_fb *to_nx_drm_fb(struct drm_framebuffer *fb)
+{
+	return container_of(fb, struct nx_drm_fb, fb);
+}
+
+int nx_drm_framebuffer_init(struct drm_device *dev);
+void nx_drm_framebuffer_fini(struct drm_device *dev);
+
+struct drm_framebuffer *nx_drm_fb_mode_create(struct drm_device *dev,
+			struct drm_file *file_priv,
+			struct drm_mode_fb_cmd2 *mode_cmd);
+
+/*
+ * nexell framebuffer with gem
+ */
+struct nx_gem_object *nx_drm_fb_get_gem_obj(struct drm_framebuffer *fb,
+			unsigned int plane);
 #endif

@@ -47,7 +47,8 @@ static void nx_drm_output_poll_changed(struct drm_device *drm)
 	struct nx_drm_priv *priv = drm->dev_private;
 	struct nx_framebuffer_dev *nx_fbdev = priv->fbdev;
 
-	DRM_DEBUG_KMS("enter : fbdev %s\n", nx_fbdev ? "exist" : "non exist");
+	DRM_DEBUG_KMS("enter : fbdev %s\n",
+		nx_fbdev ? "exist" : "non exist");
 
 	mutex_lock(&priv->lock);
 
@@ -55,14 +56,14 @@ static void nx_drm_output_poll_changed(struct drm_device *drm)
 		drm_fb_helper_hotplug_event(
 			(struct drm_fb_helper *)nx_fbdev->fbdev);
 	else
-		nx_drm_framebuffer_dev_init(drm);
+		nx_drm_framebuffer_init(drm);
 
 	mutex_unlock(&priv->lock);
 	DRM_DEBUG_DRIVER("exit.\n");
 }
 
 static struct drm_mode_config_funcs nx_mode_config_funcs = {
-	.fb_create = drm_fb_cma_create,
+	.fb_create = nx_drm_fb_mode_create,
 	.output_poll_changed = nx_drm_output_poll_changed,
 };
 
@@ -144,7 +145,7 @@ static int nx_drm_unload(struct drm_device *drm)
 {
 	DRM_DEBUG_DRIVER("enter\n");
 
-	nx_drm_framebuffer_dev_fini(drm);
+	nx_drm_framebuffer_fini(drm);
 
 	drm_vblank_cleanup(drm);
 	drm_kms_helper_poll_fini(drm);
@@ -156,10 +157,12 @@ static int nx_drm_unload(struct drm_device *drm)
 }
 
 static struct drm_ioctl_desc nx_drm_ioctls[] = {
-	DRM_IOCTL_DEF_DRV(NX_GEM_CREATE,
-		nx_drm_gem_create_ioctl, DRM_UNLOCKED | DRM_AUTH),
-	DRM_IOCTL_DEF_DRV(NX_GEM_GET,
-		nx_drm_gem_get_ioctl, DRM_UNLOCKED),
+	DRM_IOCTL_DEF_DRV(NX_GEM_CREATE, nx_drm_gem_create_ioctl,
+			DRM_UNLOCKED | DRM_AUTH),
+	DRM_IOCTL_DEF_DRV(NX_GEM_SYNC, nx_drm_gem_sync_ioctl,
+			DRM_UNLOCKED | DRM_AUTH),
+	DRM_IOCTL_DEF_DRV(NX_GEM_GET, nx_drm_gem_get_ioctl,
+			DRM_UNLOCKED),
 };
 
 static const struct file_operations nx_drm_driver_fops = {
@@ -173,22 +176,13 @@ static const struct file_operations nx_drm_driver_fops = {
 	.poll = drm_poll,
 	.read = drm_read,
 	.llseek = no_llseek,
-	.mmap = drm_gem_cma_mmap,
+	.mmap = nx_drm_gem_mmap,
 };
-
-static struct dma_buf *nx_drm_gem_prime_export(struct drm_device *drm,
-			struct drm_gem_object *obj,
-			int flags)
-{
-	/* we want to be able to write in mmapped buffer */
-	flags |= O_RDWR;
-	return drm_gem_prime_export(drm, obj, flags);
-}
 
 static void nx_drm_lastclose(struct drm_device *drm)
 {
 	struct nx_drm_priv *priv = drm->dev_private;
-	struct drm_fbdev_cma *fbdev;
+	struct nx_drm_fbdev *fbdev;
 
 	if (!priv || !priv->fbdev)
 		return;
@@ -218,12 +212,18 @@ static void nx_drm_postclose(struct drm_device *drm, struct drm_file *file)
 	}
 }
 
+static const struct vm_operations_struct nx_drm_gem_vm_ops = {
+	.fault = nx_drm_gem_fault,
+	.open = drm_gem_vm_open,
+	.close = drm_gem_vm_close,
+};
+
 static struct drm_driver nx_drm_driver = {
-	.driver_features = DRIVER_HAVE_IRQ | DRIVER_MODESET | DRIVER_GEM |
-	    DRIVER_PRIME,
+	.driver_features = DRIVER_HAVE_IRQ | DRIVER_MODESET |
+		DRIVER_GEM | DRIVER_PRIME,
 	.load = nx_drm_load,
 	.unload = nx_drm_unload,
-	.fops = &nx_drm_driver_fops,
+	.fops = &nx_drm_driver_fops,	/* replace fops */
 	.lastclose = nx_drm_lastclose,
 	.postclose = nx_drm_postclose,
 	.set_busid = drm_platform_set_busid,
@@ -232,22 +232,23 @@ static struct drm_driver nx_drm_driver = {
 	.enable_vblank = nx_drm_crtc_enable_vblank,
 	.disable_vblank = nx_drm_crtc_disable_vblank,
 
-	.gem_free_object = drm_gem_cma_free_object,
-	.gem_vm_ops = &drm_gem_cma_vm_ops,
-
 	.prime_handle_to_fd = drm_gem_prime_handle_to_fd,
 	.prime_fd_to_handle = drm_gem_prime_fd_to_handle,
+
+	.gem_free_object = nx_drm_gem_free_object,
+	.gem_vm_ops = &nx_drm_gem_vm_ops,
+
 	.gem_prime_export = nx_drm_gem_prime_export,
 	.gem_prime_import = drm_gem_prime_import,
 	.gem_prime_get_sg_table = nx_drm_gem_prime_get_sg_table,
 
-	.gem_prime_import_sg_table = drm_gem_cma_prime_import_sg_table,
-	.gem_prime_vmap = drm_gem_cma_prime_vmap,
-	.gem_prime_vunmap = drm_gem_cma_prime_vunmap,
-	.gem_prime_mmap = drm_gem_cma_prime_mmap,
+	.gem_prime_import_sg_table = nx_drm_gem_prime_import_sg_table,
+	.gem_prime_vmap = nx_drm_gem_prime_vmap,
+	.gem_prime_vunmap = nx_drm_gem_prime_vunmap,
+	.gem_prime_mmap = nx_drm_gem_prime_mmap,
 
 	.dumb_create = nx_drm_gem_dumb_create,
-	.dumb_map_offset = drm_gem_cma_dumb_map_offset,
+	.dumb_map_offset = nx_drm_gem_dumb_map_offset,
 	.dumb_destroy = drm_gem_dumb_destroy,
 
 	.ioctls = nx_drm_ioctls,

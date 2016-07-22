@@ -34,7 +34,7 @@
 
 #define	display_to_dpc(d)	(&d->ctrl.dpc)
 
-static const char *const panel_type_name[] = {
+static const char * const panel_type_name[] = {
 	[dp_panel_type_none] = "unknown",
 	[dp_panel_type_rgb]  = "RGB",
 	[dp_panel_type_lvds] = "LVDS",
@@ -105,16 +105,16 @@ static uint32_t convert_dp_vid_format(uint32_t fourcc,
 	switch (fourcc) {
 	case DRM_FORMAT_YUV420:
 	case DRM_FORMAT_YVU411:
-		fmt = nx_mlc_yuvfmt_420;
+		fmt = nx_mlc_yuvfmt_420 | 0x1<<31;
 		break;
 	case DRM_FORMAT_YUV422:
-		fmt = nx_mlc_yuvfmt_422;
+		fmt = nx_mlc_yuvfmt_422 | 0x1<<31;
 		break;
 	case DRM_FORMAT_YUV444:
-		fmt = nx_mlc_yuvfmt_444;
+		fmt = nx_mlc_yuvfmt_444 | 0x1<<31;
 		break;
 	case DRM_FORMAT_YUYV:
-		fmt = nx_mlc_yuvfmt_yuyv;
+		fmt = nx_mlc_yuvfmt_yuyv | 0x1<<31;
 		break;
 	default:
 		DRM_ERROR("fail : fail, not support fourcc %s\n",
@@ -298,7 +298,7 @@ int nx_drm_dp_panel_res_parse(struct device *dev,
 			i, res->tieoffs[i][0], res->tieoffs[i][1]);
 	}
 
-	for (i = 0; size > i; i += 2)
+	for (i = 0; size > i; i++)
 		nx_tieoff_set(res->tieoffs[i][0], res->tieoffs[i][1]);
 
 	/* resets */
@@ -606,7 +606,8 @@ int nx_drm_dp_crtc_res_parse(struct platform_device *pdev, int pipe,
 	 */
 	size = of_property_read_string_array(node,
 				"reset-names", strings, ARRAY_SIZE(strings));
-	for (i = 0; size > i; i++, *resets++) {
+
+	for (i = 0; size > i; i++, resets++) {
 		*resets = devm_reset_control_get(dev, strings[i]);
 		if (*resets) {
 			bool stat = reset_control_status(*resets);
@@ -650,7 +651,7 @@ void nx_drm_dp_crtc_dpms(struct drm_crtc *crtc, int mode)
 void nx_drm_dp_crtc_commit(struct drm_crtc *crtc)
 {
 	struct drm_framebuffer *fb = crtc->primary->fb;
-	struct drm_gem_cma_object *cma_obj;
+	struct nx_gem_object *nx_obj;
 	struct nx_drm_crtc *nx_crtc = to_nx_crtc(crtc);
 	struct nx_drm_plane *nx_plane = to_nx_plane(crtc->primary);
 	struct dp_plane_top *top = &nx_crtc->top;
@@ -664,8 +665,8 @@ void nx_drm_dp_crtc_commit(struct drm_crtc *crtc)
 	int height = fb->height;
 	int hstride = width * pixel;
 
-	cma_obj = drm_fb_cma_get_gem_obj(fb, 0);
-	paddr = cma_obj->paddr;
+	nx_obj = nx_drm_fb_get_gem_obj(fb, 0);
+	paddr = nx_obj->paddr;
 
 	DRM_DEBUG_KMS("crtc.%d plane.%d (%s) :\n",
 			module, num, nx_plane->layer.name);
@@ -793,7 +794,7 @@ int nx_drm_dp_plane_update(struct drm_plane *plane,
 {
 	struct nx_drm_plane *nx_plane = to_nx_plane(plane);
 	struct dp_plane_layer *layer = &nx_plane->layer;
-	struct drm_gem_cma_object *cma_obj[4];
+	struct nx_gem_object *nx_obj[4];
 	dma_addr_t paddrs[4];
 	unsigned int pitches[4], offsets[4];
 	enum dp_plane_type type;
@@ -812,8 +813,8 @@ int nx_drm_dp_plane_update(struct drm_plane *plane,
 		crtc_x, crtc_y, crtc_w, crtc_h, src_x, src_y, src_w, src_h);
 
 	for (i = 0; num_planes > i; i++) {
-		cma_obj[i] = drm_fb_cma_get_gem_obj(fb, i);
-		paddrs[i] = cma_obj[i]->paddr;
+		nx_obj[i] = nx_drm_fb_get_gem_obj(fb, i);
+		paddrs[i] = nx_obj[i]->paddr;
 		offsets[i] = fb->offsets[i];
 		pitches[i] = fb->pitches[i];
 	}

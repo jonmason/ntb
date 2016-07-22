@@ -3,7 +3,6 @@ config DRM_NX
 	depends on DRM && (ARCH_S5P6818 || ARCH_S5P4418)
 	select DRM_KMS_HELPER
 	select DRM_KMS_FB_HELPER
-	select DRM_KMS_CMA_HELPER
 	select VIDEOMODE_HELPERS
 	help
 	  Choose this option if you have a Nexell soc chipset.
@@ -14,9 +13,9 @@ config DRM_NX
 config DRM_NX_FBDEV
 	bool "Enable legacy fbdev support"
 	depends on DRM_NX
-	select FB_CFB_FILLRECT
-	select FB_CFB_COPYAREA
-	select FB_CFB_IMAGEBLIT
+	select FB_SYS_FILLRECT
+	select FB_SYS_COPYAREA
+	select FB_SYS_IMAGEBLIT
 	select VT_HW_CONSOLE_BINDING if FRAMEBUFFER_CONSOLE
 	help
 	  Choose this option if you have a need for the legacy fbdev

@@ -32,6 +32,8 @@
 #define	WAIT_VBLANK(m, n, o)
 #define	LAYER_VIDEO		PLANE_VIDEO_NUM
 
+#define	LAYER_VIDEO_FMT_MASK	0xffffff
+
 /* 12345'678'[8] -> 12345 [5], 123456'78'[8] -> 123456[6] */
 static inline u_short R8G8B8toR5G6B5(unsigned int RGB)
 {
@@ -500,6 +502,7 @@ int nx_soc_dp_plane_rgb_set_position(struct dp_plane_layer *layer,
 	int sy = src_y;
 	int sw = src_w;
 	int sh = src_h;
+	int w, h;
 
 	if (layer->left == sx && layer->top == sy &&
 	layer->width == sw && layer->height == sh &&
@@ -517,12 +520,21 @@ int nx_soc_dp_plane_rgb_set_position(struct dp_plane_layer *layer,
 	layer->dst_width = dst_w;
 	layer->dst_height = dst_h;
 
+	w = dst_x + sw;
+	h = dst_y + sh;
+
+	/* max rectangle 2048 */
+	if (w > 2048)
+		w = 2048;
+
+	if (h > 2048)
+		h = 2048;
+
 	pr_debug("%s: %s, (%d, %d, %d, %d) to (%d, %d, %d, %d) adjust=%d\n",
 		 __func__, layer->name, sx, sy, sw, sh,
 		 dst_x, dst_y, sw, sh, adjust);
 
-	nx_mlc_set_position(module, num, dst_x, dst_y,
-				dst_x + sw - 1, dst_y + sh - 1);
+	nx_mlc_set_position(module, num, dst_x, dst_y, w - 1, h - 1);
 	dp_plane_adjust(module, num, adjust);
 
 	return 0;
@@ -656,6 +668,7 @@ int nx_soc_dp_plane_video_set_format(struct dp_plane_layer *layer,
 		return 0;
 
 	layer->format = format;
+	format &= LAYER_VIDEO_FMT_MASK;
 
 	pr_debug("%s: %s, format=0x%x\n",
 		__func__, layer->name, format);
@@ -677,6 +690,7 @@ int nx_soc_dp_plane_video_set_position(struct dp_plane_layer *layer,
 	int dx = dst_x, dy = dst_y;
 	int dw = dst_w, dh = dst_h;
 	int hf = 1, vf = 1;
+	int w = 0, h = 0;
 
 	if (layer->left == sx && layer->top == sy &&
 	layer->width == sw && layer->height == sh &&
@@ -694,15 +708,29 @@ int nx_soc_dp_plane_video_set_position(struct dp_plane_layer *layer,
 	layer->dst_width = dst_w;
 	layer->dst_height = dst_h;
 
-	pr_debug("%s: %s, (%d, %d, %d, %d) to (%d, %d, %d, %d) adjust=%d\n",
-		 __func__, layer->name, sx, sy, sw, sh,
-		 dx, dy, dw, dh, adjust);
-
+	/*
+	 * max scale size 2048
+	 * if ove scale size, fix max
+	 */
 	if (dw > 2048)
 		dw = 2048;
 
 	if (dh > 2048)
 		dh = 2048;
+
+	w = dx + dw;
+	h = dy + dh;
+
+	/* max rectangle 2048 */
+	if (w > 2048)
+		w = 2048;
+
+	if (h > 2048)
+		h = 2048;
+
+	pr_debug("%s: %s, (%d, %d, %d, %d) to (%d, %d, %d, %d, %d, %d) adjust=%d\n",
+		 __func__, layer->name, sx, sy, sw, sh,
+		 dx, dy, dw, dh, w, h, adjust);
 
 	if (sw == dw && sh == dh)
 		hf = 0, vf = 0;
@@ -712,8 +740,7 @@ int nx_soc_dp_plane_video_set_position(struct dp_plane_layer *layer,
 
 	/* set scale and position */
 	nx_mlc_set_video_layer_scale(module, sw, sh, dw, dh, hf, hf, vf, vf);
-	nx_mlc_set_position(module, LAYER_VIDEO, dx, dy,
-			dx + dw - 1, dy + dh - 1);
+	nx_mlc_set_position(module, LAYER_VIDEO, dx, dy, w - 1, h - 1);
 	dp_plane_adjust(module, LAYER_VIDEO, adjust);
 
 	return 0;
@@ -745,8 +772,11 @@ void nx_soc_dp_plane_video_set_address_3p(struct dp_plane_layer *layer,
 	int ct = layer->top;
 	int ls = 1, us = 1;
 	int lh = 1, uh = 1;
+	unsigned int format;
 
-	switch (layer->format) {
+	format = layer->format & LAYER_VIDEO_FMT_MASK;
+
+	switch (format) {
 	case nx_mlc_yuvfmt_420:
 			us = 2, uh = 2;
 			break;

@@ -20,25 +20,75 @@
 #define _NX_DRM_GEM_H_
 
 #include <drm/drm_gem.h>
-#include <drm/drm_gem_cma_helper.h>
 
 /*
- * request gem object creation and buffer allocation as the size
- * that it is calculated with framebuffer information such as width,
- * height and bpp.
+ * nexell drm gem object
+ */
+struct nx_gem_object {
+	struct drm_gem_object base;
+	dma_addr_t paddr;
+	void *vaddr;
+	size_t size;
+	uint32_t flags;
+	struct sg_table *sgt;		 /* for system memory */
+	struct sg_table *import_sgt; /* for prime import */
+};
+
+static inline struct nx_gem_object *to_nx_gem_obj(struct drm_gem_object *obj)
+{
+	return container_of(obj, struct nx_gem_object, base);
+}
+
+/*
+ * struct nx_gem_object elements
+ */
+struct nx_gem_object *nx_drm_gem_create(struct drm_device *drm,
+			size_t size, unsigned int flags);
+void nx_drm_gem_destroy(struct nx_gem_object *nx_obj);
+
+/*
+ * struct drm_driver elements
+ */
+int nx_drm_gem_dumb_create(struct drm_file *file_priv,
+			struct drm_device *dev,
+			struct drm_mode_create_dumb *args);
+int nx_drm_gem_dumb_map_offset(struct drm_file *file_priv,
+			struct drm_device *dev, uint32_t handle,
+			uint64_t *offset);
+void nx_drm_gem_free_object(struct drm_gem_object *obj);
+
+struct dma_buf *nx_drm_gem_prime_export(struct drm_device *drm,
+			struct drm_gem_object *obj,
+			int flags);
+struct sg_table *nx_drm_gem_prime_get_sg_table(struct drm_gem_object *obj);
+struct drm_gem_object *nx_drm_gem_prime_import_sg_table(
+			struct drm_device *dev,
+			struct dma_buf_attachment *attach,
+			struct sg_table *sgt);
+
+void *nx_drm_gem_prime_vmap(struct drm_gem_object *obj);
+void nx_drm_gem_prime_vunmap(struct drm_gem_object *obj, void *vaddr);
+int nx_drm_gem_prime_mmap(struct drm_gem_object *obj,
+			struct vm_area_struct *vma);
+/*
+ * struct file_operations elements
+ */
+int nx_drm_gem_mmap(struct file *filp, struct vm_area_struct *vma);
+
+/*
+ * struct vm_operations_struct elements
+ */
+int nx_drm_gem_fault(struct vm_area_struct *vma, struct vm_fault *vmf);
+
+
+/*
+ * struct drm_ioctl_desc
  */
 int nx_drm_gem_create_ioctl(struct drm_device *drm, void *data,
 			struct drm_file *file_priv);
-
-int nx_drm_gem_dumb_create(struct drm_file *file_priv,
-			    struct drm_device *drm,
-			    struct drm_mode_create_dumb *args);
-
-/* get buffer information to memory region allocated by gem. */
+int nx_drm_gem_sync_ioctl(struct drm_device *drm, void *data,
+			struct drm_file *file_priv);
 int nx_drm_gem_get_ioctl(struct drm_device *drm, void *data,
 			struct drm_file *file_priv);
-
-struct sg_table *nx_drm_gem_prime_get_sg_table(struct drm_gem_object *obj);
-
 
 #endif
