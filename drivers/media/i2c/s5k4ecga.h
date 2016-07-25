@@ -400,7 +400,7 @@ struct s5k4ec_state {
 	struct s5k4ec_focus focus;
 	struct s5k4ec_framesize preview;
 	struct i2c_client	*client;
-	struct s5k4ec_framesize *stream_size;
+	const struct s5k4ec_framesize *stream_size;
 };
 
 static int sensor_4ec_set_framerate(struct v4l2_subdev *subdev);

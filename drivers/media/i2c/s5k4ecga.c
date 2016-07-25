@@ -1812,7 +1812,7 @@ p_err:
 static int sensor_4ec_set_size(struct v4l2_subdev *subdev)
 {
 	int ret = 0;
-	struct s5k4ec_framesize *size;
+	const struct s5k4ec_framesize *size;
 	struct s5k4ec_state *s5k4ec_state;
 
 	cam_dbg("E\n");
@@ -1856,7 +1856,7 @@ static int sensor_4ec_s_format(struct v4l2_subdev *subdev,
 {
 	int ret = 0;
 	struct s5k4ec_state *s5k4ec_state;
-	struct s5k4ec_framesize *size;
+	const struct s5k4ec_framesize *size;
 	u32 i;
 
 	BUG_ON(!subdev);
@@ -3252,7 +3252,6 @@ static int sensor_4ec_set_framerate(struct v4l2_subdev *subdev)
 	sensor_4ec_i2c_write16(client, 0x0F12, frametime);
 	sensor_4ec_i2c_write16(client, 0x0F12, frametime);
 
-p_err:
 	return ret;
 }
 
