@@ -27,6 +27,7 @@ struct nxp_cpufreq_plat_data {
 	int  table_size;
 	char *supply_name;		/* voltage regulator name */
 	long supply_delay_us;
+	int max_freq;
 };
 
 void nx_pll_set_rate(int PLL, int P, int M, int S);
