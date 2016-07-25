@@ -118,6 +118,10 @@ Change log:
 #include        "moal_priv.h"
 #endif
 
+/**
+ * 802.1 Local Experimental 1.
+ */
+
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 24)
 #define REFDATA __refdata
 #else
@@ -960,7 +964,7 @@ typedef struct _hgm_data {
 } hgm_data;
 
 /** max antenna number */
-#define MAX_ANTENNA_NUM			3
+#define MAX_ANTENNA_NUM			4
 
 /* wlan_hist_proc_data */
 typedef struct _wlan_hist_proc_data {
@@ -1322,12 +1326,14 @@ struct radiotap_header {
 	struct radiotap_body body;
 } __packed;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 /** Monitor Band Channel Config */
 typedef struct _netmon_band_chan_cfg {
 	t_u32 band;
 	t_u32 channel;
 	t_u32 chan_bandwidth;
 } netmon_band_chan_cfg;
+#endif
 
 typedef struct _monitor_iface {
 	/* The priv data of interface on which the monitor iface is based */
@@ -1339,9 +1345,11 @@ typedef struct _monitor_iface {
 	struct net_device *mon_ndev;
 	char ifname[IFNAMSIZ];
 	int flag;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 	struct cfg80211_chan_def chandef;
 	/** Netmon Band Channel Config */
 	netmon_band_chan_cfg band_chan_cfg;
+#endif
 	/** Monitor device statistics structure */
 	struct net_device_stats stats;
 } monitor_iface;
@@ -1603,6 +1611,11 @@ struct _moal_handle {
 	/* feature_control */
 	t_u8 feature_control;
 	struct notifier_block woal_notifier;
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+	struct ieee80211_regdomain *regd;
+#endif
+#endif
 };
 /**
  *  @brief set trans_start for each TX queue.
@@ -2469,7 +2482,9 @@ void woal_hist_data_add(moal_private *priv, t_u8 rx_rate, t_s8 snr, t_s8 nflr,
 			t_u8 antenna);
 mlan_status woal_set_hotspotcfg(moal_private *priv, t_u8 wait_option,
 				t_u32 hotspotcfg);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 mlan_status woal_set_net_monitor(moal_private *priv, t_u8 wait_option,
 				 t_u8 enable, t_u8 filter,
 				 netmon_band_chan_cfg * band_chan_cfg);
+#endif
 #endif /* _MOAL_MAIN_H */

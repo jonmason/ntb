@@ -4,26 +4,20 @@
  *  @brief This file contains WLAN client mode channel, frequency and power
  *  related code
  *
- *  (C) Copyright 2009-2016 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2009-2016, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  */
 
 /*************************************************************
@@ -36,6 +30,7 @@ Change Log:
 #include "mlan_fw.h"
 #include "mlan_join.h"
 #include "mlan_main.h"
+#include "mlan_sdio.h"
 
 /********************************************************
 			Local Variables
@@ -902,6 +897,45 @@ wlan_is_etsi_country(pmlan_adapter pmadapter, t_u8 *country_code)
 
 	LEAVE();
 	return MFALSE;
+}
+
+#define BAND_MASK_5G        0x03
+#define ANTENNA_OFFSET      2
+/**
+ *   @brief This function adjust the antenna index
+ *
+ *   V16_FW_API: Bit0: ant A, Bit 1:ant B, Bit0 & Bit 1: A+B
+ *   8887: case1: 0 - 2.4G ant A,  1- 2.4G antB, 2-- 5G ant C
+ *   case2: 0 - 2.4G ant A,  1- 2.4G antB, 0x80- 5G antA, 0x81-5G ant B
+ *   @param priv 	 A pointer to mlan_private structure
+ *   @param prx_pd   A pointer to the RxPD structure
+ *
+ *   @return        MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+t_u8
+wlan_adjust_antenna(pmlan_private priv, RxPD *prx_pd)
+{
+	t_u8 antenna = prx_pd->antenna;
+	if (prx_pd->antenna == 0xff)
+		return 0;
+	if (priv->adapter->psdio_device->v16_fw_api) {
+		if ((antenna & MBIT(0)) && (antenna & MBIT(1)))
+			antenna = 2;
+		else if (antenna & MBIT(1))
+			antenna = 1;
+		else if (antenna & MBIT(0))
+			antenna = 0;
+	}
+
+	if (IS_SD8887(priv->adapter->card_type)) {
+		if ((priv->adapter->antinfo & ANT_DIVERSITY_2G) &&
+		    (priv->adapter->antinfo & ANT_DIVERSITY_5G)) {
+			if ((prx_pd->band_config & BAND_MASK_5G) == BAND_5GHZ)
+				antenna += ANTENNA_OFFSET;
+		}
+	}
+
+	return antenna;
 }
 
 /**

@@ -3,26 +3,20 @@
  *  @brief This file contains the initialization for FW
  *  and HW.
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2008-2016, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  */
 
 /********************************************************
@@ -182,6 +176,7 @@ wlan_allocate_adapter(pmlan_adapter pmadapter)
 {
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 #ifdef STA_SUPPORT
+	t_u32 beacon_buffer_size;
 	t_u32 buf_size;
 	BSSDescriptor_t *ptemp_scan_table = MNULL;
 	t_u8 chan_2g[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 };
@@ -223,16 +218,19 @@ wlan_allocate_adapter(pmlan_adapter pmadapter)
 	}
 	pmadapter->pscan_table = ptemp_scan_table;
 
+	if (pmadapter->fixed_beacon_buffer)
+		beacon_buffer_size = MAX_SCAN_BEACON_BUFFER;
+	else
+		beacon_buffer_size = DEFAULT_SCAN_BEACON_BUFFER;
 	ret = pmadapter->callbacks.moal_malloc(pmadapter->pmoal_handle,
-					       DEFAULT_SCAN_BEACON_BUFFER,
-					       MLAN_MEM_DEF,
+					       beacon_buffer_size, MLAN_MEM_DEF,
 					       (t_u8 **)&pmadapter->bcn_buf);
 	if (ret != MLAN_STATUS_SUCCESS || !pmadapter->bcn_buf) {
 		PRINTM(MERROR, "Failed to allocate bcn buf\n");
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
-	pmadapter->bcn_buf_size = DEFAULT_SCAN_BEACON_BUFFER;
+	pmadapter->bcn_buf_size = beacon_buffer_size;
 
 	pmadapter->num_in_chan_stats = sizeof(chan_2g);
 	pmadapter->num_in_chan_stats += sizeof(chan_5g);
@@ -457,10 +455,11 @@ wlan_init_priv(pmlan_private priv)
 	priv->wmm_qosinfo = 0;
 	priv->saved_wmm_qosinfo = 0;
 	priv->host_tdls_cs_support = MTRUE;
-	priv->host_tdls_uapsd_support = MFALSE;
+	priv->host_tdls_uapsd_support = MTRUE;
 	priv->tdls_cs_channel = 0;
 	priv->supp_regulatory_class_len = 0;
 	priv->chan_supp_len = 0;
+	priv->tdls_idle_time = TDLS_IDLE_TIMEOUT;
 	priv->txaggrctrl = MTRUE;
 #ifdef STA_SUPPORT
 	priv->pcurr_bcn_buf = MNULL;
@@ -646,6 +645,7 @@ wlan_init_adapter(pmlan_adapter pmadapter)
 	pmadapter->num_in_scan_table = 0;
 	memset(pmadapter, pmadapter->pscan_table, 0,
 	       (sizeof(BSSDescriptor_t) * MRVDRV_MAX_BSSID_LIST));
+	pmadapter->active_scan_triggered = MFALSE;
 	pmadapter->ext_scan = pmadapter->psdio_device->ext_scan;
 	pmadapter->scan_probes = DEFAULT_PROBES;
 
@@ -653,7 +653,8 @@ wlan_init_adapter(pmlan_adapter pmadapter)
 	pmadapter->pbcn_buf_end = pmadapter->bcn_buf;
 
 	pmadapter->radio_on = RADIO_ON;
-	pmadapter->multiple_dtim = MRVDRV_DEFAULT_MULTIPLE_DTIM;
+	if (!pmadapter->multiple_dtim)
+		pmadapter->multiple_dtim = MRVDRV_DEFAULT_MULTIPLE_DTIM;
 
 	pmadapter->local_listen_interval = 0;	/* default value in firmware
 						   will be used */

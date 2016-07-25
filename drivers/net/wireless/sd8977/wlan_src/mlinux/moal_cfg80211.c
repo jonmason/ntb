@@ -1399,6 +1399,7 @@ woal_cfg80211_set_default_mgmt_key(struct wiphy *wiphy,
 }
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 /**
  *  @brief  Set GTK rekey data to driver
  *
@@ -1456,15 +1457,13 @@ woal_cfg80211_set_rekey_data(struct wiphy *wiphy, struct net_device *dev,
 	int ret = 0;
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	mlan_ds_misc_gtk_rekey_data rekey;
+	mlan_fw_info fw_info;
 
 	ENTER();
 
-	/* In wpa_supplicant 2.5 or earlier versions, it doesn't check the
-	   WIPHY_WOWLAN_SUPPORTS_GTK_REKEY flag for this feature. * It assumes
-	   this feature is supported and disable this on first attempt to use
-	   if the driver rejects the command due to missing support. * We need
-	   to add the check here. */
-	if (!(wiphy->wowlan->flags & WIPHY_WOWLAN_SUPPORTS_GTK_REKEY)) {
+	woal_request_get_fw_info(priv, MOAL_CMD_WAIT, &fw_info);
+	if (!fw_info.fw_supplicant_support) {
+		LEAVE();
 		return -1;
 	}
 
@@ -1479,6 +1478,7 @@ woal_cfg80211_set_rekey_data(struct wiphy *wiphy, struct net_device *dev,
 	LEAVE();
 	return ret;
 }
+#endif
 
 #ifdef STA_SUPPORT
 /* Opportunistic Key Caching APIs functions support
@@ -2042,6 +2042,74 @@ done:
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38) || defined(COMPAT_WIRELESS)
 /**
+ * @brief Request the driver to get antenna configuration
+ *
+ * @param wiphy           A pointer to wiphy structure
+ * @param tx_ant          Bitmaps of allowed antennas to use for TX
+ * @param rx_ant          Bitmaps of allowed antennas to use for RX
+ *
+ * @return                0 -- success, otherwise fail
+ */
+int
+woal_cfg80211_get_antenna(struct wiphy *wiphy, u32 *tx_ant, u32 *rx_ant)
+{
+	moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
+	moal_private *priv = NULL;
+	mlan_ds_radio_cfg *radio = NULL;
+	mlan_ioctl_req *req = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	int ret = 0;
+
+	ENTER();
+
+	if (!handle) {
+		PRINTM(MFATAL, "Unable to get handle\n");
+		ret = -EINVAL;
+		goto done;
+	}
+	priv = woal_get_priv(handle, MLAN_BSS_ROLE_ANY);
+	if (!priv) {
+		ret = -EINVAL;
+		goto done;
+	}
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_radio_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	radio = (mlan_ds_radio_cfg *)req->pbuf;
+	radio->sub_command = MLAN_OID_ANT_CFG;
+	req->req_id = MLAN_IOCTL_RADIO_CFG;
+	req->action = MLAN_ACT_GET;
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (MLAN_STATUS_SUCCESS != status) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	if (handle->feature_control & FEATURE_CTRL_STREAM_2X2) {
+		*tx_ant = radio->param.ant_cfg.tx_antenna;
+		*rx_ant = radio->param.ant_cfg.rx_antenna;
+	} else {
+		*tx_ant = radio->param.ant_cfg_1x1.antenna;
+		*rx_ant = radio->param.ant_cfg_1x1.antenna;
+	}
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	/* Driver must return -EINVAL to cfg80211 */
+	if (ret)
+		ret = -EINVAL;
+	LEAVE();
+	return ret;
+
+}
+
+/**
  * @brief Request the driver to set antenna configuration
  *
  * @param wiphy           A pointer to wiphy structure
@@ -2082,8 +2150,12 @@ woal_cfg80211_set_antenna(struct wiphy *wiphy, u32 tx_ant, u32 rx_ant)
 	radio->sub_command = MLAN_OID_ANT_CFG;
 	req->req_id = MLAN_IOCTL_RADIO_CFG;
 	req->action = MLAN_ACT_SET;
-	radio->param.ant_cfg.tx_antenna = tx_ant;
-	radio->param.ant_cfg.rx_antenna = rx_ant;
+	if (handle->feature_control & FEATURE_CTRL_STREAM_2X2) {
+		radio->param.ant_cfg.tx_antenna = tx_ant;
+		radio->param.ant_cfg.rx_antenna = rx_ant;
+	} else {
+		radio->param.ant_cfg_1x1.antenna = tx_ant;
+	}
 
 	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
 	if (MLAN_STATUS_SUCCESS != status) {
@@ -3590,13 +3662,14 @@ done:
  * @param chandef       A pointer to cfg80211_chan_def structure
  * @param pchan_info    A pointer to chan_band_info structure
  *
- * @return          N/A
+ * @return              MLAN_STATUS_SUCCESS/MLAN_STATUS_FAILURE
  */
-void
+mlan_status
 woal_chandef_create(moal_private *priv, struct cfg80211_chan_def *chandef,
 		    chan_band_info * pchan_info)
 {
 	enum ieee80211_band band = IEEE80211_BAND_2GHZ;
+	mlan_status status = MLAN_STATUS_SUCCESS;
 
 	ENTER();
 	chandef->center_freq2 = 0;
@@ -3607,6 +3680,13 @@ woal_chandef_create(moal_private *priv, struct cfg80211_chan_def *chandef,
 	chandef->chan = ieee80211_get_channel(priv->wdev->wiphy,
 					      ieee80211_channel_to_frequency
 					      (pchan_info->channel, band));
+	if (chandef->chan == NULL) {
+		PRINTM(MERROR,
+		       "Fail on ieee80211_get_channel, channel=%d, band=%d\n",
+		       pchan_info->channel, band);
+		status = MLAN_STATUS_FAILURE;
+		goto done;
+	}
 	switch (pchan_info->band_config.chanWidth) {
 	case CHAN_BW_20MHZ:
 		if (pchan_info->is_11n_enabled)
@@ -3631,7 +3711,8 @@ woal_chandef_create(moal_private *priv, struct cfg80211_chan_def *chandef,
 	default:
 		break;
 	}
+done:
 	LEAVE();
-	return;
+	return status;
 }
 #endif

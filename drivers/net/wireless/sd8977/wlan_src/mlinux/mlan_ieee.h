@@ -1514,9 +1514,9 @@ typedef MLAN_PACK_START struct {
      */
 	t_u8 num_probes;
     /**
-     *  @brief Reserved
+     *  @brief ssid filter flag
      */
-	t_u8 reserved;
+	t_u8 ssid_filter;
     /**
      *  @brief BSSID filter sent in the firmware command to limit the results
      */

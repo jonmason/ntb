@@ -36,7 +36,6 @@
 /** Proc mbt directory entry */
 static struct proc_dir_entry *proc_mbt;
 
-static bt_private *bpriv;
 #define     CMD52_STR_LEN   50
 static char cmd52_string[CMD52_STR_LEN];
 
@@ -51,6 +50,8 @@ struct proc_data {
 	int maxwrlen;
 	/** Write buffer */
 	char *wrbuf;
+	/** Private structure */
+	struct _bt_private *pbt;
 	void (*on_close) (struct inode *, struct file *);
 };
 
@@ -323,6 +324,8 @@ proc_write(struct file *file,
 	loff_t pos = *offset;
 	struct proc_data *pdata = (struct proc_data *)file->private_data;
 	int func = 0, reg = 0, val = 0;
+	int config_data = 0;
+	char *line = NULL;
 
 	if (!pdata->wrbuf || (pos < 0))
 		return -EINVAL;
@@ -332,13 +335,24 @@ proc_write(struct file *file,
 		len = pdata->maxwrlen - pos;
 	if (copy_from_user(pdata->wrbuf + pos, buffer, len))
 		return -EFAULT;
-	if (!strncmp(buffer, "sdcmd52rw=", strlen("sdcmd52rw="))) {
-		parse_cmd52_string(buffer, len, &func, &reg, &val);
-		sd_write_cmd52_val(bpriv, func, reg, val);
+	if (!strncmp(pdata->wrbuf + pos, "fw_reload", strlen("fw_reload"))) {
+		if (!strncmp
+		    (pdata->wrbuf + pos, "fw_reload=", strlen("fw_reload="))) {
+			line = pdata->wrbuf + pos;
+			line += strlen("fw_reload") + 1;
+			config_data = string_to_number(line);
+		} else
+			config_data = FW_RELOAD_SDIO_INBAND_RESET;
+		PRINTM(MSG, "Request fw_reload=%d\n", config_data);
+		bt_request_fw_reload(pdata->pbt, config_data);
 	}
-	if (!strncmp(buffer, "debug_dump", strlen("debug_dump"))) {
-		bt_dump_sdio_regs(bpriv);
-		bt_dump_firmware_info_v2(bpriv);
+	if (!strncmp(pdata->wrbuf + pos, "sdcmd52rw=", strlen("sdcmd52rw="))) {
+		parse_cmd52_string(pdata->wrbuf + pos, len, &func, &reg, &val);
+		sd_write_cmd52_val(pdata->pbt, func, reg, val);
+	}
+	if (!strncmp(pdata->wrbuf + pos, "debug_dump", strlen("debug_dump"))) {
+		bt_dump_sdio_regs(pdata->pbt);
+		bt_dump_firmware_info_v2(pdata->pbt);
 	}
 
 	if (pos + len > pdata->wrlen)
@@ -430,6 +444,7 @@ proc_open(struct inode *inode, struct file *file)
 		return -ENOMEM;
 	}
 	pdata = (struct proc_data *)file->private_data;
+	pdata->pbt = priv->pbt;
 	pdata->rdbuf = kmalloc(priv->bufsize, GFP_KERNEL);
 	if (pdata->rdbuf == NULL) {
 		PRINTM(ERROR, "BT: Can not alloc mem for rdbuf\n");
@@ -464,8 +479,8 @@ proc_open(struct inode *inode, struct file *file)
 			if (!strncmp
 			    (priv->pdata[i].name, "sdcmd52rw",
 			     strlen("sdcmd52rw"))) {
-				sd_read_cmd52_val(bpriv);
-				form_cmd52_string(bpriv);
+				sd_read_cmd52_val(priv->pbt);
+				form_cmd52_string(priv->pbt);
 			}
 			p += sprintf(p, "%s=%s\n", priv->pdata[i].name,
 				     (char *)priv->pdata[i].addr);
@@ -521,7 +536,6 @@ bt_proc_init(bt_private *priv, struct m_dev *m_dev, int seq)
 	int i, j;
 	ENTER();
 
-	bpriv = priv;
 	memset(cmd52_string, 0, CMD52_STR_LEN);
 	if (proc_mbt) {
 		priv->dev_proc[seq].proc_entry =

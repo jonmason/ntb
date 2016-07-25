@@ -46,6 +46,8 @@ extern int pm_keep_power;
 extern int shutdown_hs;
 #endif
 
+extern int disconnect_on_suspend;
+
 /** Device ID for SD8777 */
 #define SD_DEVICE_ID_8777   (0x9131)
 /** Device ID for SD8787 */
@@ -376,6 +378,7 @@ woal_sdio_shutdown(struct device *dev)
 	handle = cardp->handle;
 	for (i = 0; i < handle->priv_num; i++)
 		netif_device_detach(handle->priv[i]->netdev);
+
 	if (shutdown_hs) {
 		memset(&hscfg, 0, sizeof(mlan_ds_hs_cfg));
 		hscfg.is_invoke_hostcmd = MFALSE;
@@ -411,7 +414,24 @@ woal_sdio_shutdown(struct device *dev)
 			PRINTM(MMSG, "HS actived in shutdown\n");
 		else
 			PRINTM(MMSG, "Fail to enable HS in shutdown\n");
+	} else {
+		for (i = 0; i < MIN(handle->priv_num, MLAN_MAX_BSS_NUM); i++) {
+			if (handle->priv[i]) {
+				if (handle->priv[i]->media_connected == MTRUE
+#ifdef UAP_SUPPORT
+				    || (GET_BSS_ROLE(handle->priv[i]) ==
+					MLAN_BSS_ROLE_UAP)
+#endif
+					) {
+					PRINTM(MIOCTL,
+					       "disconnect on suspend\n");
+					woal_disconnect(handle->priv[i],
+							MOAL_NO_WAIT, NULL);
+				}
+			}
+		}
 	}
+
 done:
 	PRINTM(MCMND, "<--- Leave woal_sdio_shutdown --->\n");
 	LEAVE();

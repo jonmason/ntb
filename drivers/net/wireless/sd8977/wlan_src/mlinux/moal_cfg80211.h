@@ -113,8 +113,10 @@ int woal_cfg80211_set_bitrate_mask(struct wiphy *wiphy,
 				   struct net_device *dev,
 				   const u8 *peer,
 				   const struct cfg80211_bitrate_mask *mask);
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38) || defined(COMPAT_WIRELESS)
 int woal_cfg80211_set_antenna(struct wiphy *wiphy, u32 tx_ant, u32 rx_ant);
+int woal_cfg80211_get_antenna(struct wiphy *wiphy, u32 *tx_ant, u32 *rx_ant);
+#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 int woal_cfg80211_set_qos_map(struct wiphy *wiphy,
@@ -158,8 +160,10 @@ int woal_cfg80211_set_default_mgmt_key(struct wiphy *wiphy,
 				       t_u8 key_index);
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 int woal_cfg80211_set_rekey_data(struct wiphy *wiphy, struct net_device *dev,
 				 struct cfg80211_gtk_rekey_data *data);
+#endif
 
 void woal_cfg80211_mgmt_frame_register(struct wiphy *wiphy,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
@@ -388,8 +392,9 @@ void woal_cfg80211_notify_uap_channel(moal_private *priv,
 #endif /* UAP_CFG80211 */
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-void woal_chandef_create(moal_private *priv, struct cfg80211_chan_def *chandef,
-			 chan_band_info * pchan_info);
+mlan_status woal_chandef_create(moal_private *priv,
+				struct cfg80211_chan_def *chandef,
+				chan_band_info * pchan_info);
 #endif
 
 void woal_clear_all_mgmt_ies(moal_private *priv, t_u8 wait_option);
@@ -412,5 +417,16 @@ void woal_cfg80211_setup_vht_cap(moal_private *priv,
 				 struct ieee80211_sta_vht_cap *vht_cap);
 #endif
 int woal_cfg80211_assoc(moal_private *priv, void *sme, t_u8 wait_option);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+#define REGULATORY_CFG_LEN  (NL80211_MAX_SUPP_REG_RULES << 1)
+enum marvell_channel_flags {
+	MARVELL_CHANNEL_PASSIVE = BIT(0),
+	MARVELL_CHANNEL_DFS = BIT(1),
+	MARVELL_CHANNEL_NOHT40 = BIT(2),
+	MARVELL_CHANNEL_NOHT80 = BIT(3),
+	MARVELL_CHANNEL_DISABLED = BIT(7),
+};
+#endif
 
 #endif /* _MOAL_CFG80211_H_ */

@@ -812,6 +812,7 @@ moal_read_reg(IN t_void *pmoal_handle, IN t_u32 reg, OUT t_u32 *data)
 	return woal_read_reg((moal_handle *)pmoal_handle, reg, data);
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 /**
  *  @brief This function uploads the packet to the network stack monitor interface
  *
@@ -1004,6 +1005,7 @@ done:
 	LEAVE();
 	return status;
 }
+#endif
 
 /**
  *  @brief This function uploads the packet to the network stack
@@ -1029,6 +1031,7 @@ moal_recv_packet(IN t_void *pmoal_handle, IN pmlan_buffer pmbuf)
 			if (skb) {
 				skb_reserve(skb, pmbuf->data_offset);
 				skb_put(skb, pmbuf->data_len);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 				if (pmbuf->flags & MLAN_BUF_FLAG_NET_MONITOR) {
 					status = moal_recv_packet_to_mon_if
 						(pmoal_handle, pmbuf);
@@ -1037,6 +1040,7 @@ moal_recv_packet(IN t_void *pmoal_handle, IN pmlan_buffer pmbuf)
 							   mbufalloc_count);
 					goto done;
 				}
+#endif
 				pmbuf->pdesc = NULL;
 				pmbuf->pbuf = NULL;
 				pmbuf->data_offset = pmbuf->data_len = 0;
@@ -1047,6 +1051,7 @@ moal_recv_packet(IN t_void *pmoal_handle, IN pmlan_buffer pmbuf)
 			} else {
 				PRINTM(MERROR, "%s without skb attach!!!\n",
 				       __func__);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 		/** drop the packet without skb in monitor mode */
 				if (pmbuf->flags & MLAN_BUF_FLAG_NET_MONITOR) {
 					PRINTM(MINFO,
@@ -1056,6 +1061,7 @@ moal_recv_packet(IN t_void *pmoal_handle, IN pmlan_buffer pmbuf)
 					priv->stats.rx_dropped++;
 					goto done;
 				}
+#endif
 				skb = dev_alloc_skb(pmbuf->data_len +
 						    MLAN_NET_IP_ALIGN);
 				if (!skb) {
@@ -1130,6 +1136,7 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 #if defined(SDIO_SUSPEND_RESUME)
 	mlan_ds_ps_info pm_info;
 #endif
+
 	ENTER();
 
 	if ((pmevent->event_id != MLAN_EVENT_ID_DRV_DEFER_RX_WORK) &&
@@ -1579,11 +1586,12 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 		woal_moal_debug_info(priv, NULL, MFALSE);
 		woal_broadcast_event(priv, CUS_EVT_DRIVER_HANG,
 				     strlen(CUS_EVT_DRIVER_HANG));
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 #ifdef STA_CFG80211
-		woal_cfg80211_vendor_event(priv, event_hang,
-					   CUS_EVT_DRIVER_HANG,
-					   strlen(CUS_EVT_DRIVER_HANG));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+		if (IS_STA_OR_UAP_CFG80211(cfg80211_wext))
+			woal_cfg80211_vendor_event(priv, event_hang,
+						   CUS_EVT_DRIVER_HANG,
+						   strlen(CUS_EVT_DRIVER_HANG));
 #endif
 #endif
 		woal_process_hang(priv->phandle);
@@ -2375,7 +2383,6 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 	case MLAN_EVENT_ID_FW_DUMP_INFO:
 		woal_store_firmware_dump(priv, pmevent);
 		break;
-
 	default:
 		break;
 	}
@@ -2512,14 +2519,6 @@ moal_hist_data_add(IN t_void *pmoal_handle, IN t_u32 bss_index, IN t_u8 rx_rate,
 {
 	moal_private *priv = NULL;
 	priv = woal_bss_index_to_priv(pmoal_handle, bss_index);
-	if (((moal_handle *)pmoal_handle)->card_info->v16_fw_api) {
-		if ((antenna & MBIT(0)) && (antenna & MBIT(1)))
-			antenna = 2;
-		else if (antenna & MBIT(1))
-			antenna = 1;
-		else if (antenna & MBIT(0))
-			antenna = 0;
-	}
 	if (priv && antenna >= priv->phandle->histogram_table_num)
 		antenna = 0;
 	if (priv && priv->hist_data[antenna])

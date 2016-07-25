@@ -286,6 +286,12 @@ int cfg80211_wext = STA_WEXT_MASK | UAP_WEXT_MASK;
 int cfg80211_wext = STA_CFG80211_MASK | UAP_CFG80211_MASK;
 #endif
 
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+int fw_region = 0;
+#endif
+#endif
+
 /** Work queue priority */
 int wq_sched_prio;
 /** Work queue scheduling policy */
@@ -373,6 +379,8 @@ t_u32 uap_oper_ctrl = 0;
 
 int hs_multi_dtim = 0;
 
+int indrstcfg = 0xffffffff;
+
 /** all the feature are enabled */
 #define DEFAULT_DEV_CAP_MASK 0xffffffff
 t_u32 dev_cap_mask = DEFAULT_DEV_CAP_MASK;
@@ -388,6 +396,17 @@ struct semaphore AddRemoveCardSem;
  * structure variable
  **/
 moal_handle *m_handle[MAX_MLAN_ADAPTER];
+
+/** The global variable of scan beacon buffer **/
+int fixed_beacon_buffer = 0;
+
+#ifdef WIFI_DIRECT_SUPPORT
+int GoAgeoutTime = 0;
+#endif
+
+int multi_dtim = 0;
+
+int inact_tmo = 0;
 
 #ifdef DEBUG_LEVEL1
 #ifdef DEBUG_LEVEL2
@@ -527,7 +546,7 @@ woal_netdevice_event(struct notifier_block *nb, unsigned long event, void *ptr)
 	moal_private *priv;
 
 	int ret = NOTIFY_OK;
-#ifdef STA_CFG80211
+#if defined(STA_CFG80211)
 	char rssi_low[11];
 #endif
 	ENTER();
@@ -566,7 +585,7 @@ woal_netdevice_event(struct notifier_block *nb, unsigned long event, void *ptr)
 		memcpy(priv->ip_addr, &ifa->ifa_address,
 		       sizeof(ifa->ifa_address));
 		priv->ip_addr_type = IPADDR_TYPE_IPV4;
-#ifdef STA_CFG80211
+#if defined(STA_CFG80211)
 		if (!hw_test && priv->roaming_enabled) {
 			sprintf(rssi_low, "%d", priv->rssi_low);
 			woal_set_rssi_low_threshold(priv, rssi_low,
@@ -1254,6 +1273,32 @@ woal_init_from_dev_tree(void)
 				PRINTM(MIOCTL, "hs_multi_dtim=%d\n",
 				       hs_multi_dtim);
 			}
+		} else if (!strncmp
+			   (prop->name, "indrstcfg", strlen("indrstcfg"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				indrstcfg = data;
+				PRINTM(MIOCTL, "indrstcfg=%d\n", indrstcfg);
+			}
+		} else if (!strncmp
+			   (prop->name, "fixed_beacon_buffer",
+			    strlen("fixed_beacon_buffer"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				fixed_beacon_buffer = data;
+				PRINTM(MIOCTL, "fixed_beacon_buffer=%d\n",
+				       fixed_beacon_buffer);
+			}
+		} else if (!strncmp
+			   (prop->name, "multi_dtim", strlen("multi_dtim"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				multi_dtim = data;
+				PRINTM(MIOCTL, "multi_dtim=%d\n", multi_dtim);
+			}
+		} else if (!strncmp
+			   (prop->name, "inact_tmo", strlen("inact_tmo"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				inact_tmo = data;
+				PRINTM(MIOCTL, "inact_tmo=%d\n", inact_tmo);
+			}
 		}
 	}
 	LEAVE();
@@ -1438,6 +1483,7 @@ woal_init_sw(moal_handle *handle)
 #ifdef DEBUG_LEVEL1
 	device.drvdbg = drvdbg;
 #endif
+	device.fixed_beacon_buffer = (t_u32)fixed_beacon_buffer;
 	device.auto_ds = (t_u32)auto_ds;
 	device.ps_mode = (t_u32)ps_mode;
 	device.max_tx_buf = (t_u32)max_tx_buf;
@@ -1447,6 +1493,10 @@ woal_init_sw(moal_handle *handle)
 	if (handle->card_type == CARD_TYPE_SD8787 ||
 	    handle->card_type == CARD_TYPE_SD8777)
 		device.fw_crc_check = (t_u32)fw_crc_check;
+	device.indrstcfg = (t_u32)indrstcfg;
+#ifdef WIFI_DIRECT_SUPPORT
+	device.GoAgeoutTime = (t_u32)GoAgeoutTime;
+#endif
 #if defined(SDIO_MULTI_PORT_TX_AGGR) || defined(SDIO_MULTI_PORT_RX_AGGR)
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36)
 	device.max_segs =
@@ -1496,6 +1546,10 @@ woal_init_sw(moal_handle *handle)
 	       num_possible_cpus());
 
 	device.dev_cap_mask = dev_cap_mask;
+
+	device.multi_dtim = multi_dtim;
+
+	device.inact_tmo = inact_tmo;
 
 	for (i = 0; i < handle->drv_mode.intf_num; i++) {
 		device.bss_attr[i].bss_type =
@@ -1547,6 +1601,9 @@ woal_free_moal_handle(moal_handle *handle)
 	if (handle->wiphy) {
 		wiphy_unregister(handle->wiphy);
 		wiphy_free(handle->wiphy);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+		kfree(handle->regd);
+#endif
 		handle->wiphy = NULL;
 	}
 #endif
@@ -2421,7 +2478,6 @@ woal_add_card_dpc(moal_handle *handle)
 			goto err;
 		}
 	}
-
 	woal_get_version(handle, str_buf, sizeof(str_buf) - 1);
 	PRINTM(MMSG, "wlan: version = %s\n", str_buf);
 
@@ -2593,8 +2649,11 @@ woal_init_fw_dpc(moal_handle *handle)
 			}
 		}
 	} else if (!cal_data_cfg) {
-		if (handle->card_type == CARD_TYPE_SD8887) {
-			PRINTM(MERROR, "Please add cal_data_cfg for 8887\n");
+		if (handle->card_type == CARD_TYPE_SD8887 ||
+		    handle->card_type == CARD_TYPE_SD8977 ||
+		    handle->card_type == CARD_TYPE_SD8997) {
+			PRINTM(MERROR,
+			       "Please add cal_data_cfg for 8887/8977/8997\n");
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
 		}
@@ -2788,7 +2847,7 @@ woal_check_fw_name(moal_handle *handle)
 					SD8977_WLAN_V1_FW_NAME;
 			break;
 		case SD8977_V2:
-			if (fw_serial)
+			if (fw_serial && !handle->fw_reload && !fw_reload)
 				handle->drv_mode.fw_name = SD8977_V2_FW_NAME;
 			else
 				handle->drv_mode.fw_name =
@@ -2973,7 +3032,6 @@ woal_fill_mlan_buffer(moal_private *priv,
 			PRINTM(MDATA, "ARP packet %04x\n", eth->h_proto);
 			break;
 			break;
-
 		default:
 			tid = 0;
 			break;
@@ -3450,6 +3508,16 @@ woal_add_interface(moal_handle *handle, t_u8 bss_index, t_u8 bss_type)
 	}
 	if (bss_type == MLAN_BSS_TYPE_STA ||
 	    priv->bss_type == MLAN_BSS_TYPE_UAP) {
+		mlan_fw_info fw_info;
+		woal_request_get_fw_info(priv, MOAL_CMD_WAIT, &fw_info);
+		if (handle->card_type == CARD_TYPE_SD8887) {
+
+			if ((fw_info.antinfo & ANT_DIVERSITY_2G)&&(fw_info.
+								   antinfo &
+								   ANT_DIVERSITY_5G))
+				handle->histogram_table_num = 4;
+		}
+
 		for (i = 0; i < handle->histogram_table_num; i++) {
 			priv->hist_data[i] = kmalloc(sizeof(hgm_data) +
 						     handle->card_info->
@@ -4312,11 +4380,12 @@ woal_tx_timeout(struct net_device *dev)
 		woal_moal_debug_info(priv, NULL, MFALSE);
 		woal_broadcast_event(priv, CUS_EVT_DRIVER_HANG,
 				     strlen(CUS_EVT_DRIVER_HANG));
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
-		woal_cfg80211_vendor_event(priv, event_hang,
-					   CUS_EVT_DRIVER_HANG,
-					   strlen(CUS_EVT_DRIVER_HANG));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+		if (IS_STA_OR_UAP_CFG80211(cfg80211_wext))
+			woal_cfg80211_vendor_event(priv, event_hang,
+						   CUS_EVT_DRIVER_HANG,
+						   strlen(CUS_EVT_DRIVER_HANG));
 #endif
 #endif
 		woal_process_hang(priv->phandle);
@@ -8353,7 +8422,6 @@ woal_remove_card(void *card)
 				netif_carrier_off(priv->netdev);
 		}
 	}
-
 	if ((handle->hardware_status == HardwareStatusFwReady) ||
 	    (handle->hardware_status == HardwareStatusReady)) {
 		/* Shutdown firmware */
@@ -8921,6 +8989,7 @@ woal_cleanup_module(void)
 			}
 			woal_flush_tx_stat_queue(handle->priv[i]);
 #endif
+
 		}
 
 #ifdef MFG_CMD_SUPPORT
@@ -9003,6 +9072,12 @@ MODULE_PARM_DESC(fw_crc_check,
 module_param(fw_serial, int, 0);
 MODULE_PARM_DESC(fw_serial,
 		 "0: support parallel download FW; 1: support serial download FW");
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+module_param(fw_region, int, 0);
+MODULE_PARM_DESC(fw_region, "1: create channel regulatory domain from FW");
+#endif
+#endif
 module_param(mac_addr, charp, 0660);
 MODULE_PARM_DESC(mac_addr, "MAC address");
 #ifdef MFG_CMD_SUPPORT
@@ -9127,7 +9202,7 @@ MODULE_PARM_DESC(sdio_rx_aggr,
 		 "1: Enable SDIO rx aggr; 2: Disable SDIO rx aggr");
 
 module_param(pmic, int, 0);
-MODULE_PARM_DESC(antcfg,
+MODULE_PARM_DESC(pmic,
 		 "1: Send pmic configure cmd to firmware; 0: No pmic configure cmd sent to firmware");
 
 module_param(antcfg, int, 0660);
@@ -9139,6 +9214,26 @@ MODULE_PARM_DESC(uap_oper_ctrl, "0:default; 0x20001:uap restarts on channel 6");
 
 module_param(hs_multi_dtim, int, 0660);
 MODULE_PARM_DESC(hs_multi_dtim, "Host sleep multiple DTIM listen interval");
+
+module_param(indrstcfg, int, 0);
+MODULE_PARM_DESC(indrstcfg,
+		 "Independent reset configuration; high byte: GPIO pin number; low byte: IR mode");
+
+module_param(fixed_beacon_buffer, int, 0);
+MODULE_PARM_DESC(fixed_beacon_buffer,
+		 "0: allocate default buffer size; 1: allocate max buffer size.");
+
+#ifdef WIFI_DIRECT_SUPPORT
+module_param(GoAgeoutTime, int, 0);
+MODULE_PARM_DESC(GoAgeoutTime,
+		 "0: use default ageout time; xx: set xx (TU 100ms) as the ageout time");
+#endif
+
+module_param(multi_dtim, int, 0);
+MODULE_PARM_DESC(multi_dtim, "DTIM interval");
+
+module_param(inact_tmo, int, 0);
+MODULE_PARM_DESC(inact_tmo, "IEEE ps inactivity timout value");
 
 MODULE_DESCRIPTION("M-WLAN Driver");
 MODULE_AUTHOR("Marvell International Ltd.");

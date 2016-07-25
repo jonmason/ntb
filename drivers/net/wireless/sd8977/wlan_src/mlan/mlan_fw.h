@@ -4,26 +4,20 @@
  *  structures and declares global function prototypes used
  *  in MLAN module.
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2008-2016, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  */
 
 /******************************************************
@@ -539,16 +533,18 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define HWSPEC_SHORTGI40_SUPP    MBIT(24)
 /** ShortGI @ 20Mhz support */
 #define HWSPEC_SHORTGI20_SUPP    MBIT(23)
+/** RX LDPC support */
+#define HWSPEC_LDPC_SUPP         MBIT(22)
 /** Channel width 40Mhz support */
 #define HWSPEC_CHANBW40_SUPP     MBIT(17)
 /** 40Mhz intolarent enable */
 #define CAPINFO_40MHZ_INTOLARENT MBIT(8)
 
 /** Default 11n capability mask for 2.4GHz */
-#define DEFAULT_11N_CAP_MASK_BG (HWSPEC_SHORTGI20_SUPP | HWSPEC_RXSTBC_SUPP)
+#define DEFAULT_11N_CAP_MASK_BG (HWSPEC_SHORTGI20_SUPP | HWSPEC_RXSTBC_SUPP | HWSPEC_LDPC_SUPP)
 /** Default 11n capability mask for 5GHz */
 #define DEFAULT_11N_CAP_MASK_A  (HWSPEC_CHANBW40_SUPP | HWSPEC_SHORTGI20_SUPP | \
-		HWSPEC_SHORTGI40_SUPP | HWSPEC_RXSTBC_SUPP)
+		HWSPEC_SHORTGI40_SUPP | HWSPEC_RXSTBC_SUPP | HWSPEC_LDPC_SUPP)
 
 /** Default 11n TX BF capability **/
 #define DEFAULT_11N_TX_BF_CAP   0x09E1E008
@@ -1056,6 +1052,9 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** Host Command ID : 802.11 sleep parameters */
 #define HostCmd_CMD_802_11_SLEEP_PARAMS       0x0066
 
+/** Host Command ID : 802.11 ps inactivity timeout */
+#define HostCmd_CMD_802_11_PS_INACTIVITY_TIMEOUT 0x0067
+
 /** Host Command ID : 802.11 sleep period */
 #define HostCmd_CMD_802_11_SLEEP_PERIOD       0x0068
 
@@ -1078,6 +1077,8 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 
 /** Host Command ID : 802.11 Tx rate query */
 #define HostCmd_CMD_802_11_TX_RATE_QUERY      0x007f
+/** Host Command ID :Get timestamp value */
+#define HostCmd_CMD_GET_TSF                   0x0080
 
 /** Host Command ID : WMM queue stats */
 #define HostCmd_CMD_WMM_QUEUE_STATS           0x0081
@@ -1309,6 +1310,11 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** Host Command ID :  set/get sta configure */
 #define HostCmd_CMD_STA_CONFIGURE            0x023f
 #endif
+
+/** Host Command ID : GPIO independent reset configure */
+#define HostCmd_CMD_INDEPENDENT_RESET_CFG    0x0243
+
+#define HostCmd_CMD_CHAN_REGION_CFG         0x0242
 
 /** Enhanced PS modes */
 typedef enum _ENH_PS_MODES {
@@ -1849,12 +1855,17 @@ typedef MLAN_PACK_START struct _RxPD {
      *  [Bit 6] LDPC support Enabled = 1
      *  [Bit 7] Reserved */
 	t_u8 rate_info;
-    /** Reserved */
+   /** Reserved */
 	t_u8 reserved[3];
     /** TDLS flags, bit 0: 0=InfraLink, 1=DirectLink */
 	t_u8 flags;
     /**For SD8887 antenna info: 0 = 2.4G antenna a; 1 = 2.4G antenna b; 3 = 5G antenna; 0xff = invalid value */
 	t_u8 antenna;
+	t_u64 reserved1;
+    /** band config */
+	t_u8 band_config;
+    /** chan number */
+	t_u8 chan_num;
 } MLAN_PACK_END RxPD, *PRxPD;
 
 /** IEEEtypes_FrameCtl_t*/
@@ -2004,12 +2015,17 @@ typedef MLAN_PACK_START struct _UapRxPD {
      *  [Bit 6] LDPC support Enabled = 1
      *  [Bit 7] Reserved */
 	t_u8 rate_info;
-   /** Reserved */
+    /** Reserved */
 	t_u8 reserved1[3];
     /** TDLS flags, bit 0: 0=InfraLink, 1=DirectLink */
 	t_u8 flags;
     /** For SD8887 ntenna info: 0 = 2.4G antenna a; 1 = 2.4G antenna b; 3 = 5G antenna; 0xff = invalid value */
 	t_u8 antenna;
+	t_u64 reserved;
+    /** band config */
+	t_u8 band_config;
+    /** chan number */
+	t_u8 chan_num;
 } MLAN_PACK_END UapRxPD, *PUapRxPD;
 
 /** IEEEtypes_AssocRqst_t */
@@ -4603,6 +4619,13 @@ typedef MLAN_PACK_START struct _HostCmd_DS_VERSION_EXT {
 	char version_str[128];
 } MLAN_PACK_END HostCmd_DS_VERSION_EXT;
 
+#define TLV_TYPE_CHAN_ATTR_CFG      (PROPRIETARY_TLV_BASE_ID + 237)
+/** HostCmd_DS_CHAN_REGION_CFG */
+typedef MLAN_PACK_START struct _HostCmd_DS_CHAN_REGION_CFG {
+    /** Action */
+	t_u16 action;
+} MLAN_PACK_END HostCmd_DS_CHAN_REGION_CFG;
+
 /** HostCmd_CMD_802_11_RF_ANTENNA */
 typedef MLAN_PACK_START struct _HostCmd_DS_802_11_RF_ANTENNA {
     /** Action for Tx antenna */
@@ -4800,6 +4823,24 @@ typedef MLAN_PACK_START struct _HostCmd_DS_INACTIVITY_TIMEOUT_EXT {
     /** Reserved to further expansion */
 	t_u16 reserved;
 } MLAN_PACK_END HostCmd_DS_INACTIVITY_TIMEOUT_EXT;
+
+/** HostCmd_DS_INDEPENDENT_RESET_CFG */
+typedef MLAN_PACK_START struct _HostCmd_DS_INDEPENDENT_RESET_CFG {
+    /** ACT_GET/ACT_SET */
+	t_u16 action;
+    /** out band independent reset */
+	t_u8 ir_mode;
+    /** gpio pin */
+	t_u8 gpio_pin;
+} MLAN_PACK_END HostCmd_DS_INDEPENDENT_RESET_CFG;
+
+/** HostCmd_DS_802_11_PS_INACTIVITY_TIMEOUT */
+typedef MLAN_PACK_START struct _HostCmd_DS_802_11_PS_INACTIVITY_TIMEOUT {
+    /** ACT_GET/ACT_SET */
+	t_u16 action;
+    /** ps inactivity timeout value */
+	t_u16 inact_tmo;
+} MLAN_PACK_END HostCmd_DS_802_11_PS_INACTIVITY_TIMEOUT;
 
 /** TLV type : STA Mac address */
 #define TLV_TYPE_STA_MAC_ADDRESS      (PROPRIETARY_TLV_BASE_ID + 0x20)	/* 0x0120
@@ -5484,6 +5525,13 @@ typedef MLAN_PACK_START struct _HostCmd_CONFIG_LOW_PWR_MODE {
 	t_u8 enable;
 } MLAN_PACK_END HostCmd_CONFIG_LOW_PWR_MODE;
 
+/** HostCmd_CMD_GET_TSF */
+typedef MLAN_PACK_START struct _HostCmd_DS_TSF {
+    /** tsf value*/
+	t_u64 tsf;
+} MLAN_PACK_END HostCmd_DS_TSF;
+/* WLAN_GET_TSF*/
+
 typedef struct _HostCmd_DS_DFS_REPEATER_MODE {
 	/** Set or Get */
 	t_u16 action;
@@ -6018,6 +6066,7 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_DS_MULTI_CHAN_CFG multi_chan_cfg;
 		HostCmd_DS_MULTI_CHAN_POLICY multi_chan_policy;
 		HostCmd_CONFIG_LOW_PWR_MODE low_pwr_mode_cfg;
+		HostCmd_DS_TSF tsf;
 		HostCmd_DS_DFS_REPEATER_MODE dfs_repeater;
 #ifdef RX_PACKET_COALESCE
 		HostCmd_DS_RX_PKT_COAL_CFG rx_pkt_coal_cfg;
@@ -6028,6 +6077,10 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 #ifdef STA_SUPPORT
 		HostCmd_DS_STA_CONFIGURE sta_cfg;
 #endif
+    /** GPIO Independent reset configure */
+		HostCmd_DS_INDEPENDENT_RESET_CFG ind_rst_cfg;
+		HostCmd_DS_802_11_PS_INACTIVITY_TIMEOUT ps_inact_tmo;
+		HostCmd_DS_CHAN_REGION_CFG reg_cfg;
 	} params;
 } MLAN_PACK_END HostCmd_DS_COMMAND;
 

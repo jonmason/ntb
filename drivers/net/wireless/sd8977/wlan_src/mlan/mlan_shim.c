@@ -2,57 +2,20 @@
  *
  *  @brief This file contains APIs to MOAL module.
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2008-2016, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
- */
-
-/**
- *  @mainpage MLAN Driver
- *
- *  @section overview_sec Overview
- *
- *  The MLAN is an OS independent WLAN driver for Marvell 802.11
- *  embedded chipset.
- *
- *  @section copyright_sec Copyright
- *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
- *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell International Ltd
- *  or its suppliers and licensors. The Material contains trade secrets and
- *  proprietary and confidential information of Marvell or its suppliers and
- *  licensors. The Material is protected by worldwide copyright and trade secret
- *  laws and treaty provisions. No part of the Material may be used, copied,
- *  reproduced, modified, published, uploaded, posted, transmitted, distributed,
- *  or disclosed in any way without Marvell's prior express written permission.
- *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  */
 
 /********************************************************
@@ -390,7 +353,16 @@ mlan_register(IN pmlan_device pmdevice, OUT t_void **ppmlan_adapter)
 	if (IS_SD8777(pmadapter->card_type) || IS_SD8787(pmadapter->card_type))
 		pmadapter->init_para.fw_crc_check = pmdevice->fw_crc_check;
 	pmadapter->init_para.dev_cap_mask = pmdevice->dev_cap_mask;
+	pmadapter->init_para.indrstcfg = pmdevice->indrstcfg;
 	pmadapter->rx_work_flag = pmdevice->rx_work;
+
+	pmadapter->fixed_beacon_buffer = pmdevice->fixed_beacon_buffer;
+
+#ifdef WIFI_DIRECT_SUPPORT
+	pmadapter->GoAgeoutTime = pmdevice->GoAgeoutTime;
+#endif
+	pmadapter->multiple_dtim = pmdevice->multi_dtim;
+	pmadapter->inact_tmo = pmdevice->inact_tmo;
 
 	pmadapter->priv_num = 0;
 	for (i = 0; i < MLAN_MAX_BSS_NUM; i++) {
@@ -588,6 +560,14 @@ mlan_dnld_fw(IN t_void *pmlan_adapter, IN pmlan_fw_image pmfw)
 
 	ENTER();
 	MASSERT(pmlan_adapter);
+
+/*when using GPIO wakeup, don't run the below code.
+ *if using GPIO wakeup, host will do handshake with FW
+ *to check if FW wake up and pull up SDIO line, then reload driver.
+ *So when using GPIO wakeup, don't need driver to do check wakeup status again.
+ *when using SDIO interface wakeup, run the below code;
+ *if using SDIO interface wakeup, driver need to do check wakeup status with FW.
+ */
 
 	/* Card specific probing */
 	ret = wlan_sdio_probe(pmadapter);

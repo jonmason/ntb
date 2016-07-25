@@ -1,28 +1,24 @@
 /** @file mlan_sdio.h
- *
- *  @brief This file contains definitions for SDIO interface.
- *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
- *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
- *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
- */
+  *
+  * @brief This file contains definitions for SDIO interface.
+  * driver.
+  *
+  * Copyright (C) 2008-2016, Marvell International Ltd.
+  *
+  * This software file (the "File") is distributed by Marvell International
+  * Ltd. under the terms of the GNU General Public License Version 2, June 1991
+  * (the "License").  You may use, redistribute and/or modify this File in
+  * accordance with the terms and conditions of the License, a copy of which
+  * is available by writing to the Free Software Foundation, Inc.,
+  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+  * worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
+  *
+  * THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+  * IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+  * ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+  * this warranty disclaimer.
+  *
+  */
 /****************************************************
 Change log:
 ****************************************************/
@@ -561,6 +557,7 @@ static const struct _mlan_sdio_device mlan_sdio_sd8777 = {
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
 	.v15_update = 0,
 	.v15_fw_api = 0,
+	.v16_fw_api = 0,
 	.ext_scan = 1,
 	.fw_reload = 0,
 	.ampdu_info = &ampdu_info_nov15,
@@ -585,6 +582,7 @@ static const struct _mlan_sdio_device mlan_sdio_sd8787 = {
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
 	.v15_update = 0,
 	.v15_fw_api = 0,
+	.v16_fw_api = 0,
 	.ext_scan = 1,
 	.fw_reload = 0,
 	.ampdu_info = &ampdu_info_nov15,
@@ -609,6 +607,7 @@ static const struct _mlan_sdio_device mlan_sdio_sd8797 = {
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
 	.v15_update = 0,
 	.v15_fw_api = 0,
+	.v16_fw_api = 0,
 	.ext_scan = 1,
 	.fw_reload = 0,
 	.ampdu_info = &ampdu_info_nov15,
@@ -638,6 +637,7 @@ static const struct _mlan_sdio_device mlan_sdio_sd8887 = {
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
 	.v15_update = 1,
 	.v15_fw_api = 1,
+	.v16_fw_api = 0,
 	.ext_scan = 1,
 	.fw_reload = 1,
 	.ampdu_info = &ampdu_info_v15,
@@ -662,6 +662,7 @@ static const struct _mlan_sdio_device mlan_sdio_sd8801 = {
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
 	.v15_update = 0,
 	.v15_fw_api = 0,
+	.v16_fw_api = 0,
 	.ext_scan = 1,
 	.fw_reload = 0,
 	.ampdu_info = &ampdu_info_nov15,
@@ -691,6 +692,7 @@ static const struct _mlan_sdio_device mlan_sdio_sd8897 = {
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
 	.v15_update = 1,
 	.v15_fw_api = 1,
+	.v16_fw_api = 0,
 	.ext_scan = 1,
 	.fw_reload = 1,
 	.ampdu_info = &ampdu_info_v15,
@@ -720,6 +722,7 @@ static const struct _mlan_sdio_device mlan_sdio_sd8977 = {
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_2K,
 	.v15_update = 1,
 	.v15_fw_api = 1,
+	.v16_fw_api = 1,
 	.ext_scan = 1,
 	.fw_reload = 1,
 	.ampdu_info = &ampdu_info_v15,
@@ -749,6 +752,7 @@ static const struct _mlan_sdio_device mlan_sdio_sd8997 = {
 	.max_tx_buf_size = MLAN_TX_DATA_BUF_SIZE_4K,
 	.v15_update = 1,
 	.v15_fw_api = 1,
+	.v16_fw_api = 1,
 	.ext_scan = 1,
 	.fw_reload = 1,
 	.ampdu_info = &ampdu_info_v15,

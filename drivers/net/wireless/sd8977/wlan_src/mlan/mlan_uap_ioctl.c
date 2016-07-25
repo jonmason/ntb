@@ -2,26 +2,20 @@
  *
  *  @brief This file contains the handling of AP mode ioctls
  *
- *  (C) Copyright 2009-2016 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2009-2016, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  */
 
 /********************************************************
@@ -1090,6 +1084,8 @@ wlan_uap_get_bss_info(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 	/* BSSID */
 	memcpy(pmadapter, &info->param.bss_info.bssid, pmpriv->curr_addr,
 	       MLAN_MAC_ADDR_LENGTH);
+	info->param.bss_info.scan_block = pmadapter->scan_block;
+
 	info->param.bss_info.is_hs_configured = pmadapter->is_hs_configured;
 	pioctl_req->data_read_written =
 		sizeof(mlan_bss_info) + MLAN_SUB_COMMAND_SIZE;
@@ -1420,18 +1416,23 @@ wlan_uap_11h_channel_check_req(IN pmlan_adapter pmadapter,
 		if (ret == MLAN_STATUS_SUCCESS)
 			ret = MLAN_STATUS_PENDING;
 	} else {
-		/* active 11h extention in Fw */
-		ret = wlan_11h_activate(pmpriv, MNULL, MTRUE);
-		ret = wlan_11h_config_master_radar_det(pmpriv, MTRUE);
-		ret = wlan_11h_check_update_radar_det_state(pmpriv);
+		if (!wlan_11h_is_active(pmpriv)) {
+			/* active 11h extention in Fw */
+			ret = wlan_11h_activate(pmpriv, MNULL, MTRUE);
+			ret = wlan_11h_config_master_radar_det(pmpriv, MTRUE);
+			ret = wlan_11h_check_update_radar_det_state(pmpriv);
+		}
+		if (p11h_cfg->param.chan_rpt_req.millisec_dwell_time) {
+			ret = wlan_prepare_cmd(pmpriv,
+					       HostCmd_CMD_CHAN_REPORT_REQUEST,
+					       HostCmd_ACT_GEN_SET, 0,
+					       (t_void *)pioctl_req,
+					       (t_void *)&p11h_cfg->param.
+					       chan_rpt_req);
 
-		ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_CHAN_REPORT_REQUEST,
-				       HostCmd_ACT_GEN_SET, 0,
-				       (t_void *)pioctl_req,
-				       (t_void *)&p11h_cfg->param.chan_rpt_req);
-
-		if (ret == MLAN_STATUS_SUCCESS)
-			ret = MLAN_STATUS_PENDING;
+			if (ret == MLAN_STATUS_SUCCESS)
+				ret = MLAN_STATUS_PENDING;
+		}
 	}
 
 	LEAVE();
@@ -1820,6 +1821,7 @@ wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 			pget_info->param.fw_info.fw_supplicant_support =
 				IS_FW_SUPPORT_SUPPLICANT(pmadapter) ? 0x01 :
 				0x00;
+			pget_info->param.fw_info.antinfo = pmadapter->antinfo;
 		}
 		break;
 	case MLAN_IOCTL_MISC_CFG:
@@ -1885,6 +1887,13 @@ wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 
 			status = MLAN_STATUS_SUCCESS;
 		}
+		if (misc->sub_command == MLAN_OID_MISC_IND_RST_CFG)
+			status = wlan_misc_ioctl_ind_rst_cfg(pmadapter,
+							     pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_GET_TSF)
+			status = wlan_misc_ioctl_get_tsf(pmadapter, pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_GET_CHAN_REGION_CFG)
+			status = wlan_misc_chan_reg_cfg(pmadapter, pioctl_req);
 		break;
 	case MLAN_IOCTL_PM_CFG:
 		pm = (mlan_ds_pm_cfg *)pioctl_req->pbuf;

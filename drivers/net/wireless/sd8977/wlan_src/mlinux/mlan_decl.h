@@ -27,7 +27,7 @@ Change log:
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION		 "C157"
+#define MLAN_RELEASE_VERSION		 "C178"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -1246,6 +1246,8 @@ typedef struct _mlan_device {
     /** Driver debug bit masks */
 	t_u32 drvdbg;
 #endif
+    /** allocate fixed buffer size for scan beacon buffer*/
+	t_u32 fixed_beacon_buffer;
 #ifdef SDIO_MULTI_PORT_TX_AGGR
     /** SDIO MPA Tx */
 	t_u32 mpa_tx_cfg;
@@ -1280,6 +1282,16 @@ typedef struct _mlan_device {
 	t_u8 rx_work;
     /** dev cap mask */
 	t_u32 dev_cap_mask;
+    /** oob independent reset */
+	t_u32 indrstcfg;
+#ifdef WIFI_DIRECT_SUPPORT
+    /** Go age out time */
+	t_u32 GoAgeoutTime;
+#endif
+    /** dtim interval */
+	t_u32 multi_dtim;
+    /** IEEE ps inactivity timeout value */
+	t_u32 inact_tmo;
 	/** card type */
 	t_u16 card_type;
 } mlan_device, *pmlan_device;

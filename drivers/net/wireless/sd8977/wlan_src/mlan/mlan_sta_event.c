@@ -2,26 +2,20 @@
  *
  *  @brief This file contains MLAN event handling.
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2008-2016, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  */
 
 /********************************************************
@@ -629,7 +623,6 @@ wlan_ops_sta_process_event(IN t_void *priv)
 	t_u8 i = 0;
 	pmlan_callbacks pcb = &pmadapter->callbacks;
 	mlan_event *pevent = (mlan_event *)event_buf;
-
 	ENTER();
 
 	if (!pmbuf) {
@@ -785,13 +778,14 @@ wlan_ops_sta_process_event(IN t_void *priv)
 		if ((ret == MLAN_STATUS_SUCCESS) && evt_buf) {
 			pevent = (pmlan_event)evt_buf;
 			pevent->bss_index = pmpriv->bss_index;
-			PRINTM(MEVENT, "EVENT: FW Debug Info\n");
 			pevent->event_id = MLAN_EVENT_ID_FW_DEBUG_INFO;
 			pevent->event_len =
 				pmbuf->data_len - sizeof(eventcause);
 			memcpy(pmadapter, (t_u8 *)pevent->event_buf,
 			       pmbuf->pbuf + pmbuf->data_offset +
 			       sizeof(eventcause), pevent->event_len);
+			PRINTM(MEVENT, "EVENT: FW Debug Info %s\n",
+			       (t_u8 *)pevent->event_buf);
 			wlan_recv_event(pmpriv, pevent->event_id, pevent);
 			pcb->moal_mfree(pmadapter->pmoal_handle, evt_buf);
 		}

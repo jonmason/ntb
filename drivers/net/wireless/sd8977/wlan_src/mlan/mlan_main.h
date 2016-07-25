@@ -4,26 +4,20 @@
  *  structures and declares global function prototypes used
  *  in MLAN module.
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2008-2016, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  */
 
 /******************************************************
@@ -388,7 +382,7 @@ do {                                    \
 #define MRVL_MAX_KEY_WPA_KEY_LENGTH     32
 
 /** Default listen interval */
-#define MLAN_DEFAULT_LISTEN_INTERVAL    10
+#define MLAN_DEFAULT_LISTEN_INTERVAL    20
 
 /** Maximum number of region codes */
 #define MRVDRV_MAX_REGION_CODE          9
@@ -1687,6 +1681,8 @@ typedef struct _mlan_init_para {
 	t_u32 fw_crc_check;
     /** dev cap mask */
 	t_u32 dev_cap_mask;
+    /** oob independent reset mode */
+	t_u32 indrstcfg;
 } mlan_init_para, *pmlan_init_para;
 typedef struct _mlan_sdio_card_reg {
 	t_u8 start_rd_port;
@@ -1756,6 +1752,8 @@ typedef struct _mlan_sdio_device {
 	t_u8 v15_update;
     /** support V15_FW_API */
 	t_u8 v15_fw_api;
+    /** support V16_FW_API */
+	t_u8 v16_fw_api;
     /** support ext_scan */
 	t_u8 ext_scan;
     /** support fw reload */
@@ -1833,7 +1831,8 @@ typedef struct _mlan_adapter {
 	t_u8 uap_fw_ver;
     /** Number of antenna used */
 	t_u16 number_of_antenna;
-
+    /** antenna info */
+	t_u8 antinfo;
     /** Firmware capability information */
 	t_u32 fw_cap_info;
     /** pint_lock for interrupt handling */
@@ -2043,6 +2042,8 @@ typedef struct _mlan_adapter {
 	BSSDescriptor_t *pscan_table;
     /** scan age in secs */
 	t_u32 age_in_secs;
+    /** Active scan for hidden ssid triggered */
+	t_u8 active_scan_triggered;
     /** channel statstics */
 	ChanStatistics_t *pchan_stats;
     /** Number of records in the chan_stats */
@@ -2075,6 +2076,8 @@ typedef struct _mlan_adapter {
 	t_u8 *bcn_buf;
     /** Pointer to valid beacon buffer end */
 	t_u8 *pbcn_buf_end;
+    /** allocate fixed scan beacon buffer size*/
+	t_u32 fixed_beacon_buffer;
 
     /** F/W supported bands */
 	t_u8 fw_bands;
@@ -2119,6 +2122,8 @@ typedef struct _mlan_adapter {
     /** Null packet interval */
 	t_u16 null_pkt_interval;
 
+    /** IEEE ps inactivity timout value */
+	t_u16 inact_tmo;
     /** Power save confirm sleep command buffer */
 	pmlan_buffer psleep_cfm;
     /** Beacon miss timeout */
@@ -2233,6 +2238,9 @@ typedef struct _mlan_adapter {
 	/** fw rx block size */
 	t_u16 sdio_rx_block_size;
 	t_u8 chanrpt_param_bandcfg;
+#ifdef WIFI_DIRECT_SUPPORT
+	t_u8 GoAgeoutTime;
+#endif
 } mlan_adapter, *pmlan_adapter;
 
 /** Check if stream 2X2 enabled */
@@ -2580,7 +2588,7 @@ mlan_status wlan_flush_scan_table(IN pmlan_adapter pmadapter);
 /** Scan for networks */
 mlan_status wlan_scan_networks(IN mlan_private *pmpriv,
 			       IN t_void *pioctl_buf,
-			       IN const wlan_user_scan_cfg *puser_scan_in);
+			       IN wlan_user_scan_cfg *puser_scan_in);
 
 /** Scan for specific SSID */
 mlan_status wlan_scan_specific_ssid(IN mlan_private *pmpriv,
@@ -3072,6 +3080,7 @@ mlan_status wlan_get_curr_oper_class(mlan_private *pmpriv, t_u8 channel,
 				     t_u8 bw, t_u8 *oper_class);
 
 t_u8 wlan_adjust_data_rate(mlan_private *priv, t_u8 rx_rate, t_u8 rate_info);
+t_u8 wlan_adjust_antenna(pmlan_private priv, RxPD *prx_pd);
 
 mlan_status wlan_misc_otp_user_data(IN pmlan_adapter pmadapter,
 				    IN pmlan_ioctl_req pioctl_req);
@@ -3127,8 +3136,34 @@ mlan_status wlan_misc_ioctl_low_pwr_mode(IN pmlan_adapter pmadapter,
 mlan_status wlan_misc_ioctl_pmic_configure(IN pmlan_adapter pmadapter,
 					   IN pmlan_ioctl_req pioctl_req);
 
+mlan_status wlan_misc_ioctl_ind_rst_cfg(IN pmlan_adapter pmadapter,
+					IN pmlan_ioctl_req pioctl_req);
+mlan_status wlan_cmd_ind_rst_cfg(IN HostCmd_DS_COMMAND *cmd,
+				 IN t_u16 cmd_action, IN t_void *pdata_buf);
+mlan_status wlan_ret_ind_rst_cfg(IN pmlan_private pmpriv,
+				 IN HostCmd_DS_COMMAND *resp,
+				 IN mlan_ioctl_req *pioctl_buf);
+
+mlan_status wlan_misc_ioctl_get_tsf(IN pmlan_adapter pmadapter,
+				    IN pmlan_ioctl_req pioctl_req);
+mlan_status wlan_misc_chan_reg_cfg(IN pmlan_adapter pmadapter,
+				   IN pmlan_ioctl_req pioctl_req);
+mlan_status wlan_cmd_get_tsf(pmlan_private pmpriv,
+			     IN HostCmd_DS_COMMAND *cmd, IN t_u16 cmd_action);
+mlan_status wlan_ret_get_tsf(IN pmlan_private pmpriv,
+			     IN HostCmd_DS_COMMAND *resp,
+			     IN mlan_ioctl_req *pioctl_buf);
+
 t_u8 wlan_ft_akm_is_used(mlan_private *pmpriv, t_u8 *rsn_ie);
 
+mlan_status wlan_cmd_ps_inactivity_timeout(IN pmlan_private pmpriv,
+					   IN HostCmd_DS_COMMAND *cmd,
+					   IN t_u16 cmd_action,
+					   IN t_void *pdata_buf);
+
+mlan_status wlan_ret_chan_region_cfg(IN pmlan_private pmpriv,
+				     IN HostCmd_DS_COMMAND *resp,
+				     IN mlan_ioctl_req *pioctl_buf);
 /**
  *  @brief RA based queueing
  *

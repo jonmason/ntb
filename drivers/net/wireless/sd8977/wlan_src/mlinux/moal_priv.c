@@ -6751,6 +6751,103 @@ done:
 	return ret;
 }
 
+/**
+ * @brief Configure gpio independent reset
+ *
+ * @param priv         A pointer to moal_private structure
+ * @param req          A pointer to ifreq structure
+ *
+ * @return             0 --success, otherwise fail
+ */
+static int
+woal_ind_rst_ioctl(moal_private *priv, struct iwreq *wrq)
+{
+	int data[2], data_length = wrq->u.data.length, copy_len;
+	int ret = 0;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_ioctl_req *req = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	if (sizeof(int) * wrq->u.data.length > sizeof(data)) {
+		PRINTM(MERROR, "Too many arguments\n");
+		ret = -EINVAL;
+		goto done;
+	}
+	copy_len = MIN(sizeof(data), sizeof(int) * data_length);
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+	misc = (mlan_ds_misc_cfg *)req->pbuf;
+	memset(misc, 0, sizeof(mlan_ds_misc_cfg));
+
+	misc->sub_command = MLAN_OID_MISC_IND_RST_CFG;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+
+	if (data_length == 0) {
+		req->action = MLAN_ACT_GET;
+	} else if ((data_length == 1) || (data_length == 2)) {
+		req->action = MLAN_ACT_SET;
+
+		if (copy_from_user(data, wrq->u.data.pointer, copy_len)) {
+			/* copy_from_user failed */
+			PRINTM(MERROR, "S_PARAMS: copy from user failed\n");
+			LEAVE();
+			return -EINVAL;
+		}
+
+		/* ir_mode */
+		if (data[0] < 0 || data[0] > 2) {
+			PRINTM(MERROR, "Invalid ir mode parameter (0/1/2)!\n");
+			ret = -EINVAL;
+			goto done;
+		}
+		misc->param.ind_rst_cfg.ir_mode = data[0];
+
+		/* gpio_pin */
+		if (data_length == 2) {
+			if ((data[1] != 0xFF) && (data[1] < 0 || data[1] > 15)) {
+				PRINTM(MERROR,
+				       "Invalid gpio pin no (0-15 , 0xFF for default)!\n");
+				ret = -EINVAL;
+				goto done;
+			}
+			misc->param.ind_rst_cfg.gpio_pin = data[1];
+		}
+
+	} else {
+		ret = -EINVAL;
+		goto done;
+	}
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	data[0] = misc->param.ind_rst_cfg.ir_mode;
+	data[1] = misc->param.ind_rst_cfg.gpio_pin;
+	wrq->u.data.length = 2;
+
+	if (copy_to_user(wrq->u.data.pointer, data, sizeof(int) *
+			 wrq->u.data.length)) {
+		PRINTM(MERROR, "QCONFIG: copy to user failed\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
 /********************************************************
 			Global Functions
 ********************************************************/
@@ -6968,6 +7065,9 @@ woal_wext_do_ioctl(struct net_device *dev, struct ifreq *req, int cmd)
 			break;
 		case WOAL_SET_GET_TX_RX_ANT:
 			ret = woal_set_get_tx_rx_ant(priv, wrq);
+			break;
+		case WOAL_IND_RST_CFG:
+			ret = woal_ind_rst_ioctl(priv, wrq);
 			break;
 		default:
 			ret = -EINVAL;

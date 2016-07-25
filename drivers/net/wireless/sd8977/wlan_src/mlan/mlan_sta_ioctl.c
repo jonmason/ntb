@@ -2,26 +2,20 @@
  *
  *  @brief This file contains the functions for station ioctl.
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2008-2016, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  */
 
 /******************************************************
@@ -462,6 +456,7 @@ wlan_get_info_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 			pmadapter->hw_dot_11ac_dev_cap;
 		pget_info->param.fw_info.fw_supplicant_support =
 			IS_FW_SUPPORT_SUPPLICANT(pmadapter) ? 0x01 : 0x00;
+		pget_info->param.fw_info.antinfo = pmadapter->antinfo;
 		break;
 	case MLAN_OID_GET_BSS_INFO:
 		status = wlan_get_info_bss_info(pmadapter, pioctl_req);
@@ -5693,6 +5688,15 @@ wlan_misc_cfg_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		status = wlan_misc_ioctl_gtk_rekey_offload(pmadapter,
 							   pioctl_req);
 		break;
+	case MLAN_OID_MISC_IND_RST_CFG:
+		status = wlan_misc_ioctl_ind_rst_cfg(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_GET_TSF:
+		status = wlan_misc_ioctl_get_tsf(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_GET_CHAN_REGION_CFG:
+		status = wlan_misc_chan_reg_cfg(pmadapter, pioctl_req);
+		break;
 	default:
 		if (pioctl_req)
 			pioctl_req->status_code = MLAN_ERROR_IOCTL_INVALID;
@@ -5796,14 +5800,9 @@ wlan_scan_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 	}
 
 	if (pmadapter->scan_block && pioctl_req->action == MLAN_ACT_SET) {
-		PRINTM(MINFO, "Scan is blocked during association...\n");
-		if ((pscan->sub_command == MLAN_OID_SCAN_NORMAL) ||
-		    (pscan->sub_command == MLAN_OID_SCAN_SPECIFIC_SSID) ||
-		    (pscan->sub_command == MLAN_OID_SCAN_USER_CONFIG))
-			wlan_recv_event(pmpriv, MLAN_EVENT_ID_DRV_SCAN_REPORT,
-					MNULL);
+		PRINTM(MERROR, "Scan is blocked during association...\n");
 		LEAVE();
-		return status;
+		return MLAN_STATUS_FAILURE;
 	}
 start_config:
 	/* Set scan */

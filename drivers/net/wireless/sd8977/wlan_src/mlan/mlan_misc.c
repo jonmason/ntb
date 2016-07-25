@@ -1,28 +1,22 @@
 /**
  * @file mlan_misc.c
  *
- *  @brief This file include Miscellaneous functions for MLAN module
+ *  @brief This file include miscellaneous functions for MLAN module
  *
- *  (C) Copyright 2009-2016 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2009-2016, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  */
 
 /*************************************************************
@@ -2139,10 +2133,7 @@ wlan_misc_ioctl_tdls_idle_time(IN pmlan_adapter pmadapter,
 	ENTER();
 
 	if (MLAN_ACT_GET == pioctl_req->action) {
-		if (pmpriv->tdls_idle_time == 0)
-			misc->param.tdls_idle_time = TDLS_IDLE_TIMEOUT;
-		else
-			misc->param.tdls_idle_time = pmpriv->tdls_idle_time;
+		misc->param.tdls_idle_time = pmpriv->tdls_idle_time;
 	} else if (MLAN_ACT_SET == pioctl_req->action) {
 		pmpriv->tdls_idle_time = misc->param.tdls_idle_time;
 	}
@@ -2460,6 +2451,13 @@ wlan_misc_ioctl_tdls_get_ies(IN pmlan_adapter pmadapter,
 			RESET_EXTCAP_TDLS_WIDER_BANDWIDTH(ext_cap->ext_cap);
 		DBG_HEXDUMP(MCMD_D, "TDLS extcap", tdls_ies->ext_cap,
 			    sizeof(IEEEtypes_ExtCap_t));
+	}
+
+    /** default qos info is 0xf, compare with peer device qos info for tdls confirm */
+	if (tdls_ies->flags & TDLS_IE_FLAGS_QOS_INFO) {
+		if (sta_ptr && sta_ptr->rate_len)
+			tdls_ies->QosInfo = sta_ptr->qos_info & 0xf;
+		PRINTM(MCMND, "TDLS Qos info=0x%x\n", tdls_ies->QosInfo);
 	}
 
     /** fill the htcap based on hwspec */
@@ -4454,6 +4452,118 @@ wlan_misc_ioctl_region(IN pmlan_adapter pmadapter,
 		}
 	}
 	pioctl_req->data_read_written = sizeof(t_u32) + MLAN_SUB_COMMAND_SIZE;
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Configure GPIO independent reset
+ *
+ *  @param pmadapter	A pointer to mlan_adapter structure
+ *  @param pioctl_req	A pointer to ioctl request buffer
+ *
+ *  @return		MLAN_STATUS_PENDING --success, otherwise fail
+ */
+mlan_status
+wlan_misc_ioctl_ind_rst_cfg(IN pmlan_adapter pmadapter,
+			    IN pmlan_ioctl_req pioctl_req)
+{
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_ds_misc_cfg *misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	t_u16 cmd_action = 0;
+
+	ENTER();
+
+	if (pioctl_req->action == MLAN_ACT_GET)
+		cmd_action = HostCmd_ACT_GEN_GET;
+	else
+		cmd_action = HostCmd_ACT_GEN_SET;
+
+	/* Send request to firmware */
+	ret = wlan_prepare_cmd(pmpriv,
+			       HostCmd_CMD_INDEPENDENT_RESET_CFG,
+			       cmd_action, 0,
+			       (t_void *)pioctl_req,
+			       (t_void *)&misc->param.ind_rst_cfg);
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief  Get timestamp from firmware
+ *
+ *  @param pmadapter	A pointer to mlan_adapter structure
+ *  @param pioctl_req	A pointer to ioctl request buffer
+ *
+ *  @return		MLAN_STATUS_PENDING --success, otherwise fail
+ */
+mlan_status
+wlan_misc_ioctl_get_tsf(IN pmlan_adapter pmadapter,
+			IN pmlan_ioctl_req pioctl_req)
+{
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	t_u16 cmd_action = 0;
+
+	ENTER();
+
+	if (pioctl_req->action == MLAN_ACT_GET)
+		cmd_action = HostCmd_ACT_GEN_GET;
+	else {
+		PRINTM(MERROR, "No support set tsf!");
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Send request to firmware */
+	ret = wlan_prepare_cmd(pmpriv,
+			       HostCmd_CMD_GET_TSF,
+			       cmd_action, 0, (t_void *)pioctl_req, MNULL);
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief  Create custom regulatory cfg
+ *
+ *  @param pmadapter	A pointer to mlan_adapter structure
+ *  @param pioctl_req	A pointer to ioctl request buffer
+ *
+ *  @return		MLAN_STATUS_PENDING --success, otherwise fail
+ */
+mlan_status
+wlan_misc_chan_reg_cfg(IN pmlan_adapter pmadapter,
+		       IN pmlan_ioctl_req pioctl_req)
+{
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	t_u16 cmd_action = 0;
+
+	ENTER();
+
+	if (pioctl_req->action == MLAN_ACT_GET)
+		cmd_action = HostCmd_ACT_GEN_GET;
+	else {
+		PRINTM(MERROR, "No support set tsf!");
+		return MLAN_STATUS_FAILURE;
+	}
+
+	/* Send request to firmware */
+	ret = wlan_prepare_cmd(pmpriv,
+			       HostCmd_CMD_CHAN_REGION_CFG,
+			       cmd_action, 0, (t_void *)pioctl_req, MNULL);
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
 
 	LEAVE();
 	return ret;

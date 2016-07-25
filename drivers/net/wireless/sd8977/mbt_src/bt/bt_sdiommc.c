@@ -35,7 +35,7 @@
 /** Firmware name */
 static char *fw_name;
 /** fw serial download flag */
-static int bt_fw_serial = 1;
+extern int bt_fw_serial;
 
 #ifdef SDIO_OOB_IRQ
 int bt_intmode = INT_MODE_GPIO;
@@ -698,7 +698,9 @@ sd_init_fw_dpc(bt_private *priv, u8 *fw, int fw_len)
 			ret = BT_STATUS_FAILURE;
 			goto done;
 		}
-
+	/** ignore CRC check before download the first packet */
+		if (offset == 0 && (len & BIT(0)))
+			len &= ~BIT(0);
 		txlen = len;
 
 		if (len & BIT(0)) {
@@ -933,7 +935,8 @@ sd_download_firmware_w_helper(bt_private *priv)
 				cur_fw_name = SD8887_A0_FW_NAME;
 				break;
 			case SD8887_A2:
-				if (bt_fw_serial == 1)
+				if (bt_fw_serial == 1
+				    && !priv->fw_reload && !bt_fw_reload)
 					cur_fw_name = SD8887_A2_FW_NAME;
 				else
 					cur_fw_name = SD8887_A2_BT_FW_NAME;
@@ -949,19 +952,22 @@ sd_download_firmware_w_helper(bt_private *priv)
 		else if (priv->card_type == CARD_TYPE_SD8977) {
 			switch (priv->adapter->chip_rev) {
 			case SD8977_V0:
-				if (bt_fw_serial == 1)
+				if (bt_fw_serial == 1
+				    && !priv->fw_reload && !bt_fw_reload)
 					cur_fw_name = SD8977_V0_FW_NAME;
 				else
 					cur_fw_name = SD8977_V0_BT_FW_NAME;
 				break;
 			case SD8977_V1:
-				if (bt_fw_serial == 1)
+				if (bt_fw_serial == 1
+				    && !priv->fw_reload && !bt_fw_reload)
 					cur_fw_name = SD8977_V1_FW_NAME;
 				else
 					cur_fw_name = SD8977_V1_BT_FW_NAME;
 				break;
 			case SD8977_V2:
-				if (bt_fw_serial == 1)
+				if (bt_fw_serial == 1
+				    && !priv->fw_reload && !bt_fw_reload)
 					cur_fw_name = SD8977_V2_FW_NAME;
 				else
 					cur_fw_name = SD8977_V2_BT_FW_NAME;
@@ -973,13 +979,15 @@ sd_download_firmware_w_helper(bt_private *priv)
 		} else if (priv->card_type == CARD_TYPE_SD8997)
 			switch (priv->adapter->chip_rev) {
 			case SD8997_Z:
-				if (bt_fw_serial == 1)
+				if (bt_fw_serial == 1
+				    && !priv->fw_reload && !bt_fw_reload)
 					cur_fw_name = SD8997_Z_FW_NAME;
 				else
 					cur_fw_name = SD8997_Z_BT_FW_NAME;
 				break;
 			case SD8997_V2:
-				if (bt_fw_serial == 1)
+				if (bt_fw_serial == 1
+				    && !priv->fw_reload && !bt_fw_reload)
 					cur_fw_name = SD8997_V2_FW_NAME;
 				else
 					cur_fw_name = SD8997_V2_BT_FW_NAME;
@@ -2327,9 +2335,6 @@ MODULE_PARM_DESC(bt_req_fw_nowait,
 		 "0: Use request_firmware API; 1: Use request_firmware_nowait API");
 module_param(multi_fn, int, 0);
 MODULE_PARM_DESC(multi_fn, "Bit 2: FN2;");
-module_param(bt_fw_serial, int, 0);
-MODULE_PARM_DESC(bt_fw_serial,
-		 "0: Support parallel download FW; 1: Support serial download FW");
 
 module_param(bt_intmode, int, 0);
 MODULE_PARM_DESC(bt_intmode, "0: INT_MODE_SDIO, 1: INT_MODE_GPIO");

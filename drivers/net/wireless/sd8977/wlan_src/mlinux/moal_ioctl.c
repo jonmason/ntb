@@ -4881,7 +4881,7 @@ done:
 	return ret;
 }
 
-#ifdef STA_CFG80211
+#if defined(STA_CFG80211)
 /**
  *  @brief set rssi low threshold
  *
@@ -5303,6 +5303,11 @@ woal_set_band(moal_private *priv, char *pband)
 	mlan_ds_radio_cfg *radio_cfg = NULL;
 
 	ENTER();
+	if (priv->media_connected == MTRUE) {
+		PRINTM(MERROR, "Set band is not allowed in connected state\n");
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
+	}
 	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_radio_cfg));
 	if (req == NULL) {
 		ret = MLAN_STATUS_FAILURE;
@@ -5339,7 +5344,10 @@ woal_set_band(moal_private *priv, char *pband)
 			goto done;
 		}
 		band = BAND_A;
-		band |= BAND_AN;
+		if (radio_cfg->param.band_cfg.fw_bands & BAND_AN)
+			band |= BAND_AN;
+		if (radio_cfg->param.band_cfg.fw_bands & BAND_AAC)
+			band |= BAND_AAC;
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 		if (IS_STA_OR_UAP_CFG80211(cfg80211_wext) && priv->wdev &&
 		    priv->wdev->wiphy) {
@@ -5763,6 +5771,7 @@ done:
 	return ret;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 /**
  * @brief               Set/Get network monitor configurations
  *
@@ -5818,6 +5827,7 @@ done:
 	LEAVE();
 	return ret;
 }
+#endif
 
 module_param(disconnect_on_suspend, int, 0);
 MODULE_PARM_DESC(disconnect_on_suspend,

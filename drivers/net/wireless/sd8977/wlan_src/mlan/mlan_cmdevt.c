@@ -3,26 +3,20 @@
  *
  *  @brief This file contains the handling of CMD/EVENT in MLAN
  *
- *  (C) Copyright 2009-2016 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2009-2016, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  */
 
 /*************************************************************
@@ -41,6 +35,7 @@ Change Log:
 #include "mlan_11ac.h"
 #include "mlan_11h.h"
 #include "mlan_sdio.h"
+
 /********************************************************
 			Local Variables
 ********************************************************/
@@ -3320,10 +3315,35 @@ wlan_adapter_init_cmd(IN pmlan_adapter pmadapter)
 #define DEF_AUTO_NULL_PKT_PERIOD    30
 	if (pmpriv_sta) {
 		t_u32 value = DEF_AUTO_NULL_PKT_PERIOD;
-		ret = wlan_prepare_cmd(pmpriv,
+		ret = wlan_prepare_cmd(pmpriv_sta,
 				       HostCmd_CMD_802_11_SNMP_MIB,
 				       HostCmd_ACT_GEN_SET,
 				       NullPktPeriod_i, MNULL, &value);
+		if (ret) {
+			ret = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+	}
+	if (pmadapter->init_para.indrstcfg != 0xffffffff) {
+		mlan_ds_ind_rst_cfg ind_rst_cfg;
+		ind_rst_cfg.ir_mode = pmadapter->init_para.indrstcfg & 0xff;
+		ind_rst_cfg.gpio_pin =
+			(pmadapter->init_para.indrstcfg & 0xff00) >> 8;
+		ret = wlan_prepare_cmd(pmpriv,
+				       HostCmd_CMD_INDEPENDENT_RESET_CFG,
+				       HostCmd_ACT_GEN_SET, 0, MNULL,
+				       (t_void *)&ind_rst_cfg);
+		if (ret) {
+			ret = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+	}
+
+	if (pmadapter->inact_tmo) {
+		ret = wlan_prepare_cmd(pmpriv,
+				       HostCmd_CMD_802_11_PS_INACTIVITY_TIMEOUT,
+				       HostCmd_ACT_GEN_SET, 0, MNULL,
+				       &pmadapter->inact_tmo);
 		if (ret) {
 			ret = MLAN_STATUS_FAILURE;
 			goto done;
@@ -3891,7 +3911,6 @@ wlan_ret_get_hw_spec(IN pmlan_private pmpriv,
 	t_u16 api_id = 0;
 	MrvlIEtypesHeader_t *tlv = MNULL;
 	pmlan_ioctl_req pioctl_req = (mlan_ioctl_req *)pioctl_buf;
-
 	ENTER();
 
 	pmadapter->fw_cap_info = wlan_le32_to_cpu(hw_spec->fw_cap_info);
@@ -3955,7 +3974,11 @@ wlan_ret_get_hw_spec(IN pmlan_private pmpriv,
 	pmadapter->fw_release_number =
 		wlan_le32_to_cpu(hw_spec->fw_release_number);
 	pmadapter->number_of_antenna =
-		wlan_le16_to_cpu(hw_spec->number_of_antenna);
+		wlan_le16_to_cpu(hw_spec->number_of_antenna) & 0x00ff;
+	pmadapter->antinfo =
+		(wlan_le16_to_cpu(hw_spec->number_of_antenna) & 0xff00) >> 8;
+	PRINTM(MCMND, "num_ant=%d, antinfo=0x%x\n",
+	       pmadapter->number_of_antenna, pmadapter->antinfo);
 
 	PRINTM(MINFO, "GET_HW_SPEC: fw_release_number- 0x%X\n",
 	       pmadapter->fw_release_number);
@@ -5078,4 +5101,217 @@ wlan_bt_coex_wlan_param_update_event(pmlan_private priv, pmlan_buffer pevent)
 	       pmadapter->coex_rx_win_size);
 
 	LEAVE();
+}
+
+/**
+ *  @brief This function prepares command of independent reset.
+ *
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   the action: GET or SET
+ *  @param pdata_buf    A pointer to data buffer
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_cmd_ind_rst_cfg(IN HostCmd_DS_COMMAND *cmd,
+		     IN t_u16 cmd_action, IN t_void *pdata_buf)
+{
+	mlan_ds_ind_rst_cfg *pdata_ind_rst = (mlan_ds_ind_rst_cfg *) pdata_buf;
+	HostCmd_DS_INDEPENDENT_RESET_CFG *ind_rst_cfg =
+		(HostCmd_DS_INDEPENDENT_RESET_CFG *) & cmd->params.ind_rst_cfg;
+
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_INDEPENDENT_RESET_CFG);
+	cmd->size =
+		wlan_cpu_to_le16(sizeof(HostCmd_DS_INDEPENDENT_RESET_CFG) +
+				 S_DS_GEN);
+
+	ind_rst_cfg->action = wlan_cpu_to_le16(cmd_action);
+	if (cmd_action == HostCmd_ACT_GEN_SET) {
+		ind_rst_cfg->ir_mode = pdata_ind_rst->ir_mode;
+		ind_rst_cfg->gpio_pin = pdata_ind_rst->gpio_pin;
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handles the command response of independent reset
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to command buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_ret_ind_rst_cfg(IN pmlan_private pmpriv,
+		     IN HostCmd_DS_COMMAND *resp, IN mlan_ioctl_req *pioctl_buf)
+{
+	mlan_ds_misc_cfg *misc = MNULL;
+	const HostCmd_DS_INDEPENDENT_RESET_CFG *ind_rst_cfg =
+		(HostCmd_DS_INDEPENDENT_RESET_CFG *) & resp->params.ind_rst_cfg;
+
+	ENTER();
+
+	if (pioctl_buf) {
+		misc = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+
+		if (wlan_le16_to_cpu(ind_rst_cfg->action) ==
+		    HostCmd_ACT_GEN_GET) {
+			misc->param.ind_rst_cfg.ir_mode = ind_rst_cfg->ir_mode;
+			misc->param.ind_rst_cfg.gpio_pin =
+				ind_rst_cfg->gpio_pin;
+		}
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function prepares command of ps inactivity timeout.
+ *
+ *  @param pmpriv      A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   the action: GET or SET
+ *  @param pdata_buf    A pointer to data buffer
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_cmd_ps_inactivity_timeout(IN pmlan_private pmpriv,
+			       IN HostCmd_DS_COMMAND *cmd,
+			       IN t_u16 cmd_action, IN t_void *pdata_buf)
+{
+	t_u16 timeout = *((t_u16 *)pdata_buf);
+	HostCmd_DS_802_11_PS_INACTIVITY_TIMEOUT *ps_inact_tmo =
+		(HostCmd_DS_802_11_PS_INACTIVITY_TIMEOUT *) & cmd->params.
+		ps_inact_tmo;
+
+	ENTER();
+
+	cmd->command =
+		wlan_cpu_to_le16(HostCmd_CMD_802_11_PS_INACTIVITY_TIMEOUT);
+	cmd->size =
+		wlan_cpu_to_le16(sizeof(HostCmd_DS_802_11_PS_INACTIVITY_TIMEOUT)
+				 + S_DS_GEN);
+
+	ps_inact_tmo->action = wlan_cpu_to_le16(cmd_action);
+	if (cmd_action == HostCmd_ACT_GEN_SET)
+		ps_inact_tmo->inact_tmo = wlan_cpu_to_le16(timeout);
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function prepares command of HostCmd_CMD_GET_TSF
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   The action: GET
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_cmd_get_tsf(pmlan_private pmpriv,
+		 IN HostCmd_DS_COMMAND *cmd, IN t_u16 cmd_action)
+{
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_GET_TSF);
+	cmd->size = wlan_cpu_to_le16((sizeof(HostCmd_DS_TSF)) + S_DS_GEN);
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handles the command response of HostCmd_CMD_GET_TSF
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to mlan_ioctl_req structure
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_ret_get_tsf(IN pmlan_private pmpriv,
+		 IN HostCmd_DS_COMMAND *resp, IN mlan_ioctl_req *pioctl_buf)
+{
+	mlan_ds_misc_cfg *misc_cfg = MNULL;
+	HostCmd_DS_TSF *tsf_pointer = (HostCmd_DS_TSF *) & resp->params.tsf;
+
+	ENTER();
+	if (pioctl_buf) {
+		misc_cfg = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+		misc_cfg->param.misc_tsf = wlan_le64_to_cpu(tsf_pointer->tsf);
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+
+/**
+ *  @brief This function handles the command response of chan_region_cfg
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param resp         A pointer to HostCmd_DS_COMMAND
+ *  @param pioctl_buf   A pointer to command buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_ret_chan_region_cfg(IN pmlan_private pmpriv,
+			 IN HostCmd_DS_COMMAND *resp,
+			 IN mlan_ioctl_req *pioctl_buf)
+{
+	HostCmd_DS_CHAN_REGION_CFG *reg =
+		(HostCmd_DS_CHAN_REGION_CFG *) & resp->params.reg_cfg;
+	t_u16 action = wlan_le16_to_cpu(reg->action);
+	t_u16 tlv, tlv_buf_len, tlv_buf_left;
+	t_u8 *tlv_buf;
+	MrvlIEtypesHeader_t *head;
+	mlan_ds_misc_cfg *misc_cfg = (mlan_ds_misc_cfg *)pioctl_buf->pbuf;
+
+	ENTER();
+
+	if (action != HostCmd_ACT_GEN_GET)
+		return 0;
+
+	tlv_buf = (t_u8 *)reg + sizeof(*reg);
+	tlv_buf_left = wlan_le16_to_cpu(resp->size) - S_DS_GEN - sizeof(*reg);
+
+	while (tlv_buf_left >= sizeof(*head)) {
+		head = (MrvlIEtypesHeader_t *)tlv_buf;
+		tlv = wlan_le16_to_cpu(head->type);
+		tlv_buf_len = wlan_le16_to_cpu(head->len);
+
+		if (tlv_buf_left < (sizeof(*head) + tlv_buf_len))
+			break;
+
+		switch (tlv) {
+		case TLV_TYPE_CHAN_ATTR_CFG:
+			DBG_HEXDUMP(MCMD_D, "CHAN:",
+				    (t_u8 *)head + sizeof(*head), tlv_buf_left);
+			if (tlv_buf_len >
+			    misc_cfg->param.custom_reg_domain.cfg_len) {
+				tlv_buf_len =
+					misc_cfg->param.custom_reg_domain.
+					cfg_len;
+			}
+			misc_cfg->param.custom_reg_domain.cfg_len = tlv_buf_len;
+			memcpy(pmpriv->adapter,
+			       misc_cfg->param.custom_reg_domain.cfg_buf,
+			       (t_u8 *)head + sizeof(*head), tlv_buf_len);
+			pioctl_buf->buf_len = tlv_buf_len;
+			break;
+		}
+
+		tlv_buf += (sizeof(*head) + tlv_buf_len);
+		tlv_buf_left -= (sizeof(*head) + tlv_buf_len);
+	}
+
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
 }

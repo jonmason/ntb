@@ -143,6 +143,36 @@ parse_arguments(t_u8 *pos, int *data, int datalen, int *user_data_len)
 	return MLAN_STATUS_SUCCESS;
 }
 
+/** Convert character to integer */
+#define CHAR2INT(x) (((x) >= 'A') ? ((x) - 'A' + 10) : ((x) - '0'))
+/**
+ * @brief Converts a string to hex value
+ *
+ * @param str      A pointer to the string
+ * @param raw      A pointer to the raw data buffer
+ * @return         Number of bytes read
+ **/
+int
+string2raw(char *str, unsigned char *raw)
+{
+	int len = (strlen(str) + 1) / 2;
+
+	do {
+		if (!isxdigit(*str)) {
+			return -1;
+		}
+		*str = toupper(*str);
+		*raw = CHAR2INT(*str) << 4;
+		++str;
+		*str = toupper(*str);
+		if (*str == '\0')
+			break;
+		*raw |= CHAR2INT(*str);
+		++raw;
+	} while (*++str != '\0');
+	return len;
+}
+
 #if defined(STA_CFG80211) && defined(UAP_CFG80211)
 /**
  *  @brief Set wps & p2p ie in AP mode
@@ -8862,8 +8892,7 @@ woal_priv_set_get_monitor_mode(moal_private *priv, t_u8 *respbuf,
 	data = ! !(priv->phandle->wiphy->
 		   interface_modes & MBIT(NL80211_IFTYPE_MONITOR));
 
-	memcpy(respbuf, (t_u8 *)&data, sizeof(data));
-	ret = sizeof(data);
+	ret = sprintf(respbuf, "Monitor mode: %d\n", data) + 1;
 
 done:
 	LEAVE();
@@ -9128,6 +9157,94 @@ woal_priv_set_get_tx_rx_ant(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 			ret = sizeof(data);
 		}
 	}
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief               Set/Get out band independent reset
+ *
+ * @param priv          Pointer to moal_private structure
+ * @param respbuf       Pointer to response buffer
+ * @param resplen       Response buffer length
+ *
+ * @return             Number of bytes written, negative for failure.
+ */
+static int
+woal_priv_ind_rst_cfg(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
+{
+	int ret = 0;
+	int user_data_len = 0, header_len = 0;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_ioctl_req *req = NULL;
+	int data[2] = { 0 };
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	header_len = strlen(CMD_MARVELL) + strlen(PRIV_CMD_IND_RST_CFG);
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+	misc = (mlan_ds_misc_cfg *)req->pbuf;
+	memset(misc, 0, sizeof(mlan_ds_misc_cfg));
+	misc->sub_command = MLAN_OID_MISC_IND_RST_CFG;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+
+	if (strlen(respbuf) == header_len) {
+		/* GET operation */
+		user_data_len = 0;
+		req->action = MLAN_ACT_GET;
+	} else {
+		/* SET operation */
+		parse_arguments(respbuf + header_len, data, ARRAY_SIZE(data),
+				&user_data_len);
+		if (user_data_len > 2) {
+			PRINTM(MERROR, "Invalid number of args!\n");
+			ret = -EINVAL;
+			goto done;
+		}
+
+		if ((user_data_len == 1) || (user_data_len == 2)) {
+			req->action = MLAN_ACT_SET;
+
+			/* ir_mode */
+			if (data[0] < 0 || data[0] > 2) {
+				PRINTM(MERROR, "Invalid ir mode parameter!\n");
+				ret = -EINVAL;
+				goto done;
+			}
+			misc->param.ind_rst_cfg.ir_mode = data[0];
+
+			/* gpio_pin */
+			if (user_data_len == 2) {
+				if ((data[1] != 0xFF) &&
+				    (data[1] < 0 || data[1] > 15)) {
+					PRINTM(MERROR,
+					       "Invalid gpio pin no!\n");
+					ret = -EINVAL;
+					goto done;
+				}
+				misc->param.ind_rst_cfg.gpio_pin = data[1];
+			}
+		}
+	}
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	data[0] = (int)misc->param.ind_rst_cfg.ir_mode;
+	data[1] = (int)misc->param.ind_rst_cfg.gpio_pin;
+	memcpy(respbuf, (t_u8 *)data, sizeof(data));
+	ret = sizeof(data);
+
 done:
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
@@ -12368,10 +12485,14 @@ woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 		} else if (strnicmp
 			   (buf + strlen(CMD_MARVELL), PRIV_CMD_MONITOR_MODE,
 			    strlen(PRIV_CMD_MONITOR_MODE)) == 0) {
-			/* Set/Get monitor mode */
-			len = woal_priv_set_get_monitor_mode(priv, buf,
-							     priv_cmd.
-							     total_len);
+			if (IS_STA_CFG80211(cfg80211_wext)) {
+				/* Set/Get monitor mode */
+				len = woal_priv_set_get_monitor_mode(priv, buf,
+								     priv_cmd.
+								     total_len);
+			} else
+				len = sprintf(buf,
+					      "CFG80211 is not enabled\n") + 1;
 			goto handled;
 #endif
 #if defined(DFS_TESTING_SUPPORT)
@@ -12544,9 +12665,19 @@ woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 							      total_len);
 			goto handled;
 #endif
+		} else if (strnicmp
+			   (buf + strlen(CMD_MARVELL), PRIV_CMD_IND_RST_CFG,
+			    strlen(PRIV_CMD_IND_RST_CFG)) == 0) {
+			/* Set/Get out band independent reset */
+			len = woal_priv_ind_rst_cfg(priv, buf,
+						    priv_cmd.total_len);
+			goto handled;
 		} else {
-			/* Fall through, after stripping off the custom header */
-			buf += strlen(CMD_MARVELL);
+			PRINTM(MERROR,
+			       "Unknown MARVELL PRIVATE command %s, ignored\n",
+			       buf);
+			ret = -EFAULT;
+			goto done;
 		}
 	}
 #ifdef STA_SUPPORT

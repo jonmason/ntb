@@ -2,26 +2,20 @@
  *
  *  @brief This file contains the handling of AP mode command and event
  *
- *  (C) Copyright 2009-2016 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2009-2016, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  */
 
 /********************************************************
@@ -673,7 +667,12 @@ wlan_uap_cmd_ap_config(pmlan_private pmpriv,
 
 	if (((bss->param.bss_config.sta_ageout_timer >= MIN_STAGE_OUT_TIME) &&
 	     (bss->param.bss_config.sta_ageout_timer <= MAX_STAGE_OUT_TIME)) ||
-	    (bss->param.bss_config.sta_ageout_timer == 0)) {
+	    (bss->param.bss_config.sta_ageout_timer == 0)
+#ifdef WIFI_DIRECT_SUPPORT
+	    || (pmpriv->adapter->GoAgeoutTime &&
+		pmpriv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT)
+#endif
+		) {
 		tlv_sta_ageout = (MrvlIEtypes_sta_ageout_t *)tlv;
 		tlv_sta_ageout->header.type =
 			wlan_cpu_to_le16(TLV_TYPE_UAP_STA_AGEOUT_TIMER);
@@ -681,6 +680,12 @@ wlan_uap_cmd_ap_config(pmlan_private pmpriv,
 		tlv_sta_ageout->sta_ageout_timer =
 			wlan_cpu_to_le32(bss->param.bss_config.
 					 sta_ageout_timer);
+#ifdef WIFI_DIRECT_SUPPORT
+		if (pmpriv->adapter->GoAgeoutTime &&
+		    pmpriv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT)
+			tlv_sta_ageout->sta_ageout_timer =
+				wlan_cpu_to_le32(pmpriv->adapter->GoAgeoutTime);
+#endif
 		cmd_size += sizeof(MrvlIEtypes_sta_ageout_t);
 		tlv += sizeof(MrvlIEtypes_sta_ageout_t);
 	}
@@ -3911,6 +3916,26 @@ wlan_ops_uap_prepare_cmd(IN t_void *priv,
 		ret = wlan_uap_cmd_oper_ctrl(pmpriv, cmd_ptr, cmd_action,
 					     pdata_buf);
 		break;
+
+	case HostCmd_CMD_INDEPENDENT_RESET_CFG:
+		ret = wlan_cmd_ind_rst_cfg(cmd_ptr, cmd_action, pdata_buf);
+		break;
+	case HostCmd_CMD_GET_TSF:
+		ret = wlan_cmd_get_tsf(pmpriv, cmd_ptr, cmd_action);
+		break;
+
+	case HostCmd_CMD_802_11_PS_INACTIVITY_TIMEOUT:
+		ret = wlan_cmd_ps_inactivity_timeout(pmpriv, cmd_ptr,
+						     cmd_action, pdata_buf);
+		break;
+
+	case HostCmd_CMD_CHAN_REGION_CFG:
+		cmd_ptr->command = wlan_cpu_to_le16(cmd_no);
+		cmd_ptr->size =
+			wlan_cpu_to_le16(sizeof(HostCmd_DS_CHAN_REGION_CFG) +
+					 S_DS_GEN);
+		cmd_ptr->params.reg_cfg.action = wlan_cpu_to_le16(cmd_action);
+		break;
 	default:
 		PRINTM(MERROR, "PREP_CMD: unknown command- %#x\n", cmd_no);
 		if (pioctl_req)
@@ -4183,6 +4208,19 @@ wlan_ops_uap_process_cmdresp(IN t_void *priv,
 	case HOST_CMD_APCMD_OPER_CTRL:
 		ret = wlan_uap_ret_oper_ctrl(pmpriv, resp, pioctl_buf);
 		break;
+	case HostCmd_CMD_INDEPENDENT_RESET_CFG:
+		ret = wlan_ret_ind_rst_cfg(pmpriv, resp, pioctl_buf);
+		break;
+	case HostCmd_CMD_802_11_PS_INACTIVITY_TIMEOUT:
+		break;
+	case HostCmd_CMD_GET_TSF:
+		ret = wlan_ret_get_tsf(pmpriv, resp, pioctl_buf);
+		break;
+
+	case HostCmd_CMD_CHAN_REGION_CFG:
+		ret = wlan_ret_chan_region_cfg(pmpriv, resp, pioctl_buf);
+		break;
+
 	default:
 		PRINTM(MERROR, "CMD_RESP: Unknown command response %#x\n",
 		       resp->command);
@@ -4289,6 +4327,7 @@ wlan_ops_uap_process_event(IN t_void *priv)
 		pmadapter->pm_wakeup_card_req = MFALSE;
 		pmadapter->pm_wakeup_fw_try = MFALSE;
 		pmadapter->ps_state = PS_STATE_AWAKE;
+
 		break;
 	case EVENT_PS_SLEEP:
 		PRINTM(MINFO, "EVENT: SLEEP\n");
@@ -4533,7 +4572,6 @@ wlan_ops_uap_process_event(IN t_void *priv)
 		break;
 
 	case EVENT_FW_DEBUG_INFO:
-		PRINTM(MERROR, "EVENT: FW Debug Info\n");
 		memset(pmadapter, event_buf, 0x00, MAX_EVENT_SIZE);
 		pevent->bss_index = pmpriv->bss_index;
 		pevent->event_id = MLAN_EVENT_ID_FW_DEBUG_INFO;
@@ -4542,6 +4580,8 @@ wlan_ops_uap_process_event(IN t_void *priv)
 		       (t_u8 *)pevent->event_buf,
 		       pmbuf->pbuf + pmbuf->data_offset + sizeof(eventcause),
 		       pevent->event_len);
+		PRINTM(MEVENT, "EVENT: FW Debug Info %s\n",
+		       (t_u8 *)pevent->event_buf);
 		wlan_recv_event(pmpriv, pevent->event_id, pevent);
 		pevent->event_id = 0;	/* clear to avoid resending at end of
 					   fcn */

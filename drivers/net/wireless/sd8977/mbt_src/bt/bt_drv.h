@@ -498,6 +498,7 @@ typedef struct _bt_private {
 	u16 card_type;
 	/** sdio device */
 	const struct sdio_device *psdio_device;
+	u8 fw_reload;
 } bt_private, *pbt_private;
 
 /** Disable interrupt */
@@ -534,6 +535,10 @@ typedef struct _bt_private {
 #define BT_CMD_HOST_SLEEP_ENABLE	0x5A
 /** Bluetooth command : Module Configuration request */
 #define BT_CMD_MODULE_CFG_REQ		0x5B
+
+/** Bluetooth command : PMIC Configure */
+#define BT_CMD_PMIC_CONFIGURE           0x7D
+
 /** Bluetooth command : SDIO pull up down configuration request */
 #define BT_CMD_SDIO_PULL_CFG_REQ	0x69
 /** Bluetooth command : Set Evt Filter Command */
@@ -709,6 +714,16 @@ int sbi_host_to_card(bt_private *priv, u8 *payload, u16 nb);
 /** This function reads the current interrupt status register */
 int sbi_get_int_status(bt_private *priv);
 
+/** bt fw reload flag */
+extern int bt_fw_reload;
+/** driver initial the fw reset */
+#define FW_RELOAD_SDIO_INBAND_RESET   1
+/** out band reset trigger reset, no interface re-emulation */
+#define FW_RELOAD_NO_EMULATION  2
+/** out band reset with interface re-emulation */
+#define FW_RELOAD_WITH_EMULATION 3
+/** This function reload firmware */
+void bt_request_fw_reload(bt_private *priv, int mode);
 /** This function enables the host interrupts */
 int sd_enable_host_int(bt_private *priv);
 /** This function disables the host interrupts */
@@ -767,6 +782,8 @@ int bt_set_mac_address(bt_private *priv, u8 *mac);
 int bt_write_reg(bt_private *priv, u8 type, u32 offset, u16 value);
 /** BT set user defined init data and param */
 int bt_init_config(bt_private *priv, char *cfg_file);
+/** BT PMIC Configure command */
+int bt_pmic_configure(bt_private *priv);
 /** This function load the calibrate data */
 int bt_load_cal_data(bt_private *priv, u8 *config_data, u8 *mac);
 /** This function load the calibrate ext data */
@@ -776,14 +793,10 @@ int bt_cal_config(bt_private *priv, char *cfg_file, char *mac);
 /** BT set user defined calibration ext data */
 int bt_cal_config_ext(bt_private *priv, char *cfg_file);
 int bt_init_mac_address(bt_private *priv, char *mac);
-int bt_set_gpio_pin(bt_private *priv);
-/** Bluetooth command : Set gpio pin */
-#define BT_CMD_SET_GPIO_PIN     0xEC
-/** Interrupt Raising Edge**/
-#define INT_RASING_EDGE  0
-/** Interrupt Falling Edge**/
-#define INT_FALLING_EDGE 1
-#define DELAY_50_US      50
+
+int bt_set_independent_reset(bt_private *priv);
+/** Bluetooth command : Independent reset */
+#define BT_CMD_INDEPENDENT_RESET     0x0D
 
 typedef struct _BT_HCI_CMD {
 	/** OCF OGF */

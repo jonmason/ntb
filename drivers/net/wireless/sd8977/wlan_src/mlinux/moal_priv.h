@@ -1,3 +1,4 @@
+
 /** @file moal_priv.h
  *
  * @brief This file contains definition for extended private IOCTL call.
@@ -135,6 +136,9 @@ Change log:
 #define WOAL_SET_GET_TX_RX_ANT      35
 /** Private command ID to set/get management frame passthru mask */
 #define WOAL_MGMT_FRAME_CTRL        36
+
+/** Private command ID to configure gpio independent reset */
+#define WOAL_IND_RST_CFG            37
 
 /** Private command ID to set one int/get one int */
 #define WOAL_SETONEINT_GETONEINT    (WOAL_IOCTL + 5)
@@ -570,6 +574,11 @@ static const struct iw_priv_args woal_private_args[] = {
 	 IW_PRIV_TYPE_INT | 16,
 	 IW_PRIV_TYPE_INT | 16,
 	 "antcfg"},
+	{
+	 WOAL_IND_RST_CFG,
+	 IW_PRIV_TYPE_INT | 16,
+	 IW_PRIV_TYPE_INT | 16,
+	 "indrstcfg"},
 	{
 	 WOALGETLOG,
 	 IW_PRIV_TYPE_NONE,

@@ -283,6 +283,9 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_GTK_REKEY_OFFLOAD = 0x00200037,
 	MLAN_OID_MISC_OPER_CLASS = 0x00200038,
 	MLAN_OID_MISC_PMIC_CFG = 0x00200039,
+	MLAN_OID_MISC_IND_RST_CFG = 0x00200040,
+	MLAN_OID_MISC_GET_TSF = 0x00200045,
+	MLAN_OID_MISC_GET_CHAN_REGION_CFG = 0x00200046,
 };
 
 /** Sub command size */
@@ -513,6 +516,8 @@ enum _mlan_bss_mode {
 
 /** Maximum key length */
 #define MLAN_MAX_KEY_LENGTH             32
+/** Maximum PMK R0 NAME key length */
+#define MLAN_MAX_PMKR0_NAME_LENGTH      16
 
 /** max Wmm AC queues */
 #define MAX_AC_QUEUES                   4
@@ -1130,6 +1135,11 @@ typedef struct _mlan_ds_bss {
 	} param;
 } mlan_ds_bss, *pmlan_ds_bss;
 
+/** Type definition of mlan_ds_custom_reg_domain */
+typedef struct _mlan_ds_custom_reg_domain {
+	t_u8 cfg_len;
+	t_u8 cfg_buf[0];
+} mlan_ds_custom_reg_domain;
 /*-----------------------------------------------------------------*/
 /** Radio Control Group */
 /*-----------------------------------------------------------------*/
@@ -1570,6 +1580,11 @@ typedef struct _mlan_ds_get_signal {
 	t_s16 data_nf_avg;
 } mlan_ds_get_signal, *pmlan_ds_get_signal;
 
+/** bit for 2.4 G antenna diversity */
+#define ANT_DIVERSITY_2G   MBIT(3)
+/** bit for 5 G antenna diversity */
+#define ANT_DIVERSITY_5G   MBIT(7)
+
 /** mlan_fw_info data structure for MLAN_OID_GET_FW_INFO */
 typedef struct _mlan_fw_info {
     /** Firmware version */
@@ -1594,6 +1609,8 @@ typedef struct _mlan_fw_info {
 	t_u8 getlog_enable;
     /** FW support for embedded supplicant */
 	t_u8 fw_supplicant_support;
+    /** ant info */
+	t_u8 antinfo;
 } mlan_fw_info, *pmlan_fw_info;
 
 /** Version string buffer length */
@@ -2282,6 +2299,8 @@ typedef struct _mlan_passphrase_t {
 typedef struct _mlan_pmk_t {
     /** PMK */
 	t_u8 pmk[MLAN_MAX_KEY_LENGTH];
+	t_u8 pmk_r0[MLAN_MAX_KEY_LENGTH];
+	t_u8 pmk_r0_name[MLAN_MAX_PMKR0_NAME_LENGTH];
 } mlan_pmk_t;
 
 /** Embedded supplicant RSN type: No RSN */
@@ -2550,6 +2569,7 @@ typedef struct _mlan_ds_power_cfg {
 
 /** Host sleep config conditions: Default */
 #define HOST_SLEEP_DEF_COND     (HOST_SLEEP_COND_BROADCAST_DATA | HOST_SLEEP_COND_UNICAST_DATA | HOST_SLEEP_COND_MAC_EVENT)
+
 /** Host sleep config GPIO : Default */
 #define HOST_SLEEP_DEF_GPIO     0xff
 /** Host sleep config gap : Default */
@@ -3919,6 +3939,8 @@ typedef struct _mlan_ds_misc_tdls_oper {
 #define TDLS_IE_FLAGS_AID        0x0020
 /** flag for TDLS Supported channels and regulatory class IE*/
 #define TDLS_IE_FLAGS_SUPP_CS_IE        0x0040
+/** flag for TDLS Qos info */
+#define TDLS_IE_FLAGS_QOS_INFO        0x0080
 
 /** TDLS ie buffer */
 typedef struct _mlan_ds_misc_tdls_ies {
@@ -3926,6 +3948,8 @@ typedef struct _mlan_ds_misc_tdls_ies {
 	t_u8 peer_mac[MLAN_MAC_ADDR_LENGTH];
     /** flags for request IEs */
 	t_u16 flags;
+    /** Qos info */
+	t_u8 QosInfo;
     /** Extended Capabilities IE */
 	t_u8 ext_cap[IEEE_MAX_IE_SIZE];
     /** HT Capabilities IE */
@@ -3988,6 +4012,15 @@ typedef struct _mlan_ds_bw_chan_oper {
 	/* Non-global operating class */
 	t_u8 oper_class;
 } mlan_ds_bw_chan_oper;
+
+typedef struct _mlan_ds_ind_rst_cfg {
+	/** Set or Get */
+	t_u16 action;
+	/** oob mode enable/ disable */
+	t_u8 ir_mode;
+    /** gpio pin */
+	t_u8 gpio_pin;
+} mlan_ds_ind_rst_cfg;
 
 /** Type definition of mlan_ds_misc_cfg for MLAN_IOCTL_MISC_CFG */
 typedef struct _mlan_ds_misc_cfg {
@@ -4080,6 +4113,9 @@ typedef struct _mlan_ds_misc_cfg {
 	/** GTK rekey data */
 		mlan_ds_misc_gtk_rekey_data gtk_rekey;
 		mlan_ds_bw_chan_oper bw_chan_oper;
+		mlan_ds_ind_rst_cfg ind_rst_cfg;
+		t_u64 misc_tsf;
+		mlan_ds_custom_reg_domain custom_reg_domain;
 	} param;
 } mlan_ds_misc_cfg, *pmlan_ds_misc_cfg;
 

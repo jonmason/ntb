@@ -97,6 +97,11 @@ static char *fm_name;
 /** NFC interface name */
 static char *nfc_name;
 
+/** fw reload flag */
+int bt_fw_reload;
+/** fw serial download flag */
+int bt_fw_serial = 1;
+
 /** Firmware flag */
 static int fw = 1;
 /** default powermode */
@@ -111,7 +116,7 @@ static char *cal_cfg;
 static char *cal_cfg_ext;
 /** Init MAC address */
 static char *bt_mac;
-static int mbt_gpio_pin;
+static int btindrst = -1;
 
 /** Setting mbt_drvdbg value based on DEBUG level */
 #ifdef DEBUG_LEVEL1
@@ -131,6 +136,8 @@ static int dts_enable = 1;
 /** PM keep power */
 int mbt_pm_keep_power = 1;
 #endif
+
+static int btpmic = 0;
 
 /**
  *  @brief Alloc bt device
@@ -226,7 +233,9 @@ clean_up_m_devs(bt_private *priv)
 		PRINTM(MSG, "BT: Delete %s\n", m_dev->name);
 		if (m_dev->spec_type == BLUEZ_SPEC) {
 			hdev = (struct hci_dev *)m_dev->dev_pointer;
-			hci_unregister_dev(hdev);
+			/** check if dev->name has been assigned */
+			if (strstr(hdev->name, "hci"))
+				hci_unregister_dev(hdev);
 			hci_free_dev(hdev);
 		}
 		priv->bt_dev.m_dev[BT_SEQ].dev_pointer = NULL;
@@ -311,7 +320,8 @@ check_evtpkt(bt_private *priv, struct sk_buff *skb)
 		case BT_CMD_ENABLE_WRITE_SCAN:
 			// case BT_CMD_ENABLE_DEVICE_TESTMODE:
 		case BT_CMD_RESET:
-		case BT_CMD_SET_GPIO_PIN:
+		case BT_CMD_PMIC_CONFIGURE:
+		case BT_CMD_INDEPENDENT_RESET:
 			priv->bt_dev.sendcmdflag = FALSE;
 			priv->adapter->cmd_complete = TRUE;
 			wake_up_interruptible(&priv->adapter->cmd_wait_q);
@@ -1250,6 +1260,51 @@ exit:
 #endif
 
 /**
+ *  @brief This function sends command to configure PMIC
+ *
+ *  @param priv    A pointer to bt_private structure
+ *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
+ */
+int
+bt_pmic_configure(bt_private *priv)
+{
+	struct sk_buff *skb = NULL;
+	int ret = BT_STATUS_SUCCESS;
+	BT_CMD *pcmd;
+	ENTER();
+	skb = bt_skb_alloc(sizeof(BT_CMD), GFP_ATOMIC);
+	if (skb == NULL) {
+		PRINTM(WARN, "No free skb\n");
+		ret = BT_STATUS_FAILURE;
+		goto exit;
+	}
+	pcmd = (BT_CMD *)skb->data;
+	pcmd->ocf_ogf =
+		__cpu_to_le16((VENDOR_OGF << 10) | BT_CMD_PMIC_CONFIGURE);
+	pcmd->length = 0;
+	bt_cb(skb)->pkt_type = MRVL_VENDOR_PKT;
+	skb_put(skb, BT_CMD_HEADER_SIZE + pcmd->length);
+	skb->dev = (void *)(&(priv->bt_dev.m_dev[BT_SEQ]));
+	skb_queue_head(&priv->adapter->tx_queue, skb);
+	PRINTM(CMD, "Queue PMIC Configure Command(0x%x)\n",
+	       __le16_to_cpu(pcmd->ocf_ogf));
+	priv->bt_dev.sendcmdflag = TRUE;
+	priv->bt_dev.send_cmd_opcode = __le16_to_cpu(pcmd->ocf_ogf);
+	priv->adapter->cmd_complete = FALSE;
+	wake_up_interruptible(&priv->MainThread.waitQ);
+	if (!os_wait_interruptible_timeout
+	    (priv->adapter->cmd_wait_q, priv->adapter->cmd_complete,
+	     WAIT_UNTIL_CMD_RESP)) {
+		ret = BT_STATUS_FAILURE;
+		PRINTM(MSG, "BT: PMIC Configure timeout:\n");
+		bt_cmd_timeout_func(priv, BT_CMD_PMIC_CONFIGURE);
+	}
+exit:
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief This function enables host sleep
  *
  *  @param priv    A pointer to bt_private structure
@@ -1488,6 +1543,10 @@ exit:
 	return ret;
 }
 
+#define DISABLE_RESET  0x0
+#define ENABLE_OUTBAND_RESET 0x1
+#define ENABLE_INBAND_RESET  0x02
+#define DEFAULT_GPIO 0xff
 /**
  *  @brief This function set GPIO pin
  *
@@ -1496,14 +1555,11 @@ exit:
  *  @return    BT_STATUS_SUCCESS or BT_STATUS_FAILURE
  */
 int
-bt_set_gpio_pin(bt_private *priv)
+bt_set_independent_reset(bt_private *priv)
 {
 	struct sk_buff *skb = NULL;
 	int ret = BT_STATUS_SUCCESS;
-	/**Interrupt falling edge **/
-	u8 gpio_int_edge = INT_FALLING_EDGE;
-	/**Delay 50 usec **/
-	u8 gpio_pulse_width = DELAY_50_US;
+	u8 mode, gpio;
 	BT_CMD *pcmd;
 	ENTER();
 	skb = bt_skb_alloc(sizeof(BT_CMD), GFP_ATOMIC);
@@ -1513,11 +1569,29 @@ bt_set_gpio_pin(bt_private *priv)
 		goto exit;
 	}
 	pcmd = (BT_CMD *)skb->data;
-	pcmd->ocf_ogf = __cpu_to_le16((VENDOR_OGF << 10) | BT_CMD_SET_GPIO_PIN);
-	pcmd->data[0] = mbt_gpio_pin;
-	pcmd->data[1] = gpio_int_edge;
-	pcmd->data[2] = gpio_pulse_width;
-	pcmd->length = 3;
+	pcmd->ocf_ogf =
+		__cpu_to_le16((VENDOR_OGF << 10) | BT_CMD_INDEPENDENT_RESET);
+	mode = btindrst & 0xff;
+	gpio = (btindrst & 0xff00) >> 8;
+	if (mode == ENABLE_OUTBAND_RESET) {
+		pcmd->data[0] = ENABLE_OUTBAND_RESET;
+		if (!gpio)
+			pcmd->data[1] = DEFAULT_GPIO;
+		else
+			pcmd->data[1] = gpio;
+	} else if (mode == ENABLE_INBAND_RESET) {
+		pcmd->data[0] = ENABLE_INBAND_RESET;
+		pcmd->data[1] = DEFAULT_GPIO;
+	} else if (mode == DISABLE_RESET) {
+		pcmd->data[0] = DISABLE_RESET;
+		pcmd->data[1] = DEFAULT_GPIO;
+	} else {
+		PRINTM(WARN, "Unsupport mode\n");
+		ret = BT_STATUS_FAILURE;
+		goto exit;
+	}
+	PRINTM(CMD, "BT: independant reset mode=%d gpio=%d\n", mode, gpio);
+	pcmd->length = 2;
 	bt_cb(skb)->pkt_type = MRVL_VENDOR_PKT;
 	skb_put(skb, BT_CMD_HEADER_SIZE + pcmd->length);
 	skb->dev = (void *)(&(priv->bt_dev.m_dev[BT_SEQ]));
@@ -1530,8 +1604,8 @@ bt_set_gpio_pin(bt_private *priv)
 					   priv->adapter->cmd_complete,
 					   WAIT_UNTIL_CMD_RESP)) {
 		ret = BT_STATUS_FAILURE;
-		PRINTM(MSG, "BT: Set GPIO pin: timeout!\n");
-		bt_cmd_timeout_func(priv, BT_CMD_SET_GPIO_PIN);
+		PRINTM(MSG, "BT: Independent reset : timeout!\n");
+		bt_cmd_timeout_func(priv, BT_CMD_INDEPENDENT_RESET);
 	}
 exit:
 	LEAVE();
@@ -2064,12 +2138,15 @@ bt_init_from_dev_tree(void)
 				bt_mac = (char *)string_data;
 				PRINTM(CMD, "bt_mac=%s\n", bt_mac);
 			}
-		} else if (!strncmp
-			   (prop->name, "mbt_gpio_pin",
-			    strlen("mbt_gpio_pin"))) {
+		} else if (!strncmp(prop->name, "btindrst", strlen("btindrst"))) {
 			if (!of_property_read_u32(dt_node, prop->name, &data)) {
-				mbt_gpio_pin = data;
-				PRINTM(CMD, "mbt_gpio_pin=%d\n", mbt_gpio_pin);
+				btindrst = data;
+				PRINTM(CMD, "btindrst=%d\n", btindrst);
+			}
+		} else if (!strncmp(prop->name, "btpmic", strlen("btpmic"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				btpmic = data;
+				PRINTM(CMD, "btpmic=%d\n", btpmic);
 			}
 		}
 	}
@@ -2131,6 +2208,136 @@ bt_init_fw(bt_private *priv)
 done:
 	LEAVE();
 	return ret;
+}
+
+#define FW_POLL_TRIES 100
+#define SD8897_FW_RESET_REG  0x0E8
+#define SD8887_FW_RESET_REG  0x0B6
+#define SD8977_SD8997_FW_RESET_REG  0x0EE
+#define SD8887_SD8897_FW_RESET_VAL  1
+#define SD8977_SD8997_FW_RESET_VAL  0x99
+
+/**
+ *  @brief This function reload firmware
+ *
+ *  @param priv   A pointer to bt_private
+ *  @param mode   FW reload mode
+ *
+ *  @return       0--success, otherwise failure
+ */
+static int
+bt_reload_fw(bt_private *priv, int mode)
+{
+	int ret = 0, tries = 0;
+	u8 value = 1;
+	u32 reset_reg = 0;
+	u8 reset_val = 0;
+
+	ENTER();
+	if ((mode != FW_RELOAD_SDIO_INBAND_RESET) &&
+	    (mode != FW_RELOAD_NO_EMULATION)) {
+		PRINTM(ERROR, "Invalid fw reload mode=%d\n", mode);
+		return -EFAULT;
+	}
+
+    /** flush pending tx_queue */
+	skb_queue_purge(&priv->adapter->tx_queue);
+	if (mode == FW_RELOAD_SDIO_INBAND_RESET) {
+		if (priv->card_type == CARD_TYPE_SD8887) {
+			reset_reg = SD8887_FW_RESET_REG;
+			reset_val = SD8887_SD8897_FW_RESET_VAL;
+		} else if (priv->card_type == CARD_TYPE_SD8897) {
+			reset_reg = SD8897_FW_RESET_REG;
+			reset_val = SD8887_SD8897_FW_RESET_VAL;
+		} else if ((priv->card_type == CARD_TYPE_SD8977) ||
+			   (priv->card_type == CARD_TYPE_SD8997)) {
+			reset_reg = SD8977_SD8997_FW_RESET_REG;
+			reset_val = SD8977_SD8997_FW_RESET_VAL;
+		}
+	    /** Wake up firmware firstly */
+		sbi_wakeup_firmware(priv);
+
+	/** wait SOC fully wake up */
+		for (tries = 0; tries < FW_POLL_TRIES; ++tries) {
+			ret = sd_write_reg(priv, reset_reg, 0xba);
+			if (!ret) {
+				ret = sd_read_reg(priv, reset_reg, &value);
+				if (!ret && (value == 0xba)) {
+					PRINTM(MSG, "Fw wake up\n");
+					break;
+				}
+			}
+			udelay(1000);
+		}
+
+		ret = sd_write_reg(priv, reset_reg, reset_val);
+		if (ret) {
+			PRINTM(ERROR, "Failed to write register.\n");
+			goto done;
+		}
+
+	    /** Poll register around 1 ms */
+		for (; tries < FW_POLL_TRIES; ++tries) {
+			ret = sd_read_reg(priv, reset_reg, &value);
+			if (ret) {
+				PRINTM(ERROR, "Failed to read register.\n");
+				goto done;
+			}
+			if (value == 0)
+			    /** FW is ready */
+				break;
+			udelay(1000);
+		}
+		if (value) {
+			PRINTM(ERROR,
+			       "Failed to poll FW reset register %X=0x%x\n",
+			       reset_reg, value);
+			ret = -EFAULT;
+			goto done;
+		}
+	}
+
+	/** reload FW */
+	ret = bt_init_fw(priv);
+	if (ret) {
+		PRINTM(ERROR, "Re download firmware failed.\n");
+		ret = -EFAULT;
+		goto done;
+	}
+done:
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief This function request to reload firmware
+ *
+ *  @param priv   A pointer to bt_private
+ *  @param mode   fw reload mode.
+ *
+ *  @return         N/A
+ */
+void
+bt_request_fw_reload(bt_private *priv, int mode)
+{
+	ENTER();
+	if (mode == FW_RELOAD_WITH_EMULATION) {
+		bt_fw_reload = FW_RELOAD_WITH_EMULATION;
+		PRINTM(MSG, "BT: FW reload with re-emulation...\n");
+		LEAVE();
+		return;
+	}
+	/** Reload FW */
+	priv->fw_reload = TRUE;
+	if (bt_reload_fw(priv, mode)) {
+		PRINTM(ERROR, "FW reload fail\n");
+		goto done;
+	}
+	priv->fw_reload = FALSE;
+	/** Other operation here? */
+done:
+	LEAVE();
+	return;
 }
 
 /**
@@ -2738,6 +2945,144 @@ bt_priv_put(bt_private *priv)
 }
 
 /**
+ *  @brief This function send init commands to firmware
+ *
+ *  @param priv   A pointer to bt_private structure
+ *  @return       BT_STATUS_SUCESS/BT_STATUS_FAILURE
+ */
+int
+bt_init_cmd(bt_private *priv)
+{
+	int ret = BT_STATUS_SUCCESS;
+
+	ENTER();
+
+	ret = bt_send_module_cfg_cmd(priv, MODULE_BRINGUP_REQ);
+	if (ret < 0) {
+		PRINTM(FATAL, "Module cfg command send failed!\n");
+		goto done;
+	}
+	if (btindrst != -1) {
+		ret = bt_set_independent_reset(priv);
+		if (ret < 0) {
+			PRINTM(FATAL, "Independent reset failed!\n");
+			goto done;
+		}
+	}
+	if (btpmic
+	    && ((priv->card_type == CARD_TYPE_SD8997) ||
+		(priv->card_type == CARD_TYPE_SD8977))
+		) {
+		if (BT_STATUS_SUCCESS != bt_pmic_configure(priv)) {
+			PRINTM(FATAL, "BT: PMIC Configure failed \n");
+			ret = BT_STATUS_FAILURE;
+			goto done;
+		}
+	}
+	ret = bt_set_ble_deepsleep(priv, TRUE);
+	if (ret < 0) {
+		PRINTM(FATAL, "Enable BLE deepsleep failed!\n");
+		goto done;
+	}
+	if (psmode) {
+		priv->bt_dev.psmode = TRUE;
+		priv->bt_dev.idle_timeout = DEFAULT_IDLE_TIME;
+		ret = bt_enable_ps(priv);
+		if (ret < 0) {
+			PRINTM(FATAL, "Enable PS mode failed!\n");
+			goto done;
+		}
+	}
+#ifdef SDIO_SUSPEND_RESUME
+	priv->bt_dev.gpio_gap = 0xffff;
+	ret = bt_send_hscfg_cmd(priv);
+	if (ret < 0) {
+		PRINTM(FATAL, "Send HSCFG failed!\n");
+		goto done;
+	}
+#endif
+	priv->bt_dev.sdio_pull_cfg = 0xffffffff;
+	priv->bt_dev.sdio_pull_ctrl = 0;
+	wake_up_interruptible(&priv->MainThread.waitQ);
+
+done:
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief This function reinit firmware after redownload firmware
+ *
+ *  @param priv   A pointer to bt_private structure
+ *  @return       BT_STATUS_SUCESS/BT_STATUS_FAILURE
+ */
+int
+bt_reinit_fw(bt_private *priv)
+{
+	int ret = BT_STATUS_SUCCESS;
+	priv->adapter->tx_lock = FALSE;
+	priv->adapter->ps_state = PS_AWAKE;
+	priv->adapter->suspend_fail = FALSE;
+	priv->adapter->is_suspended = FALSE;
+	priv->adapter->hs_skip = 0;
+	priv->adapter->num_cmd_timeout = 0;
+
+	ret = bt_init_cmd(priv);
+	if (ret < 0) {
+		PRINTM(FATAL, "BT init command failed!\n");
+		goto done;
+	}
+	/* block all the packet from bluez */
+	if (init_cfg || cal_cfg || bt_mac || cal_cfg_ext)
+		priv->adapter->tx_lock = TRUE;
+
+	if (init_cfg)
+		if (BT_STATUS_SUCCESS != bt_init_config(priv, init_cfg)) {
+			PRINTM(FATAL,
+			       "BT: Set user init data and param failed\n");
+			ret = BT_STATUS_FAILURE;
+			goto done;
+		}
+
+	if (cal_cfg) {
+		if (BT_STATUS_SUCCESS != bt_cal_config(priv, cal_cfg, bt_mac)) {
+			PRINTM(FATAL, "BT: Set cal data failed\n");
+			ret = BT_STATUS_FAILURE;
+			goto done;
+		}
+	}
+
+	if (bt_mac) {
+		PRINTM(INFO,
+		       "Set BT mac_addr from insmod parametre bt_mac = %s\n",
+		       bt_mac);
+		if (BT_STATUS_SUCCESS != bt_init_mac_address(priv, bt_mac)) {
+			PRINTM(FATAL,
+			       "BT: Fail to set mac address from insmod parametre\n");
+			ret = BT_STATUS_FAILURE;
+			goto done;
+		}
+	}
+
+	if (cal_cfg_ext) {
+		if (BT_STATUS_SUCCESS != bt_cal_config_ext(priv, cal_cfg_ext)) {
+			PRINTM(FATAL, "BT: Set cal ext data failed\n");
+			ret = BT_STATUS_FAILURE;
+			goto done;
+		}
+	}
+	if (init_cfg || cal_cfg || bt_mac || cal_cfg_ext) {
+		priv->adapter->tx_lock = FALSE;
+		bt_restore_tx_queue(priv);
+	}
+	bt_get_fw_version(priv);
+	snprintf((char *)priv->adapter->drv_ver, MAX_VER_STR_LEN,
+		 mbt_driver_version, fw_version);
+done:
+	return ret;
+}
+
+/**
  *  @brief Module configuration and register device
  *
  *  @param priv      A Pointer to bt_private structure
@@ -2757,6 +3102,12 @@ sbi_register_conf_dpc(bt_private *priv)
 	ENTER();
 
 	priv->bt_dev.tx_dnld_rdy = TRUE;
+
+	if (priv->fw_reload) {
+		bt_reinit_fw(priv);
+		LEAVE();
+		return ret;
+	}
 
 	if (drv_mode & DRV_MODE_BT) {
 		hdev = hci_alloc_dev();
@@ -2800,44 +3151,13 @@ sbi_register_conf_dpc(bt_private *priv)
 	if (hdev)
 		hdev->type = dev_type;
 #endif /* >= 2.6.34 */
-	if (mbt_gpio_pin) {
-		ret = bt_set_gpio_pin(priv);
-		if (ret < 0) {
-			PRINTM(FATAL, "GPIO pin set failed!\n");
-			goto done;
-		}
+
+	ret = bt_init_cmd(priv);
+	if (ret < 0) {
+		PRINTM(FATAL, "BT init command failed!\n");
+		goto done;
 	}
 
-	ret = bt_send_module_cfg_cmd(priv, MODULE_BRINGUP_REQ);
-	if (ret < 0) {
-		PRINTM(FATAL, "Module cfg command send failed!\n");
-		goto done;
-	}
-	ret = bt_set_ble_deepsleep(priv, TRUE);
-	if (ret < 0) {
-		PRINTM(FATAL, "Enable BLE deepsleep failed!\n");
-		goto done;
-	}
-	if (psmode) {
-		priv->bt_dev.psmode = TRUE;
-		priv->bt_dev.idle_timeout = DEFAULT_IDLE_TIME;
-		ret = bt_enable_ps(priv);
-		if (ret < 0) {
-			PRINTM(FATAL, "Enable PS mode failed!\n");
-			goto done;
-		}
-	}
-#ifdef SDIO_SUSPEND_RESUME
-	priv->bt_dev.gpio_gap = 0xffff;
-	ret = bt_send_hscfg_cmd(priv);
-	if (ret < 0) {
-		PRINTM(FATAL, "Send HSCFG failed!\n");
-		goto done;
-	}
-#endif
-	priv->bt_dev.sdio_pull_cfg = 0xffffffff;
-	priv->bt_dev.sdio_pull_ctrl = 0;
-	wake_up_interruptible(&priv->MainThread.waitQ);
 	/** Process device tree init parameters before register hci device.
 	 *  Since uplayer device has not yet registered, no need to block tx queue.
 	 * */
@@ -2884,15 +3204,15 @@ sbi_register_conf_dpc(bt_private *priv)
 		hdev->dev_type = priv->bt_dev.devType;
 #endif
 		ret = hci_register_dev(hdev);
+		if (ret < 0) {
+			PRINTM(FATAL, "Can not register HCI device\n");
+			ret = BT_STATUS_FAILURE;
+			goto done;
+		}
+		snprintf((char *)priv->bt_dev.m_dev[BT_SEQ].name,
+			 sizeof(priv->bt_dev.m_dev[BT_SEQ].name), hdev->name);
+		bt_proc_init(priv, &(priv->bt_dev.m_dev[BT_SEQ]), BT_SEQ);
 	}
-	if (ret < 0) {
-		PRINTM(FATAL, "Can not register HCI device\n");
-		ret = BT_STATUS_FAILURE;
-		goto done;
-	}
-	snprintf((char *)priv->bt_dev.m_dev[BT_SEQ].name,
-		 sizeof(priv->bt_dev.m_dev[BT_SEQ].name), hdev->name);
-	bt_proc_init(priv, &(priv->bt_dev.m_dev[BT_SEQ]), BT_SEQ);
 
 	if ((drv_mode & DRV_MODE_FM) &&
 	    (!(priv->bt_dev.devType == DEV_TYPE_AMP)) &&
@@ -3316,6 +3636,15 @@ module_param(fm_name, charp, 0);
 MODULE_PARM_DESC(fm_name, "FM interface name");
 module_param(nfc_name, charp, 0);
 MODULE_PARM_DESC(nfc_name, "NFC interface name");
-module_param(mbt_gpio_pin, int, 0);
-MODULE_PARM_DESC(mbt_gpio_pin,
-		 "GPIO pin to interrupt host. 0xFF: disable GPIO interrupt mode; Others: GPIO pin assigned to generate pulse to host.");
+module_param(bt_fw_reload, int, 0);
+MODULE_PARM_DESC(bt_fw_reload,
+		 "0: disable fw_reload; 1: enable fw reload feature");
+module_param(btindrst, int, 0);
+MODULE_PARM_DESC(btindrst,
+		 "Independent reset configuration; high byte:GPIO pin number;low byte:0x0:disable, 0x1:out-band reset, 0x2:in-band reset.");
+module_param(btpmic, int, 0);
+MODULE_PARM_DESC(btpmic,
+		 "1: Send pmic configure cmd to firmware; 0: No pmic configure cmd sent to firmware (default)");
+module_param(bt_fw_serial, int, 0);
+MODULE_PARM_DESC(bt_fw_serial,
+		 "0: Support parallel download FW; 1: Support serial download FW");

@@ -3,26 +3,20 @@
  *  @brief This file defines the FW initialization data
  *  structures.
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2008-2016, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  */
 
 /******************************************************
@@ -49,7 +43,7 @@ Change log:
 #define FW_DATA_XMIT_SIZE (sizeof(FWHeader) + DataLength + sizeof(t_u32))
 
 /** FWHeader */
-typedef struct _FWHeader {
+typedef MLAN_PACK_START struct _FWHeader {
     /** FW download command */
 	t_u32 dnld_cmd;
     /** FW base address */
@@ -58,25 +52,25 @@ typedef struct _FWHeader {
 	t_u32 data_length;
     /** FW CRC */
 	t_u32 crc;
-} FWHeader;
+} MLAN_PACK_END FWHeader;
 
 /** FWData */
-typedef struct _FWData {
+typedef MLAN_PACK_START struct _FWData {
     /** FW data header */
 	FWHeader fw_header;
     /** FW data sequence number */
 	t_u32 seq_num;
     /** FW data buffer */
 	t_u8 data[1];
-} FWData;
+} MLAN_PACK_END FWData;
 
 /** FWSyncHeader */
-typedef struct _FWSyncHeader {
+typedef MLAN_PACK_START struct _FWSyncHeader {
     /** FW sync header command */
 	t_u32 cmd;
     /** FW sync header sequence number */
 	t_u32 seq_num;
-} FWSyncHeader;
+} MLAN_PACK_END FWSyncHeader;
 
 #ifdef BIG_ENDIAN_SUPPORT
 /** Convert sequence number and command fields

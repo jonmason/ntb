@@ -2,26 +2,20 @@
  *
  *  @brief This file declares the generic data structures and APIs.
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2008-2016, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  */
 
 /******************************************************
@@ -33,7 +27,7 @@ Change log:
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION		 "C157"
+#define MLAN_RELEASE_VERSION		 "C178"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -1252,6 +1246,8 @@ typedef struct _mlan_device {
     /** Driver debug bit masks */
 	t_u32 drvdbg;
 #endif
+    /** allocate fixed buffer size for scan beacon buffer*/
+	t_u32 fixed_beacon_buffer;
 #ifdef SDIO_MULTI_PORT_TX_AGGR
     /** SDIO MPA Tx */
 	t_u32 mpa_tx_cfg;
@@ -1286,6 +1282,16 @@ typedef struct _mlan_device {
 	t_u8 rx_work;
     /** dev cap mask */
 	t_u32 dev_cap_mask;
+    /** oob independent reset */
+	t_u32 indrstcfg;
+#ifdef WIFI_DIRECT_SUPPORT
+    /** Go age out time */
+	t_u32 GoAgeoutTime;
+#endif
+    /** dtim interval */
+	t_u32 multi_dtim;
+    /** IEEE ps inactivity timeout value */
+	t_u32 inact_tmo;
 	/** card type */
 	t_u16 card_type;
 } mlan_device, *pmlan_device;

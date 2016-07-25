@@ -1,3 +1,4 @@
+
 /** @file moal_eth_ioctl.h
  *
  * @brief This file contains definition for private IOCTL call.
@@ -237,6 +238,9 @@ Change log:
 #define PRIV_CMD_AUTO_ARP	"auto_arp"
 #endif
 
+/**Private command ID to set/get independent reset*/
+#define PRIV_CMD_IND_RST_CFG            "indrstcfg"
+
 /** Private command ID for Android default commands */
 #define WOAL_ANDROID_DEF_CMD        (SIOCDEVPRIVATE + 1)
 
@@ -429,6 +433,8 @@ typedef struct woal_priv_esuppmode_cfg {
 } woal_esuppmode_cfg;
 
 mlan_status woal_set_ap_wps_p2p_ie(moal_private *priv, t_u8 *ie, size_t len);
+mlan_status woal_ioctl_aggr_prio_tbl(moal_private *priv, t_u32 action,
+				     mlan_ds_11n_aggr_prio_tbl *aggr_prio_tbl);
 
 int woal_android_priv_cmd(struct net_device *dev, struct ifreq *req);
 

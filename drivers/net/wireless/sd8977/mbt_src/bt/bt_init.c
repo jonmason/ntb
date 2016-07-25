@@ -348,25 +348,20 @@ bt_process_init_cfg(bt_private *priv, u8 *data, u32 size)
 				strncpy(dev_name, (const char *)intf_s + 1,
 					intf_e - intf_s - 1);
 				dev_name[intf_e - intf_s - 1] = '\0';
-				if (strcmp
-				    (dev_name,
-				     priv->bt_dev.m_dev[BT_SEQ].name) == 0) {
-					/* found hci device */
-					strncpy((char *)bt_addr,
-						(const char *)intf_e + 1,
-						MAX_MAC_ADDR_LEN - 1);
-					bt_addr[MAX_MAC_ADDR_LEN - 1] = '\0';
-					/* Convert MAC format */
-					bt_mac2u8(bt_mac, (char *)bt_addr);
-					PRINTM(CMD,
-					       "HCI: %s new BT Address " MACSTR
-					       "\n", dev_name, MAC2STR(bt_mac));
-					if (BT_STATUS_SUCCESS !=
-					    bt_set_mac_address(priv, bt_mac)) {
-						PRINTM(FATAL,
-						       "BT: Fail to set mac address\n");
-						goto done;
-					}
+				strncpy((char *)bt_addr,
+					(const char *)intf_e + 1,
+					MAX_MAC_ADDR_LEN - 1);
+				bt_addr[MAX_MAC_ADDR_LEN - 1] = '\0';
+				/* Convert MAC format */
+				bt_mac2u8(bt_mac, (char *)bt_addr);
+				PRINTM(CMD,
+				       "HCI: %s new BT Address " MACSTR "\n",
+				       dev_name, MAC2STR(bt_mac));
+				if (BT_STATUS_SUCCESS !=
+				    bt_set_mac_address(priv, bt_mac)) {
+					PRINTM(FATAL,
+					       "BT: Fail to set mac address\n");
+					goto done;
 				}
 			} else {
 				PRINTM(ERROR,

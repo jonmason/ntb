@@ -548,6 +548,95 @@ woal_get_htcap_from_beacon_ies(const t_u8 *ie, int len)
 	return 0;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+/** Starting Frequency for 11A band */
+#define START_FREQ_11A_BAND     5000	/* in MHz */
+/**
+ * @brief convert channel width
+
+ * @param wiphy           A pointer to wiphy structure
+ * @param dev             A pointer to net_device structure
+ * @param chandef                 A pointer to cfg80211_chan_def structure
+ *
+ * @return                0 -- success, otherwise fail
+ */
+static t_u8
+woal_covert_chan_width(enum nl80211_chan_width width)
+{
+	t_u8 ret;
+
+	ENTER();
+
+	switch (width) {
+	case NL80211_CHAN_WIDTH_20_NOHT:
+	case NL80211_CHAN_WIDTH_20:
+		ret = 0;
+		break;
+	case NL80211_CHAN_WIDTH_40:
+		ret = 2;
+		break;
+	case NL80211_CHAN_WIDTH_80:
+		ret = 3;
+		break;
+	default:
+		/* for other cases, we have declared our Driver and Fw do NOT
+		   support when register wiphy. so kernel would not deliver
+		   other cases to Driver */
+		ret = 0xff;
+	}
+	LEAVE();
+	return ret;
+}
+
+/**
+ * @brief Enable radar detect for DFS channel
+ *
+ * @param priv            A pointer to moal private structure
+ * @param chandef         A pointer to cfg80211_chan_def structure
+ * @return                N/A
+ */
+static void
+woal_enable_dfs_support(moal_private *priv, struct cfg80211_chan_def *chandef)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_11h_chan_rep_req *pchan_rpt_req = NULL;
+	mlan_ds_11h_cfg *p11h_cfg = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	ENTER();
+	if (!(chandef->chan->flags & IEEE80211_CHAN_RADAR)) {
+		PRINTM(MIOCTL, "No radar channel\n");
+		LEAVE();
+		return;
+	}
+	PRINTM(MIOCTL, "start Radar detect, chan %d , Bw %d \n",
+	       chandef->chan->hw_value, chandef->width);
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11h_cfg));
+	if (NULL == req) {
+		PRINTM(MIOCTL, "No Memory to allocate ioctl buffer\n");
+		LEAVE();
+		return;
+	}
+	p11h_cfg = (mlan_ds_11h_cfg *)req->pbuf;
+	pchan_rpt_req = &p11h_cfg->param.chan_rpt_req;
+	pchan_rpt_req->startFreq = 5000;
+	pchan_rpt_req->chanNum = (t_u8)chandef->chan->hw_value;
+	pchan_rpt_req->chanWidth = woal_covert_chan_width(chandef->width);
+	pchan_rpt_req->host_based = MTRUE;
+	pchan_rpt_req->millisec_dwell_time = 0;
+
+	p11h_cfg->sub_command = MLAN_OID_11H_CHANNEL_CHECK;
+	req->req_id = MLAN_IOCTL_11H_CFG;
+	req->action = MLAN_ACT_SET;
+	/* Send Channel Check command and wait until the report is ready */
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return;
+}
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
 /**
  * @brief initialize AP or GO bss config
@@ -1002,6 +1091,9 @@ woal_cfg80211_beacon_config(moal_private *priv,
 		ret = -EFAULT;
 		goto done;
 	}
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+	woal_enable_dfs_support(priv, &params->chandef);
+#endif
 done:
 	LEAVE();
 	return ret;
@@ -1199,18 +1291,22 @@ woal_cfg80211_add_mon_if(struct wiphy *wiphy,
 	monitor_iface *mon_if = NULL;
 	moal_private *priv = NULL;
 	moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 	chan_band_info chan_info;
+#endif
 
 	ENTER();
 
 	ASSERT_RTNL();
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 	if (woal_is_any_interface_active(handle)) {
 		PRINTM(MERROR,
 		       "Cannot start net monitor when Interface Active\n");
 		ret = -EFAULT;
 		goto fail;
 	}
+#endif
 
 	if (handle->mon_if) {
 		PRINTM(MERROR, "%s: monitor interface exist: %s basedev %s\n",
@@ -1268,6 +1364,7 @@ woal_cfg80211_add_mon_if(struct wiphy *wiphy,
 	mon_if->base_ndev = priv->netdev;
 	mon_if->radiotap_enabled = 1;
 	mon_if->flag = 1;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 	/* Set default band channel config */
 	mon_if->band_chan_cfg.band = BAND_B | BAND_G;
 	mon_if->band_chan_cfg.band |= BAND_GN;
@@ -1276,14 +1373,11 @@ woal_cfg80211_add_mon_if(struct wiphy *wiphy,
 	memset(&chan_info, 0x00, sizeof(chan_info));
 	chan_info.channel = 1;
 	chan_info.is_11n_enabled = MTRUE;
-	woal_chandef_create(priv, &mon_if->chandef, &chan_info);
-
-	ret = register_netdevice(ndev);
-	if (ret) {
-		PRINTM(MFATAL, "register net_device failed, ret=%d\n", ret);
+	if (MLAN_STATUS_FAILURE ==
+	    woal_chandef_create(priv, &mon_if->chandef, &chan_info)) {
+		ret = -EFAULT;
 		goto fail;
 	}
-
 	if (MLAN_STATUS_SUCCESS != woal_set_net_monitor(priv, MOAL_IOCTL_WAIT,
 							MTRUE, 0x7,
 							&mon_if->
@@ -1292,17 +1386,22 @@ woal_cfg80211_add_mon_if(struct wiphy *wiphy,
 		ret = -EFAULT;
 		goto fail;
 	}
+#endif
+
+	ret = register_netdevice(ndev);
+	if (ret) {
+		PRINTM(MFATAL, "register net_device failed, ret=%d\n", ret);
+		goto fail;
+	}
+
 	handle->mon_if = mon_if;
 
 	if (new_dev)
 		*new_dev = ndev;
 
 fail:
-	if (ret && ndev) {
-		if (ndev->reg_state == NETREG_REGISTERED)
-			unregister_netdevice(ndev);
+	if (ret && ndev)
 		free_netdev(ndev);
-	}
 	LEAVE();
 	return ret;
 }
@@ -1648,10 +1747,12 @@ woal_cfg80211_del_virt_if(struct wiphy *wiphy, struct net_device *dev)
 	}
 	if (vir_priv && vir_priv->bss_type == MLAN_BSS_TYPE_UAP) {
 		woal_cfg80211_del_beacon(wiphy, dev);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
 		vir_priv->wdev->beacon_interval = 0;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)
 		memset(&vir_priv->wdev->chandef, 0,
 		       sizeof(vir_priv->wdev->chandef));
+#endif
 #endif
 		vir_priv->wdev->ssid_len = 0;
 		PRINTM(MMSG, "Skip del UAP virtual interface %s", dev->name);
@@ -1994,6 +2095,7 @@ woal_cfg80211_del_virtual_intf(struct wiphy *wiphy, struct wireless_dev *wdev)
 	ASSERT_RTNL();
 	if (dev->ieee80211_ptr->iftype == NL80211_IFTYPE_MONITOR) {
 		if ((handle->mon_if) && (handle->mon_if->mon_ndev == dev)) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 			if (MLAN_STATUS_SUCCESS !=
 			    woal_set_net_monitor(handle->mon_if->priv,
 						 MOAL_IOCTL_WAIT, MFALSE, 0,
@@ -2003,6 +2105,7 @@ woal_cfg80211_del_virtual_intf(struct wiphy *wiphy, struct wireless_dev *wdev)
 				       __func__);
 				ret = -EFAULT;
 			}
+#endif
 			handle->mon_if = NULL;
 		}
 		unregister_netdevice(dev);
@@ -2924,43 +3027,6 @@ woal_csa_work_queue(struct work_struct *work)
 	LEAVE();
 }
 
-/**
- * @brief start radar detection
-
- * @param wiphy           A pointer to wiphy structure
- * @param dev             A pointer to net_device structure
- * @param chandef                 A pointer to cfg80211_chan_def structure
- *
- * @return                0 -- success, otherwise fail
- */
-static t_u8
-woal_covert_chan_width(enum nl80211_chan_width width)
-{
-	t_u8 ret;
-
-	ENTER();
-
-	switch (width) {
-	case NL80211_CHAN_WIDTH_20_NOHT:
-	case NL80211_CHAN_WIDTH_20:
-		ret = 0;
-		break;
-	case NL80211_CHAN_WIDTH_40:
-		ret = 2;
-		break;
-	case NL80211_CHAN_WIDTH_80:
-		ret = 3;
-		break;
-	default:
-		/* for other cases, we have declared our Driver and Fw do NOT
-		   support when register wiphy. so kernel would not deliver
-		   other cases to Driver */
-		ret = 0xff;
-	}
-	LEAVE();
-	return ret;
-}
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)
 /**
  * @brief start radar detection
@@ -2999,7 +3065,7 @@ woal_cfg80211_start_radar_detection(struct wiphy *wiphy,
 	mlan_ds_11h_chan_rep_req *pchan_rpt_req = NULL;
 	mlan_ds_11h_cfg *p11h_cfg = NULL;
 	int ret = 0;
-	mlan_status status;
+	mlan_status status = MLAN_STATUS_SUCCESS;
 
 	ENTER();
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)
@@ -3026,8 +3092,6 @@ woal_cfg80211_start_radar_detection(struct wiphy *wiphy,
 		ret = -ENOMEM;
 		goto done;
 	}
-/** Starting Frequency for 11A band */
-#define START_FREQ_11A_BAND     5000	/* in MHz */
 
 	p11h_cfg = (mlan_ds_11h_cfg *)req->pbuf;
 	pchan_rpt_req = &p11h_cfg->param.chan_rpt_req;
@@ -3076,6 +3140,8 @@ woal_cfg80211_start_radar_detection(struct wiphy *wiphy,
 			       pchan_rpt_req->millisec_dwell_time + 1000);
 	}
 done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
 	LEAVE();
 	return ret;
 }
@@ -3183,14 +3249,19 @@ woal_cfg80211_notify_uap_channel(moal_private *priv,
 	ENTER();
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
-	woal_chandef_create(priv, &chandef, pchan_info);
-	cfg80211_ch_switch_notify(priv->netdev, &chandef);
+	if (MLAN_STATUS_SUCCESS ==
+	    woal_chandef_create(priv, &chandef, pchan_info))
+		cfg80211_ch_switch_notify(priv->netdev, &chandef);
 #else
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
 	if (pchan_info->band_config.chanBand == BAND_2GHZ)
 		band = IEEE80211_BAND_2GHZ;
 	else if (pchan_info->band_config.chanBand == BAND_5GHZ)
 		band = IEEE80211_BAND_5GHZ;
+	else {
+		LEAVE();
+		return;
+	}
 	freq = ieee80211_channel_to_frequency(pchan_info->channel, band);
 	switch (pchan_info->band_config.chanWidth) {
 	case CHAN_BW_20MHZ:

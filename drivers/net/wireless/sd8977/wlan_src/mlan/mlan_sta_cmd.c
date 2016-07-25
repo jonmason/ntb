@@ -4,25 +4,20 @@
  *  it prepares command and sends it to firmware when
  *  it is ready.
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2008-2016, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  *
  */
 
@@ -555,6 +550,7 @@ wlan_cmd_802_11_hs_cfg(IN pmlan_private pmpriv,
 			psparam_tlv->hs_inactivity_timeout =
 				wlan_cpu_to_le32(pmadapter->
 						 hs_inactivity_timeout);
+			tlv += sizeof(MrvlIEtypes_PsParamsInHs_t);
 			PRINTM(MCMND, "hs_wake_interval=%d\n",
 			       pmadapter->hs_wake_interval);
 			PRINTM(MCMND, "hs_inactivity_timeout=%d\n",
@@ -1143,6 +1139,7 @@ wlan_cmd_802_11_supplicant_pmk(IN pmlan_private pmpriv,
 	t_u8 zero_mac[] = { 0, 0, 0, 0, 0, 0 };
 
 	ENTER();
+
 	/*
 	 * Parse the rest of the buf here
 	 *  1) <ssid="valid ssid"> - This will get the passphrase, AKMP
@@ -1947,13 +1944,8 @@ wlan_cmd_tdls_oper(IN pmlan_private pmpriv,
 				sizeof(TdlsIdleTimeout->value);
 			TdlsIdleTimeout->header.len =
 				wlan_cpu_to_le16(TdlsIdleTimeout->header.len);
-			if (pmpriv->tdls_idle_time == 0)
-				TdlsIdleTimeout->value =
-					wlan_cpu_to_le16(TDLS_IDLE_TIMEOUT);
-			else
-				TdlsIdleTimeout->value =
-					wlan_cpu_to_le16(pmpriv->
-							 tdls_idle_time);
+			TdlsIdleTimeout->value =
+				wlan_cpu_to_le16(pmpriv->tdls_idle_time);
 			travel_len += sizeof(MrvlIEtypes_TDLS_Idle_Timeout_t);
 		}
 		break;
@@ -2303,6 +2295,8 @@ wlan_cmd_net_monitor(IN HostCmd_DS_COMMAND *cmd,
 	mlan_ds_misc_net_monitor *net_mon;
 	HostCmd_DS_802_11_NET_MONITOR *cmd_net_mon = &cmd->params.net_mon;
 	ChanBandParamSet_t *pchan_band = MNULL;
+	t_u8 sec_chan_offset = 0;
+	t_u32 bw_offset = 0;
 
 	ENTER();
 
@@ -2325,11 +2319,38 @@ wlan_cmd_net_monitor(IN HostCmd_DS_COMMAND *cmd,
 				wlan_cpu_to_le16(TLV_TYPE_CHANNELBANDLIST);
 			cmd_net_mon->monitor_chan.header.len =
 				wlan_cpu_to_le16(sizeof(ChanBandParamSet_t));
+			pchan_band->chan_number = (t_u8)net_mon->channel;
 			pchan_band->radio_type =
 				wlan_band_to_radio_type((t_u8)net_mon->band);
-			pchan_band->chan_number = (t_u8)net_mon->channel;
-			SET_SECONDARYCHAN(pchan_band->radio_type,
-					  net_mon->chan_bandwidth);
+			if (net_mon->band & BAND_GN || net_mon->band & BAND_AN
+			    || net_mon->band & BAND_GAC ||
+			    net_mon->band & BAND_AAC) {
+				bw_offset = net_mon->chan_bandwidth;
+				if (bw_offset == CHANNEL_BW_40MHZ_ABOVE) {
+					pchan_band->radio_type |=
+						SECOND_CHANNEL_ABOVE;
+					pchan_band->radio_type |=
+						CHAN_BW_40MHZ << 2;
+				} else if (bw_offset == CHANNEL_BW_40MHZ_BELOW) {
+					pchan_band->radio_type |=
+						SECOND_CHANNEL_BELOW;
+					pchan_band->radio_type |=
+						CHAN_BW_40MHZ << 2;
+				} else if (bw_offset == CHANNEL_BW_80MHZ) {
+					sec_chan_offset =
+						wlan_get_second_channel_offset
+						(net_mon->channel);
+					if (sec_chan_offset == SEC_CHAN_ABOVE)
+						pchan_band->radio_type |=
+							SECOND_CHANNEL_ABOVE;
+					else if (sec_chan_offset ==
+						 SEC_CHAN_BELOW)
+						pchan_band->radio_type |=
+							SECOND_CHANNEL_BELOW;
+					pchan_band->radio_type |=
+						CHAN_BW_80MHZ << 2;
+				}
+			}
 		}
 	}
 
@@ -2936,6 +2957,9 @@ wlan_ops_sta_prepare_cmd(IN t_void *priv,
 		ret = wlan_cmd_inactivity_timeout(cmd_ptr, cmd_action,
 						  pdata_buf);
 		break;
+	case HostCmd_CMD_GET_TSF:
+		ret = wlan_cmd_get_tsf(pmpriv, cmd_ptr, cmd_action);
+		break;
 	case HostCmd_CMD_SDIO_GPIO_INT_CONFIG:
 		ret = wlan_cmd_sdio_gpio_int(pmpriv, cmd_ptr, cmd_action,
 					     pdata_buf);
@@ -3021,6 +3045,22 @@ wlan_ops_sta_prepare_cmd(IN t_void *priv,
 	case HostCmd_CMD_STA_CONFIGURE:
 		ret = wlan_cmd_sta_config(pmpriv, cmd_ptr, cmd_action,
 					  pioctl_buf, pdata_buf);
+		break;
+
+	case HostCmd_CMD_INDEPENDENT_RESET_CFG:
+		ret = wlan_cmd_ind_rst_cfg(cmd_ptr, cmd_action, pdata_buf);
+		break;
+
+	case HostCmd_CMD_802_11_PS_INACTIVITY_TIMEOUT:
+		ret = wlan_cmd_ps_inactivity_timeout(pmpriv, cmd_ptr,
+						     cmd_action, pdata_buf);
+		break;
+	case HostCmd_CMD_CHAN_REGION_CFG:
+		cmd_ptr->command = wlan_cpu_to_le16(cmd_no);
+		cmd_ptr->size =
+			wlan_cpu_to_le16(sizeof(HostCmd_DS_CHAN_REGION_CFG) +
+					 S_DS_GEN);
+		cmd_ptr->params.reg_cfg.action = wlan_cpu_to_le16(cmd_action);
 		break;
 	default:
 		PRINTM(MERROR, "PREP_CMD: unknown command- %#x\n", cmd_no);

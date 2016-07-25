@@ -3,26 +3,20 @@
  *  @brief This file contains the handling of RX in MLAN
  *  module.
  *
- *  (C) Copyright 2008-2016 Marvell International Ltd. All Rights Reserved
+ *  Copyright (C) 2008-2016, Marvell International Ltd.
  *
- *  MARVELL CONFIDENTIAL
- *  The source code contained or described herein and all documents related to
- *  the source code ("Material") are owned by Marvell International Ltd or its
- *  suppliers or licensors. Title to the Material remains with Marvell
- *  International Ltd or its suppliers and licensors. The Material contains
- *  trade secrets and proprietary and confidential information of Marvell or its
- *  suppliers and licensors. The Material is protected by worldwide copyright
- *  and trade secret laws and treaty provisions. No part of the Material may be
- *  used, copied, reproduced, modified, published, uploaded, posted,
- *  transmitted, distributed, or disclosed in any way without Marvell's prior
- *  express written permission.
+ *  This software file (the "File") is distributed by Marvell International
+ *  Ltd. under the terms of the GNU General Public License Version 2, June 1991
+ *  (the "License").  You may use, redistribute and/or modify this File in
+ *  accordance with the terms and conditions of the License, a copy of which
+ *  is available by writing to the Free Software Foundation, Inc.,
+ *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or on the
+ *  worldwide web at http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt.
  *
- *  No license under any patent, copyright, trade secret or other intellectual
- *  property right is granted to or conferred upon you by disclosure or delivery
- *  of the Materials, either expressly, by implication, inducement, estoppel or
- *  otherwise. Any license under such intellectual property rights must be
- *  express and approved by Marvell in writing.
- *
+ *  THE FILE IS DISTRIBUTED AS-IS, WITHOUT WARRANTY OF ANY KIND, AND THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE EXPRESSLY DISCLAIMED.  The License provides additional details about
+ *  this warranty disclaimer.
  */
 
 /********************************************************
@@ -179,6 +173,8 @@ void
 wlan_process_tdls_action_frame(pmlan_private priv, t_u8 *pbuf, t_u32 len)
 {
 	sta_node *sta_ptr = MNULL;
+	IEEEtypes_VendorHeader_t *pvendor_ie = MNULL;
+	const t_u8 wmm_oui[] = { 0x00, 0x50, 0xf2, 0x02 };
 	t_u8 *peer;
 	t_u8 *pos, *end;
 	t_u8 action;
@@ -297,6 +293,16 @@ wlan_process_tdls_action_frame(pmlan_private priv, t_u8 *pbuf, t_u32 len)
 		case QOS_INFO:
 			sta_ptr->qos_info = pos[2];
 			PRINTM(MDAT_D, "TDLS qos info %x\n", sta_ptr->qos_info);
+			break;
+		case VENDOR_SPECIFIC_221:
+			pvendor_ie = (IEEEtypes_VendorHeader_t *)pos;
+			if (!memcmp
+			    (priv->adapter, pvendor_ie->oui, wmm_oui,
+			     sizeof(wmm_oui))) {
+				sta_ptr->qos_info = pos[8];	    /** qos info in wmm parameters in response and confirm */
+				PRINTM(MDAT_D, "TDLS qos info %x\n",
+				       sta_ptr->qos_info);
+			}
 			break;
 		case LINK_ID:
 			memcpy(priv->adapter, (t_u8 *)&sta_ptr->link_ie, pos,
@@ -620,6 +626,7 @@ wlan_ops_sta_process_rx_packet(IN t_void *adapter, IN pmlan_buffer pmbuf)
 
 	sta_node *sta_ptr = MNULL;
 	t_u8 adj_rx_rate = 0;
+	t_u8 antenna = 0;
 	rxpd_extra_info *pextra_info = MNULL;
 	ENTER();
 
@@ -639,6 +646,7 @@ wlan_ops_sta_process_rx_packet(IN t_void *adapter, IN pmlan_buffer pmbuf)
 		priv->rxpd_rate_info =
 			wlan_convert_v14_rate_ht_info(priv->rxpd_rate_info);
 	if (priv->bss_type == MLAN_BSS_TYPE_STA) {
+		antenna = wlan_adjust_antenna(priv, prx_pd);
 		adj_rx_rate =
 			wlan_adjust_data_rate(priv, priv->rxpd_rate,
 					      priv->rxpd_rate_info);
@@ -646,7 +654,7 @@ wlan_ops_sta_process_rx_packet(IN t_void *adapter, IN pmlan_buffer pmbuf)
 							pmbuf->bss_index,
 							adj_rx_rate,
 							prx_pd->snr, prx_pd->nf,
-							prx_pd->antenna);
+							antenna);
 	}
 
 	if ((prx_pd->rx_pkt_offset + prx_pd->rx_pkt_length) !=
