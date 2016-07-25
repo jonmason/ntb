@@ -81,6 +81,7 @@ struct bcm_bt_gpio {
 } bt_gpio;
 
 int bt_is_running;
+unsigned int is_inverted_power;
 
 int check_bt_op(void)
 {
@@ -100,7 +101,15 @@ static int bcm43455_bt_rfkill_set_power(void *data, bool blocked)
 			return -1;
 		}
 #endif
-		gpio_set_value(bt_gpio.bt_en, 1);
+		if (is_inverted_power) {
+			pr_info("%s: run inverted power control (onoff=0)\n",
+				__func__);
+			gpio_set_value(bt_gpio.bt_en, 0);
+		} else {
+			pr_info("%s: run normal power control (onoff=1)\n",
+				__func__);
+			gpio_set_value(bt_gpio.bt_en, 1);
+		}
 		bt_is_running = 1;
 		msleep(100);
 
@@ -108,14 +117,34 @@ static int bcm43455_bt_rfkill_set_power(void *data, bool blocked)
 		pr_info("[BT] Bluetooth Power Off.\n");
 
 #ifdef BT_LPM_ENABLE
-		if (gpio_get_value(bt_gpio.bt_en) &&
-				irq_set_irq_wake(bt_gpio.irq, 0)) {
-			pr_err("[BT] Release_irq_wake failed.\n");
-			return -1;
+		if (is_inverted_power) {
+			pr_info("%s: check inverted power control\n",
+				__func__);
+			if (!gpio_get_value(bt_gpio.bt_en) &&
+					irq_set_irq_wake(bt_gpio.irq, 0)) {
+				pr_err("[BT] Release_irq_wake failed.\n");
+				return -1;
+			}
+		} else {
+			pr_info("%s: check normal power control\n",
+				__func__);
+			if (gpio_get_value(bt_gpio.bt_en) &&
+					irq_set_irq_wake(bt_gpio.irq, 0)) {
+				pr_err("[BT] Release_irq_wake failed.\n");
+				return -1;
+			}
 		}
 #endif
 		bt_is_running = 0;
-		gpio_set_value(bt_gpio.bt_en, 0);
+		if (is_inverted_power) {
+			pr_info("%s: run inverted power control (onoff=1)\n",
+				__func__);
+			gpio_set_value(bt_gpio.bt_en, 1);
+		} else {
+			pr_info("%s: run normal power control (onoff=0)\n",
+				__func__);
+			gpio_set_value(bt_gpio.bt_en, 0);
+		}
 	}
 	return 0;
 }
@@ -273,6 +302,13 @@ static int bcm43455_bluetooth_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
+	if (of_property_read_u32(pdev->dev.of_node, "inverted-power-control",
+				&is_inverted_power)) {
+		pr_info("%s: inverted-power-control property not found",
+				  __func__);
+		is_inverted_power = 0;
+	}
+
 	rc = devm_gpio_request(&pdev->dev, bt_gpio.bt_en, "bten_gpio");
 	if (rc) {
 		dev_err(&pdev->dev, "bt_gpio.bt_en request failed.\n");
@@ -311,7 +347,15 @@ static int bcm43455_bluetooth_probe(struct platform_device *pdev)
 #else
 	gpio_direction_output(bt_gpio.bt_wake, 0);
 #endif
-	gpio_direction_output(bt_gpio.bt_en, 0);
+	if (is_inverted_power) {
+		 pr_info("%s: run inverted power control (onoff=1)\n",
+				   __func__);
+		 gpio_direction_output(bt_gpio.bt_en, 1);
+	} else {
+		 pr_info("%s: run normal power control (onoff=0)\n",
+				   __func__);
+		 gpio_direction_output(bt_gpio.bt_en, 0);
+	}
 
 #ifdef BT_LPM_ENABLE
 	rc = bcm_bt_lpm_init(pdev);
