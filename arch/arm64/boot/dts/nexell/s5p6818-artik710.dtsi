@@ -197,6 +197,7 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&bt_cfg_hostwake &bt_cfg_btwake &bt_cfg_en>;
 		status = "okay";
+		inverted-power-control = <1>;
 	};
 
 	artik_s3t9mf {
@@ -212,6 +213,7 @@
 		gpios = <&gpio_d 28 0  /* WLAN_EN */
 			 &alive_0 3 1>; /* WLAN_HOST_WAKE */
 		status = "okay";
+		inverted-power-control = <1>;
 	};
 };
 

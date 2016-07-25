@@ -18,3 +18,13 @@
 
 /dts-v1/;
 #include "s5p6818-artik710-raptor-common.dtsi"
+/ {
+	artik_bt_control {
+		inverted-power-control = <0>;
+	};
+
+	wlan {
+		inverted-power-control = <0>;
+	};
+};
+
