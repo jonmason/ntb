@@ -379,7 +379,7 @@ static int fb_state_change(struct notifier_block *nb,
 
 	if (event == FB_EVENT_BLANK) {
 		switch (*blank) {
-		case FB_BLANK_POWERDOWN:
+		case FB_BLANK_NORMAL:
 			lcd_on = false;
 			break;
 		case FB_BLANK_UNBLANK:
