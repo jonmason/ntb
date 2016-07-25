@@ -812,5 +812,19 @@
 			resets = <&nexell_reset RESET_ID_VR>;
 			reset-names = "vr-reset";
 		};
+
+		video-codec@c0080000 {
+			compatible = "nexell, nx-vpu";
+			reg = <0xc0080000 0x4000>;
+			interrupts = <IRQ_CODA960_HOST>,
+				<IRQ_CODA960_JPG>;
+			resets = <&nexell_reset RESET_ID_CODA_A>,
+				<&nexell_reset RESET_ID_CODA_P>,
+				<&nexell_reset RESET_ID_CODA_C>;
+			reset-names = "vpu-a-reset", "vpu-p-reset",
+				"vpu-c-reset";
+			clocks = <&pclk>, <&bclk>;
+			status = "disabled";
+		};
 	}; /*** soc ***/
 };
