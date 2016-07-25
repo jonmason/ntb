@@ -100,6 +100,7 @@
 		 fw_name = "mrvl/sdsd8977_combo_v2.bin";
 		 reg_alpha2 = "US";
 		 p2p_enh = <1>;
+		 inact_tmo = <300>;
 	};
 
 	sd8xxx-bt {
