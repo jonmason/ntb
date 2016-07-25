@@ -475,7 +475,7 @@ int NX_VpuInit(void *pv, void *baseAddr, void *firmVirAddr,
 int NX_VpuDeInit(void *);
 
 int NX_VpuSuspend(void *dev);
-int NX_VpuResume(void);
+int NX_VpuResume(void *dev, void *pVpuBaseAddr);
 
 int VPU_WaitVpuBusy(int mSeconds, unsigned int busyFlagReg);
 

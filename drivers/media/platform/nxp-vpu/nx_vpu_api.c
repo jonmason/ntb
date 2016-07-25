@@ -421,7 +421,6 @@ int VPU_SWReset(int resetMode)
 		return VPU_RET_ERR_TIMEOUT;
 	}
 
-	VpuWriteReg(BIT_USE_NX_EXPND, USE_NX_EXPND);
 	VpuWriteReg(BIT_SW_RESET, 0);
 
 	return VPU_RET_OK;
@@ -566,7 +565,7 @@ int NX_VpuSuspend(void *dev)
 	return VPU_RET_OK;
 }
 
-int NX_VpuResume(void)
+int NX_VpuResume(void *dev, void *pVpuBaseAddr)
 {
 	int i;
 	unsigned int value;
@@ -574,7 +573,7 @@ int NX_VpuResume(void)
 	if (!gstIsInitialized)
 		return VPU_RET_ERR_INIT;
 
-	NX_VPU_HwOn(NULL, NULL);
+	NX_VPU_HwOn(dev, pVpuBaseAddr);
 
 	VPU_SWReset(SW_RESET_ON_BOOT);
 
