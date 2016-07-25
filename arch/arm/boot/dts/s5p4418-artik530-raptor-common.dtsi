@@ -324,6 +324,11 @@
 					regulator-always-on;
 					regulator-boot-on;};
 		}; /* regulators */
+
+		video-codec@c0080000 {
+			status = "okay";
+			sram = <0 0>;
+		};
 	};	/*** soc ***/
 
 	backlight: pwm-backlight {
