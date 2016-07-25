@@ -8756,7 +8756,7 @@ static const u32 s5k4ec_5m_capture[] = {
 	0x0F12278D, /* REG_0TC_CCFG_usMinOut4KHzRate */
 	0x0F120100, /* REG_0TC_CCFG_OutClkPerPix88 */
 	0x0F120300, /* REG_0TC_CCFG_uBpp88 */
-	0x0F120042, /* REG_0TC_CCFG_PVIMask */
+	0x0F120002, /* REG_0TC_CCFG_PVIMask */
 	0x0F120000, /* REG_0TC_CCFG_OIFMask */
 	0x0F120810, /* REG_0TC_CCFG_usJpegPacketSize */
 	0x0F120000, /* REG_0TC_CCFG_usJpegTotalPackets */
@@ -8904,7 +8904,7 @@ static const u32 s5k4ec_3m_capture[] = {
 	0x0F12278D, /* REG_0TC_CCFG_usMinOut4KHzRate */
 	0x0F120100, /* REG_0TC_CCFG_OutClkPerPix88 */
 	0x0F120300, /* REG_0TC_CCFG_uBpp88 */
-	0x0F120042, /* REG_0TC_CCFG_PVIMask */
+	0x0F120002, /* REG_0TC_CCFG_PVIMask */
 	0x0F120000, /* REG_0TC_CCFG_OIFMask */
 	0x0F120810, /* REG_0TC_CCFG_usJpegPacketSize */
 	0x0F120000, /* REG_0TC_CCFG_usJpegTotalPackets */
@@ -9227,7 +9227,7 @@ static const u32 s5k4ec_2m_capture[] = {
 	0x0F12278D, /* REG_0TC_CCFG_usMinOut4KHzRate */
 	0x0F120100, /* REG_0TC_CCFG_OutClkPerPix88 */
 	0x0F120300, /* REG_0TC_CCFG_uBpp88 */
-	0x0F120042, /* REG_0TC_CCFG_PVIMask */
+	0x0F120002, /* REG_0TC_CCFG_PVIMask */
 	0x0F120000, /* REG_0TC_CCFG_OIFMask */
 	0x0F120810, /* REG_0TC_CCFG_usJpegPacketSize */
 	0x0F120000, /* REG_0TC_CCFG_usJpegTotalPackets */
@@ -9275,7 +9275,7 @@ static const u32 s5k4ec_1m_capture[] = {
 	0x0F12278D, /* REG_0TC_CCFG_usMinOut4KHzRate */
 	0x0F120100, /* REG_0TC_CCFG_OutClkPerPix88 */
 	0x0F120300, /* REG_0TC_CCFG_uBpp88 */
-	0x0F120042, /* REG_0TC_CCFG_PVIMask */
+	0x0F120002, /* REG_0TC_CCFG_PVIMask */
 	0x0F120000, /* REG_0TC_CCFG_OIFMask */
 	0x0F120810, /* REG_0TC_CCFG_usJpegPacketSize */
 	0x0F120000, /* REG_0TC_CCFG_usJpegTotalPackets */
@@ -9323,7 +9323,7 @@ static const u32 s5k4ec_xga_capture[] = {
 	0x0F12278D, /* REG_0TC_CCFG_usMinOut4KHzRate */
 	0x0F120100, /* REG_0TC_CCFG_OutClkPerPix88 */
 	0x0F120300, /* REG_0TC_CCFG_uBpp88 */
-	0x0F120042, /* REG_0TC_CCFG_PVIMask */
+	0x0F120002, /* REG_0TC_CCFG_PVIMask */
 	0x0F120000, /* REG_0TC_CCFG_OIFMask */
 	0x0F120810, /* REG_0TC_CCFG_usJpegPacketSize */
 	0x0F120000, /* REG_0TC_CCFG_usJpegTotalPackets */
@@ -9371,7 +9371,7 @@ static const u32 s5k4ec_vga_capture[] = {
 	0x0F12278D, /* REG_0TC_CCFG_usMinOut4KHzRate */
 	0x0F120100, /* REG_0TC_CCFG_OutClkPerPix88 */
 	0x0F120300, /* REG_0TC_CCFG_uBpp88 */
-	0x0F120042, /* REG_0TC_CCFG_PVIMask */
+	0x0F120002, /* REG_0TC_CCFG_PVIMask */
 	0x0F120000, /* REG_0TC_CCFG_OIFMask */
 	0x0F120810, /* REG_0TC_CCFG_usJpegPacketSize */
 	0x0F120000, /* REG_0TC_CCFG_usJpegTotalPackets */

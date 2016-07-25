@@ -1754,7 +1754,6 @@ static int sensor_4ec_init(struct v4l2_subdev *subdev, u32 val)
 	}
 #endif
 
-	s5k4ec_state->mode = S5K4EC_OPRMODE_VIDEO;
 	s5k4ec_state->sensor_mode = SENSOR_CAMERA;
 	s5k4ec_state->contrast = CONTRAST_DEFAULT;
 	s5k4ec_state->effect = IMAGE_EFFECT_NONE;
@@ -1877,6 +1876,11 @@ static int sensor_4ec_s_format(struct v4l2_subdev *subdev,
 	s5k4ec_state->fmt.code = fmt->code;
 
 	size = NULL;
+
+	if (fmt->width > 1920 && fmt->height > 1080)
+		s5k4ec_state->mode = S5K4EC_OPRMODE_IMAGE;
+	else
+		s5k4ec_state->mode = S5K4EC_OPRMODE_VIDEO;
 
 	if (s5k4ec_state->mode == S5K4EC_OPRMODE_IMAGE) {
 		cam_info("for capture\n");
@@ -3634,6 +3638,7 @@ int sensor_4ec_probe(struct i2c_client *client,
 	INIT_WORK(&s5k4ec_state->af_stop_work, sensor_4ec_af_stop_worker);
 
 	s5k4ec_state->fps = FRAME_RATE_30; /* default frame rate */
+	s5k4ec_state->mode = S5K4EC_OPRMODE_VIDEO;
 
 p_err:
 	cam_info("(%d)\n", ret);
