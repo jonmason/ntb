@@ -102,6 +102,8 @@ extern struct mmc_host *wlan_mmc;
 extern void mmc_ctrl_power(struct mmc_host *host, bool onoff);
 #endif /* CONFIG_MACH_UNIVERSAL3475 */
 
+unsigned int is_inverted_power;
+
 static int
 dhd_wlan_power(int onoff)
 {
@@ -113,6 +115,14 @@ dhd_wlan_power(int onoff)
 	printk(KERN_INFO"------------------------------------------------\n");
 	printk(KERN_INFO"%s Enter: power %s\n", __FUNCTION__, onoff ? "on" : "off");
 
+	if (is_inverted_power) {
+		 onoff = onoff ? 0: 1;
+		 pr_info("%s: run inverted power control (onoff=%d)\n",
+			__func__, onoff);
+	} else {
+		 pr_info("%s: run normal power control (onoff=%d)\n",
+			__func__, onoff);
+	}
 #ifdef EXYNOS_PCIE_RC_ONOFF
 	if (!onoff) {
 		exynos_pcie_poweroff(SAMSUNG_PCIE_CH_NUM);
@@ -196,6 +206,19 @@ dhd_wlan_init_gpio(void)
 		return -ENODEV;
 	}
 
+	if (of_property_read_u32(root_node, "inverted-power-control",
+				&is_inverted_power)) {
+		pr_info("%s: inverted-power-control property not found",
+				  __func__);
+		is_inverted_power = 0;
+	}
+
+	if (!is_inverted_power) {
+		pr_info("%s: Run normal power control\n", __func__);
+	} else {
+		pr_info("%s: Run inverted power control\n", __func__);
+	}
+
 	/* ========== WLAN_PWR_EN ============ */
 	wlan_pwr_on = of_get_gpio(root_node, 0);
 	if (!gpio_is_valid(wlan_pwr_on)) {
@@ -208,9 +231,15 @@ dhd_wlan_init_gpio(void)
 		return -ENODEV;
 	}
 #ifdef CONFIG_BCMDHD_PCIE
-	gpio_direction_output(wlan_pwr_on, 1);
+	if (is_inverted_power)
+		gpio_direction_output(wlan_pwr_on, 0);
+	else
+		gpio_direction_output(wlan_pwr_on, 1);
 #else
-	gpio_direction_output(wlan_pwr_on, 0);
+	if (is_inverted_power)
+		gpio_direction_output(wlan_pwr_on, 1);
+	else
+		gpio_direction_output(wlan_pwr_on, 0);
 #endif /* CONFIG_BCMDHD_PCIE */
 	gpio_export(wlan_pwr_on, 1);
 	msleep(WIFI_TURNON_DELAY);
