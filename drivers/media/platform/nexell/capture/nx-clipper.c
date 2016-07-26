@@ -184,6 +184,7 @@ struct nx_clipper {
 	struct nx_video_buffer_object vbuf_obj;
 	struct nx_v4l2_irq_entry *irq_entry;
 	u32 mem_fmt;
+	bool buffer_underrun;
 #endif
 
 #ifdef DEBUG_SYNC
@@ -893,14 +894,14 @@ static int enable_sensor_power(struct nx_clipper *me, bool enable)
 #ifdef CONFIG_VIDEO_NEXELL_CLIPPER
 static int update_buffer(struct nx_clipper *me)
 {
-	int ret;
 	struct nx_video_buffer *buf;
 
-	ret = nx_video_update_buffer(&me->vbuf_obj);
-	if (ret)
-		return ret;
+	buf = nx_video_get_next_buffer(&me->vbuf_obj, false);
+	if (!buf) {
+		dev_err(&me->pdev->dev, "can't get next buffer\n");
+		return -ENOENT;
+	}
 
-	buf = me->vbuf_obj.cur_buf;
 	nx_vip_set_clipper_addr(me->module, me->mem_fmt,
 				me->crop.width, me->crop.height,
 				buf->dma_addr[0], buf->dma_addr[1],
@@ -960,12 +961,17 @@ static irqreturn_t nx_clipper_irq_handler(void *data)
 	}
 
 	if (do_process) {
-		nx_video_done_buffer(&me->vbuf_obj);
+		bool done;
+
+		done = nx_video_done_buffer(&me->vbuf_obj);
 		if (NX_ATOMIC_READ(&me->state) & STATE_MEM_STOPPING) {
 			nx_vip_stop(me->module, VIP_CLIPPER);
 			complete(&me->stop_done);
-		} else {
+		} else if (done) {
 			update_buffer(me);
+		} else {
+			nx_vip_stop(me->module, VIP_CLIPPER);
+			me->buffer_underrun = true;
 		}
 	}
 
@@ -996,6 +1002,12 @@ static int clipper_buffer_queue(struct nx_video_buffer *buf, void *data)
 	struct nx_clipper *me = data;
 
 	nx_video_add_buffer(&me->vbuf_obj, buf);
+
+	if (me->buffer_underrun) {
+		pr_debug("%s: rerun vip\n", __func__);
+		me->buffer_underrun = false;
+		nx_vip_run(me->module, VIP_CLIPPER);
+	}
 	return 0;
 }
 
@@ -1174,14 +1186,19 @@ static int nx_clipper_s_stream(struct v4l2_subdev *sd, int enable)
 #ifdef CONFIG_VIDEO_NEXELL_CLIPPER
 		if (is_host_video &&
 		    (NX_ATOMIC_READ(&me->state) & STATE_MEM_RUNNING)) {
-			NX_ATOMIC_SET_MASK(STATE_MEM_STOPPING, &me->state);
-			if (!wait_for_completion_timeout(&me->stop_done,
-							 2*HZ)) {
-				pr_warn("timeout for waiting clipper stop\n");
-				nx_vip_stop(module, VIP_CLIPPER);
-			}
+			if (!me->buffer_underrun) {
+				NX_ATOMIC_SET_MASK(STATE_MEM_STOPPING,
+						   &me->state);
+				if (!wait_for_completion_timeout(&me->stop_done,
+								 2*HZ)) {
+					pr_warn("timeout for waiting clipper stop\n");
+					nx_vip_stop(module, VIP_CLIPPER);
+				}
 
-			NX_ATOMIC_CLEAR_MASK(STATE_MEM_STOPPING, &me->state);
+				NX_ATOMIC_CLEAR_MASK(STATE_MEM_STOPPING,
+						     &me->state);
+			}
+			me->buffer_underrun = false;
 			unregister_irq_handler(me);
 			nx_video_clear_buffer(&me->vbuf_obj);
 			NX_ATOMIC_CLEAR_MASK(STATE_MEM_RUNNING, &me->state);
@@ -1810,16 +1827,19 @@ static int nx_clipper_resume(struct device *dev)
 				v4l2_subdev_call(remote, video, s_stream, 1);
 				nx_vip_set_clipper_format(me->module,
 							  me->mem_fmt);
-				buf = me->last_buf;
-				nx_vip_set_clipper_addr(me->module, me->mem_fmt,
-							me->crop.width,
-							me->crop.height,
-							buf->dma_addr[0],
-							buf->dma_addr[1],
-							buf->dma_addr[2],
-							buf->stride[0],
-							buf->stride[1]);
-				nx_vip_run(me->module, VIP_CLIPPER);
+				if (!me->buffer_underrun) {
+					buf = me->last_buf;
+					nx_vip_set_clipper_addr(me->module,
+								me->mem_fmt,
+								me->crop.width,
+								me->crop.height,
+								buf->dma_addr[0],
+								buf->dma_addr[1],
+								buf->dma_addr[2],
+								buf->stride[0],
+								buf->stride[1]);
+					nx_vip_run(me->module, VIP_CLIPPER);
+				}
 			}
 		}
 #endif
