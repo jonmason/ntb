@@ -130,8 +130,11 @@ struct s3c24xx_i2c {
 	struct s3c2410_platform_i2c	*pdata;
 	int			gpios[2];
 	struct pinctrl          *pctrl;
-#if defined(CONFIG_ARM_S3C24XX_CPUFREQ)
+#if defined(CONFIG_ARM_S3C24XX_CPUFREQ) || defined(CONFIG_ARM_S5Pxx18_DEVFREQ)
 	struct notifier_block	freq_transition;
+#endif
+#if defined(CONFIG_ARM_S5Pxx18_DEVFREQ)
+	unsigned long		clk_in;
 #endif
 	struct regmap		*sysreg;
 	unsigned int		sys_i2c_cfg;
@@ -150,20 +153,6 @@ static const struct platform_device_id s3c24xx_driver_ids[] = {
 	}, { },
 };
 MODULE_DEVICE_TABLE(platform, s3c24xx_driver_ids);
-
-#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
-#define NX_I2C_QOS_TIMEOUT	(1000 * 1000)
-static struct pm_qos_request nx_i2c_qos;
-
-static void nx_i2c_qos_update(int val)
-{
-	if (!pm_qos_request_active(&nx_i2c_qos))
-		pm_qos_add_request(&nx_i2c_qos, PM_QOS_BUS_THROUGHPUT, val);
-	else
-		pm_qos_update_request_timeout(&nx_i2c_qos, val,
-				NX_I2C_QOS_TIMEOUT);
-}
-#endif
 
 static int i2c_s3c_irq_nextbyte(struct s3c24xx_i2c *i2c, unsigned long iicstat);
 
@@ -810,10 +799,6 @@ static int s3c24xx_i2c_xfer(struct i2c_adapter *adap,
 	if (ret)
 		return ret;
 
-#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
-	nx_i2c_qos_update(NX_BUS_CLK_HIGH_KHZ);
-#endif
-
 	for (retry = 0; retry < adap->retries; retry++) {
 
 		ret = s3c24xx_i2c_doxfer(i2c, msgs, num);
@@ -994,6 +979,122 @@ static inline void s3c24xx_i2c_deregister_cpufreq(struct s3c24xx_i2c *i2c)
 				    CPUFREQ_TRANSITION_NOTIFIER);
 }
 
+#elif defined(CONFIG_ARM_S5Pxx18_DEVFREQ)
+
+#define freq_to_i2c(_n) container_of(_n, struct s3c24xx_i2c, freq_transition)
+
+static int s3c24xx_i2c_clockrate_by_clkin(struct s3c24xx_i2c *i2c,
+					  unsigned long clkin,
+					  unsigned int *got)
+{
+	struct s3c2410_platform_i2c *pdata = i2c->pdata;
+	unsigned int divs, div1;
+	unsigned long target_frequency;
+	u32 iiccon;
+	int freq;
+
+	i2c->clkrate = clkin;
+	clkin /= 1000;		/* clkin now in KHz */
+
+	dev_dbg(i2c->dev, "pdata desired frequency %lu\n", pdata->frequency);
+
+	target_frequency = pdata->frequency ? pdata->frequency : 100000;
+
+	target_frequency /= 1000; /* Target frequency now in KHz */
+
+	freq = s3c24xx_i2c_calcdivisor(clkin, target_frequency, &div1, &divs);
+
+	if (freq > target_frequency) {
+		dev_err(i2c->dev,
+			"Unable to achieve desired frequency %luKHz."	\
+			" Lowest achievable %dKHz\n", target_frequency, freq);
+		return -EINVAL;
+	}
+
+	*got = freq;
+
+	iiccon = readl(i2c->regs + S3C2410_IICCON);
+	iiccon &= ~(S3C2410_IICCON_SCALEMASK | S3C2410_IICCON_TXDIV_512);
+	iiccon |= (divs-1);
+
+	if (div1 == 512)
+		iiccon |= S3C2410_IICCON_TXDIV_512;
+
+	if (i2c->quirks & QUIRK_POLL)
+		iiccon |= S3C2410_IICCON_SCALE(2);
+
+	writel(iiccon, i2c->regs + S3C2410_IICCON);
+
+	if (i2c->quirks & QUIRK_S3C2440) {
+		unsigned long sda_delay;
+
+		if (pdata->sda_delay) {
+			sda_delay = clkin * pdata->sda_delay;
+			sda_delay = DIV_ROUND_UP(sda_delay, 1000000);
+			sda_delay = DIV_ROUND_UP(sda_delay, 5);
+			if (sda_delay > 3)
+				sda_delay = 3;
+			sda_delay |= S3C2410_IICLC_FILTER_ON;
+		} else
+			sda_delay = 0;
+
+		dev_dbg(i2c->dev, "IICLC=%08lx\n", sda_delay);
+		writel(sda_delay, i2c->regs + S3C2440_IICLC);
+	}
+
+	return 0;
+}
+
+static int s3c24xx_i2c_cpufreq_transition(struct notifier_block *nb,
+					  unsigned long val, void *data)
+{
+	unsigned long freq;
+	unsigned int got;
+	int ret;
+	struct s3c24xx_i2c *i2c = freq_to_i2c(nb);
+	unsigned long clkin = clk_get_rate(i2c->clk);
+
+	/* change KHz to MHz */
+	freq = (val * 1000) / 2;
+
+	if (i2c->clk_in == 0) {
+		i2c->clk_in = clkin;
+		dev_info(i2c->dev, "Original clock in freq: %lu\n", clkin);
+	}
+
+	dev_dbg(i2c->dev, "freq %lu, clk_in %lu\n", freq, i2c->clk_in);
+
+	if (freq != i2c->clk_in) {
+		dev_dbg(i2c->dev, "Changed source clk from %lu -> %lu\n",
+			 i2c->clk_in, freq);
+
+		i2c_lock_adapter(&i2c->adap);
+		ret = s3c24xx_i2c_clockrate_by_clkin(i2c, freq, &got);
+		i2c_unlock_adapter(&i2c->adap);
+
+		if (ret < 0) {
+			dev_err(i2c->dev, "cannot find frequency\n");
+		} else {
+			dev_dbg(i2c->dev, "setting freq %d\n", got);
+			i2c->clk_in = freq;
+		}
+	}
+
+	return 0;
+}
+
+static inline int s3c24xx_i2c_register_cpufreq(struct s3c24xx_i2c *i2c)
+{
+	i2c->freq_transition.notifier_call = s3c24xx_i2c_cpufreq_transition;
+
+	return pm_qos_add_notifier(PM_QOS_BUS_THROUGHPUT,
+				   &i2c->freq_transition);
+}
+
+static inline void s3c24xx_i2c_deregister_cpufreq(struct s3c24xx_i2c *i2c)
+{
+	pm_qos_remove_notifier(PM_QOS_BUS_THROUGHPUT, &i2c->freq_transition);
+}
 #else
 static inline int s3c24xx_i2c_register_cpufreq(struct s3c24xx_i2c *i2c)
 {
