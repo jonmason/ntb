@@ -780,6 +780,7 @@ static int nx_video_dqbuf(struct file *file, void *fh,
 
 	if (me->vbq)
 		return vb2_dqbuf(me->vbq, b, file->f_flags & O_NONBLOCK);
+
 	return -EINVAL;
 }
 
@@ -1283,55 +1284,65 @@ void nx_video_cleanup(struct nx_video *me)
 }
 EXPORT_SYMBOL_GPL(nx_video_cleanup);
 
-int nx_video_update_buffer(struct nx_video_buffer_object *obj)
+int nx_video_get_buffer_count(struct nx_video_buffer_object *obj)
 {
-	unsigned long flags;
-	struct nx_video_buffer *buf;
-
-	spin_lock_irqsave(&obj->slock, flags);
-	if (obj->buffer_count == 0) {
-		obj->cur_buf = NULL;
-		spin_unlock_irqrestore(&obj->slock, flags);
-		return -ENOENT;
-	}
-	buf = list_first_entry(&obj->buffer_list, struct nx_video_buffer, list);
-	list_del_init(&buf->list);
-	obj->cur_buf = buf;
-	obj->buffer_count--;
-	spin_unlock_irqrestore(&obj->slock, flags);
-
-	return 0;
+	return atomic_read(&obj->buffer_count);
 }
-EXPORT_SYMBOL_GPL(nx_video_update_buffer);
+EXPORT_SYMBOL_GPL(nx_video_get_buffer_count);
 
-void nx_video_done_buffer(struct nx_video_buffer_object *obj)
-{
-	unsigned long flags;
-	struct nx_video_buffer *buf;
-
-	spin_lock_irqsave(&obj->slock, flags);
-	buf = obj->cur_buf;
-	obj->cur_buf = NULL;
-	spin_unlock_irqrestore(&obj->slock, flags);
-
-	if (!buf)
-		return;
-
-	if (buf->cb_buf_done) {
-		buf->consumer_index++;
-		buf->cb_buf_done(buf);
-	}
-}
-EXPORT_SYMBOL_GPL(nx_video_done_buffer);
-
-void nx_video_clear_buffer(struct nx_video_buffer_object *obj)
+struct nx_video_buffer *
+nx_video_get_next_buffer(struct nx_video_buffer_object *obj, bool remove)
 {
 	unsigned long flags;
 	struct nx_video_buffer *buf = NULL;
 
 	spin_lock_irqsave(&obj->slock, flags);
+	if (!list_empty(&obj->buffer_list)) {
+		buf = list_first_entry(&obj->buffer_list,
+				       struct nx_video_buffer, list);
+		if (remove) {
+			list_del_init(&buf->list);
+			atomic_dec(&obj->buffer_count);
+		}
+	}
+	spin_unlock_irqrestore(&obj->slock, flags);
 
-	if (obj->buffer_count > 0) {
+	return buf;
+}
+EXPORT_SYMBOL_GPL(nx_video_get_next_buffer);
+
+bool nx_video_done_buffer(struct nx_video_buffer_object *obj)
+{
+	struct nx_video_buffer *done_buf;
+
+	if (nx_video_get_buffer_count(obj) == 1) {
+		pr_debug("%s: only 1 buffer\n", __func__);
+		return false;
+	}
+
+	done_buf = nx_video_get_next_buffer(obj, true);
+	if (!done_buf) {
+		BUG();
+		return false;
+	}
+
+	if (done_buf->cb_buf_done) {
+		done_buf->consumer_index++;
+		done_buf->cb_buf_done(done_buf);
+	}
+
+	return true;
+}
+EXPORT_SYMBOL_GPL(nx_video_done_buffer);
+
+void nx_video_clear_buffer(struct nx_video_buffer_object *obj)
+{
+	struct nx_video_buffer *buf = NULL;
+
+	if (nx_video_get_buffer_count(obj)) {
+		unsigned long flags;
+
+		spin_lock_irqsave(&obj->slock, flags);
 		while (!list_empty(&obj->buffer_list)) {
 			buf = list_entry(obj->buffer_list.next,
 					 struct nx_video_buffer, list);
@@ -1343,12 +1354,11 @@ void nx_video_clear_buffer(struct nx_video_buffer_object *obj)
 				break;
 		}
 		INIT_LIST_HEAD(&obj->buffer_list);
+		spin_unlock_irqrestore(&obj->slock, flags);
 	}
 
-	obj->buffer_count = 0;
-	obj->cur_buf = NULL;
+	atomic_set(&obj->buffer_count, 0);
 
-	spin_unlock_irqrestore(&obj->slock, flags);
 }
 EXPORT_SYMBOL_GPL(nx_video_clear_buffer);
 
@@ -1356,7 +1366,7 @@ void nx_video_init_vbuf_obj(struct nx_video_buffer_object *obj)
 {
 	spin_lock_init(&obj->slock);
 	INIT_LIST_HEAD(&obj->buffer_list);
-	obj->buffer_count = 0;
+	atomic_set(&obj->buffer_count, 0);
 }
 EXPORT_SYMBOL_GPL(nx_video_init_vbuf_obj);
 
@@ -1365,10 +1375,11 @@ void nx_video_add_buffer(struct nx_video_buffer_object *obj,
 {
 	unsigned long flags;
 
+
 	spin_lock_irqsave(&obj->slock, flags);
 	list_add_tail(&buf->list, &obj->buffer_list);
-	obj->buffer_count++;
 	spin_unlock_irqrestore(&obj->slock, flags);
+	atomic_inc(&obj->buffer_count);
 }
 EXPORT_SYMBOL_GPL(nx_video_add_buffer);
 

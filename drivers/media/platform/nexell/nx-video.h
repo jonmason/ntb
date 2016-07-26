@@ -71,8 +71,7 @@ struct nx_video_buffer_object {
 	struct nx_video *video;
 	struct list_head buffer_list;
 	spinlock_t slock;
-	struct nx_video_buffer *cur_buf;
-	u32 buffer_count;
+	atomic_t buffer_count;
 	struct nx_buffer_consumer *consumer;
 };
 
@@ -144,8 +143,10 @@ struct nx_video {
 struct nx_video *nx_video_create(char *, u32 type, struct v4l2_device *,
 				 void *);
 void nx_video_cleanup(struct nx_video *);
-int nx_video_update_buffer(struct nx_video_buffer_object *obj);
-void nx_video_done_buffer(struct nx_video_buffer_object *obj);
+int nx_video_get_buffer_count(struct nx_video_buffer_object *);
+bool nx_video_done_buffer(struct nx_video_buffer_object *obj);
+struct nx_video_buffer *
+nx_video_get_next_buffer(struct nx_video_buffer_object *obj, bool remove);
 void nx_video_clear_buffer(struct nx_video_buffer_object *obj);
 void nx_video_init_vbuf_obj(struct nx_video_buffer_object *obj);
 void nx_video_add_buffer(struct nx_video_buffer_object *obj,
