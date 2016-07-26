@@ -1715,8 +1715,8 @@ int s5pxx18_gpio_resume(int idx)
 	writel(gpio_save->GPIOx_PULLENB_DISABLE_DEFAULT,
 		&reg->GPIOx_PULLENB_DISABLE_DEFAULT);
 
-	writel(gpio_save->GPIOxOUTENB, &reg->GPIOxOUTENB);
 	writel(gpio_save->GPIOxOUT, &reg->GPIOxOUT);
+	writel(gpio_save->GPIOxOUTENB, &reg->GPIOxOUTENB);
 	writel(gpio_save->GPIOxALTFN[0], &reg->GPIOxALTFN[0]);
 	writel(gpio_save->GPIOxALTFN[1], &reg->GPIOxALTFN[1]);
 	writel(gpio_save->GPIOxDETMODE[0], &reg->GPIOxDETMODE[0]);
