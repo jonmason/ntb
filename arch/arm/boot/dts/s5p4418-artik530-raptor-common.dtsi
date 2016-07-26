@@ -303,7 +303,9 @@
 					{ PMIC_PDATA_INIT( 8,
 					"nxe2000_ldo4",
 					1000000, 3500000,
-					1200000, 0, 1, 0x2)};
+					1200000, 0, 1, 0x2)
+					regulator-always-on;
+					regulator-boot-on;};
 			VCC_LDO4:ldo5
 					{ PMIC_PDATA_INIT( 9,
 					"nxe2000_ldo5",
