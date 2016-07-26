@@ -455,7 +455,6 @@ static int vidioc_try_fmt(struct file *file, void *priv, struct v4l2_format *f)
 
 static int vidioc_s_fmt(struct file *file, void *priv, struct v4l2_format *f)
 {
-	struct nx_vpu_v4l2 *dev = video_drvdata(file);
 	struct nx_vpu_ctx *ctx = fh_to_ctx(priv);
 	struct nx_vpu_fmt *fmt;
 	struct v4l2_pix_format_mplane *pix_fmt_mp = &f->fmt.pix_mp;

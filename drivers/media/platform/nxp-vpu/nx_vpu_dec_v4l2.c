@@ -690,7 +690,7 @@ int vpu_dec_open_instance(struct nx_vpu_ctx *ctx)
 	struct nx_vpu_codec_inst *hInst = 0;
 	struct vpu_open_arg openArg;
 	int workBufSize = WORK_BUF_SIZE;
-	int ret;
+	int ret = 0;
 
 	FUNC_IN();
 
@@ -1117,6 +1117,9 @@ int vpu_dec_decode_slice(struct nx_vpu_ctx *ctx)
 		decArg.strmDataSize = 0;
 		decArg.strmData = 0;
 		decArg.eos = dec_ctx->eos_tag;
+
+		timestamp.tv_sec = -1;
+		timestamp.tv_usec = -1;
 	}
 
 	dec_ctx->start_Addr = dec_ctx->end_Addr;
@@ -1165,7 +1168,7 @@ int vpu_dec_decode_slice(struct nx_vpu_ctx *ctx)
 			decArg.indexFrameDisplay));
 		dec_ctx->delay_frm = 1;
 	} else if (decArg.indexFrameDisplay == -2) {
-		NX_DbgMsg(INFO_MSG, ("Skip Frame(%d)\n"));
+		NX_DbgMsg(INFO_MSG, ("Skip Frame\n"));
 		dec_ctx->delay_frm = -1;
 	} else {
 		NX_ErrMsg(("There is not decoded img!!!\n"));

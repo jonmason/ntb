@@ -350,7 +350,6 @@ static void SetupJpegEncPara(struct enc_jpeg_info *pJpgInfo, int quality)
 static int EncodeJpegHeader(struct enc_jpeg_info *pJpgInfo)
 {
 	unsigned char *p = pJpgInfo->jpegHeader;
-	int len = sizeof(pJpgInfo->jpegHeader);
 	int tot = 0;
 	int i;
 	/* int jfifLen = 16, pad; */

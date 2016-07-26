@@ -649,14 +649,14 @@ int NX_VpuParaInitialized(void *dev)
 	gstCodaClockEnRegVir = (uint32_t *)devm_ioremap_nocache(dev,
 		CODA960CLKENB_REG, 4);
 	if (!gstCodaClockEnRegVir)
-		return -EBUSY;
+		return -1;
 
 	gstIsolateBase = (uint32_t *)devm_ioremap_nocache(dev,
 		VPU_NISOLATE_REG, 128);
 	gstAliveBase = (uint32_t *)devm_ioremap_nocache(dev,
 		VPU_ALIVEGATE_REG, 128);
 	if (!gstIsolateBase || !gstAliveBase)
-		return -EBUSY;
+		return -1;
 
 	return 0;
 }
