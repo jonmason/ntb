@@ -455,6 +455,7 @@ int nx_soc_dp_plane_rgb_set_format(struct dp_plane_layer *layer,
 	int module = layer->module;
 	int num = layer->num;
 	int en_alpha = 0;
+	int m_lock_size = 16;
 
 	pr_debug("%s: %s, fmt:0x%x, pixel=%d\n",
 		 __func__, layer->name, format, pixelbyte);
@@ -478,6 +479,7 @@ int nx_soc_dp_plane_rgb_set_format(struct dp_plane_layer *layer,
 		en_alpha = 1;
 
 	/* nx_mlc_set_transparency(module,layer,0,layer->color.transcolor); */
+	nx_mlc_set_lock_size(module, layer->num, m_lock_size);
 	nx_mlc_set_color_inversion(module, num, 0, layer->color.invertcolor);
 	nx_mlc_set_alpha_blending(module, num, en_alpha,
 			layer->color.alphablend);
@@ -663,6 +665,7 @@ int nx_soc_dp_plane_video_set_format(struct dp_plane_layer *layer,
 			unsigned int format, bool adjust)
 {
 	int module = layer->module;
+	int m_lock_size = 16;
 
 	if (layer->format == format)
 		return 0;
@@ -673,6 +676,7 @@ int nx_soc_dp_plane_video_set_format(struct dp_plane_layer *layer,
 	pr_debug("%s: %s, format=0x%x\n",
 		__func__, layer->name, format);
 
+	nx_mlc_set_lock_size(module, LAYER_VIDEO, m_lock_size);
 	nx_mlc_set_format_yuv(module, (enum nx_mlc_yuvfmt)format);
 	dp_plane_adjust(module, LAYER_VIDEO, adjust);
 
