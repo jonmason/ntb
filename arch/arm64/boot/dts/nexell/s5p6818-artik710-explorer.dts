@@ -50,11 +50,6 @@
 		status = "okay";
 	};
 
-	nx-devfreq {
-		pll = <0>;
-		status = "okay";
-	};
-
 	soc {
 
 		clocks {
