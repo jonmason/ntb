@@ -64,14 +64,6 @@
 			};
 		};
 	};	/*** soc ***/
-
-	artik_bt_control {
-		inverted-power-control = <0>;
-	};
-
-	wlan {
-		inverted-power-control = <0>;
-	};
 };
 
 &dw_mmc_0 {
