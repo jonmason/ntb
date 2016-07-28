@@ -249,6 +249,10 @@
 			};
 		};
 
+		scaler@c0066000 {
+			status = "okay";
+		};
+
 		regulators {
 			VCC_DCDC0:dcdc1
 					{ PMIC_PDATA_INIT( 0,
