@@ -797,6 +797,17 @@
 			};
 		};
 
+		scaler@c0066000 {
+			compatible = "nexell,scaler";
+			reg = <PHYS_BASE_SCALER 0x1000>;
+			interrupts = <IRQ_SCALER>;
+			clock-names = "scaler";
+			clocks = <&scaler>;
+			reset-names = "scaler-reset";
+			resets = <&nexell_reset RESET_ID_SCALER>;
+			status = "disabled";
+		};
+
 		gpu@c0070000 {
 			compatible = "arm,mali-400", "arm,mali-utgard";
 			reg = <PHYS_BASE_VR 0x10000>;
