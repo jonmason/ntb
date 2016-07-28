@@ -19,7 +19,7 @@
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
-#include "s5p4418.dtsi"
+#include "nxp4330.dtsi"
 
 / {
 	memory {
