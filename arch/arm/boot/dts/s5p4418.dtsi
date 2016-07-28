@@ -364,23 +364,7 @@
 			pinctrl-3 = <&i2c2_pin_scl_gpio>;
 			status = "disabled";
 		};
-#ifdef CONFIG_CPU_NXP4330
-		dw_mmc_0:dw_mmc@c0062000 {
-			compatible = "nexell,s5p6818-dw-mshc";
-			interrupts = <IRQ_SDMMC0>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-			reg = <PHYS_BASE_SDMMC0 0x1000>;
-			resets  = <&nexell_reset RESET_ID_SDMMC0>;
-			reset-names = "dw_mmc-reset";
-			clock-names = "biu", "ciu";
-			clocks = <&sdhc0>, <&sdhc0>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&sdmmc0_cclk &sdmmc0_cmd &sdmmc0_bus4>;
-			fifo-detph = <0x20>;
-			status = "disabled";
-		};
-#else
+
 		dw_mmc_2:dw_mmc@c0069000 {
 			compatible = "nexell,s5p6818-dw-mshc";
 			interrupts = <IRQ_SDMMC2>;
@@ -396,7 +380,7 @@
 			fifo-detph = <0x20>;
 			status = "disabled";
 		};
-#endif
+
 		dw_mmc_1:dw_mmc@c0068000 {
 			compatible = "nexell,s5p6818-dw-mshc";
 			interrupts = <IRQ_SDMMC1>;
@@ -412,23 +396,7 @@
 			fifo-detph = <0x20>;
 			status = "disabled";
 		};
-#ifdef CONFIG_CPU_NXP4330
-		dw_mmc_2:dw_mmc@c0069000 {
-			compatible = "nexell,s5p6818-dw-mshc";
-			interrupts = <IRQ_SDMMC2>;
-			#address-cells = <1>;
-			#size-cells = <0>;
-			reg = <PHYS_BASE_SDMMC2 0x1000>;
-			resets  = <&nexell_reset RESET_ID_SDMMC2>;
-			reset-names = "dw_mmc-reset";
-			clock-names = "biu","ciu";
-			clocks = <&sdhc2>, <&sdhc2>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&sdmmc2_cclk &sdmmc2_cmd &sdmmc2_bus4>;
-			fifo-detph = <0x20>;
-			status = "disabled";
-		};
-#else
+
 		dw_mmc_0:dw_mmc@c0062000 {
 			compatible = "nexell,s5p6818-dw-mshc";
 			interrupts = <IRQ_SDMMC0>;
@@ -444,7 +412,7 @@
 			fifo-detph = <0x20>;
 			status = "disabled";
 		};
-#endif
+
 		adc:adc@c0053000 {
 			compatible = "nexell,s5p4418-adc";
 			reg = <PHYS_BASE_ADC 0x1000>;
