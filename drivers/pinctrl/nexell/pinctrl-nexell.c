@@ -28,7 +28,7 @@
 #include <linux/of_irq.h>
 
 #include "../core.h"
-#include <linux/soc/nexell/s5pxx18-gpio.h>
+#include "s5pxx18-gpio.h"
 #include "pinctrl-nexell.h"
 
 /* list of all possible config options supported */
