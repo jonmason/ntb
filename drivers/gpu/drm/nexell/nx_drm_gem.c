@@ -148,7 +148,7 @@ static struct page *__alloc_order_pages(size_t size, unsigned int max_order)
 	int i;
 
 	high_gfp = (GFP_HIGHUSER | __GFP_ZERO | __GFP_NOWARN |
-			     __GFP_NORETRY) & ~__GFP_WAIT;
+			     __GFP_NORETRY) & ~__GFP_RECLAIM;
 	low_gfp = (GFP_HIGHUSER | __GFP_ZERO | __GFP_NOWARN);
 
 	for (i = 0; i < num_orders; i++) {
