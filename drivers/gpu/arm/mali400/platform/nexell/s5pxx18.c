@@ -152,9 +152,7 @@ int mali_platform_device_init(struct platform_device *device)
 	 */
 	if (!device->dev.dma_mask)
 		device->dev.dma_mask = &device->dev.coherent_dma_mask;
-#ifdef CONFIG_ARM64
-	device->dev.archdata.dma_ops = dma_ops;
-#else
+#ifndef CONFIG_ARM64
 	device->dev.archdata.dma_ops = &arm_dma_ops;
 #endif
 
