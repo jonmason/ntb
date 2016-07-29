@@ -624,7 +624,7 @@
 			ldo7	{ PMIC_PDATA_INIT(11,
 				"nxe2000_ldo7",
 				1000000, 3500000,
-				3300000, 1, 1, 0x1)
+				3300000, 1, 1, 0x0)
 				regulator-always-on;
 				regulator-boot-on;};
 		VCC_LDO7:
@@ -637,13 +637,13 @@
 			ldo9	{ PMIC_PDATA_INIT(13,
 				"nxe2000_ldo9",
 				1000000, 3500000,
-				1800000, 0, 1, 0x0)
+				1800000, 0, 1, 0x2)
 				regulator-boot-on;};
 		VCC_LDO9:
 			ldo10	{ PMIC_PDATA_INIT(14,
 				"nxe2000_ldo10",
 				1000000, 3500000,
-				1200000, 1, 1, 0x0)
+				1200000, 1, 1, 0x4)
 				regulator-always-on;
 				regulator-boot-on;};
 		VCC_RTC0:
