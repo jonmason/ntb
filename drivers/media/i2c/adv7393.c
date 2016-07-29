@@ -304,8 +304,42 @@ static const struct v4l2_ctrl_ops adv7393_ctrl_ops = {
 	.s_ctrl = adv7393_s_ctrl,
 };
 
+int adv7393_s_register(struct v4l2_subdev *sd,
+			const struct v4l2_dbg_register *reg)
+{
+	int err = 0;
+	unsigned int addr, val;
+
+	while (1) {
+		if ((reg->reg == 0xFF) && (reg->val == 0xFF))
+			break;
+
+		addr = (unsigned int)reg->reg;
+		val = (unsigned int)reg->val;
+
+		err = adv7393_write(sd, addr, val);
+		if (err < 0) {
+			v4l2_err(sd, "Error setting register, write failed\n");
+			v4l2_err(sd, "Address : [0x%0X], Value : [0x%0X]\n",
+				(unsigned int)reg->reg, (unsigned int)reg->val);
+			err = -1;
+		}
+		reg++;
+	}
+
+	return err;
+}
+
 static const struct v4l2_subdev_core_ops adv7393_core_ops = {
 	.log_status = adv7393_log_status,
+	.g_ext_ctrls = v4l2_subdev_g_ext_ctrls,
+	.try_ext_ctrls = v4l2_subdev_try_ext_ctrls,
+	.s_ext_ctrls = v4l2_subdev_s_ext_ctrls,
+	.g_ctrl = v4l2_subdev_g_ctrl,
+	.s_ctrl = v4l2_subdev_s_ctrl,
+	.queryctrl = v4l2_subdev_queryctrl,
+	.querymenu = v4l2_subdev_querymenu,
+	.s_register = adv7393_s_register,
 };
 
 static int adv7393_s_std_output(struct v4l2_subdev *sd, v4l2_std_id std)

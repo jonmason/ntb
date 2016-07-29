@@ -459,6 +459,7 @@ config VIDEO_ADV7343
 config VIDEO_ADV7393
 	tristate "ADV7393 video encoder"
 	depends on I2C
+	select VIDEO_ADV_DEBUG
 	help
 	  Support for Analog Devices I2C bus based ADV7393 encoder.
 
