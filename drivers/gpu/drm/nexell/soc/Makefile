@@ -10,5 +10,6 @@ obj-$(CONFIG_DRM_NX_RGB) += s5pxx18_dp_rgb.o
 obj-$(CONFIG_DRM_NX_LVDS) += s5pxx18_soc_lvds.o s5pxx18_dp_lvds.o
 obj-$(CONFIG_DRM_NX_MIPI_DSI) += s5pxx18_soc_mipi.o s5pxx18_dp_mipi.o
 obj-$(CONFIG_DRM_NX_HDMI) += s5pxx18_hdmi_presets.o s5pxx18_reg_hdmi.o s5pxx18_dp_hdmi.o
+obj-$(CONFIG_DRM_NX_TVOUT) += s5pxx18_dp_tv.o s5pxx18_hdmi_presets.o s5pxx18_reg_hdmi.o s5pxx18_dp_hdmi.o
 
 

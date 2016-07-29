@@ -132,6 +132,14 @@ int nx_drm_dp_lcd_unprepare(struct nx_drm_device *display,
 			struct drm_panel *panel);
 int nx_drm_dp_lcd_disable(struct nx_drm_device *display,
 			struct drm_panel *panel);
+int nx_drm_dp_tv_prepare(struct nx_drm_device *display,
+			struct drm_panel *panel);
+int nx_drm_dp_tv_enable(struct nx_drm_device *display,
+			struct drm_panel *panel);
+int nx_drm_dp_tv_unprepare(struct nx_drm_device *display,
+			struct drm_panel *panel);
+int nx_drm_dp_tv_disable(struct nx_drm_device *display,
+			struct drm_panel *panel);
 
 int nx_drm_dp_mipi_transfer(struct mipi_dsi_host *host,
 			const struct mipi_dsi_msg *msg);

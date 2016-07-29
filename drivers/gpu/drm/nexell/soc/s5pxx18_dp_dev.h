@@ -124,6 +124,7 @@ enum dp_panel_type {
 	dp_panel_type_lvds,
 	dp_panel_type_mipi,
 	dp_panel_type_hdmi,
+	dp_panel_type_tv,
 	dp_panel_type_vidi,
 };
 
@@ -191,6 +192,10 @@ struct dp_lvds_dev {
 struct dp_hdmi_dev {
 	int preset_num;
 	void *preset_data;
+};
+
+struct dp_tv_dev {
+	void *data;
 };
 
 struct dp_mipi_xfer {
@@ -367,6 +372,11 @@ int nx_dp_device_mipi_register(struct device *dev,
 int nx_soc_dp_mipi_tx_transfer(struct dp_mipi_xfer *xfer);
 int nx_soc_dp_mipi_rx_transfer(struct dp_mipi_xfer *xfer);
 int nx_soc_dp_mipi_ransfer_done(void);
+#endif
+
+#ifdef CONFIG_DRM_NX_TVOUT
+int nx_soc_dp_tv_register(struct device *dev,
+			struct device_node *np, struct dp_control_dev *dpc);
 #endif
 
 #endif /* __S5PXX18_DP_DEV_H__ */

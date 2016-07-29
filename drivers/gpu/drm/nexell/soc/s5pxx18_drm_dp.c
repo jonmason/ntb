@@ -40,6 +40,7 @@ static const char * const panel_type_name[] = {
 	[dp_panel_type_lvds] = "LVDS",
 	[dp_panel_type_mipi] = "MIPI",
 	[dp_panel_type_hdmi] = "HDMI",
+	[dp_panel_type_tv] = "TV",
 };
 
 enum dp_panel_type dp_panel_get_type(struct nx_drm_device *display)
@@ -446,6 +447,12 @@ int nx_drm_dp_panel_dev_register(struct device *dev,
 		err = nx_dp_device_hdmi_register(dev, np, dpc);
 		#endif
 
+	} else if (dp_panel_type_tv == type) {
+
+		#ifdef CONFIG_DRM_NX_TVOUT
+		err = nx_soc_dp_tv_register(dev, np, dpc);
+		#endif
+
 	} else {
 		DRM_ERROR("not support panel type [%d] !!!\n", type);
 		return -EINVAL;
@@ -479,8 +486,6 @@ int nx_drm_dp_panel_ctrl_parse(struct device_node *np,
 	struct dp_control_dev *dpc = display_to_dpc(display);
 	struct dp_ctrl_info *ctl = &dpc->ctrl;
 
-	parse_read_prop(np, "clk_src_lv0", ctl->clk_src_lv0);
-	parse_read_prop(np, "clk_src_lv0", ctl->clk_src_lv0);
 	parse_read_prop(np, "clk_src_lv0", ctl->clk_src_lv0);
 	parse_read_prop(np, "clk_div_lv0", ctl->clk_div_lv0);
 	parse_read_prop(np, "clk_src_lv1", ctl->clk_src_lv1);
@@ -1112,6 +1117,62 @@ int nx_drm_dp_lcd_unprepare(struct nx_drm_device *display,
 }
 
 int nx_drm_dp_lcd_disable(struct nx_drm_device *display,
+				struct drm_panel *panel)
+{
+	struct dp_control_dev *dpc = display_to_dpc(display);
+	struct dp_control_ops *ops = dpc->ops;
+
+	DRM_DEBUG_KMS("%s\n", dp_panel_type_name(dpc->panel_type));
+
+	if (ops && ops->disable)
+		ops->disable(dpc);
+
+	return 0;
+}
+
+int nx_drm_dp_tv_prepare(struct nx_drm_device *display,
+			struct drm_panel *panel)
+{
+	struct dp_control_dev *dpc = display_to_dpc(display);
+	struct dp_control_ops *ops = dpc->ops;
+
+	DRM_DEBUG_KMS("%s\n", dp_panel_type_name(dpc->panel_type));
+
+	if (ops && ops->prepare)
+		ops->prepare(dpc, panel ? 1 : 0);
+
+	return 0;
+}
+
+int nx_drm_dp_tv_enable(struct nx_drm_device *display,
+				struct drm_panel *panel)
+{
+	struct dp_control_dev *dpc = display_to_dpc(display);
+	struct dp_control_ops *ops = dpc->ops;
+
+	DRM_DEBUG_KMS("%s\n", dp_panel_type_name(dpc->panel_type));
+
+	if (ops && ops->prepare)
+		ops->enable(dpc, panel ? 1 : 0);
+
+	return 0;
+}
+
+int nx_drm_dp_tv_unprepare(struct nx_drm_device *display,
+				struct drm_panel *panel)
+{
+	struct dp_control_dev *dpc = display_to_dpc(display);
+	struct dp_control_ops *ops = dpc->ops;
+
+	DRM_DEBUG_KMS("%s\n", dp_panel_type_name(dpc->panel_type));
+
+	if (ops && ops->unprepare)
+		ops->unprepare(dpc);
+
+	return 0;
+}
+
+int nx_drm_dp_tv_disable(struct nx_drm_device *display,
 				struct drm_panel *panel)
 {
 	struct dp_control_dev *dpc = display_to_dpc(display);
