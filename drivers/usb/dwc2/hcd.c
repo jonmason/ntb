@@ -3035,8 +3035,8 @@ static int dwc2_hcd_resume(struct usb_hcd *hcd)
 			if (hsotg->ext_vbus_io)
 				gpio_set_value(hsotg->ext_vbus_io, 0);
 		}
-		s3c_hsotg_core_init_disconnected(hsotg, false);
-		s3c_hsotg_core_connect(hsotg);
+		dwc2_hsotg_core_init_disconnected(hsotg, false);
+		dwc2_hsotg_core_connect(hsotg);
 	} else {
 		/* A-Device connector (Host Mode) */
 		dev_dbg(hsotg->dev, "connId A\n");
