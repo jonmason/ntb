@@ -111,6 +111,8 @@
 		reg = <0x32>;
 		interrupt-parent = <&alive_0>;
 		interrupts = <0x5 IRQ_TYPE_EDGE_FALLING>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pmic_irq>;
 	};
 
 	touchscreen@4a {

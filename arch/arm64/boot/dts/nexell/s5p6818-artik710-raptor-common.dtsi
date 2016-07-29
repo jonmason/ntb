@@ -197,6 +197,13 @@
 				nexell,pin-strength = <0>;
 			};
 
+			pmic_irq:pmic_irq{
+				nexell,pins = "alive-5";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+
 			touchpanel_irq: touchpanel-irq {
 				nexell,pins = "gpiob-22";
 				nexell,pin-function = <1>;
@@ -521,6 +528,8 @@
 			reg = <0x32>;
 			interrupt-parent = <&alive_0>;
 			interrupts = <0x5 IRQ_TYPE_EDGE_FALLING>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pmic_irq>;
 		};
 	};
 
