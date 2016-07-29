@@ -32,7 +32,6 @@
 #include <linux/clk.h>
 #include <linux/gpio.h>
 
-#include <linux/soc/nexell/s5pxx18-gpio.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_gpio.h>
