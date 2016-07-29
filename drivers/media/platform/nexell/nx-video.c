@@ -1322,7 +1322,7 @@ bool nx_video_done_buffer(struct nx_video_buffer_object *obj)
 
 	done_buf = nx_video_get_next_buffer(obj, true);
 	if (!done_buf) {
-		BUG();
+		WARN_ON(1);
 		return false;
 	}
 
