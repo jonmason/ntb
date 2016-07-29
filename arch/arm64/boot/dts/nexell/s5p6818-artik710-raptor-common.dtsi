@@ -502,7 +502,6 @@
 			compatible = "ti,bq24296";
 			reg = <0x6b>;
 			ti,chg_current = <1000 1500 2000>;
-			gpios = <&gpio_a 10 0>;
 		};
 	};
 
