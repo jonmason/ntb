@@ -356,10 +356,12 @@ EXPORT_SYMBOL_GPL(nx_vip_find_mbus_format);
 
 static const struct nx_mem_fmt_map supported_mem_formats[] = {
 	{
+#ifndef CONFIG_ARCH_S5P4418
 		.pixel_fmt	= V4L2_PIX_FMT_YUYV,
 		.media_bus_fmt	= MEDIA_BUS_FMT_YUYV8_1X16,
 		.nx_mem_fmt	= nx_vip_format_yuyv,
 	}, {
+#endif
 		.pixel_fmt	= V4L2_PIX_FMT_YUV420,
 		.media_bus_fmt	= MEDIA_BUS_FMT_YUYV12_1X24,
 		.nx_mem_fmt	= nx_vip_format_420,
