@@ -1,0 +1,178 @@
+Device-Tree bindings for Nexell DRM generic tvout output driver
+
+Required soc properties for tvout display :
+ - compatible: value should be "nexell,s5pxx18-drm-tv".
+ - reg: Physical base address and length of the controller's registers.
+ - resets: The reset signal to the display controller.
+ - reset-names: Alias string resets options.
+ - status: Indicates whether the operation.
+
+	*. sub tree of "dp-resource" property
+	- reg_base: Physical base address and length of the hdmi configuation
+	            register.
+	- clk_base: Physical base address and length of the hdmi clock.
+		    configuration register.
+	- resets: The reset signal to the each hdmi block.
+	- reset-names: Alias string resets options.
+	- soc,tieoff: select tieoff reference clock.
+
+  ex)
+   / {
+	...
+	soc {
+		...
+
+		dp_drm_tvout: display_drm_tv{
+			compatible = "nexell,s5pxx18-drm-tv";
+			reg = <0xc0101000 0x100>;
+			resets = <&nexell_reset RESET_ID_DISP_TOP>;
+			reset-names = "rsc-display-top";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+
+			dp-resource {
+				reg_base = <0xc0000000 0x300000>;
+				clk_base = <0xc0109000 4>;
+				resets = <&nexell_reset RESET_ID_HDMI_VIDEO>,
+				<&nexell_reset RESET_ID_HDMI_SPDIF>,
+				<&nexell_reset RESET_ID_HDMI_TMDS>,
+				<&nexell_reset RESET_ID_HDMI>,
+				<&nexell_reset RESET_ID_HDMI_PHY>;
+				reset-names = "rsc-hdmi-video", "rsc-hdmi-spdif",
+				"rsc-hdmi-tmds", "rsc-hdmi", "rsc-hdmi-phy";
+				soc,tieoff = <NX_TIEOFF_DISPLAYTOP0_i_HDMI_PHY_REFCLK_SEL 1>;
+			};
+		};
+
+		...
+	};
+    };
+
+Required board properties for tvout display :
+ - pinctrl-names: Alias string "pinctrl-0" option
+ - pinctrl-0: set pin function for tvout
+	      (tvout clock and data pin setting)
+ - status: Indicates whether the operation
+
+	*. Sub tree of "display-timing" property
+	The videomode of TV-OUT panel.
+	TVOUT setting value should be set to a predetermined value the
+	selection device.
+
+	Refer to Documentation/devicetree/bindings/video/display-timing.txt for
+	display timing binding details.
+
+	*. Sub tree of "dp_control" property
+	- clk_src_lv0: select display clock source of clock generator '0'
+	  0:PLL0, 1:PLL1, 2:PLL2, 3:none, 4:HDMI PLL Clock, 5:none
+	  6:PLL3, 7:Reserved.
+	- clk_div_lv0: set display clock divisor of specified
+	  clock generator '0' (1 ~ 256)
+	- clk_delay_lv0: set delay value of the source clock output '0'.
+	  This value is needed to adjust clock skew with respect to data signal.
+	- clk_inv_lv0: Specifies whether to invert the source clock output '0'.
+	- clk_src_lv1: select display clock source of clock generator '1'
+	  0:PLL0, 1:PLL1, 2:PLL2, 3:none, 4:HDMI PLL Clock, 5:none
+	  6:PLL3, 7:Reserved.
+	- clk_div_lv1: set display clock divisor of specified
+	  clock generator '1' (1 ~ 256)
+	- clk_delay_lv1: set delay value of the source clock output '1'.
+	  This value is needed to adjust clock skew with respect to data signal.
+	- clk_inv_lv1: Specifies whether to invert the source clock output '1'.
+	- vck_select: specifies the pixel clock polarity.
+	- out_format: specifies display out data format.
+
+	*. Sub tree of "sensor" property
+	- register: specifies register address and value tvout sensor
+		ex) <register address, register value>
+	- i2c_name: TVOUT sensor name to register I2C.
+	- i2c_adapter: I2C apapter number associated with the TVOUT device.
+        - addr: specifies i2c deivce address for TVOUT sensor.
+
+
+	ex) Use hdmi clock(27MHz)
+	&dp_drm_tvout {
+		pinctrl-names = "default";
+		pinctrl-0 = <&dp_rgb_vclk &dp_rgb_G>;
+		status = "ok";
+
+		display-timing {
+			clock-frequency = <27000000>;
+			hactive = <720>;
+			vactive = <240>;
+			hfront-porch = <16>;
+			hback-porch = <60>;
+			hsync-len = <62>;
+			vfront-porch = <4>;
+			vback-porch = <15>;
+			vsync-len = <3>;
+			interlaced = <1>;
+			vsync-active = <0>;
+			hsync-active = <0>;
+		};
+
+		dp_control {
+			clk_src_lv0 = <4>;
+			clk_div_lv0 = <1>;
+			clk_delay_lv0 = <0>;
+			clk_inv_lv0 = <1>;
+			clk_src_lv1 = <7>;
+			clk_div_lv1 = <2>;
+			clk_delay_lv1 = <0>;
+			clk_inv_lv1 = <1>;
+			vck_select = <1>;
+			out_format = <10>;
+		};
+
+		sensor {
+			register = <0x87 0x20>, <0x88 0x00>, <0x8A 0x08>;
+			i2c_name = "adv7393";
+			i2c_adapter = <5>;
+			addr = <0x2a>;
+		};
+	};
+
+	ex) Use pll0(270MHz/10) clock(27MHz)
+	*. Use PLL0(270MHz/10=27MHz) Clock
+            &dp_drm_tvout {
+                    pinctrl-names = "default";
+                    pinctrl-0 = <&dp_rgb_vclk &dp_rgb_G>;
+                    status = "ok";
+
+                    display-timing {
+                            clock-frequency = <27000000>;
+                            hactive = <720>;
+                            vactive = <240>;
+                            hfront-porch = <16>;
+                            hback-porch = <60>;
+                            hsync-len = <62>;
+                            vfront-porch = <4>;
+                            vback-porch = <15>;
+                            vsync-len = <3>;
+                            interlaced = <1>;
+                            vsync-active = <0>;
+                            hsync-active = <0>;
+                    };
+
+                    dp_control {
+                            clk_src_lv0 = <0>;
+                            clk_div_lv0 = <10>;
+                            clk_delay_lv0 = <0>;
+                            clk_inv_lv0 = <1>;
+                            clk_src_lv1 = <7>;
+                            clk_div_lv1 = <2>;
+                            clk_delay_lv1 = <0>;
+                            clk_inv_lv1 = <1>;
+                            clk_sel_div1 = <0>;
+                            vck_select = <1>;
+                            out_format = <10>;
+                    };
+
+                    sensor {
+                            register = <0x87 0x20>, <0x88 0x00>, <0x8A 0x08>;
+                            i2c_name = "adv7393";
+                            i2c_adapter = <5>;
+                            addr = <0x2a>;
+                    };
+            };
