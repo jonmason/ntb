@@ -48,25 +48,6 @@ struct reset_control *rst_mali;
 
 void mali_gpu_utilization_callback(struct mali_gpu_utilization_data *data);
 
-static struct mali_gpu_device_data mali_gpu_data = {
-	.max_job_runtime = 60000, /* 60 seconds */
-
-	/* Some framebuffer drivers get the framebuffer dynamically, such as through GEM,
-	* in which the memory resource can't be predicted in advance.
-	*/
-	.fb_start = 0x0,
-	.fb_size = 0xFFFFF000,
-	.control_interval = 1000, /* 1000ms */
-	.utilization_callback = mali_gpu_utilization_callback,
-	.get_clock_info = NULL,
-	.get_freq = NULL,
-	.set_freq = NULL,
-	.secure_mode_init = NULL,
-	.secure_mode_deinit = NULL,
-	.gpu_reset_and_secure_mode_enable = NULL,
-	.gpu_reset_and_secure_mode_disable = NULL,
-};
-
 #ifdef CONFIG_MALI_PLATFORM_S5P6818
 static void s5p6818_mali_axibus_lpi_exit(void)
 {
@@ -86,6 +67,49 @@ static void s5p6818_mali_axibus_lpi_enter(void)
 	nx_tieoff_set(NX_TIEOFF_Inst_VR_MBUS_AXILPI_S0_CSYSREQ, 0);
 }
 #endif
+
+static void nexell_platform_resume(struct device *dev)
+{
+	clk_prepare_enable(clk_mali);
+	reset_control_reset(rst_mali);
+#ifdef CONFIG_MALI_PLATFORM_S5P6818
+	s5p6818_mali_axibus_lpi_exit();
+#endif
+}
+
+static void nexell_platform_suspend(struct device *dev)
+{
+	if (rst_mali) {
+#ifdef CONFIG_MALI_PLATFORM_S5P6818
+		s5p6818_mali_axibus_lpi_enter();
+#endif
+		reset_control_assert(rst_mali);
+	}
+
+	if (clk_mali)
+		clk_disable_unprepare(clk_mali);
+}
+
+static struct mali_gpu_device_data mali_gpu_data = {
+	.max_job_runtime = 60000, /* 60 seconds */
+
+	/* Some framebuffer drivers get the framebuffer dynamically, such as through GEM,
+	* in which the memory resource can't be predicted in advance.
+	*/
+	.fb_start = 0x0,
+	.fb_size = 0xFFFFF000,
+	.control_interval = 1000, /* 1000ms */
+	.utilization_callback = mali_gpu_utilization_callback,
+	.get_clock_info = NULL,
+	.get_freq = NULL,
+	.set_freq = NULL,
+	.secure_mode_init = NULL,
+	.secure_mode_deinit = NULL,
+	.gpu_reset_and_secure_mode_enable = NULL,
+	.gpu_reset_and_secure_mode_disable = NULL,
+	.platform_suspend = nexell_platform_suspend,
+	.platform_resume = nexell_platform_resume,
+};
 
 int mali_platform_device_init(struct platform_device *device)
 {
