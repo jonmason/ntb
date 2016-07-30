@@ -29,6 +29,8 @@
 #include <linux/reset.h>
 #include <linux/clk.h>
 
+#include <linux/soc/nexell/cpufreq.h>
+#include <linux/pm_qos.h>
 #include "s5pxx18_core_scaling.h"
 #include "mali_executor.h"
 
@@ -43,8 +45,14 @@
 #endif
 
 static int mali_core_scaling_enable = 0;
-struct clk *clk_mali;
-struct reset_control *rst_mali;
+static struct clk *clk_mali;
+static struct reset_control *rst_mali;
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+static bool nexell_qos_added;
+static struct pm_qos_request nexell_gpu_qos;
+static int bus_clk_step;
+static struct delayed_work qos_work;
+#endif
 
 void mali_gpu_utilization_callback(struct mali_gpu_utilization_data *data);
 
@@ -90,6 +98,64 @@ static void nexell_platform_suspend(struct device *dev)
 		clk_disable_unprepare(clk_mali);
 }
 
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+static struct mali_gpu_clk_item gpu_clocks[] = {
+	{
+		.clock = 100,	/* NX_BUS_CLK_IDLE_KHZ */
+	}, {
+		.clock = 200,	/* Fake clock */
+	}, {
+		.clock = 300,	/* Fake clock */
+	}, {
+		.clock = 400,	/* NX_BUS_CLK_GPU_KHZ */
+	}
+};
+
+struct mali_gpu_clock gpu_clock = {
+	.item = gpu_clocks,
+	.num_of_steps = ARRAY_SIZE(gpu_clocks),
+};
+
+static void
+nexell_gpu_qos_work_handler(struct work_struct *work)
+{
+	u32 clk_khz = gpu_clocks[bus_clk_step].clock * 1000;
+
+	if (clk_khz != NX_BUS_CLK_IDLE_KHZ)
+		clk_khz = NX_BUS_CLK_GPU_KHZ;
+
+	if (!nexell_qos_added) {
+		pm_qos_add_request(&nexell_gpu_qos, PM_QOS_BUS_THROUGHPUT,
+				clk_khz);
+		nexell_qos_added = true;
+	} else {
+		pm_qos_update_request(&nexell_gpu_qos, clk_khz);
+	}
+}
+
+static void nexell_get_clock_info(struct mali_gpu_clock **data)
+{
+	*data = &gpu_clock;
+}
+
+static int nexell_get_freq(void)
+{
+	return bus_clk_step;
+}
+
+static int nexell_set_freq(int setting_clock_step)
+{
+	if (bus_clk_step != setting_clock_step) {
+		bus_clk_step = setting_clock_step;
+
+		INIT_DELAYED_WORK(&qos_work, nexell_gpu_qos_work_handler);
+		queue_delayed_work(system_power_efficient_wq, &qos_work, 0);
+	}
+
+	return 0;
+}
+#endif
+
 static struct mali_gpu_device_data mali_gpu_data = {
 	.max_job_runtime = 60000, /* 60 seconds */
 
@@ -100,9 +166,11 @@ static struct mali_gpu_device_data mali_gpu_data = {
 	.fb_size = 0xFFFFF000,
 	.control_interval = 1000, /* 1000ms */
 	.utilization_callback = mali_gpu_utilization_callback,
-	.get_clock_info = NULL,
-	.get_freq = NULL,
-	.set_freq = NULL,
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+	.get_clock_info = nexell_get_clock_info,
+	.get_freq = nexell_get_freq,
+	.set_freq = nexell_set_freq,
+#endif
 	.secure_mode_init = NULL,
 	.secure_mode_deinit = NULL,
 	.gpu_reset_and_secure_mode_enable = NULL,
@@ -190,6 +258,13 @@ int mali_platform_device_deinit(struct platform_device *device)
 	MALI_DEBUG_PRINT(4, ("mali_platform_device_deinit() called\n"));
 
 	mali_core_scaling_term();
+
+#ifdef CONFIG_MALI_PLATFORM_S5P6818
+	if (nexell_qos_added) {
+		pm_qos_remove_request(&nexell_gpu_qos);
+		nexell_qos_added = false;
+	}
+#endif
 
 	if (rst_mali) {
 #ifdef CONFIG_MALI_PLATFORM_S5P6818
