@@ -446,6 +446,7 @@
 		unsigned int num_of_steps;
 	};
 
+	struct device;
 	struct mali_gpu_device_data {
 		/* Shared GPU memory */
 		unsigned long shared_mem_size;
@@ -495,6 +496,10 @@
 		int (*gpu_reset_and_secure_mode_enable)(void);
 		/* Function that Reset GPU and disable gpu secure mode */
 		int (*gpu_reset_and_secure_mode_disable)(void);
+		/* Function that platform specific suspend callback */
+		void (*platform_suspend)(struct device *dev);
+		/* Function that platform specific resume callback */
+		void (*platform_resume)(struct device *dev);
 		/* ipa related interface customer need register */
 #if defined(CONFIG_MALI_DEVFREQ) && defined(CONFIG_DEVFREQ_THERMAL)
 		struct devfreq_cooling_power *gpu_cooling_ops;

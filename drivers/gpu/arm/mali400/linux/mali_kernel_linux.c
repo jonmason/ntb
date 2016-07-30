@@ -700,6 +700,8 @@ static void mali_miscdevice_unregister(void)
 
 static int mali_driver_suspend_scheduler(struct device *dev)
 {
+	struct mali_gpu_device_data *device_data =
+		mali_platform_device->dev.platform_data;
 #ifdef CONFIG_MALI_DEVFREQ
 	struct mali_device *mdev = dev_get_drvdata(dev);
 	if (!mdev)
@@ -719,11 +721,17 @@ static int mali_driver_suspend_scheduler(struct device *dev)
 				      0,
 				      0,
 				      0, 0, 0);
+
+	if (device_data->platform_suspend)
+		device_data->platform_suspend(dev);
+
 	return 0;
 }
 
 static int mali_driver_resume_scheduler(struct device *dev)
 {
+	struct mali_gpu_device_data *device_data =
+		mali_platform_device->dev.platform_data;
 #ifdef CONFIG_MALI_DEVFREQ
 	struct mali_device *mdev = dev_get_drvdata(dev);
 	if (!mdev)
@@ -744,6 +752,9 @@ static int mali_driver_resume_scheduler(struct device *dev)
 				      mali_gpu_clk[1].vol / 1000,
 				      0, 0, 0);
 #endif
+	if (device_data->platform_resume)
+		device_data->platform_resume(dev);
+
 	mali_pm_os_resume();
 
 #if defined(CONFIG_MALI_DEVFREQ) && \
@@ -757,6 +768,8 @@ static int mali_driver_resume_scheduler(struct device *dev)
 #ifdef CONFIG_PM_RUNTIME
 static int mali_driver_runtime_suspend(struct device *dev)
 {
+	struct mali_gpu_device_data *device_data =
+		mali_platform_device->dev.platform_data;
 #ifdef CONFIG_MALI_DEVFREQ
 	struct mali_device *mdev = dev_get_drvdata(dev);
 	if (!mdev)
@@ -778,6 +791,9 @@ static int mali_driver_runtime_suspend(struct device *dev)
 		devfreq_suspend_device(mdev->devfreq);
 #endif
 
+		if (device_data->platform_suspend)
+			device_data->platform_suspend(dev);
+
 		return 0;
 	} else {
 		return -EBUSY;
@@ -786,6 +802,8 @@ static int mali_driver_runtime_suspend(struct device *dev)
 
 static int mali_driver_runtime_resume(struct device *dev)
 {
+	struct mali_gpu_device_data *device_data =
+		mali_platform_device->dev.platform_data;
 #ifdef CONFIG_MALI_DEVFREQ
 	struct mali_device *mdev = dev_get_drvdata(dev);
 	if (!mdev)
@@ -806,6 +824,8 @@ static int mali_driver_runtime_resume(struct device *dev)
 				      mali_gpu_clk[1].vol / 1000,
 				      0, 0, 0);
 #endif
+	if (device_data->platform_resume)
+		device_data->platform_resume(dev);
 
 	mali_pm_runtime_resume();
 
