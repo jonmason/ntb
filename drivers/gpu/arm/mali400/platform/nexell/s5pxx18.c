@@ -68,48 +68,22 @@ static struct mali_gpu_device_data mali_gpu_data = {
 };
 
 #ifdef CONFIG_MALI_PLATFORM_S5P6818
-static inline void wait_for_lpi_status(uint32_t tieoff, uint32_t val)
-{
-	do {
-		if (nx_tieoff_get(tieoff) == val)
-			break;
-	} while (1);
-}
-
 static void s5p6818_mali_axibus_lpi_exit(void)
 {
 	/* Set PBUS CSYSREQ to High */
 	nx_tieoff_set(NX_TIEOFF_Inst_VR_PBUS_AXILPI_S0_CSYSREQ, 1);
 
-	/* Wait until pbus ack */
-	wait_for_lpi_status(NX_TIEOFF_Inst_VR_PBUS_AXILPI_S0_CSYSACK, 1);
-
 	/* Set MBUS CSYSREQ to High */
 	nx_tieoff_set(NX_TIEOFF_Inst_VR_MBUS_AXILPI_S0_CSYSREQ, 1);
-
-	/* Wait until mbus ack */
-	wait_for_lpi_status(NX_TIEOFF_Inst_VR_MBUS_AXILPI_S0_CSYSACK, 1);
 }
 
 static void s5p6818_mali_axibus_lpi_enter(void)
 {
-	/* Wait until PBUS LPI active high */
-	wait_for_lpi_status(NX_TIEOFF_Inst_VR_PBUS_AXILPI_S0_CACTIVE, 1);
-
 	/* Set PBUS LPI CSYSREQ to Low */
 	nx_tieoff_set(NX_TIEOFF_Inst_VR_PBUS_AXILPI_S0_CSYSREQ, 0);
 
-	/* Wait until PBUS LPI active low */
-	wait_for_lpi_status(NX_TIEOFF_Inst_VR_PBUS_AXILPI_S0_CACTIVE, 0);
-
-	/* Wait until MBUS LPI active high */
-	wait_for_lpi_status(NX_TIEOFF_Inst_VR_MBUS_AXILPI_S0_CACTIVE, 1);
-
 	/* Set MBUS LPI CSYSREQ to Low */
 	nx_tieoff_set(NX_TIEOFF_Inst_VR_MBUS_AXILPI_S0_CSYSREQ, 0);
-
-	/* Wait until MBUS LPI ack high */
-	wait_for_lpi_status(NX_TIEOFF_Inst_VR_MBUS_AXILPI_S0_CACTIVE, 0);
 }
 #endif
 
