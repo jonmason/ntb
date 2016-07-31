@@ -1813,9 +1813,6 @@ static void zinitix_clear_report_data(struct zinitix_touch_dev *touch_dev)
 			input_mt_report_slot_state(touch_dev->input_dev,
 				MT_TOOL_FINGER, 0);
 
-			input_report_abs(touch_dev->input_dev,
-					ABS_MT_TRACKING_ID, -1);
-
 			reported = true;
 			if (!m_ts_debug_mode && TSP_NORMAL_EVENT_MSG)
 				printk(KERN_INFO "[TSP] R %02d\r\n", i);
@@ -1966,9 +1963,6 @@ static void zinitix_parsing_data(struct zinitix_touch_dev *touch_dev)
 				input_mt_report_slot_state(touch_dev->input_dev,
 					MT_TOOL_FINGER, 0);
 
-				input_report_abs(touch_dev->input_dev,
-						ABS_MT_TRACKING_ID, -1);
-
 				if (!m_ts_debug_mode && TSP_NORMAL_EVENT_MSG)
 					printk(KERN_INFO "[TSP] R %02d\r\n", i);
 			}
@@ -2037,9 +2031,6 @@ static void zinitix_parsing_data(struct zinitix_touch_dev *touch_dev)
 			input_mt_slot(touch_dev->input_dev, i);
 			input_mt_report_slot_state(touch_dev->input_dev,
 				MT_TOOL_FINGER, 1);
-			if (!zinitix_bit_test(prev_sub_status, SUB_BIT_EXIST))
-				input_report_abs(touch_dev->input_dev,	ABS_MT_TRACKING_ID, i);
-
 
 			if(palm == 0) {
 				if(w >= PALM_REPORT_WIDTH)
@@ -2094,9 +2085,6 @@ static void zinitix_parsing_data(struct zinitix_touch_dev *touch_dev)
 			input_mt_slot(touch_dev->input_dev, i);
 			input_mt_report_slot_state(touch_dev->input_dev,
 				MT_TOOL_FINGER, 0);
-
-			input_report_abs(touch_dev->input_dev,
-					ABS_MT_TRACKING_ID, -1);
 
 			if (!m_ts_debug_mode && TSP_NORMAL_EVENT_MSG)
 				printk(KERN_INFO "[TSP] R %02d\r\n", i);
