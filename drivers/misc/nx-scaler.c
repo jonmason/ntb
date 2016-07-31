@@ -1319,22 +1319,16 @@ static int nx_scaler_probe(struct platform_device *pdev)
 
 	init_waitqueue_head(&me->wq_end);
 
-	if (me->miscdev.this_device) {
-		struct device *p_dev =
-			me->miscdev.this_device;
-		p_dev->dma_mask = &p_dev->coherent_dma_mask;
-		p_dev->coherent_dma_mask = DMA_BIT_MASK(32);
-		me->command_buffer_vir = dma_alloc_coherent(
-					    p_dev,
-					    COMMAND_BUFFER_SIZE,
-					    &me->command_buffer_phy,
-					    GFP_KERNEL);
-		if (!me->command_buffer_vir) {
-			pr_err("%s: failed to alloc", __func__);
-			pr_err("command buffer!!\n");
+	me->command_buffer_vir = dma_alloc_coherent(
+				    &pdev->dev,
+				    COMMAND_BUFFER_SIZE,
+				    &me->command_buffer_phy,
+				    GFP_KERNEL);
+	if (!me->command_buffer_vir) {
+		pr_err("%s: failed to alloc", __func__);
+		pr_err("command buffer!!\n");
 
-			goto misc_deregister;
-		}
+		goto misc_deregister;
 	}
 	me->pdev = pdev;
 
@@ -1350,20 +1344,14 @@ misc_deregister:
 static int nx_scaler_remove(struct platform_device *pdev)
 {
 	struct nx_scaler *me = platform_get_drvdata(pdev);
-	struct device *this_device = me->miscdev.this_device;
 
-	if (this_device) {
-		struct device *pdev = this_device;
-
-		dma_free_coherent(pdev, COMMAND_BUFFER_SIZE,
-				  me->command_buffer_vir,
-				  me->command_buffer_phy);
-		me->command_buffer_vir = NULL;
-		me->command_buffer_phy = 0;
-	}
+	dma_free_coherent(&pdev->dev, COMMAND_BUFFER_SIZE,
+			  me->command_buffer_vir,
+			  me->command_buffer_phy);
+	me->command_buffer_vir = NULL;
+	me->command_buffer_phy = 0;
 
 	misc_deregister(&me->miscdev);
-	kfree(me);
 
 	return 0;
 }
