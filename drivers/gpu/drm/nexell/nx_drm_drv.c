@@ -228,7 +228,7 @@ static struct drm_driver nx_drm_driver = {
 	.postclose = nx_drm_postclose,
 	.set_busid = drm_platform_set_busid,
 
-	.get_vblank_counter = drm_vblank_count,
+	.get_vblank_counter = drm_vblank_no_hw_counter,
 	.enable_vblank = nx_drm_crtc_enable_vblank,
 	.disable_vblank = nx_drm_crtc_disable_vblank,
 
