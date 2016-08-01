@@ -48,6 +48,7 @@ struct mipi_resource {
 struct lcd_context {
 	struct drm_connector *connector;
 	int crtc_pipe;
+	unsigned int possible_crtcs_mask;
 	struct nx_drm_device *display;
 	struct mutex lock;
 	bool local_timing;
@@ -325,12 +326,14 @@ static int panel_lcd_bind(struct device *dev,
 	struct platform_driver *pdrv = to_platform_driver(dev->driver);
 	enum dp_panel_type panel_type = dp_panel_get_type(ctx->display);
 	int pipe = ctx->crtc_pipe;
+	unsigned int possible_crtcs = ctx->possible_crtcs_mask;
 	int err = 0;
 
 	DRM_INFO("Bind %s panel\n", dp_panel_type_name(panel_type));
 
 	ctx->connector = nx_drm_connector_create_and_attach(drm,
-			ctx->display, pipe, panel_type, ctx);
+					ctx->display, pipe, possible_crtcs,
+					panel_type, ctx);
 	if (IS_ERR(ctx->connector))
 		goto err_bind;
 
@@ -403,6 +406,11 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 	DRM_DEBUG_KMS("enter\n");
 
 	parse_read_prop(node, "crtc-pipe", ctx->crtc_pipe);
+
+	/*
+	 * get possible crtcs
+	 */
+	parse_read_prop(node, "crtcs-possible-mask", ctx->possible_crtcs_mask);
 
 	/*
 	 * parse panel output for RGB/LVDS/MiPi-DSI

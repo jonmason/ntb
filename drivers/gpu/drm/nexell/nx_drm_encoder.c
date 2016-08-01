@@ -199,14 +199,13 @@ static struct drm_encoder_funcs nx_encoder_funcs = {
 };
 
 struct drm_encoder *nx_drm_encoder_create(struct drm_device *drm,
-			struct nx_drm_device *display, int type,
+			struct nx_drm_device *display, int enc_type,
 			int pipe, int possible_crtcs, void *context)
 {
 	struct nx_drm_encoder *nx_encoder;
 	struct drm_encoder *encoder;
 
-	DRM_DEBUG_KMS("enter possible crtcs:0x%x\n",
-		possible_crtcs);
+	DRM_DEBUG_KMS("enter pipe.%d crtc mask:0x%x\n", pipe, possible_crtcs);
 
 	BUG_ON(!display || 0 == possible_crtcs);
 
@@ -223,7 +222,7 @@ struct drm_encoder *nx_drm_encoder_create(struct drm_device *drm,
 	encoder = &nx_encoder->encoder;
 	encoder->possible_crtcs = possible_crtcs;
 
-	drm_encoder_init(drm, encoder, &nx_encoder_funcs, type);
+	drm_encoder_init(drm, encoder, &nx_encoder_funcs, enc_type);
 	drm_encoder_helper_add(encoder, &nx_encoder_helper_funcs);
 
 	DRM_DEBUG_KMS("exit, encoder id:%d\n", encoder->base.id);

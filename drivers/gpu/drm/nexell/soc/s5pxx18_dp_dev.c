@@ -544,7 +544,7 @@ int nx_soc_dp_plane_rgb_set_position(struct dp_plane_layer *layer,
 
 void nx_soc_dp_plane_rgb_set_address(struct dp_plane_layer *layer,
 			unsigned int addr, unsigned int pixelbyte,
-			unsigned int stride, bool adjust)
+			unsigned int stride, int align, bool adjust)
 {
 	int module = layer->module;
 	int num = layer->num;
@@ -552,8 +552,14 @@ void nx_soc_dp_plane_rgb_set_address(struct dp_plane_layer *layer,
 
 	unsigned int phys = addr + (cl*pixelbyte) + (ct * stride);
 
-	pr_debug("%s: %s, pa=0x%x, hs=%d, vs=%d, adjust=%d\n",
-		__func__, layer->name, phys, pixelbyte, stride, adjust);
+	if (align)
+		phys = ALIGN(phys, align);
+
+	pr_debug("%s: %s, pa=0x%x, hs=%d, vs=%d, l:%d, t:%d, adjust=%d\n",
+		__func__, layer->name, phys, pixelbyte, stride, cl, ct, adjust);
+	pr_debug("%s: %s, pa=0x%x -> 0x%x aligned %d\n",
+		__func__, layer->name, (addr + (cl*pixelbyte) + (ct * stride)),
+		phys, align);
 
 	if (adjust)
 		dp_wait_vblank_done(module, num);

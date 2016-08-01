@@ -28,7 +28,7 @@
 #define MAX_FB_MODE_HEIGHT	4096
 
 struct nx_drm_priv {
-	struct nx_framebuffer_dev *fbdev;
+	struct nx_framebuffer_dev *framebuffer_dev;
 	unsigned int possible_pipes;
 	bool force_detect;
 	struct drm_crtc *crtcs[MAX_CRTCS];

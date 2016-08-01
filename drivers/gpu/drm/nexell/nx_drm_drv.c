@@ -34,27 +34,27 @@
 /*
  * DRM Configuration
  *
- * CRTC		: MLC top control (and display interrupt, reset, clock, ...)
- * Plane	: MLC layer control
- * Encoder	: DPC control
+ * CRTC		    : MLC top control (and display interrupt, reset, clock, ...)
+ * Plane	    : MLC layer control
+ * Encoder	    : DPC control
  * Connector	: DRM connetcor for LCD, LVDS, MiPi, HDMI,...
- * Panel	: Display device control (LCD, LVDS, MiPi, HDMI,...)
+ * Panel	    : Display device control (LCD, LVDS, MiPi, HDMI,...)
  *
  */
 
 static void nx_drm_output_poll_changed(struct drm_device *drm)
 {
 	struct nx_drm_priv *priv = drm->dev_private;
-	struct nx_framebuffer_dev *nx_fbdev = priv->fbdev;
+	struct nx_framebuffer_dev *nx_framebuffer = priv->framebuffer_dev;
 
 	DRM_DEBUG_KMS("enter : fbdev %s\n",
-		nx_fbdev ? "exist" : "non exist");
+		nx_framebuffer ? "exist" : "non exist");
 
 	mutex_lock(&priv->lock);
 
-	if (nx_fbdev && nx_fbdev->fbdev)
+	if (nx_framebuffer && nx_framebuffer->fbdev)
 		drm_fb_helper_hotplug_event(
-			(struct drm_fb_helper *)nx_fbdev->fbdev);
+			(struct drm_fb_helper *)nx_framebuffer->fbdev);
 	else
 		nx_drm_framebuffer_init(drm);
 
@@ -184,10 +184,10 @@ static void nx_drm_lastclose(struct drm_device *drm)
 	struct nx_drm_priv *priv = drm->dev_private;
 	struct nx_drm_fbdev *fbdev;
 
-	if (!priv || !priv->fbdev)
+	if (!priv || !priv->framebuffer_dev)
 		return;
 
-	fbdev = priv->fbdev->fbdev;
+	fbdev = priv->framebuffer_dev->fbdev;
 	if (fbdev)
 		drm_fb_helper_restore_fbdev_mode_unlocked(
 				(struct drm_fb_helper *)fbdev);

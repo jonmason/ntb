@@ -144,6 +144,7 @@ EXPORT_SYMBOL(nx_drm_connector_destroy_and_detach);
 struct drm_connector *nx_drm_connector_create_and_attach(
 			struct drm_device *drm,
 			struct nx_drm_device *display, int pipe,
+			unsigned int possible_crtcs,
 			enum dp_panel_type panel_type, void *context)
 {
 	struct nx_drm_priv *priv = drm->dev_private;
@@ -152,13 +153,18 @@ struct drm_connector *nx_drm_connector_create_and_attach(
 	struct drm_encoder *encoder;
 
 	/* bitmask of potential CRTC bindings */
-	int possible_crtcs = (1 << priv->num_crtcs) - 1;
 	int con_type = 0, enc_type = 0;
 	bool interlace_allowed = false;
 	uint8_t polled = 0;
 	int err;
 
-	DRM_DEBUG_KMS("enter\n");
+	/*
+	 * if no possible crtcs, you can connect all crtcs.
+	 */
+	if (0 == possible_crtcs)
+		possible_crtcs = (1 << priv->num_crtcs) - 1;
+
+	DRM_DEBUG_KMS("enter pipe.%d crtc mask:0x%x\n", pipe, possible_crtcs);
 
 	BUG_ON(!display);
 

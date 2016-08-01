@@ -677,7 +677,7 @@ void nx_drm_dp_crtc_commit(struct drm_crtc *crtc)
 	nx_soc_dp_plane_rgb_set_color(layer,
 		dp_color_transp, top->color_key, true, false);
 
-	nx_soc_dp_plane_rgb_set_address(layer, paddr, pixel, hstride, true);
+	nx_soc_dp_plane_rgb_set_address(layer, paddr, pixel, hstride, 0, true);
 	nx_soc_dp_plane_rgb_set_enable(layer, true, true);
 }
 
@@ -790,7 +790,7 @@ int nx_drm_dp_plane_update(struct drm_plane *plane,
 			int crtc_x, int crtc_y,
 			unsigned int crtc_w, unsigned int crtc_h,
 			uint32_t src_x, uint32_t src_y,
-			uint32_t src_w, uint32_t src_h)
+			uint32_t src_w, uint32_t src_h, int align)
 {
 	struct nx_drm_plane *nx_plane = to_nx_plane(plane);
 	struct dp_plane_layer *layer = &nx_plane->layer;
@@ -832,8 +832,9 @@ int nx_drm_dp_plane_update(struct drm_plane *plane,
 		nx_soc_dp_plane_rgb_set_position(layer,
 				src_x, src_y, src_w, src_h,
 				crtc_x, crtc_y, crtc_w, crtc_h, true);
+
 		nx_soc_dp_plane_rgb_set_address(layer,
-				paddrs[0], pixel, crtc_w * pixel, true);
+				paddrs[0], pixel, crtc_w * pixel, align, true);
 		nx_soc_dp_plane_rgb_set_enable(layer, true, true);
 
 	/* update video plane */

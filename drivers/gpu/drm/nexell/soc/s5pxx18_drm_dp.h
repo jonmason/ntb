@@ -109,7 +109,7 @@ int nx_drm_dp_plane_update(struct drm_plane *plane,
 			int crtc_x, int crtc_y,
 			unsigned int crtc_w, unsigned int crtc_h,
 			uint32_t src_x, uint32_t src_y,
-			uint32_t src_w, uint32_t src_h);
+			uint32_t src_w, uint32_t src_h, int align);
 int nx_drm_dp_plane_disable(struct drm_plane *plane);
 void nx_drm_dp_plane_set_color(struct drm_plane *plane,
 			enum dp_color_type type, unsigned int color);

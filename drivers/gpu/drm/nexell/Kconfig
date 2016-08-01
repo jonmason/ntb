@@ -4,23 +4,15 @@ config DRM_NX
 	select DRM_KMS_HELPER
 	select DRM_KMS_FB_HELPER
 	select VIDEOMODE_HELPERS
-	help
-	  Choose this option if you have a Nexell soc chipset.
-	  This driver provides kernel mode setting and buffer
-	  management to userspace. If M is selected the module
-	  will be called nexell drm.
-
-config DRM_NX_FBDEV
-	bool "Enable legacy fbdev support"
-	depends on DRM_NX
 	select FB_SYS_FILLRECT
 	select FB_SYS_COPYAREA
 	select FB_SYS_IMAGEBLIT
 	select VT_HW_CONSOLE_BINDING if FRAMEBUFFER_CONSOLE
 	help
-	  Choose this option if you have a need for the legacy fbdev
-	  support, Note that this support also provide the linux console
-	  support.
+	  Choose this option if you have a Nexell soc chipset.
+	  This driver provides kernel mode setting and buffer
+	  management to userspace. If M is selected the module
+	  will be called nexell drm.
 
 config DRM_NX_RGB
 	bool "RGB LCD support"

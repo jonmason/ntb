@@ -19,6 +19,8 @@
 #define _NX_DRM_FB_H_
 
 #include <drm/drm_fb_helper.h>
+#include <linux/fb.h>
+#include <video/videomode.h>
 
 struct nx_drm_fb {
 	struct drm_framebuffer	fb;
@@ -28,6 +30,7 @@ struct nx_drm_fb {
 struct nx_drm_fbdev {
 	struct drm_fb_helper fb_helper;
 	struct nx_drm_fb *fb;
+	int fb_buffers;
 };
 
 struct nx_framebuffer_dev {

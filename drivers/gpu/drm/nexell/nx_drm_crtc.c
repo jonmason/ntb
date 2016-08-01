@@ -25,7 +25,19 @@
 #include "nx_drm_crtc.h"
 #include "nx_drm_plane.h"
 #include "nx_drm_gem.h"
+#include "nx_drm_fb.h"
 #include "soc/s5pxx18_drm_dp.h"
+
+/*
+ * for multiple framebuffers.
+ */
+static int  fb_align_rgb = 1;
+static bool fb_vblank_wait;
+MODULE_PARM_DESC(fb_align, "frame buffer's align (0~4096)");
+MODULE_PARM_DESC(fb_vblank, "frame buffer wait vblank for pan display");
+
+module_param_named(fb_align, fb_align_rgb, int, 0600);
+module_param_named(fb_vblank, fb_vblank_wait, bool, 0600);
 
 static void nx_drm_crtc_dpms(struct drm_crtc *crtc, int mode)
 {
@@ -102,7 +114,7 @@ static int nx_drm_crtc_mode_set(struct drm_crtc *crtc,
 	struct nx_drm_crtc *nx_crtc = to_nx_crtc(crtc);
 	struct drm_plane *plane = crtc->primary;
 	struct videomode vm;
-	unsigned int src_w, src_h, dst_w, dst_h;
+	unsigned int crtc_w, crtc_h, src_w, src_h;
 	int ret = 0;
 
 	DRM_DEBUG_KMS("enter\n");
@@ -116,14 +128,14 @@ static int nx_drm_crtc_mode_set(struct drm_crtc *crtc,
 	 */
 	memcpy(&crtc->mode, adjusted_mode, sizeof(*adjusted_mode));
 
-	src_w = vm.hactive;
-	src_h = vm.vactive;
-	dst_w = fb->width - x;
-	dst_h = fb->height - y;
+	crtc_w = vm.hactive;
+	crtc_h = vm.vactive;
+	src_w = fb->width - x;
+	src_h = fb->height - y;
 
 	ret = nx_drm_dp_plane_mode_set(crtc,
 				crtc->primary, fb,
-				0, 0, src_w, src_h, x, y, dst_w, dst_h);
+				0, 0, crtc_w, crtc_h, x, y, src_w, src_h);
 	if (0 > ret)
 		return ret;
 
@@ -136,12 +148,21 @@ static int nx_drm_crtc_mode_set(struct drm_crtc *crtc,
 static int nx_drm_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 			struct drm_framebuffer *old_fb)
 {
+	struct drm_device *drm = crtc->dev;
 	struct drm_framebuffer *fb = crtc->primary->fb;
 	struct nx_drm_crtc *nx_crtc = to_nx_crtc(crtc);
+	struct nx_drm_priv *priv = drm->dev_private;
+	struct nx_drm_fbdev *fbdev = priv->framebuffer_dev->fbdev;
 	struct videomode vm;
-	unsigned int src_w, src_h, dst_w, dst_h;
+	unsigned int crtc_w, crtc_h, src_w, src_h;
+	int align = fb_align_rgb;
+	bool doublefb = fbdev->fb_buffers > 1 ? true : false;
+	bool vblank = false;
+	int ret;
 
-	DRM_DEBUG_KMS("enter\n");
+	DRM_DEBUG_KMS("crtc.%d [%d:%d] pos[%d:%d] src[%d:%d] fb[%d:%d]\n",
+		nx_crtc->pipe, crtc_w, crtc_h, x, y, src_w, src_h,
+		fb->width, fb->height);
 
 	drm_display_mode_to_videomode(&nx_crtc->current_mode, &vm);
 
@@ -151,13 +172,30 @@ static int nx_drm_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 		return -EPERM;
 	}
 
-	src_w = vm.hactive;
-	src_h = vm.vactive;
-	dst_w = fb->width - x;
-	dst_h = fb->height - y;
+	crtc_w = fb->width;  /* vm.hactive; */
+	crtc_h = fb->height; /* vm.vactive; */
+	src_w = fb->width - x;
+	src_h = fb->height - y;
 
-	return nx_drm_dp_plane_update(crtc->primary, fb, 0, 0,
-				   src_w, src_h, x, y, dst_w, dst_h);
+	/* for multiple buffers */
+	if (doublefb) {
+		if (y >= fb->height)
+			src_h = fb->height;
+
+		if (fb_vblank_wait &&
+			drm->driver->enable_vblank) {
+			drm->driver->enable_vblank(drm, nx_crtc->pipe);
+			vblank = true;
+		}
+	}
+
+	ret = nx_drm_dp_plane_update(crtc->primary, fb, 0, 0,
+				   crtc_w, crtc_h, x, y, src_w, src_h, align);
+
+	if (!ret && vblank)
+		drm_wait_one_vblank(drm, nx_crtc->pipe);
+
+	return ret;
 }
 
 static void nx_drm_crtc_disable(struct drm_crtc *crtc)
@@ -239,8 +277,7 @@ static int nx_drm_crtc_page_flip(struct drm_crtc *crtc,
 	crtc_h = fb->height - crtc->y;
 
 	ret = nx_drm_dp_plane_update(crtc->primary, fb, 0, 0,
-			crtc_w, crtc_h, crtc->x, crtc->y,
-			crtc_w, crtc_h);
+			crtc_w, crtc_h, crtc->x, crtc->y, crtc_w, crtc_h, 0);
 
 	if (ret) {
 		DRM_DEBUG("fail : plane update for page flip %d\n", ret);
@@ -565,10 +602,18 @@ int nx_drm_crtc_init(struct drm_device *drm)
 	int pipes[10], num_crtcs = 0;
 	int size = ARRAY_SIZE(pipes);
 	int i = 0, ret = 0;
+	int align = fb_align_rgb;
 
 	/* get ports 'reg' property value */
 	num_crtcs = __of_graph_get_port_num_index(drm, pipes, size);
-	DRM_DEBUG_KMS("enter num of crtcs %d\n", num_crtcs);
+
+	if (PAGE_SIZE >= align && align > 0)
+		fb_align_rgb = align;
+	else
+		fb_align_rgb = 1;
+
+	DRM_INFO("num of crtcs %d, FB %d align, FB vblank %s\n",
+		num_crtcs, fb_align_rgb, fb_vblank_wait ? "Wait" : "Pass");
 
 	/* setup crtc's planes */
 	nx_crtcs = devm_kzalloc(drm->dev,

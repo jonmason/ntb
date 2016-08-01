@@ -33,8 +33,8 @@ struct nx_drm_connector {
 struct drm_connector *nx_drm_connector_create_and_attach(
 			struct drm_device *drm,
 			struct nx_drm_device *display,
-			int pipe, enum dp_panel_type panel_type,
-			void *context);
+			int pipe, unsigned int possible_crtcs,
+			enum dp_panel_type panel_type, void *context);
 
 void nx_drm_connector_destroy_and_detach(struct drm_connector *connector);
 

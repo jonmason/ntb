@@ -49,6 +49,7 @@ struct hdmi_resource {
 struct hdmi_context {
 	struct drm_connector *connector;
 	int crtc_pipe;
+	unsigned int possible_crtcs_mask;
 	struct nx_drm_device *display;
 	struct delayed_work	 work;
 	struct gpio_desc *enable_gpio;
@@ -293,11 +294,13 @@ static int panel_hdmi_bind(struct device *dev,
 	struct hdmi_resource *hdmi = &ctx->hdmi_res;
 	struct platform_driver *pdrv = to_platform_driver(dev->driver);
 	int pipe = ctx->crtc_pipe;
+	unsigned int possible_crtcs = ctx->possible_crtcs_mask;
 
 	DRM_DEBUG_KMS("enter\n");
 
-	ctx->connector = nx_drm_connector_create_and_attach(drm,
-				ctx->display, pipe, dp_panel_type_hdmi, ctx);
+	ctx->connector = nx_drm_connector_create_and_attach(drm, ctx->display,
+					pipe, possible_crtcs,
+					dp_panel_type_hdmi, ctx);
 	if (IS_ERR(ctx->connector)) {
 		if (pdrv->remove)
 			pdrv->remove(to_platform_device(dev));
@@ -305,7 +308,7 @@ static int panel_hdmi_bind(struct device *dev,
 	}
 
 	/*
-	 * check connect boot status at boot time
+	 * check connect status at boot time
 	 */
 	if (nx_dp_hdmi_is_connected()) {
 		struct nx_drm_priv *priv = drm->dev_private;
@@ -494,6 +497,11 @@ static int panel_hdmi_parse_dt(struct platform_device *pdev,
 	DRM_INFO("Load HDMI panel\n");
 
 	parse_read_prop(node, "crtc-pipe", ctx->crtc_pipe);
+
+	/*
+	 * get possible crtcs
+	 */
+	parse_read_prop(node, "crtcs-possible-mask", ctx->possible_crtcs_mask);
 
 	/*
 	 * parse panel output for HDMI

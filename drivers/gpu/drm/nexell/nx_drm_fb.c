@@ -25,6 +25,11 @@
 
 #define PREFERRED_BPP		32
 
+static int fb_buffer_count = 1;
+
+MODULE_PARM_DESC(fb_buffers, "frame buffer count");
+module_param_named(fb_buffers, fb_buffer_count, int, 0600);
+
 static void nx_drm_fb_destroy(struct drm_framebuffer *fb)
 {
 	struct nx_drm_fb *nx_fb = to_nx_drm_fb(fb);
@@ -170,7 +175,7 @@ static int nx_drm_fb_dirty(struct drm_framebuffer *fb,
 static int nx_drm_fb_helper_probe(struct drm_fb_helper *helper,
 			struct drm_fb_helper_surface_size *sizes)
 {
-	struct nx_drm_fbdev *nx_fbdev = to_nx_drm_fbdev(helper);
+	struct nx_drm_fbdev *fbdev = to_nx_drm_fbdev(helper);
 	struct drm_mode_fb_cmd2 mode_cmd = { 0 };
 	struct drm_device *drm = helper->dev;
 	struct nx_gem_object *nx_obj;
@@ -180,11 +185,12 @@ static int nx_drm_fb_helper_probe(struct drm_fb_helper *helper,
 	struct fb_info *fbi;
 	size_t size;
 	unsigned int flags = 0;
+	int buffers = fbdev->fb_buffers;
 	int ret;
 
-	DRM_DEBUG_KMS("surface width(%d), height(%d) and bpp(%d)\n",
+	DRM_DEBUG_KMS("surface width(%d), height(%d) and bpp(%d) buffers(%d)\n",
 			sizes->surface_width, sizes->surface_height,
-			sizes->surface_bpp);
+			sizes->surface_bpp, buffers);
 
 	bytes_per_pixel = DIV_ROUND_UP(sizes->surface_bpp, 8);
 
@@ -195,7 +201,7 @@ static int nx_drm_fb_helper_probe(struct drm_fb_helper *helper,
 		sizes->surface_depth);
 
 	/* for double buffer */
-	size = mode_cmd.pitches[0] * (mode_cmd.height);
+	size = mode_cmd.pitches[0] * (mode_cmd.height * buffers);
 	nx_obj = nx_drm_gem_create(drm, size, flags);
 	if (IS_ERR(nx_obj))
 		return -ENOMEM;
@@ -207,14 +213,14 @@ static int nx_drm_fb_helper_probe(struct drm_fb_helper *helper,
 		goto err_drm_gem_free_object;
 	}
 
-	nx_fbdev->fb = nx_drm_fb_alloc(drm, &mode_cmd, &nx_obj, 1);
-	if (IS_ERR(nx_fbdev->fb)) {
+	fbdev->fb = nx_drm_fb_alloc(drm, &mode_cmd, &nx_obj, 1);
+	if (IS_ERR(fbdev->fb)) {
 		dev_err(drm->dev, "Failed to allocate DRM framebuffer.\n");
-		ret = PTR_ERR(nx_fbdev->fb);
+		ret = PTR_ERR(fbdev->fb);
 		goto err_framebuffer_release;
 	}
 
-	fb = &nx_fbdev->fb->fb;
+	fb = &fbdev->fb->fb;
 	helper->fb = fb;
 	helper->fbdev = fbi;
 
@@ -232,7 +238,7 @@ static int nx_drm_fb_helper_probe(struct drm_fb_helper *helper,
 	drm_fb_helper_fill_var(fbi, helper, sizes->fb_width, sizes->fb_height);
 
 	/* for double buffer */
-	fbi->var.yres_virtual = fb->height;
+	fbi->var.yres_virtual = fb->height * buffers;
 
 	offset = fbi->var.xoffset * bytes_per_pixel;
 	offset += fbi->var.yoffset * fb->pitches[0];
@@ -242,6 +248,20 @@ static int nx_drm_fb_helper_probe(struct drm_fb_helper *helper,
 	fbi->fix.smem_start = (unsigned long)(nx_obj->paddr + offset);
 	fbi->screen_size = size;
 	fbi->fix.smem_len = size;
+
+	if (helper->crtc_info &&
+		helper->crtc_info->desired_mode) {
+		struct videomode vm;
+		struct drm_display_mode *mode = helper->crtc_info->desired_mode;
+
+		drm_display_mode_to_videomode(mode, &vm);
+		fbi->var.left_margin = vm.hsync_len + vm.hback_porch;
+		fbi->var.right_margin = vm.hfront_porch;
+		fbi->var.upper_margin = vm.vsync_len + vm.vback_porch;
+		fbi->var.lower_margin = vm.vfront_porch;
+		/* pico second */
+		fbi->var.pixclock = KHZ2PICOS(vm.pixelclock/1000);
+	}
 
 	return 0;
 
@@ -275,6 +295,12 @@ static struct nx_drm_fbdev *nx_drm_fbdev_init(struct drm_device *drm,
 		return ERR_PTR(-ENOMEM);
 
 	helper = &fbdev->fb_helper;
+	fbdev->fb_buffers = 1;
+
+	if (fb_buffer_count > 0)
+		fbdev->fb_buffers = fb_buffer_count;
+
+	DRM_INFO("FB counts = %d\n", fbdev->fb_buffers);
 
 	drm_fb_helper_prepare(drm, helper, &nx_drm_fb_helper);
 
@@ -342,7 +368,7 @@ int nx_drm_framebuffer_init(struct drm_device *drm)
 	struct drm_fb_helper *fb_helper;
 	struct drm_framebuffer_funcs *fb_funcs;
 	struct nx_drm_priv *priv = drm->dev_private;
-	struct nx_framebuffer_dev *nx_fbdev;
+	struct nx_framebuffer_dev *nx_framebuffer;
 	unsigned int num_crtc;
 	int bpp;
 	int ret = 0;
@@ -355,11 +381,11 @@ int nx_drm_framebuffer_init(struct drm_device *drm)
 		      drm->mode_config.num_crtc,
 		      drm->mode_config.num_connector);
 
-	nx_fbdev = kzalloc(sizeof(*nx_fbdev), GFP_KERNEL);
-	if (IS_ERR(nx_fbdev))
-		return PTR_ERR(nx_fbdev);
+	nx_framebuffer = kzalloc(sizeof(*nx_framebuffer), GFP_KERNEL);
+	if (IS_ERR(nx_framebuffer))
+		return PTR_ERR(nx_framebuffer);
 
-	priv->fbdev = nx_fbdev;
+	priv->framebuffer_dev = nx_framebuffer;
 	num_crtc = drm->mode_config.num_crtc;
 	bpp = PREFERRED_BPP;
 
@@ -376,24 +402,24 @@ int nx_drm_framebuffer_init(struct drm_device *drm)
 	fb_funcs = (struct drm_framebuffer_funcs *)fb_helper->fb->funcs;
 	fb_funcs->dirty = nx_drm_fb_dirty;
 
-	nx_fbdev->fbdev = fbdev;
+	nx_framebuffer->fbdev = fbdev;
 
 	return 0;
 
 err_drm_fb_dev_free:
-	devm_kfree(drm->dev, nx_fbdev);
+	devm_kfree(drm->dev, nx_framebuffer);
 	return ret;
 }
 
 void nx_drm_framebuffer_fini(struct drm_device *drm)
 {
 	struct nx_drm_priv *priv = drm->dev_private;
-	struct nx_framebuffer_dev *nx_fbdev = priv->fbdev;
-	struct nx_drm_fbdev *fbdev = nx_fbdev->fbdev;
+	struct nx_framebuffer_dev *nx_framebuffer = priv->framebuffer_dev;
+	struct nx_drm_fbdev *fbdev = nx_framebuffer->fbdev;
 
 	nx_drm_fbdev_fini(fbdev);
-	devm_kfree(drm->dev, nx_fbdev);
-	priv->fbdev = NULL;
+	devm_kfree(drm->dev, nx_framebuffer);
+	priv->framebuffer_dev = NULL;
 }
 
 /*

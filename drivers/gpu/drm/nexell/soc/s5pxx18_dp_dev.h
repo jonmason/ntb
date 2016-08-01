@@ -326,7 +326,7 @@ int nx_soc_dp_plane_rgb_set_position(struct dp_plane_layer *layer,
 			bool adjust);
 void nx_soc_dp_plane_rgb_set_address(struct dp_plane_layer *layer,
 			unsigned int paddr, unsigned int pixelbyte,
-			unsigned int stride, bool adjust);
+			unsigned int stride, int align, bool adjust);
 void nx_soc_dp_plane_rgb_set_enable(struct dp_plane_layer *layer,
 			bool on, bool adjust);
 void nx_soc_dp_plane_rgb_set_color(struct dp_plane_layer *layer,
