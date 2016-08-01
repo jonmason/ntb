@@ -2485,9 +2485,9 @@ int usb_new_device(struct usb_device *udev)
 	if (udev->manufacturer)
 		add_device_randomness(udev->manufacturer,
 				      strlen(udev->manufacturer));
-
+#if !(defined(CONFIG_ARCH_S5P4418) || defined(CONFIG_ARCH_S5P6818))
 	device_enable_async_suspend(&udev->dev);
-
+#endif
 	/* check whether the hub or firmware marks this port as non-removable */
 	if (udev->parent)
 		set_usb_port_removable(udev);

@@ -1075,9 +1075,10 @@ int ohci_suspend(struct usb_hcd *hcd, bool do_wakeup)
 	 * RH suspend or resume activity.
 	 */
 	spin_lock_irqsave (&ohci->lock, flags);
+#if !(defined(CONFIG_ARCH_S5P4418) || defined(CONFIG_ARCH_S5P6818))
 	ohci_writel(ohci, OHCI_INTR_MIE, &ohci->regs->intrdisable);
 	(void)ohci_readl(ohci, &ohci->regs->intrdisable);
-
+#endif
 	clear_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
 	spin_unlock_irqrestore (&ohci->lock, flags);
 
