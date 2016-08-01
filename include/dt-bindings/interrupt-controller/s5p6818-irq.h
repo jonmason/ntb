@@ -86,6 +86,14 @@
 #define IRQ_TMU0			(IRQ_OFFSET + 60)
 #define IRQ_TMU1			(IRQ_OFFSET + 61)
 #define IRQ_VIP2			(IRQ_OFFSET + 72)
+#define IRQ_P0_PMUIRQ0			(IRQ_OFFSET + 82)
+#define IRQ_P0_PMUIRQ1			(IRQ_OFFSET + 83)
+#define IRQ_P0_PMUIRQ2			(IRQ_OFFSET + 84)
+#define IRQ_P0_PMUIRQ3			(IRQ_OFFSET + 85)
+#define IRQ_P1_PMUIRQ0			(IRQ_OFFSET + 95)
+#define IRQ_P1_PMUIRQ1			(IRQ_OFFSET + 96)
+#define IRQ_P1_PMUIRQ2			(IRQ_OFFSET + 97)
+#define IRQ_P1_PMUIRQ3			(IRQ_OFFSET + 98)
 
 #define IRQ_PHY_NR			(160)		/* GIC: GIC_DIST_CTR */
 
