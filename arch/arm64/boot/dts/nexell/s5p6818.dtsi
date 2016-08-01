@@ -172,6 +172,27 @@
 		};
 	};
 
+	pmu {
+		compatible = "arm,armv8-pmuv3";
+		interrupt-parent = <&gic>;
+		interrupts = <0 IRQ_P0_PMUIRQ0 0>,
+			     <0 IRQ_P0_PMUIRQ1 0>,
+			     <0 IRQ_P0_PMUIRQ2 0>,
+			     <0 IRQ_P0_PMUIRQ3 0>,
+			     <0 IRQ_P1_PMUIRQ0 0>,
+			     <0 IRQ_P1_PMUIRQ1 0>,
+			     <0 IRQ_P1_PMUIRQ2 0>,
+			     <0 IRQ_P1_PMUIRQ3 0>;
+		interrupt-affinity = <&cpu0>,
+				     <&cpu1>,
+				     <&cpu2>,
+				     <&cpu3>,
+				     <&cpu4>,
+				     <&cpu5>,
+				     <&cpu6>,
+				     <&cpu7>;
+	};
+
 	refclk:oscillator {
 		compatible = "nexell,s5p6818,pll";
 		reg = <0xc0010000 0x1000>;
