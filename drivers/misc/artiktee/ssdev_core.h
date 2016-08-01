@@ -19,6 +19,9 @@
 #ifndef __SECURE_CORE_H__
 #define __SECURE_CORE_H__
 
+#include "ssdev_rpmb.h"
+#include "nsrpc_ree_slave.h"
+
 typedef enum {
 	TEE_SUCCESS = 0x00000000,
 	TEE_EXTERNAL_REQUEST = 0xEEEEEEEE,
@@ -109,4 +112,5 @@ int storage_get_rpmb_status(void);
 void storage_free_rpmb_buddy(void);
 int storage_bottom_handler(void);
 
+void ssdev_handler(NSRPCTransaction_t *txn_object);
 #endif /* __SECURE_CORE_H__ */

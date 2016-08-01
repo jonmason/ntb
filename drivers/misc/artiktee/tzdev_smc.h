@@ -77,6 +77,10 @@ static inline int monitor_uuid_same(const struct monitor_uuid x,
 
 struct secos_kern_info;
 
+#ifdef CONFIG_TZDEV_DEBUG
+void init_smc_status(void);
+#endif
+
 int smc_init_monitor(void);
 int scm_query_kernel_info(struct secos_kern_info *kinfo);
 int scm_syscrash_register(int wsm_id);
@@ -105,4 +109,5 @@ int scm_sys_suspend(void);
 int scm_sys_resume(void);
 #endif /* !CONFIG_PSCI */
 
+int scm_resource_monitor_cmd(uint32_t cmd, uint32_t arg0);
 #endif /* __TRUSTZONE_REE_SOURCE_TZDEV_TZDEV_SMC_H__ */

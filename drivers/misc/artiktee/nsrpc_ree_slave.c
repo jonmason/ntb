@@ -28,14 +28,18 @@
 #include <linux/kthread.h>
 #include <linux/semaphore.h>
 
-#include "nsrpc_ree_slave.h"
 #include "tzdev.h"
 #include "tzdev_internal.h"
 #include "tzlog_print.h"
+#include "ssdev_core.h"
+#include "dumpdev_core.h"
+#include "nsrpc_ree_slave.h"
 
-/* If you update this, also update nsrpc.h in Secure Kernel */
+/* If you update this, also update nsrpc_tee_master.h in Secure Kernel */
 
 #define NSRPC_CHANNEL_SSDEV			1
+#define SSTRANSACTION_CHANNEL_LIB_PROV		2
+#define NSRPC_CHANNEL_DUMPDEV			3
 
 struct nsrpc_rpc_data {
 	uint64_t transaction_id;	/* 8 - filled by kernel */
@@ -74,6 +78,9 @@ static NSRPCTransaction_t s_emerg_pool[NUM_EMERGENCY_TRANSACTIONS];
 static struct task_struct *s_worker_task[NSRPC_MAX_WORKERS];
 
 void nsrpc_handler(NSRPCTransaction_t *txn_object);
+#ifdef CONFIG_TEE_LIBRARY_PROVISION
+int libprov_handler(NSRPCTransaction_t *txn_object);
+#endif
 
 static int nsrpc_worker(void *arg)
 {
@@ -108,11 +115,20 @@ static int nsrpc_worker(void *arg)
 				    raw_smp_processor_id());
 
 			switch (tsx->rpc_data.channel) {
-#ifndef CONFIG_SECOS_NO_SECURE_STORAGE
-			case NSRPC_CHANNEL_SSDEV:
-				nsrpc_handler(tsx);
+#ifdef CONFIG_TEE_LIBRARY_PROVISION
+			case SSTRANSACTION_CHANNEL_LIB_PROV:
+				ret = libprov_handler(tsx);
+				nsrpc_complete(tsx, ret);
 				break;
 #endif
+#ifndef CONFIG_SECOS_NO_SECURE_STORAGE
+			case NSRPC_CHANNEL_SSDEV:
+				ssdev_handler(tsx);
+				break;
+#endif
+			case NSRPC_CHANNEL_DUMPDEV:
+				dumpdev_handler(tsx);
+				break;
 			default:
 				tzlog_print(TZLOG_ERROR,
 					    "Sending SCM transaction to unknown channel %x\n",

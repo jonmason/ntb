@@ -32,32 +32,42 @@
 #include "tzdev_smc.h"
 #include "tzlog_print.h"
 #include "ssdev_file.h"
+#include "tzdev_plat.h"
+
+#if defined(CONFIG_INSTANCE_DEBUG) && defined(CONFIG_USB_DUMP)
+#include "usb_dump.h"
+#endif
 
 #ifdef CONFIG_INSTANCE_DEBUG
 #include <linux/vmalloc.h>
-/* it should be change to removing Duplicated code(tzlog.c ) */
 #define CONFIG_TZDEV_MINIDUMP
-#define ERROR_PARENT_DIR_PATH  "/opt/usr/apps/"
-#define ERROR_DIR_NAME_DEPTH1 "save_error_log"
-#define ERROR_DIR_NAME_DEPTH2 "error_log"
-#define ERROR_DUMP_PARENT_DIR_PATH  "/opt/usr/apps/save_error_log/error_log/"
-#define ERROR_DUMP_DIR_NAME "secureos_dump"
-#endif /* CONFIG_INSTANCE_DEBUG */
+#define ENC_DUMP_DIR_PATH  "/opt/usr/apps/save_error_log/error_log/secureos_dump/"
+#endif
 
 struct secos_syspage *tz_syspage;
 #ifdef CONFIG_TZDEV_MINIDUMP
 char *tz_minidump_data;
+uint  tz_minidump_data_size;
 #endif
 static atomic_t tz_crashed;
 
-#ifdef CONFIG_INSTANCE_DEBUG
-#ifdef CONFIG_CALL_SAVELOG
-extern void set_kpi_fault(unsigned long pc, unsigned long lr, char *thread_name,
-			  char *process_name, char *type);
-#endif /* CONFIG_CALL_SAVELOG */
-#endif /* CONFIG_INSTANCE_DEBUG */
-
 #define MINIDUMP_PAGES			256
+
+char *get_minidump_buf(void)
+{
+#ifdef CONFIG_TZDEV_MINIDUMP
+	return tz_minidump_data;
+#endif
+	return NULL;
+}
+
+uint get_minidump_buf_size(void)
+{
+#ifdef CONFIG_TZDEV_MINIDUMP
+	return tz_minidump_data_size;
+#endif
+	return 0;
+}
 
 void __init tzsys_init(void)
 {
@@ -65,6 +75,7 @@ void __init tzsys_init(void)
 	int rc;
 #ifdef CONFIG_TZDEV_MINIDUMP
 	void *minipage;
+	int minipage_size;
 	int miniwsm;
 #endif /* CONFIG_TZDEV_MINIDUMP */
 	struct page *pg;
@@ -84,15 +95,17 @@ void __init tzsys_init(void)
 	tzlog_print(K_INFO, "Register MiniDump\n");
 
 	/* 1MB for minidump */
-	minipage = vmalloc(MINIDUMP_PAGES * PAGE_SIZE);
+	minipage_size = MINIDUMP_PAGES * PAGE_SIZE;
+	minipage = vmalloc(minipage_size);
 	BUG_ON(!minipage);
 
 	tz_minidump_data = (char *)minipage;
+	tz_minidump_data_size = minipage_size;
 
-	memset(minipage, 0, MINIDUMP_PAGES * PAGE_SIZE);
+	memset(minipage, 0, minipage_size);
 
 	miniwsm =
-	    tzwsm_register_kernel_memory(minipage, MINIDUMP_PAGES * PAGE_SIZE,
+	    tzwsm_register_kernel_memory(minipage, minipage_size,
 					 GFP_KERNEL);
 	BUG_ON(miniwsm < 0);
 
@@ -103,22 +116,24 @@ void __init tzsys_init(void)
 }
 
 #ifdef CONFIG_TZDEV_MINIDUMP
-int tzlog_create_dir(char *parnet_dir_name, char *dir_name);
-
+int tzlog_create_dir_full_path(char *dir_full_path);
 int tzlog_output_do_dump(int is_kernel)
 {
 	int write_size;
-	char path[128];
 	struct timeval now;
 	unsigned long long T;
+	int ret = 0;
+	char *file_full_path = NULL;
 
 	if (!tz_syspage->minidump_size)
-		goto out;
+		return -1;
 
 	if (is_kernel == 0) {
 		if (tz_syspage->syscrash0 == SYSCRASH_VALUE_0 &&
-		    tz_syspage->syscrash1 == SYSCRASH_VALUE_1)
-			return 0;
+		    tz_syspage->syscrash1 == SYSCRASH_VALUE_1) {
+			tzlog_print(K_ERR, "Secure kernel crash already occurred\n");
+			return -1;
+		}
 	}
 
 	if (is_kernel == 1)
@@ -126,34 +141,39 @@ int tzlog_output_do_dump(int is_kernel)
 	else
 		tzlog_print(K_ERR, "TA Crash detected\n");
 
-	tzlog_create_dir(ERROR_PARENT_DIR_PATH, ERROR_DIR_NAME_DEPTH1);
-	snprintf(path, sizeof(path), "%s%s/",
-			ERROR_PARENT_DIR_PATH, ERROR_DIR_NAME_DEPTH1);
-	tzlog_create_dir(path, ERROR_DIR_NAME_DEPTH2);
-	tzlog_create_dir(ERROR_DUMP_PARENT_DIR_PATH, ERROR_DUMP_DIR_NAME);
+	if ((ret = tzlog_create_dir_full_path(ENC_DUMP_DIR_PATH)) != 0)	{
+		tzlog_print(K_ERR, "tzlog_create_dir_full_path failed\n");
+		return ret;
+	}
 
 	do_gettimeofday(&now);
-
 	T = (now.tv_sec * 1000ULL) + (now.tv_usec / 1000LL);
 
-	snprintf(path, sizeof(path), "%s%s/minidump_%s_%lld.elf",
-		 ERROR_DUMP_PARENT_DIR_PATH, ERROR_DUMP_DIR_NAME,
+	file_full_path = (char*)vmalloc(PATH_MAX);
+	if (file_full_path == NULL) {
+		tzlog_print(K_ERR, "vmalloc failed\n");
+		ret = -1;
+		goto exit_tzlog_output_do_dump;
+	}
+	snprintf(file_full_path, PATH_MAX, "%sminidump_%s_%010lld.elf",
+		 ENC_DUMP_DIR_PATH,
 		 ((is_kernel == 1) ? "os" : "app"), T);
 
-	write_size = ss_file_create_object(path, tz_minidump_data,
+	write_size = ss_file_create_object(file_full_path, tz_minidump_data,
 			tz_syspage->minidump_size);
 
 	if (write_size <= 0) {
 		tzlog_print(K_ERR,
 			"error occured while opening file %s, exiting...\n",
-			path);
-		goto out;
+			file_full_path);
+		ret = -1;
+		goto exit_tzlog_output_do_dump;
 	}
 
 	if (is_kernel == 1)
-		tzlog_print(K_ERR, "Writing SecureOS minidump to %s\n", path);
+		tzlog_print(K_ERR, "Writing SecureOS minidump to %s\n", file_full_path);
 	else
-		tzlog_print(K_INFO, "Writing TA minidump to %s\n", path);
+		tzlog_print(K_INFO, "Writing TA minidump to %s\n", file_full_path);
 
 	if (is_kernel == 1)
 		tzlog_print(K_ERR, "Minidump stored %u bytes\n",
@@ -164,21 +184,30 @@ int tzlog_output_do_dump(int is_kernel)
 			    tz_syspage->minidump_size, tz_syspage->uid);
 
 	memset(tz_minidump_data, 0, tz_syspage->minidump_size);
-	memset(tz_syspage->uid, 0, sizeof(tz_syspage->uid));
 
-#ifdef CONFIG_INSTANCE_DEBUG
-#ifdef CONFIG_CALL_SAVELOG
+	tzlog_print(K_INFO, "file_full_path-dump %s \n", file_full_path);
+
+#if defined(CONFIG_INSTANCE_DEBUG) && defined(CONFIG_USB_DUMP)
+	if (ss_file_object_exist(file_full_path) == 1)
+		copy_file_to_usb(file_full_path);
+	else tzlog_print(K_ERR, "file(%s) not exist \n", file_full_path);
+#endif
+
 	if (is_kernel == 1)
-		set_kpi_fault(0, 0, "main", "TrustWare", "TZ");
-	 else
-		set_kpi_fault(0, 0, "main", tz_syspage->uid, "TZ");
-#endif /* CONFIG_CALL_SAVELOG */
-#endif /* CONFIG_INSTANCE_DEBUG */
+		plat_dump_postprocess("TrustWare");
+	else plat_dump_postprocess(tz_syspage->uid);
+
+	memset(tz_syspage->uid, 0, sizeof(tz_syspage->uid));
 
 	/* End of writing the dump file */
 	tz_syspage->minidump_size = 0;
-out:
-	return 0;
+
+exit_tzlog_output_do_dump:
+
+	if (file_full_path != NULL)
+		vfree(file_full_path);
+
+	return ret;
 }
 
 static int tz_crash_worker(void *unused)

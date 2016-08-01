@@ -39,6 +39,8 @@
 #define TZMEM_CHECK_MEMORY	_IOR(TZ_IOC_MAGIC, 124, struct tzmem_region)
 
 
+#define TZIO_RSRC_CMD		_IOWR(TZ_IOC_MAGIC, 132, struct rsrc_msg )
+
 struct tzio_message {
 	__u32		type;
 	__u32		endpoint;
@@ -52,7 +54,7 @@ struct tzio_message {
 struct tzmem_region {
 	__s32		pid;	/* Memory region owner's PID (in) */
 	const void	*ptr;	/* Memory region start (in) */
-	__s32		size;	/* Memory region size (in) */
+	__u32		size;	/* Memory region size (in) */
 	__s32		id;	/* Memory region ID (out) */
 	__u32		tee_ctx_id;	/* (in) */
 	__s32		writable;

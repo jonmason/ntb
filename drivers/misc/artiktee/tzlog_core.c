@@ -40,13 +40,11 @@
 #include "tzlog_core.h"
 
 #ifdef CONFIG_INSTANCE_DEBUG
+#if defined(CONFIG_USB_DUMP)
+#include "usb_dump.h"
+#endif
 #include <linux/vmalloc.h>
-/* it should be change to removing Duplicated code(tzsys.c ) */
-#define ERROR_PARENT_DIR_PATH  "/opt/usr/apps/"
-#define ERROR_DIR_NAME_DEPTH1 "save_error_log"
-#define ERROR_DIR_NAME_DEPTH2 "error_log"
-#define ERROR_LOG_PARENT_DIR_PATH  "/opt/usr/apps/save_error_log/error_log/"
-#define ERROR_LOG_DIR_NAME "secureos_log"
+#define ENC_LOG_DIR_PATH  "/opt/usr/apps/save_error_log/error_log/secureos_log/"
 #define SYSLOG_ENCRYPT_MEM_SIZE (PAGE_SIZE * 8)
 #endif /* CONFIG_INSTANCE_DEBUG */
 #define TZLOG_TYPE_PURE 1
@@ -68,18 +66,14 @@ static s_tzlog_data encrypt_log_data = {
 };
 #endif
 
-/* it should be change to support creating two depth of folder */
-int tzlog_create_dir(char *parnet_dir_name, char *dir_name)
+int tzlog_create_dir(char *dir_full_path)
 {
-	char path[128];
 	struct dentry *dentry;
 	struct path p;
 	int err;
 	struct inode *inode;
 
-	snprintf(path, sizeof(path), "%s%s", parnet_dir_name, dir_name);
-
-	dentry = kern_path_create(AT_FDCWD, path, &p, LOOKUP_DIRECTORY);
+	dentry = kern_path_create(AT_FDCWD, dir_full_path, &p, LOOKUP_DIRECTORY);
 
 	if (IS_ERR(dentry))
 		return PTR_ERR(dentry);
@@ -96,28 +90,91 @@ int tzlog_create_dir(char *parnet_dir_name, char *dir_name)
 	return err;
 }
 
+int tzlog_create_dir_full_path(char *dir_full_path)
+{
+	int ret = 0;
+	int index = 0;
+	int all_len = 0;
+	char *parent_dir = NULL;
+
+	if (dir_full_path == NULL) {
+		tzlog_print(K_ERR, "dir_full_path param is NULL\n");
+		return -1;
+	}
+
+	all_len = strlen(dir_full_path);
+	if (dir_full_path[0] != '/' || dir_full_path[all_len - 1] != '/') {
+		tzlog_print(K_ERR, "dir_full_path path is not correct\n");
+		return -1;
+	}
+
+	parent_dir = (char*)vmalloc(PATH_MAX);
+	if (parent_dir == NULL)	{
+		tzlog_print(K_ERR, "vmalloc failed\n");
+		ret = -1;
+		goto exit_tzlog_create_dir_full_path;
+	}
+
+	for (index = 0; index < all_len; index++) {
+		if (dir_full_path[index] == '/' && index != 0) {
+			memset(parent_dir, 0, PATH_MAX);
+			memcpy(parent_dir, dir_full_path, index);
+			tzlog_create_dir(parent_dir);
+		}
+	}
+
+exit_tzlog_create_dir_full_path:
+	if (parent_dir != NULL)
+		vfree(parent_dir);
+
+	return ret;
+}
+
 #ifdef CONFIG_INSTANCE_DEBUG
 int tzlog_output_do_dump(int is_kernel);
 static int tzlog_output_to_error_log(char *data, int data_size,
 				     int is_kernel_error)
 {
-	char path[128];
 	unsigned long long T;
 	struct timeval now;
+	int ret = 0;
+	char *file_full_path = NULL;
 
-	tzlog_create_dir(ERROR_PARENT_DIR_PATH, ERROR_DIR_NAME_DEPTH1);
-	snprintf(path, sizeof(path), "%s%s/", ERROR_PARENT_DIR_PATH,
-		 ERROR_DIR_NAME_DEPTH1);
-	tzlog_create_dir(path, ERROR_DIR_NAME_DEPTH2);
-	tzlog_create_dir(ERROR_LOG_PARENT_DIR_PATH, ERROR_LOG_DIR_NAME);
+	if ((ret = tzlog_create_dir_full_path(ENC_LOG_DIR_PATH)) != 0) {
+		tzlog_print(K_ERR, "tzlog_create_dir_full_path failed\n");
+		return ret;
+	}
 
 	do_gettimeofday(&now);
 	T = (now.tv_sec * 1000ULL) + (now.tv_usec / 1000LL);
-	snprintf(path, sizeof(path), "%s%s/minilog_%s_%lld.log",
-		 ERROR_LOG_PARENT_DIR_PATH, ERROR_LOG_DIR_NAME,
+
+	file_full_path = (char*)vmalloc(PATH_MAX);
+	if (file_full_path == NULL) {
+		tzlog_print(K_ERR, "vmalloc failed\n");
+		ret = -1;
+		goto exit_tzlog_output_to_error_log;
+	}
+
+	snprintf(file_full_path, PATH_MAX, "%sminilog_%s_%010lld.log",
+		 ENC_LOG_DIR_PATH,
 		 ((is_kernel_error == 1) ? "os" : "app"), T);
 
-	return ss_file_create_object(path, data, data_size);
+	ret = ss_file_create_object(file_full_path, data, data_size);
+
+	tzlog_print(K_INFO, "file_full_path-log %s \n", file_full_path);
+
+#if defined(CONFIG_INSTANCE_DEBUG) && defined(CONFIG_USB_DUMP)
+	if(ss_file_object_exist(file_full_path) == 1)
+		copy_file_to_usb(file_full_path);
+	else tzlog_print(K_ERR, "file(%s) not exist \n", file_full_path);
+#endif
+
+exit_tzlog_output_to_error_log:
+
+	if(file_full_path != NULL)
+		vfree(file_full_path);
+
+	return ret;
 }
 #endif /* CONFIG_INSTANCE_DEBUG */
 

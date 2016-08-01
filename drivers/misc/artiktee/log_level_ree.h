@@ -67,7 +67,7 @@ typedef enum {
 #define TZDAEMON_LOCAL_SYSLOG_LOG_LEVEL LOG_DEBUG  /* OutPut Default */
 #define TZDEV_LOCAL_LOG_LEVEL           K_INFO     /* OutPut Default */
 
-#define NO_HEADER_LOG_LEVEL		LOG_INFO   /* Generation Default */
+#define NO_HEADER_LOG_LEVEL 			LOG_INFO   /* Generation Default */
 #else
 #define TZDAEMON_DLOG_KERN_LOG_LEVEL   LOG_ERR     /* OutPut Default */
 #define TZDAEMON_DLOG_TA_LOG_LEVEL     LOG_ERR     /* OutPut Default */
@@ -80,7 +80,7 @@ typedef enum {
 #define TZDAEMON_LOCAL_SYSLOG_LOG_LEVEL LOG_ALERT  /* OutPut Default */
 #define TZDEV_LOCAL_LOG_LEVEL           K_ALERT    /* OutPut Default */
 
-#define NO_HEADER_LOG_LEVEL 		LOG_INFO  /* Generation Default */
+#define NO_HEADER_LOG_LEVEL 			LOG_INFO  /* Generation Default */
 #endif /* NDEBUG */
 
 /* For Old Log Level */

@@ -28,6 +28,7 @@
 #include <linux/sysfs.h>
 #include <linux/vmalloc.h>
 #include <linux/crc32.h>
+#include <linux/fs.h>
 
 #include "ssdev_rpmb.h"
 #include "ssdev_core.h"
@@ -39,10 +40,11 @@
 #include "tzdev_smc.h"
 #include "nsrpc_ree_slave.h"
 #include "tzlog_print.h"
+#include "tee_messages.h"
 
 #ifndef CONFIG_SECOS_NO_SECURE_STORAGE
 
-#define SS_WSM_SIZE         (0x00010000)
+#define SS_WSM_SIZE         (0x00020000)
 
 enum scm_watch_target {
 	TARGET_SS_DEV = 0x1001,
@@ -136,9 +138,16 @@ enum ss_file_main_back {
 	SS_INVALIDE_OBJECT_FILE,
 };
 
+#ifdef CONFIG_TEE_LIBRARY_PROVISION
+enum {
+	LIBPROV_LIBRARY_GET = 0,
+	LIBPROV_LIBRARY_FREE,
+};
+#endif
+
 #define TEE_STORAGE_PRIVATE         0x00000001
 #define TEE_STORAGE_RPMB            0x00000002
-#define MAX_FILE_OBJECT_SIZE    (64*1024)
+#define MAX_FILE_OBJECT_SIZE    (128*1024)
 #define MAX_RPMB_OBJECT_SIZE    (4*1024)
 #define OBJ_HEADER_SIZE					(256)
 
@@ -156,6 +165,9 @@ enum ss_file_main_back {
 	tzdev_scm_watch((0), (devid), (cmdid), (p0), (p1))
 
 static struct ss_wsm ss_wsm_channel;
+#ifdef CONFIG_TEE_LIBRARY_PROVISION
+static struct ss_wsm libprov_wsm_channel;
+#endif
 
 static void ssdev_query_object(NSRPCTransaction_t *tsx)
 {
@@ -699,7 +711,7 @@ int storage_register_wsm(void)
 	return 0;
 }
 
-void nsrpc_handler(NSRPCTransaction_t *txn_object)
+void ssdev_handler(NSRPCTransaction_t *txn_object)
 {
 	uint32_t command = nsrpc_get_command(txn_object);
 
@@ -754,3 +766,132 @@ void nsrpc_handler(NSRPCTransaction_t *txn_object)
 }
 
 #endif /* CONFIG_SECOS_NO_SECURE_STORAGE */
+
+#ifdef CONFIG_TEE_LIBRARY_PROVISION
+int libprov_register_wsm(void *addr, size_t size)
+{
+	struct ss_wsm *wsm_page = &libprov_wsm_channel;
+	int ret;
+
+	if (!addr) {
+		tzlog_print(TZLOG_ERROR, "Libprov WSM: wrong buffer address!\n");
+		return -EINVAL;
+	}
+
+	mutex_init(&wsm_page->wsm_lock);
+	mutex_lock(&wsm_page->wsm_lock);
+
+	wsm_page->wsm_id = -1;
+
+	/* TODO: use USER memory instead of KERNEL */
+	ret = tzwsm_register_kernel_memory(addr, size, GFP_KERNEL);
+	if (ret < 0)
+		panic("Unable to register WSM buffer in Secure Kernel\n");
+
+	wsm_page->wsm_id = ret;
+	wsm_page->payload = addr;
+	wsm_page->max_size = size;
+
+	mutex_unlock(&wsm_page->wsm_lock);
+
+	return 0;
+}
+
+#define LIBRARY_SEARCH_PATH	"/usr/apps/teelib"
+#define MAX_PATH_LEN		256
+
+void *libprov_load_file(const char *libname, size_t *ret_size)
+{
+	char path[MAX_PATH_LEN];
+	unsigned int filesize, offset, read_size;
+	struct trm_ta_image *ta_image = NULL;
+	struct file *file;
+
+	*ret_size = 0;
+
+	snprintf(path, MAX_PATH_LEN, "%s/%s", LIBRARY_SEARCH_PATH, libname);
+
+	file = filp_open(path, O_RDONLY, 0);
+	if (IS_ERR(file)) {
+		tzlog_print(TZLOG_ERROR, "Can't open file: %s\n", path);
+		return NULL;
+	}
+
+	filesize = vfs_llseek(file, 0, SEEK_END);
+	if (!filesize) {
+		tzlog_print(TZLOG_ERROR, "Empty file!\n");
+		goto end;
+	}
+
+	ta_image = vmalloc(filesize + sizeof(struct trm_ta_image));
+	if (!ta_image) {
+		tzlog_print(TZLOG_ERROR, "Can't vmalloc memory for file size: %lu\n", filesize);
+		goto end;
+	}
+
+	read_size = kernel_read(file, offset, (char *)&ta_image->buffer, filesize);
+	if (read_size != filesize) {
+		tzlog_print(TZLOG_ERROR, "ERROR: (%s) - read only %llu of %llu\n",
+							path, read_size, filesize);
+		vfree(ta_image);
+		ta_image = NULL;
+		goto end;
+	}
+
+	ta_image->type = 0;
+
+	*ret_size = filesize;
+end:
+	filp_close(file, NULL);
+	return ta_image;
+}
+
+int libprov_handler(NSRPCTransaction_t *txn_object)
+{
+	static void *filebuff;
+	ssize_t filesize;
+	uint32_t command;
+	char *libpath;
+	int memid;
+
+	command = nsrpc_get_command(txn_object);
+	switch (command) {
+	case LIBPROV_LIBRARY_GET:
+		libpath = nsrpc_payload_ptr(txn_object);
+		if (!libpath) {
+			tzlog_print(TZLOG_ERROR, "Received LIBRARY GET command for BAD path!\n");
+			return -EINVAL;
+		}
+
+		filebuff = libprov_load_file(libpath, &filesize);
+		if (!filebuff) {
+			tzlog_print(TZLOG_ERROR, "LIBRARY GET: Can't read local file!\n");
+			return -ENOENT;
+		}
+
+		if (libprov_register_wsm(filebuff, filesize)) {
+			tzlog_print(TZLOG_ERROR, "LIBRARY GET: Can't register file buffer!\n");
+			vfree(filebuff);
+			return -ENOMEM;
+		}
+
+		nsrpc_set_arg(txn_object, 0, libprov_wsm_channel.wsm_id);
+		nsrpc_set_arg(txn_object, 1, libprov_wsm_channel.max_size);
+
+		break;
+	case LIBPROV_LIBRARY_FREE:
+		if (!filebuff) {
+			break;
+		}
+		memid = nsrpc_get_arg(txn_object, 0);
+		tzwsm_unregister_kernel_memory(memid);
+		vfree(filebuff);
+		filebuff = NULL;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+#endif

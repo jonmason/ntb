@@ -96,7 +96,7 @@ struct secos_kern_info {
 };
 
 #define SECOS_KERN_INFO_V1      (sizeof(struct secos_kern_info))
-#define SECOS_ABI_VERSION       10
+#define SECOS_ABI_VERSION       11
 
 struct secos_register_wsm_args {
 	uint64_t va;

@@ -55,6 +55,7 @@
 #endif /* !CONFIG_FETCH_TEE_INFO */
 #include "tzlog_core.h"
 #include "tzlog_print.h"
+#include "tzrsrc_msg.h"
 
 #define TZDEV_MAJOR_VERSION  "007"
 #define TZDEV_MINOR_VERSION  "0"
@@ -1646,11 +1647,16 @@ static int fetch_kernel_info(void)
 }
 
 extern struct miscdevice tzmem;
+extern struct miscdevice tzrsrc;
 
 static int __init init_tzdev(void)
 {
 	int rc;
 	int cpu;
+
+#ifdef CONFIG_TZDEV_DEBUG
+	init_smc_status();
+#endif
 
 	rc = smc_init_monitor();
 	if (rc < 0) {
@@ -1673,6 +1679,11 @@ static int __init init_tzdev(void)
 	rc = misc_register(&tzmem);
 	if (unlikely(rc))
 		goto tzdev_out;
+
+	rc = misc_register(&tzrsrc);
+	if (unlikely(rc)) {
+		goto tzdev_out;
+	}
 
 	tzlog_print(TZLOG_INFO, "tzdev version [%s.%s]\n",
 			TZDEV_MAJOR_VERSION, TZDEV_MINOR_VERSION);
