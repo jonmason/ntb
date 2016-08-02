@@ -151,8 +151,12 @@ void mali_dvfs_policy_realize(struct mali_gpu_utilization_data *data, u64 time_p
 	/* Get current clock value */
 	cur_clk_step = mali_gpu_get_freq();
 
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+	if (1) {
+#else
 	/* Consider offscreen */
 	if (0 == current_fps) {
+#endif
 		/* GP or PP under perform, need to give full power */
 		if (current_gpu_util > over_perform_boundary_value) {
 			if (cur_clk_step != gpu_clk->num_of_steps - 1) {
