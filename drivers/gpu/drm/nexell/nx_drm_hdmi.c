@@ -27,7 +27,7 @@
 #include <linux/of_graph.h>
 #include <linux/of_gpio.h>
 #include <video/of_display_timing.h>
-
+#include <dt-bindings/gpio/gpio.h>
 #include <drm/nexell_drm.h>
 
 #include "nx_drm_drv.h"
@@ -500,6 +500,7 @@ static int panel_hdmi_parse_dt(struct platform_device *pdev,
 	struct device_node *node = dev->of_node;
 	struct nx_drm_device *display = ctx->display;
 	struct nx_drm_panel *panel = &ctx->display->panel;
+	struct gpio_desc *desc;
 	int err;
 
 	DRM_INFO("Load HDMI panel\n");
@@ -526,11 +527,31 @@ static int panel_hdmi_parse_dt(struct platform_device *pdev,
 	if (0 > err)
 		return err;
 
-	ctx->enable_gpio =
-			devm_gpiod_get_optional(dev, "enable", GPIOD_OUT_LOW);
+	desc = devm_gpiod_get_optional(dev, "enable", GPIOD_ASIS);
+	if (-EBUSY == (long)ERR_CAST(desc)) {
+		DRM_INFO("fail : enable-gpios is busy : %s !!!\n",
+			node->full_name);
+		desc = NULL;
+	}
 
-	if (ctx->enable_gpio)
-		gpiod_set_value_cansleep(ctx->enable_gpio, 1);
+	if (!IS_ERR(desc) && desc) {
+		enum of_gpio_flags flags;
+		int gpio;
+
+		gpio = of_get_named_gpio_flags(node, "enable-gpios", 0, &flags);
+		if (!gpio_is_valid(gpio)) {
+			DRM_ERROR("invalid gpio.%d\n", gpio);
+			return -EINVAL;
+		}
+
+		/* enable at boottime */
+		gpiod_direction_output(desc,
+					flags == GPIO_ACTIVE_HIGH ? 1 : 0);
+		ctx->enable_gpio = desc;
+
+		DRM_INFO("HDMI enable-gpio.%d act %s\n", gpio,
+				flags == GPIO_ACTIVE_HIGH ? "high" : "low ");
+	}
 
 	parse_read_prop(node, "width-mm", panel->width_mm);
 	parse_read_prop(node, "height-mm", panel->height_mm);

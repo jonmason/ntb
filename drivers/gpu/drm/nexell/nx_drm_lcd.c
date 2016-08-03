@@ -26,7 +26,7 @@
 #include <linux/of_graph.h>
 #include <linux/of_gpio.h>
 #include <video/of_display_timing.h>
-
+#include <dt-bindings/gpio/gpio.h>
 #include <drm/nexell_drm.h>
 
 #include "nx_drm_drv.h"
@@ -52,7 +52,9 @@ struct lcd_context {
 	struct nx_drm_device *display;
 	struct mutex lock;
 	bool local_timing;
-	struct gpio_desc *enable_gpio;
+	struct gpio_descs *enable_gpios;
+	enum of_gpio_flags gpios_active[4];
+	int gpios_delay[4];
 	struct mipi_resource mipi_res;
 };
 
@@ -237,14 +239,31 @@ static void panel_lcd_dmps(struct device *dev, int mode)
 	struct lcd_context *ctx = dev_get_drvdata(dev);
 	struct nx_drm_panel *panel = &ctx->display->panel;
 	struct drm_panel *drm_panel = panel->panel;
+	struct gpio_desc **desc;
+	int i;
 
 	DRM_DEBUG_KMS("dpms.%d\n", mode);
+
 	switch (mode) {
 	case DRM_MODE_DPMS_ON:
 		panel_lcd_enable(dev, drm_panel);
 
-		if (!panel && ctx->enable_gpio)
-			gpiod_set_value_cansleep(ctx->enable_gpio, 1);
+		if (ctx->enable_gpios) {
+			desc = ctx->enable_gpios->desc;
+			for (i = 0; ctx->enable_gpios->ndescs > i; i++) {
+				DRM_DEBUG_KMS("LCD gpio.%d ative %s %dms\n",
+					desc_to_gpio(desc[i]),
+					ctx->gpios_active[i] == GPIO_ACTIVE_HIGH
+					? "high" : "low ",
+					ctx->gpios_delay[i]);
+
+				gpiod_set_value_cansleep(desc[i],
+						ctx->gpios_active[i] ==
+						GPIO_ACTIVE_HIGH ? 1 : 0);
+				if (ctx->gpios_delay[i])
+					mdelay(ctx->gpios_delay[i]);
+			}
+		}
 		break;
 
 	case DRM_MODE_DPMS_STANDBY:
@@ -252,8 +271,13 @@ static void panel_lcd_dmps(struct device *dev, int mode)
 	case DRM_MODE_DPMS_OFF:
 		panel_lcd_disable(dev, drm_panel);
 
-		if (!panel && ctx->enable_gpio)
-			gpiod_set_value_cansleep(ctx->enable_gpio, 0);
+		if (ctx->enable_gpios) {
+			desc = ctx->enable_gpios->desc;
+			for (i = 0; ctx->enable_gpios->ndescs > i; i++)
+				gpiod_set_value_cansleep(desc[i],
+						ctx->gpios_active[i] ==
+						GPIO_ACTIVE_HIGH ? 0 : 1);
+		}
 		break;
 	default:
 		DRM_ERROR("fail : unspecified mode %d\n", mode);
@@ -425,15 +449,53 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 	np = of_graph_get_remote_port_parent(node);
 	panel->panel_node = np;
 	if (!np) {
+		struct gpio_descs *gpios;
+		struct gpio_desc **desc;
+		int i, ngpios = 0;
+
 		DRM_INFO("not use remote panel node (%s) !\n",
 			node->full_name);
 
-		/*
-		 * parse panel info
-		 */
-		ctx->enable_gpio =
-			devm_gpiod_get_optional(dev, "enable", GPIOD_OUT_LOW);
+		/* parse panel gpios */
+		gpios = devm_gpiod_get_array(dev, "enable", GPIOD_ASIS);
+		if (-EBUSY == (long)ERR_CAST(gpios)) {
+			DRM_INFO("fail : enable-gpios is busy : %s !!!\n",
+				node->full_name);
+			gpios = NULL;
+		}
 
+		if (!IS_ERR(gpios) && gpios) {
+			ngpios = gpios->ndescs;
+			desc = gpios->desc;
+			ctx->enable_gpios = gpios;	/* set enable_gpios */
+			of_property_read_u32_array(node,
+				"enable-gpios-delay", ctx->gpios_delay,
+				(ngpios-1));
+		}
+
+		for (i = 0; ngpios > i; i++) {
+			enum of_gpio_flags flags;
+			int gpio;
+
+			gpio = of_get_named_gpio_flags(node,
+						"enable-gpios", i, &flags);
+			if (!gpio_is_valid(gpio)) {
+				DRM_ERROR("invalid gpio #%d: %d\n", i, gpio);
+				return -EINVAL;
+			}
+
+			ctx->gpios_active[i] = flags;
+
+			/* disable at boottime */
+			gpiod_direction_output(desc[i],
+					flags == GPIO_ACTIVE_HIGH ? 0 : 1);
+
+			DRM_INFO("LCD enable-gpio.%d act %s\n",
+				gpio, flags == GPIO_ACTIVE_HIGH ?
+				"high" : "low ");
+		}
+
+		/* parse panel lcd size */
 		parse_read_prop(node, "width-mm", panel->width_mm);
 		parse_read_prop(node, "height-mm", panel->height_mm);
 
