@@ -51,6 +51,7 @@ struct nx_v4l2_i2c_board_info {
 struct tv_context {
 	struct drm_connector *connector;
 	int crtc_pipe;
+	unsigned int possible_crtcs_mask;
 	struct reset_control *reset;
 	void *base;
 	struct nx_drm_device *display;
@@ -325,11 +326,13 @@ static int panel_tv_bind(struct device *dev,
 	struct platform_driver *pdrv = to_platform_driver(dev->driver);
 	enum dp_panel_type panel_type = dp_panel_get_type(ctx->display);
 	int pipe = ctx->crtc_pipe;
+	unsigned int possible_crtcs = ctx->possible_crtcs_mask;
 	int err = 0;
 
 	DRM_INFO("Bind %s panel\n", dp_panel_type_name(panel_type));
 	ctx->connector = nx_drm_connector_create_and_attach(drm,
-			ctx->display, pipe, panel_type, ctx);
+			ctx->display, pipe, possible_crtcs,
+			panel_type, ctx);
 
 	if (IS_ERR(ctx->connector))
 		goto err_bind;
@@ -506,6 +509,11 @@ static int panel_tv_parse_dt(struct platform_device *pdev,
 	parse_read_prop(node, "crtc-pipe", ctx->crtc_pipe);
 
 	/*
+	 * get possible crtcs
+	 */
+	parse_read_prop(node, "crtcs-possible-mask", ctx->possible_crtcs_mask);
+
+	/*
 	 * parse panel output for RGB/LVDS/MiPi-DSI
 	 */
 	err = nx_drm_dp_panel_dev_register(dev, node, panel_type, display);
@@ -588,12 +596,6 @@ static int panel_tv_driver_setup(struct platform_device *pdev,
 	type = (enum dp_panel_type)id->data;
 
 	DRM_INFO("Load %s panel\n", dp_panel_type_name(type));
-
-#if 0
-	err = nx_drm_dp_panel_drv_res_parse(dev, &ctx->base, &ctx->reset);
-	if (0 > err)
-		return -EINVAL;
-#endif
 
 	err = nx_drm_dp_panel_res_parse(dev, res, type);
 	if (0 > err)
@@ -804,10 +806,6 @@ static int panel_tv_remove(struct platform_device *pdev)
 
 	if (!ctx)
 		return 0;
-#if 0
-	nx_drm_dp_panel_dev_res_free(dev, &ctx->display->res);
-	nx_drm_dp_panel_drv_res_free(dev, ctx->base, ctx->reset);
-#endif
 
 	nx_drm_dp_panel_res_free(dev, &ctx->display->res);
 	nx_drm_dp_panel_dev_release(dev, ctx->display);
