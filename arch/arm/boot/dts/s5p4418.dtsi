@@ -49,10 +49,14 @@
 		pinctrl0 = &pinctrl_0;
 	};
 
+	psci {
+		compatible = "arm,psci-0.2";
+		method = "smc";
+	};
+
 	cpus {
 		#address-cells = <0x1>;
 		#size-cells = <0x0>;
-		enable-method = "nexell,s5p4418-smp";
 
 		cpu0: cpu@0 {
 			device_type = "cpu";
