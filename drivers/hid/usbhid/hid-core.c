@@ -1149,7 +1149,12 @@ static int usbhid_start(struct hid_device *hid)
 			interface->desc.bInterfaceProtocol ==
 				USB_INTERFACE_PROTOCOL_KEYBOARD) {
 		usbhid_set_leds(hid);
+#if (!defined(CONFIG_ARCH_S5P4418) && \
+	!defined(CONFIG_ARCH_S5P6818))
 		device_set_wakeup_enable(&dev->dev, 1);
+#else
+		device_set_wakeup_enable(&dev->dev, 0);
+#endif
 	}
 	return 0;
 
