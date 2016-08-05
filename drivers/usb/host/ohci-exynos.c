@@ -230,10 +230,12 @@ static int exynos_ohci_remove(struct platform_device *pdev)
 
 static void exynos_ohci_shutdown(struct platform_device *pdev)
 {
+#if !(defined(CONFIG_ARCH_S5P4418) || defined(CONFIG_ARCH_S5P6818))
 	struct usb_hcd *hcd = platform_get_drvdata(pdev);
 
 	if (hcd->driver->shutdown)
 		hcd->driver->shutdown(hcd);
+#endif
 }
 
 #ifdef CONFIG_PM
