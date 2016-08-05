@@ -5,10 +5,14 @@ Required properties for display soc panel driver:
  - ddc-i2c-bus : phandle of an I2C controller used for DDC EDID probing
  - enable-gpios: GPIO pin to enable or disable the HDMI level shifter
 
-  - mode: sub node to hdmi preferred
+ - mode: sub node to hdmi preferred
    - width: preferred width
    - height: preferred height
    - refresh: preferred refresh
+optional property:
+ - q_range: video quantization range
+   	a) "0" limitied range
+	b) "1" full range
 
 Example:
 
@@ -48,6 +52,7 @@ Board Specific portion:
 	ddc-i2c-bus = <&i2c_gpio7>;
 	enable-gpios = <&gpio_a 21 0>;
 	status = "ok";
+	q_range = <0>;
 
 	mode {
 		width = <1280>;

@@ -56,6 +56,7 @@ struct hdmi_context {
 	struct hdmi_resource hdmi_res;
 	spinlock_t lock;
 	bool plug;
+	int q_range;
 };
 
 #define ctx_to_hdmi(c)	(struct hdmi_resource *)(&c->hdmi_res)
@@ -219,7 +220,7 @@ void panel_hdmi_mode_set(struct device *dev,
 
 	DRM_DEBUG_KMS("enter\n");
 
-	nx_dp_hdmi_mode_set(display, mode, vm, hdmi->dvi_mode);
+	nx_dp_hdmi_mode_set(display, mode, vm, hdmi->dvi_mode, ctx->q_range);
 }
 
 static void panel_hdmi_commit(struct device *dev)
@@ -410,6 +411,13 @@ static int panel_hdmi_parse_dt_hdmi(struct platform_device *pdev,
 		parse_read_prop(np, "height", vm->vactive);
 		parse_read_prop(np, "flags", vm->flags);
 		parse_read_prop(np, "refresh", panel->vrefresh);
+	}
+
+	/*
+	 * video quantization range
+	 */
+	if (of_property_read_u32(node, "q_range", &ctx->q_range)) {
+		DRM_DEBUG_KMS("fail : to get q_range property !\n");
 	}
 
 	/*

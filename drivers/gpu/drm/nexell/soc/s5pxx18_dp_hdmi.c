@@ -20,7 +20,6 @@
 #include <linux/delay.h>
 #include <linux/reset.h>
 #include <linux/hdmi.h>
-
 #include "s5pxx18_dp_hdmi.h"
 #include "s5pxx18_reg_hdmi.h"
 
@@ -488,7 +487,7 @@ static void hdmi_reg_infoframe(const struct hdmi_conf *conf,
 		hdmi_writeb(HDMI_AVI_BYTE(2), preset->aspect_ratio |
 			    AVI_SAME_AS_PIC_ASPECT_RATIO | AVI_ITU709);
 
-		if (preset->color_range == 0 || preset->color_range == 2)
+		if (preset->color_range == AVI_FULL_RANGE)
 			hdmi_writeb(HDMI_AVI_BYTE(3), AVI_FULL_RANGE);
 		else
 			hdmi_writeb(HDMI_AVI_BYTE(3), AVI_LIMITED_RANGE);
@@ -896,7 +895,7 @@ static void hdmi_mode_to_display_mode(struct hdmi_res_mode *hm,
 
 int nx_dp_hdmi_mode_set(struct nx_drm_device *display,
 			struct drm_display_mode *mode, struct videomode *vm,
-			bool dvi_mode)
+			bool dvi_mode, int q_range)
 {
 	struct dp_hdmi_dev *out;
 	const struct hdmi_conf *conf;
@@ -925,6 +924,13 @@ int nx_dp_hdmi_mode_set(struct nx_drm_device *display,
 	preset = (struct hdmi_preset *)conf->preset;
 	preset->aspect_ratio = HDMI_PICTURE_ASPECT_16_9;
 	preset->dvi_mode = dvi_mode;
+	/* video quantization range is configuable
+	 * but fixed to limited range at artik710
+	 */
+	if (q_range == 0)
+		preset->color_range = AVI_LIMITED_RANGE;
+	else /* (q_range == 1) */
+		preset->color_range = AVI_FULL_RANGE;
 
 	out = dpc->dp_output;
 	out->preset_data = (void *)conf;
