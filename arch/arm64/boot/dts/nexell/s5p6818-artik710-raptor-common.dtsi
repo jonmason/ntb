@@ -796,6 +796,7 @@
 	ddc-i2c-bus = <&i2c_gpio7>;
 	enable-gpios = <&gpio_a 21 0>;
 	status = "ok";
+	q_range = <0>;
 };
 
 &dp_drm_lvds {
