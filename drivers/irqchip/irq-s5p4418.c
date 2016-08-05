@@ -165,7 +165,7 @@ static void vic_resume(void)
 static void suspend_one_vic(struct vic_device *vic)
 {
 	void __iomem *base = vic->base;
-	void __iomem *base1 = vic->base;
+	void __iomem *base1 = vic->base1;
 
 	pr_debug("%s: suspending vic at %p, %p\n", __func__, base, base1);
 	vic->int_select = readl(base + VIC_INT_SELECT);
