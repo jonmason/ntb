@@ -189,7 +189,7 @@
 		};
 
 		i2c_0:i2c@c00a4000 {
-			samsung,i2c-max-bus-freq = <400000>;
+			samsung,i2c-max-bus-freq = <100000>;
 			status = "okay";
 		};
 
