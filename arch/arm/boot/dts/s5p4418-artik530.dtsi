@@ -101,6 +101,7 @@
 		 reg_alpha2 = "US";
 		 p2p_enh = <1>;
 		 inact_tmo = <300>;
+		 txpwrlimit_cfg = "mrvl/txpwrlimit_cfg.bin";
 	};
 
 	sd8xxx-bt {
