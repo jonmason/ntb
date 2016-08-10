@@ -936,13 +936,6 @@ static inline void _make_cmd(u32 *c)
 	*c = command;
 }
 
-static bool _is_running(struct nx_scaler *me)
-{
-	int val = atomic_read(&me->running);
-
-	return val == 1;
-}
-
 static void _set_running(struct nx_scaler *me)
 {
 	atomic_set(&me->running, 1);
