@@ -160,10 +160,6 @@ static int nx_drm_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 	bool vblank = false;
 	int ret;
 
-	DRM_DEBUG_KMS("crtc.%d [%d:%d] pos[%d:%d] src[%d:%d] fb[%d:%d]\n",
-		nx_crtc->pipe, crtc_w, crtc_h, x, y, src_w, src_h,
-		fb->width, fb->height);
-
 	drm_display_mode_to_videomode(&nx_crtc->current_mode, &vm);
 
 	/* when framebuffer changing is requested, crtc's dpms should be on */
@@ -176,6 +172,10 @@ static int nx_drm_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 	crtc_h = fb->height; /* vm.vactive; */
 	src_w = fb->width - x;
 	src_h = fb->height - y;
+
+	DRM_DEBUG_KMS("crtc.%d [%d:%d] pos[%d:%d] src[%d:%d] fb[%d:%d]\n",
+		nx_crtc->pipe, crtc_w, crtc_h, x, y, src_w, src_h,
+		fb->width, fb->height);
 
 	/* for multiple buffers */
 	if (doublefb) {
