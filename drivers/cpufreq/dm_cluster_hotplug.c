@@ -375,7 +375,6 @@ static int fb_state_change(struct notifier_block *nb,
 {
 	struct fb_event *evdata = data;
 	int *blank = evdata->data;
-	enum hstate target_state;
 
 	if (event == FB_EVENT_BLANK) {
 		switch (*blank) {
