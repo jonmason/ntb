@@ -777,7 +777,6 @@ static int nx_i2c_probe(struct platform_device *pdev)
 static int nx_i2c_remove(struct platform_device *pdev)
 {
 	struct nx_i2c_param *par = platform_get_drvdata(pdev);
-	int irq = par->hw.irqno;
 #ifdef CONFIG_RESET_CONTROLLER
 	struct reset_control *rst;
 
