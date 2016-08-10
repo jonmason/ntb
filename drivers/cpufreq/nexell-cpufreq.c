@@ -31,6 +31,7 @@
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/cpu_cooling.h>
+#include <linux/pm_qos.h>
 
 #include <linux/soc/nexell/cpufreq.h>
 
@@ -498,6 +499,9 @@ static int nxp_cpufreq_target(struct cpufreq_policy *policy,
 	old = policy->cur;
 	new = freq_table[index].frequency;
 
+	new = max((unsigned int)pm_qos_request(PM_QOS_CPU_FREQ_MIN), new);
+	new = min((unsigned int)pm_qos_request(PM_QOS_CPU_FREQ_MAX), new);
+
 	mutex_lock(&dvfs->lock);
 
 	pr_debug("cpufreq : target %u -> %u khz", old, new);
@@ -515,6 +519,8 @@ static int nxp_cpufreq_target(struct cpufreq_policy *policy,
 	dvfs->policy = policy;
 
 	rate_khz = nxp_cpufreq_change_freq(dvfs, new, old);
+
+	policy->cur = rate_khz;
 
 	mutex_unlock(&dvfs->lock);
 
@@ -708,6 +714,82 @@ static int nxp_cpufreq_set_supply(struct platform_device *pdev,
 	return 0;
 }
 
+static int cpufreq_min_qos_handler(struct notifier_block *b,
+		unsigned long val, void *v)
+{
+	struct cpufreq_policy *policy;
+	int ret;
+
+	policy = cpufreq_cpu_get(0);
+
+	if (!policy)
+		goto bad;
+
+	if (policy->cur >= val) {
+		cpufreq_cpu_put(policy);
+		goto good;
+	}
+
+	if (!policy->user_policy.governor) {
+		cpufreq_cpu_put(policy);
+		goto bad;
+	}
+
+	ret = __cpufreq_driver_target(policy, val, CPUFREQ_RELATION_L);
+
+	cpufreq_cpu_put(policy);
+
+	if (ret < 0)
+	    goto bad;
+
+good:
+	return NOTIFY_OK;
+bad:
+	return NOTIFY_BAD;
+}
+
+static int cpufreq_max_qos_handler(struct notifier_block *b,
+		unsigned long val, void *v)
+{
+	struct cpufreq_policy *policy;
+	int ret;
+
+	policy = cpufreq_cpu_get(0);
+
+	if (!policy)
+		goto bad;
+
+	if (policy->cur <= val) {
+		cpufreq_cpu_put(policy);
+		goto good;
+	}
+
+	if (!policy->user_policy.governor) {
+		cpufreq_cpu_put(policy);
+		goto bad;
+	}
+
+	ret = __cpufreq_driver_target(policy, val, CPUFREQ_RELATION_H);
+
+	cpufreq_cpu_put(policy);
+
+	if (ret < 0)
+		goto bad;
+
+good:
+	return NOTIFY_OK;
+bad:
+	return NOTIFY_BAD;
+}
+
+static struct notifier_block cpufreq_min_qos_notifier = {
+	.notifier_call = cpufreq_min_qos_handler,
+};
+
+static struct notifier_block cpufreq_max_qos_notifier = {
+	.notifier_call = cpufreq_max_qos_handler,
+};
+
 static int nxp_cpufreq_probe(struct platform_device *pdev)
 {
 	struct nxp_cpufreq_plat_data *pdata = pdev->dev.platform_data;
@@ -789,6 +871,10 @@ static int nxp_cpufreq_probe(struct platform_device *pdev)
 			pr_err("running cpufreq without cooling device: %ld\n",
 			       PTR_ERR(cdev));
 	}
+
+	pm_qos_add_notifier(PM_QOS_CPU_FREQ_MIN, &cpufreq_min_qos_notifier);
+	pm_qos_add_notifier(PM_QOS_CPU_FREQ_MAX, &cpufreq_max_qos_notifier);
+
 	return 0;
 
 err_free_table:
