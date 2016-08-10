@@ -1076,9 +1076,9 @@ static void nx_vpu_enc_buf_queue(struct vb2_buffer *vb)
 	if (vq->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		buf->used = 0;
 
-		NX_DbgMsg(INFO_MSG, ("adding to dst: %p (%08lx, %08x)\n", vb,
+		NX_DbgMsg(INFO_MSG, ("adding to dst: %p (%08lx, %08lx)\n", vb,
 			(unsigned long)nx_vpu_mem_plane_addr(ctx, vb, 0),
-			buf->planes.stream));
+			(unsigned long)buf->planes.stream));
 
 		list_add_tail(&buf->list, &ctx->strm_queue);
 		ctx->strm_queue_cnt++;
@@ -1267,7 +1267,7 @@ int vpu_enc_init(struct nx_vpu_ctx *ctx)
 	pSeqArg->strmBufSize = ctx->bit_stream_buf->size;
 
 	if ((pSeqArg->strmBufPhyAddr == 0) || (pSeqArg->strmBufSize == 0)) {
-		NX_ErrMsg(("stream buffer error(addr = %x, size = %d)\n",
+		NX_ErrMsg(("stream buffer error(addr = %llx, size = %d)\n",
 			pSeqArg->strmBufPhyAddr, pSeqArg->strmBufSize));
 		return -1;
 	}
