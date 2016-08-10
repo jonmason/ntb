@@ -2436,7 +2436,7 @@ static long ts_misc_fops_ioctl(struct file *filp,
 		if (copy_from_user(&sz, argp, sizeof(size_t)))
 			return -1;
 
-		zinitix_printk("firmware size = %ld\r\n", sz);
+		zinitix_printk("firmware size = %zu\r\n", sz);
 		if (misc_touch_dev->cap_info.ic_fw_size != sz) {
 			zinitix_printk("firmware size error\r\n");
 			return -1;
