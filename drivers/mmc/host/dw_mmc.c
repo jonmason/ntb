@@ -39,11 +39,6 @@
 #include <linux/of_gpio.h>
 #include <linux/mmc/slot-gpio.h>
 
-#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
-#include <linux/pm_qos.h>
-#include <linux/soc/nexell/cpufreq.h>
-#endif
-
 #include "dw_mmc.h"
 
 /* Common flag combinations */
@@ -106,18 +101,6 @@ struct idmac_desc {
 
 /* Each descriptor can transfer up to 4KB of data in chained mode */
 #define DW_MCI_DESC_DATA_LENGTH	0x1000
-
-#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
-static struct pm_qos_request nx_mmc_qos;
-
-static void nx_mmc_qos_update(int val)
-{
-	if (!pm_qos_request_active(&nx_mmc_qos))
-		pm_qos_add_request(&nx_mmc_qos, PM_QOS_BUS_THROUGHPUT, val);
-	else
-		pm_qos_update_request(&nx_mmc_qos, val);
-}
-#endif
 
 static bool dw_mci_reset(struct dw_mci *host);
 static bool dw_mci_ctrl_reset(struct dw_mci *host, u32 reset);
