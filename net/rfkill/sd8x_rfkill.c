@@ -151,7 +151,8 @@ static int sd8x_pwr_ctrl(struct sd8x_rfkill_platform_data *pdata, int on)
 	if (on) {
 
 		if (gpio_power_down >= 0) {
-			msleep(1);
+			gpio_direction_output(gpio_power_down, 0);
+			msleep(10);
 			gpio_direction_output(gpio_power_down, 1);
 		}
 
