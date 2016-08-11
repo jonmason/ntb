@@ -488,7 +488,7 @@ static int pwm_samsung_config(struct pwm_chip *chip, struct pwm_device *pwm,
 		dev_dbg(our_chip->chip.dev, "tin_rate=%lu\n", tin_rate);
 
 		tin_ns = NSEC_PER_SEC / tin_rate;
-		correction = div64_u64(tin_rate * period_ns, NSEC_PER_SEC);
+		correction = div64_u64((uint64_t)tin_rate * period_ns, NSEC_PER_SEC);
 		tcnt = (u32)correction;
 	}
 
@@ -497,7 +497,7 @@ static int pwm_samsung_config(struct pwm_chip *chip, struct pwm_device *pwm,
 		return -ERANGE;
 
 	/* Note that counters count down. */
-	correction = div64_u64(tin_rate * duty_ns, NSEC_PER_SEC);
+	correction = div64_u64((uint64_t)tin_rate * duty_ns, NSEC_PER_SEC);
 	tcmp = (u32)correction;
 
 	/* 0% duty is not available */
