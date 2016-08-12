@@ -730,7 +730,7 @@ static int cpufreq_min_qos_handler(struct notifier_block *b,
 		goto good;
 	}
 
-	if (!policy->user_policy.governor) {
+	if (!policy->governor) {
 		cpufreq_cpu_put(policy);
 		goto bad;
 	}
@@ -764,7 +764,7 @@ static int cpufreq_max_qos_handler(struct notifier_block *b,
 		goto good;
 	}
 
-	if (!policy->user_policy.governor) {
+	if (!policy->governor) {
 		cpufreq_cpu_put(policy);
 		goto bad;
 	}
