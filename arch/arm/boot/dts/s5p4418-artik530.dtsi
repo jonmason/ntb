@@ -167,6 +167,7 @@
 	supports-detect-complete;
 	keep-power-in-suspend;
 	pm-ignore-notify;
+	powered-resumed-nonremovable-card;
 
 	nexell,drive_dly = <0x0>;
 	nexell,drive_shift = <0x2>;
