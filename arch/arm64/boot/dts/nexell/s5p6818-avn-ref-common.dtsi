@@ -491,32 +491,6 @@
 		NX_ACTION_START NX_ACTION_TYPE_GPIO 0 1 10 NX_ACTION_END
 		>;
 	};
-
-&clipper_0 {
-	interface_type = <NX_CAPTURE_INTERFACE_PARALLEL>;
-	pinctrl-names = "default";
-	pinctrl-0 = <&vid0_data_clk &vid0_sync>;
-	gpios = <&gpio_c 9 0 &gpio_e 16 0 &gpio_e 12 0>;
-	data_order = <NX_VIN_CBY0CRY1>;
-	port = <0>;
-	external_sync = <0>;
-	interlace = <1>;
-	status = "okay";
-
-	sensor {
-		type = <NX_CAPTURE_SENSOR_I2C>;
-		i2c_name = "tw9900";
-		i2c_adapter = <5>;
-		addr = <0x44>;
-	};
-
-	power {
-		enable_seq = <
-		NX_ACTION_START NX_ACTION_TYPE_GPIO 2 0 1 0 10 NX_ACTION_END
-		NX_ACTION_START NX_ACTION_TYPE_GPIO 1 0 1 0 10 NX_ACTION_END
-		NX_ACTION_START NX_ACTION_TYPE_GPIO 0 1 10 NX_ACTION_END
-		>;
-	};
 };
 
 &dp_drm {
