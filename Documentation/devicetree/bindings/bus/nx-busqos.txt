@@ -1,0 +1,29 @@
+Nexell s5p4418 processor bus QoS
+
+properties:
+- compatible : Should be "nexell,s5p4418-busqos" for Nexell s5p4418 processor
+- reg : Address and length of the register set for the device
+- drex_s0_qos_enable, drex_s1_qos_enable :
+    It determines whether or not use QoS.
+    <0> - does not use QoS settings. The other settings does not apply.
+    <1> - using QoS settings
+	DREX slave interface port 0 (cpu block) read/write channel QoS
+	DREX slave interface port 1 (display/gmac block) read/write channel QoS
+- drex_s0_qos_thres, drex_s1_qos_thres :
+    <0> ~ <0xf> - BRB reservation threshold
+- drex_s0_qos_tout, drex_s1_qos_tout :
+    <0> ~ <0xfff> - QoS request timeout for service
+
+For details about this, see SOC datasheet.
+
+busqos {
+	compatible = "nexell,s5p4418-busqos";
+	reg = <PHYS_BASE_DREX 0x1000>;
+
+	drex_s0_qos_enable = <0>;
+	drex_s1_qos_enable = <1>;
+	drex_s0_qos_thres = <0x1>;
+	drex_s1_qos_thres = <0xf>;
+	drex_s0_qos_tout = <0x100>;
+	drex_s1_qos_tout = <0x0>;
+};
