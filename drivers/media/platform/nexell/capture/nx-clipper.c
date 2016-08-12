@@ -898,7 +898,7 @@ static int update_buffer(struct nx_clipper *me)
 
 	buf = nx_video_get_next_buffer(&me->vbuf_obj, false);
 	if (!buf) {
-		dev_err(&me->pdev->dev, "can't get next buffer\n");
+		dev_warn(&me->pdev->dev, "can't get next buffer\n");
 		return -ENOENT;
 	}
 
