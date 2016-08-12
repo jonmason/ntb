@@ -166,6 +166,7 @@
 	clock-frequency = <100000000>;
 	supports-detect-complete;
 	keep-power-in-suspend;
+	pm-ignore-notify;
 
 	nexell,drive_dly = <0x0>;
 	nexell,drive_shift = <0x2>;
