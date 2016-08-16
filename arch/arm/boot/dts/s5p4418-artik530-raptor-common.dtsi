@@ -206,6 +206,7 @@
 			status = "okay";
 			#address-cells = <1>;
 			#size-cells = <0>;
+			rate = <400000>;
 		};
 
 		i2c_1:i2c@c00a5000 {
