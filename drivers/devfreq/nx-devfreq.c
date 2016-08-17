@@ -44,7 +44,6 @@ struct nx_devfreq {
 	char *supply_name;
 	struct regulator *regulator;
 	struct device *dev;
-	atomic_t usage_cnt;
 	unsigned long suspend_freq;
 };
 
@@ -286,7 +285,7 @@ static int nx_devfreq_pm_qos_notifier(struct notifier_block *nb,
 {
 	struct devfreq_notifier_block *devfreq_nb;
 	struct nx_devfreq *nx_devfreq;
-	u32 cur_freq;
+	u32 cur_freq, new;
 	bool changed = false;
 
 	devfreq_nb = container_of(nb, struct devfreq_notifier_block, nb);
@@ -298,27 +297,22 @@ static int nx_devfreq_pm_qos_notifier(struct notifier_block *nb,
 
 	cur_freq = atomic_read(&nx_devfreq->cur_freq);
 
-	if (val > cur_freq) {
-		cur_freq = val;
-		atomic_inc(&nx_devfreq->usage_cnt);
+	new = val;
+	new = max((unsigned int)pm_qos_request(PM_QOS_BUS_THROUGHPUT), new);
+	if (new != cur_freq)
 		changed = true;
-	} else if (val < cur_freq) {
-		if (atomic_read(&nx_devfreq->usage_cnt) > 0)
-			atomic_dec(&nx_devfreq->usage_cnt);
-		if (!atomic_read(&nx_devfreq->usage_cnt)) {
-			cur_freq = val;
-			changed = true;
-		}
-	}
 
 	if (changed) {
-		atomic_set(&nx_devfreq->req_freq, cur_freq);
+		dev_dbg(nx_devfreq->dev, "%s changed from %d to %d\n",
+			 __func__, cur_freq, new);
+		atomic_set(&nx_devfreq->req_freq, new);
 		mutex_lock(&devfreq_nb->df->lock);
 		update_devfreq(devfreq_nb->df);
 		mutex_unlock(&devfreq_nb->df->lock);
+		return NOTIFY_OK;
 	}
 
-	return NOTIFY_OK;
+	return NOTIFY_STOP;
 }
 
 static int nx_devfreq_register_notifier(struct devfreq *devfreq)
@@ -489,8 +483,6 @@ static int nx_devfreq_probe(struct platform_device *pdev)
 	atomic_set(&nx_devfreq->cur_freq, clk_get_rate(nx_devfreq->bclk) / KHZ);
 	dev_info(&pdev->dev, "Current bus clock rate: %dKHz\n",
 		 atomic_read(&nx_devfreq->cur_freq));
-
-	atomic_set(&nx_devfreq->usage_cnt, 0);
 
 	entry = &bus_opp_table[0];
 	while (entry->clk != 0) {
