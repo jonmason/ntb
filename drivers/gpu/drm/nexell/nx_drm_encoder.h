@@ -25,6 +25,7 @@ struct nx_drm_encoder {
 	int pipe;
 	struct nx_drm_device *display;
 	int dpms;
+	bool enabled;
 	void *context;		/* device context */
 };
 
