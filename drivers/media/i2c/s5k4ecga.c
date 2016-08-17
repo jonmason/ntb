@@ -529,7 +529,7 @@ static int sensor_4ec_i2c_write(struct i2c_client *client,
 	u8 *buf, u32 size)
 {
 	int ret = 0;
-	int retry_count = 5;
+	int retry_count = 1;
 	struct i2c_msg msg = {client->addr, 0, size, buf};
 
 	do {
@@ -550,7 +550,7 @@ static int sensor_4ec_i2c_write(struct i2c_client *client,
 static int sensor_4ec_i2c_write16(struct i2c_client *client,
 		u16 addr, u16 w_data)
 {
-	int retry_count = 5;
+	int retry_count = 1;
 	unsigned char buf[4];
 	struct i2c_msg msg = {client->addr, 0, 4, buf};
 	int ret = 0;
@@ -852,7 +852,11 @@ static int sensor_4ec_read_reg(struct v4l2_subdev *subdev,
 	mutex_lock(&s5k4ec_state->i2c_lock);
 
 	/* Enter read mode */
-	sensor_4ec_i2c_write16(client, 0x002C, 0x7000);
+	ret = sensor_4ec_i2c_write16(client, 0x002C, 0x7000);
+	if (unlikely(ret < 0)) {
+		cam_err("write reg fail(%d)", ret);
+		goto write_err;
+	}
 
 	for (i = 0; i < regset->array_size[set_idx]; i++) {
 		addr = (regset->reg[set_idx][i] & 0xFFFF0000) >> 16;
@@ -877,6 +881,7 @@ static int sensor_4ec_read_reg(struct v4l2_subdev *subdev,
 p_err:
 	/* restore write mode */
 	sensor_4ec_i2c_write16(client, 0x0028, 0x7000);
+write_err:
 	mutex_unlock(&s5k4ec_state->i2c_lock);
 	return ret;
 }
