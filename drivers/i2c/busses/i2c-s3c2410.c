@@ -1054,6 +1054,9 @@ static int s3c24xx_i2c_cpufreq_transition(struct notifier_block *nb,
 	struct s3c24xx_i2c *i2c = freq_to_i2c(nb);
 	unsigned long clkin = clk_get_rate(i2c->clk);
 
+	if (val == 0 || val == PM_QOS_DEFAULT_VALUE)
+		val = NX_BUS_CLK_LOW_KHZ;
+
 	/* change KHz to MHz */
 	freq = (val * 1000) / 2;
 
@@ -1062,7 +1065,8 @@ static int s3c24xx_i2c_cpufreq_transition(struct notifier_block *nb,
 		dev_info(i2c->dev, "Original clock in freq: %lu\n", clkin);
 	}
 
-	dev_dbg(i2c->dev, "freq %lu, clk_in %lu\n", freq, i2c->clk_in);
+	dev_dbg(i2c->dev, "[nx-devfreq] freq %lu, clk_in %lu\n",
+		freq, i2c->clk_in);
 
 	if (freq != i2c->clk_in) {
 		dev_dbg(i2c->dev, "Changed source clk from %lu -> %lu\n",
@@ -1087,12 +1091,12 @@ static inline int s3c24xx_i2c_register_cpufreq(struct s3c24xx_i2c *i2c)
 {
 	i2c->freq_transition.notifier_call = s3c24xx_i2c_cpufreq_transition;
 
-	return pm_qos_add_notifier(PM_QOS_BUS_THROUGHPUT,
-				   &i2c->freq_transition);
+	return nx_bus_add_notifier(&i2c->freq_transition);
 }
 
 static inline void s3c24xx_i2c_deregister_cpufreq(struct s3c24xx_i2c *i2c)
 {
+	nx_bus_remove_notifier(&i2c->freq_transition);
 	pm_qos_remove_notifier(PM_QOS_BUS_THROUGHPUT, &i2c->freq_transition);
 }
 #else
