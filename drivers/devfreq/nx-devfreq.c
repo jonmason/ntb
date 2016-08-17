@@ -27,6 +27,7 @@
 #include <linux/devfreq.h>
 #include <linux/soc/nexell/cpufreq.h>
 #include <linux/regulator/consumer.h>
+#include <linux/slab.h>
 
 #include "governor.h"
 
@@ -60,6 +61,68 @@ static struct bus_opp_table bus_opp_table[] = {
 	{2, NX_BUS_CLK_LOW_KHZ},
 	{0, 0},
 };
+
+struct nx_bus_notifier_data {
+	struct list_head list;
+	struct notifier_block *data;
+};
+
+LIST_HEAD(nx_devfreq_notifier_list);
+DEFINE_MUTEX(nx_devfreq_notifier_list_lock);
+
+int nx_bus_add_notifier(void *data)
+{
+	struct nx_bus_notifier_data *noti_data;
+
+	noti_data = (struct nx_bus_notifier_data *)kzalloc(sizeof(*data),
+							   GFP_KERNEL);
+	if (!noti_data)
+		return -ENOMEM;
+
+	noti_data->data = data;
+
+	mutex_lock(&nx_devfreq_notifier_list_lock);
+	list_add(&noti_data->list, &nx_devfreq_notifier_list);
+	mutex_unlock(&nx_devfreq_notifier_list_lock);
+
+	return  0;
+}
+
+void nx_bus_remove_notifier(void *data)
+{
+	struct nx_bus_notifier_data *noti_data;
+	bool found = false;
+
+	mutex_lock(&nx_devfreq_notifier_list_lock);
+	list_for_each_entry(noti_data, &nx_devfreq_notifier_list, list) {
+		if (noti_data->data == data) {
+			found = true;
+			break;
+		}
+	}
+	if (found) {
+		list_del_init(&noti_data->list);
+		kfree(noti_data);
+	}
+	mutex_unlock(&nx_devfreq_notifier_list_lock);
+}
+
+static int register_all_pm_qos_notifiers(int pm_qos_class)
+{
+	int ret = 0;
+	struct nx_bus_notifier_data *noti_data;
+
+	mutex_lock(&nx_devfreq_notifier_list_lock);
+	list_for_each_entry(noti_data, &nx_devfreq_notifier_list, list) {
+		ret = pm_qos_add_notifier(pm_qos_class,
+					  noti_data->data);
+		if (ret)
+			break;
+	}
+	mutex_unlock(&nx_devfreq_notifier_list_lock);
+
+	return ret;
+}
 
 static struct pm_qos_request nx_bus_qos;
 
@@ -261,6 +324,7 @@ static int nx_devfreq_pm_qos_notifier(struct notifier_block *nb,
 static int nx_devfreq_register_notifier(struct devfreq *devfreq)
 {
 	struct nx_devfreq *nx_devfreq;
+	int ret;
 
 	nx_devfreq = devfreq->data;
 
@@ -268,8 +332,14 @@ static int nx_devfreq_register_notifier(struct devfreq *devfreq)
 	nx_devfreq->nb.df = devfreq;
 	nx_devfreq->nb.nb.notifier_call = nx_devfreq_pm_qos_notifier;
 
-	return pm_qos_add_notifier(nx_devfreq->pm_qos_class,
-				   &nx_devfreq->nb.nb);
+	ret = pm_qos_add_notifier(nx_devfreq->pm_qos_class,
+				  &nx_devfreq->nb.nb);
+	if (ret) {
+		dev_err(nx_devfreq->dev, "failed to add notifier\n");
+		return ret;
+	}
+
+	return register_all_pm_qos_notifiers(nx_devfreq->pm_qos_class);
 }
 
 static int nx_devfreq_unregister_notifier(struct devfreq *devfreq)

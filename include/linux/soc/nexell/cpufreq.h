@@ -48,5 +48,7 @@ void nx_pll_set_rate(int PLL, int P, int M, int S);
 
 
 void nx_bus_qos_update(int val);
+int  nx_bus_add_notifier(void *data);
+void nx_bus_remove_notifier(void *data);
 
 #endif
