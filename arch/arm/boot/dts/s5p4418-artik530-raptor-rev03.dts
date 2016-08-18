@@ -18,3 +18,12 @@
 
 /dts-v1/;
 #include "s5p4418-artik530-raptor-common.dtsi"
+/ {
+	sd8x-rfkill {
+		compatible = "mrvl,sd8x-rfkill";
+		sd-host = <&dw_mmc_1>;
+		pd-gpio = <&alive_0 4 0>; /* AliveGPIO4=WLAN_BT_PDN output*/
+		gpios = <&alive_0 3 1>; /* AliveGPIO3=WLAN_HOST_WAKE, input */
+		status = "okay";
+	};
+};
