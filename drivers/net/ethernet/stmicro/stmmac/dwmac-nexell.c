@@ -22,6 +22,7 @@
 #include <linux/phy.h>
 #include <linux/of_net.h>
 #include <linux/reset.h>
+#include <linux/ethtool.h>
 
 #include "stmmac_platform.h"
 #include "stmmac.h"
@@ -29,7 +30,37 @@
 struct nexell_priv_data {
 	int clk_enabled;
 	struct clk *tx_clk;
+	int wolopts;
 };
+
+static void nexell_get_wol(struct net_device *ndev, struct ethtool_wolinfo *wol)
+{
+	struct stmmac_priv *stpriv = netdev_priv(ndev);
+	wol->supported = WAKE_MAGIC;
+	wol->wolopts = stpriv->wolopts;
+}
+
+static int nexell_set_wol(struct net_device *ndev, struct ethtool_wolinfo *wol)
+{
+	struct stmmac_priv *stpriv = netdev_priv(ndev);
+	u32 support = WAKE_MAGIC;
+	int err;
+
+	if (wol->wolopts & ~support)
+		return -EOPNOTSUPP;
+
+	err = phy_ethtool_set_wol(stpriv->phydev, wol);
+	if (err < 0) {
+		dev_err(stpriv->device, "The PHY does not support set_wol\n");
+		return -EOPNOTSUPP;
+	}
+
+	spin_lock_irq(&stpriv->lock);
+	stpriv->wolopts |= wol->wolopts;
+	spin_unlock_irq(&stpriv->lock);
+
+	return 0;
+}
 
 static void *nexell_gmac_setup(struct platform_device *pdev)
 {
@@ -66,6 +97,7 @@ static int nexell_gmac_init(struct platform_device *pdev, void *priv)
 	clk_set_rate(gmac->tx_clk, GMAC_GMII_RGMII_RATE);
 	clk_prepare_enable(gmac->tx_clk);
 	gmac->clk_enabled = 1;
+	gmac->wolopts = 0;
 
 	return 0;
 }
@@ -98,6 +130,8 @@ static int nexell_gmac_probe(struct platform_device *pdev)
 	plat_dat->has_gmac = true;
 	plat_dat->init = nexell_gmac_init;
 	plat_dat->exit = nexell_gmac_exit;
+	plat_dat->set_wol = nexell_set_wol;
+	plat_dat->get_wol = nexell_get_wol;
 
 	plat_dat->bsp_priv = nexell_gmac_setup(pdev);
 
