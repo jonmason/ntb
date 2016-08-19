@@ -3039,8 +3039,10 @@ int stmmac_suspend(struct net_device *ndev)
 	if (!ndev || !netif_running(ndev))
 		return 0;
 
-	if (priv->phydev)
+	if (priv->phydev) {
+		phy_suspend(priv->phydev);
 		phy_stop(priv->phydev);
+	}
 
 	netif_device_detach(ndev);
 	netif_stop_queue(ndev);
