@@ -455,7 +455,7 @@ wlan_init_priv(pmlan_private priv)
 	priv->wmm_qosinfo = 0;
 	priv->saved_wmm_qosinfo = 0;
 	priv->host_tdls_cs_support = MTRUE;
-	priv->host_tdls_uapsd_support = MTRUE;
+	priv->host_tdls_uapsd_support = MFALSE;
 	priv->tdls_cs_channel = 0;
 	priv->supp_regulatory_class_len = 0;
 	priv->chan_supp_len = 0;
