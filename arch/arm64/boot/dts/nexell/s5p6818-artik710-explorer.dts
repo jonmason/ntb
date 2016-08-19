@@ -62,8 +62,14 @@
 			sdhc2:sdhc@c00cd000 {
 				      clk-input = <(I_PLL2 | I_GATE_PCLK)>;
 			};
-			pwm0:pwm0@c00ba000 { clock-frequency = <100000000>; };
+			pwm0:pwm0@c00ba000 {
+			      clk-input = <I_PLL2>;
+			};
 			pwm2:pwm2@c00be000 { clock-frequency = <100000000>; };
+		};
+
+		serial2:serial@c00a2000 {
+			status ="okay";
 		};
 
 		serial3:serial@c00a3000 {
