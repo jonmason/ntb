@@ -1384,7 +1384,7 @@ static void dwc2_conn_id_status_change(struct work_struct *work)
 		hsotg->op_state = OTG_STATE_B_PERIPHERAL;
 		if (of_device_is_compatible(hsotg->dev->of_node,
 					    "nexell,nexell-dwc2otg")) {
-			if (hsotg->ext_vbus_io)
+			if (gpio_is_valid(hsotg->ext_vbus_io))
 				gpio_set_value(hsotg->ext_vbus_io, 0);
 		}
 		dwc2_core_init(hsotg, false, -1);
@@ -3032,7 +3032,7 @@ static int dwc2_hcd_resume(struct usb_hcd *hcd)
 		hsotg->op_state = OTG_STATE_B_PERIPHERAL;
 		if (of_device_is_compatible(hsotg->dev->of_node,
 					    "nexell,nexell-dwc2otg")) {
-			if (hsotg->ext_vbus_io)
+			if (gpio_is_valid(hsotg->ext_vbus_io))
 				gpio_set_value(hsotg->ext_vbus_io, 0);
 		}
 		dwc2_hsotg_core_init_disconnected(hsotg, false);

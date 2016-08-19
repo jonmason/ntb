@@ -1127,7 +1127,7 @@ void dwc2_core_host_init(struct dwc2_hsotg *hsotg)
 
 		if (of_device_is_compatible(hsotg->dev->of_node,
 					    "nexell,nexell-dwc2otg")) {
-			if (hsotg->ext_vbus_io)
+			if (gpio_is_valid(hsotg->ext_vbus_io))
 				gpio_set_value(hsotg->ext_vbus_io, 1);
 		}
 		dev_dbg(hsotg->dev, "Init: Power Port (%d)\n",
