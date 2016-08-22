@@ -3004,6 +3004,9 @@ static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 		pdata->caps |= MMC_CAP_SD_HIGHSPEED | MMC_CAP_MMC_HIGHSPEED;
 	}
 
+	if (of_find_property(np, "cap-oob-sdio-irq", NULL))
+		pdata->caps2 |= MMC_CAP2_OOB_SDIO_IRQ;
+
 	if (of_find_property(np, "pm-ignore-notify", NULL))
 		pdata->pm_caps |= MMC_PM_IGNORE_PM_NOTIFY;
 
