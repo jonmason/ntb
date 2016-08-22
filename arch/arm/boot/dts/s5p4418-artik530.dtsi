@@ -168,6 +168,7 @@
 	keep-power-in-suspend;
 	pm-ignore-notify;
 	powered-resumed-nonremovable-card;
+	cap-oob-sdio-irq;
 
 	nexell,drive_dly = <0x0>;
 	nexell,drive_shift = <0x2>;
