@@ -294,9 +294,12 @@
 			reset-names = "i2c-reset";
 			gpios = <&gpio_d 3 0 /* sda */
 				&gpio_d 2 0 /* scl */>;
-			pinctrl-names = "default", "mode_gpio";
-			pinctrl-0 = <&i2c0_pin>;
-			pinctrl-1 = <&i2c0_pin_gpio>;
+			pinctrl-names = "sda_dft", "scl_dft", "sda_gpio",
+			    "scl_gpio";
+			pinctrl-0 = <&i2c0_sda_pin>;
+			pinctrl-1 = <&i2c0_scl_pin>;
+			pinctrl-2 = <&i2c0_pin_sda_gpio>;
+			pinctrl-3 = <&i2c0_pin_scl_gpio>;
 			status = "disabled";
 		};
 
@@ -310,9 +313,12 @@
 			reset-names = "i2c-reset";
 			gpios = <&gpio_d 5 0 /* sda */
 				&gpio_d 4 0 /* scl */>;
-			pinctrl-names = "default", "mode_gpio";
-			pinctrl-0 = <&i2c1_pin>;
-			pinctrl-1 = <&i2c1_pin_gpio>;
+			pinctrl-names = "sda_dft", "scl_dft", "sda_gpio",
+			    "scl_gpio";
+			pinctrl-0 = <&i2c1_sda_pin>;
+			pinctrl-1 = <&i2c1_scl_pin>;
+			pinctrl-2 = <&i2c1_pin_sda_gpio>;
+			pinctrl-3 = <&i2c1_pin_scl_gpio>;
 			status = "disabled";
 		};
 
@@ -326,9 +332,12 @@
 			reset-names = "i2c-reset";
 			gpios = <&gpio_d 7 0 /* sda */
 				&gpio_d 6 0 /* scl */>;
-			pinctrl-names = "default", "mode_gpio";
-			pinctrl-0 = <&i2c2_pin>;
-			pinctrl-1 = <&i2c2_pin_gpio>;
+			pinctrl-names = "sda_dft", "scl_dft", "sda_gpio",
+			    "scl_gpio";
+			pinctrl-0 = <&i2c2_sda_pin>;
+			pinctrl-1 = <&i2c2_scl_pin>;
+			pinctrl-2 = <&i2c2_pin_sda_gpio>;
+			pinctrl-3 = <&i2c2_pin_scl_gpio>;
 			status = "disabled";
 		};
 
