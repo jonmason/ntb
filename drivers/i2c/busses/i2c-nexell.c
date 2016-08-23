@@ -791,21 +791,25 @@ static int nx_i2c_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_PM
-static int nx_i2c_suspend(struct platform_device *pdev, pm_message_t state)
+#ifdef CONFIG_PM_SLEEP
+static int nx_i2c_suspend_noirq(struct device *dev)
 {
+	struct platform_device *pdev = to_platform_device(dev);
+	struct nx_i2c_param *par = platform_get_drvdata(pdev);
 #ifdef CONFIG_RESET_CONTROLLER
 	struct reset_control *rst;
 
 	rst = devm_reset_control_get(&pdev->dev, "i2c-reset");
 	reset_control_assert(rst);
 #endif
+	clk_disable_unprepare(par->clk);
 	dev_dbg(&pdev->dev, "%s\n", __func__);
 	return 0;
 }
 
-static int nx_i2c_resume(struct platform_device *pdev)
+static int nx_i2c_resume_noirq(struct device *dev)
 {
+	struct platform_device *pdev = to_platform_device(dev);
 	struct nx_i2c_param *par = platform_get_drvdata(pdev);
 #ifdef CONFIG_RESET_CONTROLLER
 	struct reset_control *rst;
@@ -822,17 +826,12 @@ static int nx_i2c_resume(struct platform_device *pdev)
 			reset_control_reset(rst);
 	}
 #endif
-
-	clk_enable(par->clk);
+	clk_prepare_enable(par->clk);
 	mdelay(1);
 
 	nx_i2c_bus_off(par);
 	return 0;
 }
-
-#else
-#define nx_i2c_suspend		NULL
-#define nx_i2c_resume		NULL
 #endif
 
 #ifdef CONFIG_OF
@@ -845,14 +844,30 @@ MODULE_DEVICE_TABLE(of, nx_i2c_match);
 #define nx_i2c_match NULL
 #endif
 
+#ifdef CONFIG_PM
+static const struct dev_pm_ops nx_i2c_dev_pm_ops = {
+#ifdef CONFIG_PM_SLEEP
+	.suspend_noirq = nx_i2c_suspend_noirq,
+	.resume_noirq = nx_i2c_resume_noirq,
+	.freeze_noirq = nx_i2c_suspend_noirq,
+	.thaw_noirq = nx_i2c_resume_noirq,
+	.poweroff_noirq = nx_i2c_suspend_noirq,
+	.restore_noirq = nx_i2c_resume_noirq,
+#endif
+};
+
+#define NX_DEV_PM_OPS (&nx_i2c_dev_pm_ops)
+#else
+#define NX_DEV_PM_OPS NULL
+#endif
+
 static struct platform_driver i2c_plat_driver = {
 	.probe	 = nx_i2c_probe,
 	.remove	 = nx_i2c_remove,
-	.suspend = nx_i2c_suspend,
-	.resume	 = nx_i2c_resume,
 	.driver	 = {
 		.name	 = "nexell-i2c",
 		.owner	 = THIS_MODULE,
+		.pm	 = NX_DEV_PM_OPS,
 		.of_match_table = of_match_ptr(nx_i2c_match),
 	},
 };
