@@ -115,8 +115,6 @@ static irqreturn_t nx_decimator_irq_handler(void *data)
 	done = nx_video_done_buffer(&me->vbuf_obj);
 	if (NX_ATOMIC_READ(&me->state) & STATE_STOPPING) {
 		nx_vip_stop(me->module, VIP_DECIMATOR);
-		unregister_irq_handler(me);
-		nx_video_clear_buffer(&me->vbuf_obj);
 		complete(&me->stop_done);
 	} else if (done) {
 		update_buffer(me);
@@ -198,6 +196,18 @@ static int get_decimator_crop(struct v4l2_subdev *remote,
 {
 	return v4l2_subdev_call(remote, video, g_crop, crop);
 }
+
+static int setup_link(struct media_pad *src, struct media_pad *dst)
+{
+	struct media_link *link;
+
+	link = media_entity_find_link(src, dst);
+	if (link == NULL)
+		return -ENODEV;
+
+	return __media_entity_setup_link(link, MEDIA_LNK_FL_ENABLED);
+}
+
 /**
  * v4l2 subdev ops
  */
@@ -216,7 +226,6 @@ static int nx_decimator_s_stream(struct v4l2_subdev *sd, int enable)
 	}
 
 	ret = down_interruptible(&me->s_stream_sem);
-
 	if (enable) {
 		if (NX_ATOMIC_READ(&me->state) & STATE_STOPPING) {
 			int timeout = 50; /* 5 second */
@@ -251,7 +260,6 @@ static int nx_decimator_s_stream(struct v4l2_subdev *sd, int enable)
 			}
 
 			set_vip(me, crop.c.width, crop.c.height);
-
 			ret = register_irq_handler(me);
 			if (ret) {
 				WARN_ON(1);
@@ -270,9 +278,10 @@ static int nx_decimator_s_stream(struct v4l2_subdev *sd, int enable)
 								 2*HZ)) {
 					pr_warn("timeout for waiting decimator stop\n");
 					nx_vip_stop(module, VIP_DECIMATOR);
-					NX_ATOMIC_CLEAR_MASK(STATE_STOPPING,
-							     &me->state);
 				}
+
+				NX_ATOMIC_CLEAR_MASK(STATE_STOPPING,
+						     &me->state);
 			}
 
 			me->buffer_underrun = false;
@@ -320,6 +329,7 @@ static int nx_decimator_set_fmt(struct v4l2_subdev *sd,
 				struct v4l2_subdev_format *format)
 {
 	struct nx_decimator *me = v4l2_get_subdevdata(sd);
+	struct v4l2_subdev *remote = get_remote_source_subdev(me);
 	/* set memory format */
 	u32 nx_mem_fmt;
 	int ret = nx_vip_find_nx_mem_format(format->format.code,
@@ -333,7 +343,9 @@ static int nx_decimator_set_fmt(struct v4l2_subdev *sd,
 	me->width = format->format.width;
 	me->height = format->format.height;
 
-	return 0;
+	format->pad = 1;
+
+	return v4l2_subdev_call(remote, pad, set_fmt, NULL, format);
 }
 
 static const struct v4l2_subdev_video_ops nx_decimator_video_ops = {
@@ -437,13 +449,34 @@ static int register_v4l2(struct nx_decimator *me)
 	if (!video)
 		BUG();
 
-
 	ret = media_entity_create_link(entity, NX_DECIMATOR_PAD_SOURCE_MEM,
 				       &video->vdev.entity, 0, 0);
 	if (ret < 0)
 		BUG();
 
 	me->vbuf_obj.video = video;
+
+	ret = setup_link(&entity->pads[NX_DECIMATOR_PAD_SOURCE_MEM],
+			&video->vdev.entity.pads[0]);
+	if (ret)
+		BUG();
+
+#ifdef CONFIG_VIDEO_NEXELL_CLIPPER
+	struct v4l2_subdev *clipper = nx_v4l2_get_subdev("nx-clipper");
+
+	if (!clipper) {
+		dev_err(&me->pdev->dev, "can't get clipper subdev\n");
+		return -1;
+	}
+
+	ret = media_entity_create_link(&clipper->entity, 2, entity, 0, 0);
+	if (ret)
+		BUG();
+
+	ret = setup_link(&clipper->entity.pads[2],
+			&entity->pads[NX_DECIMATOR_PAD_SINK]);
+#endif
+
 	return 0;
 }
 
