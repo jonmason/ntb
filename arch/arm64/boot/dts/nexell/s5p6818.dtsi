@@ -800,6 +800,12 @@
 			status = "disabled";
 		};
 
+		decimator_0:decimator0@c0063000 {
+			compatible = "nexell,nx-decimator";
+			module = <0>;
+			status = "disabled";
+		};
+
 		dp_drm: display_drm {
 			compatible = "nexell,s5pxx18-drm";
 			reg = <0xc0102800 0x100>, <0xc0102c00 0x100>,
