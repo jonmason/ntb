@@ -2379,6 +2379,28 @@ static int pl022_resume(struct device *dev)
 {
 	struct pl022 *pl022 = dev_get_drvdata(dev);
 	int ret;
+#ifdef CONFIG_RESET_CONTROLLER
+	if (of_device_is_compatible(dev->of_node, "nexell,pl022")) {
+		struct reset_control *rst;
+		struct reset_control *prst;
+
+		prst = devm_reset_control_get(dev, "pre-reset");
+		if (IS_ERR(prst)) {
+			dev_err(dev, "failed to get pre-reset control\n");
+			return -EINVAL;
+		}
+		if (reset_control_status(prst))
+			reset_control_reset(prst);
+
+		rst = devm_reset_control_get(dev, "spi-reset");
+		if (IS_ERR(rst)) {
+			dev_err(dev, "failed to get reset control\n");
+			return -EINVAL;
+		}
+		if (reset_control_status(rst))
+			reset_control_reset(rst);
+	};
+#endif
 
 	ret = pm_runtime_force_resume(dev);
 	if (ret)
