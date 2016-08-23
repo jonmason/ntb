@@ -799,3 +799,7 @@
 		out_format = <3>;
 	};
 };
+
+&decimator_0 {
+	status = "okay";
+};
