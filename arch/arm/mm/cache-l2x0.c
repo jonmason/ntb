@@ -130,7 +130,12 @@ static void l2c_enable(void __iomem *base, unsigned num_lock)
 	l2x0_data->unlock(base, num_lock);
 
 	local_irq_save(flags);
+#ifdef  CONFIG_SECURE_REG_ACCESS
+	l2c_write_sec(l2x0_way_mask, base, L2X0_INV_WAY);
+	l2c_wait_mask(base + L2X0_INV_WAY, l2x0_way_mask);
+#else
 	__l2c_op_way(base + L2X0_INV_WAY);
+#endif
 	writel_relaxed(0, base + sync_reg_offset);
 	l2c_wait_mask(base + sync_reg_offset, 1);
 	local_irq_restore(flags);
