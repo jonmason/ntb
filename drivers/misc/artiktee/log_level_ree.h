@@ -45,43 +45,25 @@ typedef enum {
 	K_SILENT,
 } kernel_log_level;
 
-typedef enum {
-	SWD_USERMODE = 1,
-	SWD_KERNMODE,
-	NWD_USERMODE,
-	NWD_KERNMODE,
-	SWD_ENC_USERMODE,
-	SWD_ENC_KERNMODE,
-} log_header_info;
-
 /* Ree World */
 #ifndef NDEBUG
+#define TZDEV_TEE_LOG_LEVEL	K_INFO  /* OutPut Default */
+#define TZDEV_LOCAL_LOG_LEVEL	K_INFO  /* OutPut Default */
+#else
+#define TZDEV_TEE_LOG_LEVEL     K_ERR   /* OutPut Default */
+#define TZDEV_LOCAL_LOG_LEVEL   K_ALERT /* OutPut Default */
+#endif /* NDEBUG */
+
 #define TZDAEMON_DLOG_KERN_LOG_LEVEL   LOG_DEBUG  /* OutPut Default */
 #define TZDAEMON_DLOG_TA_LOG_LEVEL     LOG_DEBUG  /* OutPut Default */
 #define TZDAEMON_FILE_LOG_LEVEL        LOG_DEBUG  /* OutPut Default */
-#define TZDAEMON_SYSLOG_LOG_LEVEL      LOG_DEBUG  /* Output Default */
-#define TZDEV_TEE_LOG_LEVEL            K_INFO     /* OutPut Default */
+#define TZDAEMON_SYSLOG_LOG_LEVEL      LOG_SILENT /* OutPut Default */
 
 #define TZDAEMON_LOCAL_DLOG_LOG_LEVEL   LOG_DEBUG  /* OutPut Default */
 #define TZDAEMON_LOCAL_FILE_LOG_LEVEL   LOG_DEBUG  /* OutPut Default */
-#define TZDAEMON_LOCAL_SYSLOG_LOG_LEVEL LOG_DEBUG  /* OutPut Default */
-#define TZDEV_LOCAL_LOG_LEVEL           K_INFO     /* OutPut Default */
+#define TZDAEMON_LOCAL_SYSLOG_LOG_LEVEL LOG_SILENT /* OutPut Default */
 
-#define NO_HEADER_LOG_LEVEL 			LOG_INFO   /* Generation Default */
-#else
-#define TZDAEMON_DLOG_KERN_LOG_LEVEL   LOG_ERR     /* OutPut Default */
-#define TZDAEMON_DLOG_TA_LOG_LEVEL     LOG_ERR     /* OutPut Default */
-#define TZDAEMON_FILE_LOG_LEVEL        LOG_ERR     /* OutPut Default */
-#define TZDAEMON_SYSLOG_LOG_LEVEL      LOG_SILENT  /* Output Default */
-#define TZDEV_TEE_LOG_LEVEL            K_ERR       /* OutPut Default */
-
-#define TZDAEMON_LOCAL_DLOG_LOG_LEVEL   LOG_ALERT  /* OutPut Default */
-#define TZDAEMON_LOCAL_FILE_LOG_LEVEL   LOG_ALERT  /* OutPut Default */
-#define TZDAEMON_LOCAL_SYSLOG_LOG_LEVEL LOG_ALERT  /* OutPut Default */
-#define TZDEV_LOCAL_LOG_LEVEL           K_ALERT    /* OutPut Default */
-
-#define NO_HEADER_LOG_LEVEL 			LOG_INFO  /* Generation Default */
-#endif /* NDEBUG */
+#define NO_HEADER_LOG_LEVEL 		LOG_INFO   /* Generation Default */
 
 /* For Old Log Level */
 #define TZLOG_DEBUG K_DEBUG

@@ -1,8 +1,5 @@
 MODULE_NAME := tzdev
-ccflags-y := -DCONFIG_SECOS_NO_RPMB=1 -DCONFIG_PSCI=1 -DCONFIG_INSTANCE_DEBUG=1
-ifeq ($(CONFIG_ARTIK_FETCH_TEE_INFO),y)
-ccflags-y += -DCONFIG_FETCH_TEE_INFO=1
-endif
+ccflags-y := -DCONFIG_SECOS_NO_RPMB=1 -DCONFIG_ARM_PSCI=1 -DCONFIG_INSTANCE_DEBUG=1
 
 obj-$(CONFIG_ARTIK_TRUSTZONE_DRIVER) += $(MODULE_NAME).o
 
@@ -23,7 +20,3 @@ $(MODULE_NAME)-objs += tzlinkmgr.o
 $(MODULE_NAME)-objs += tzwsm.o
 $(MODULE_NAME)-objs += tzmem.o
 $(MODULE_NAME)-objs += tzdev_plat.o
-$(MODULE_NAME)-objs += tz_rsrc.o
-ifeq ($(CONFIG_ARTIK_FETCH_TEE_INFO),y)
-$(MODULE_NAME)-objs += tzinfo.o
-endif

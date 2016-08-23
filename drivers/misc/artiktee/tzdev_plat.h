@@ -22,6 +22,6 @@
 int plat_init(void);
 int plat_preprocess(void);
 int plat_postprocess(void);
-int plat_dump_postprocess(char *uuid);
+int plat_dump_postprocess(char *name);
 
 #endif /* __TRUSTZONE_REE_SOURCE_TZDEV_TZDEV_PLAT_H__ */

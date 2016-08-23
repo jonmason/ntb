@@ -82,7 +82,7 @@ typedef union
 	{
 		int	 memid;
 		uint32_t offset;
-		uint64_t size;
+		uint32_t size;
 		char shm_name[6];
 	} memref;
 	struct value_params value;

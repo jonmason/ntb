@@ -98,16 +98,17 @@ int scm_watch(unsigned long devfn, unsigned long a0, unsigned long a1,
 	      unsigned long a2);
 int scm_register_phys_wsm(phys_addr_t arg_pfn);
 
-#ifdef CONFIG_FETCH_TEE_INFO
-int scm_fetch_tzinfo(int cmd, int arg);
-#endif /* !CONFIG_FETCH_TEE_INFO */
-
-#ifndef CONFIG_PSCI
+#ifndef CONFIG_ARM_PSCI
 int scm_cpu_suspend(void);
 int scm_cpu_resume(void);
 int scm_sys_suspend(void);
 int scm_sys_resume(void);
-#endif /* !CONFIG_PSCI */
+#endif /* !CONFIG_ARM_PSCI */
 
+#ifdef CONFIG_RESOURCE_MONITOR
 int scm_resource_monitor_cmd(uint32_t cmd, uint32_t arg0);
+#endif
+
+int scm_plat_smc(uint32_t x0, uint32_t x1, uint32_t x2, uint32_t x3);
+
 #endif /* __TRUSTZONE_REE_SOURCE_TZDEV_TZDEV_SMC_H__ */

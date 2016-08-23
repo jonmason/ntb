@@ -39,6 +39,11 @@
 #include <linux/sched.h>
 #include <linux/errno.h>
 #include <linux/slab.h>
+#ifdef CONFIG_ARTIK_USE_TZCMA_FOR_ARTIK710_CRYPTO
+#include <linux/dma-contiguous.h>
+#include <linux/dma-mapping.h>
+#include <linux/dmaengine.h>
+#endif
 
 #include "tzdev.h"
 #include "tzdev_init.h"
@@ -50,9 +55,6 @@
 
 #include "ssdev_init.h"
 
-#ifdef CONFIG_FETCH_TEE_INFO
-#include "tzinfo.h"
-#endif /* !CONFIG_FETCH_TEE_INFO */
 #include "tzlog_core.h"
 #include "tzlog_print.h"
 #include "tzrsrc_msg.h"
@@ -221,11 +223,11 @@ struct tzio_context *tzio_context_get(int id)
 	return ctx;
 }
 
-#ifndef CONFIG_PSCI
+#ifndef CONFIG_ARM_PSCI
 static DEFINE_PER_CPU(unsigned int, cpu_offline);
 #define CPU_OFF_LINE  0x1
 #define CPU_IDLE_LINE 0x2
-#endif /* !CONFIG_PSCI */
+#endif /* !CONFIG_ARM_PSCI */
 
 /* tzdev scm_watch
 */
@@ -244,7 +246,7 @@ int tzdev_scm_watch(unsigned long dev_id, unsigned long func_id,
 
 	cpu = get_cpu();
 
-#ifndef CONFIG_PSCI
+#ifndef CONFIG_ARM_PSCI
 	if (per_cpu(cpu_offline, cpu) & CPU_OFF_LINE
 	    || per_cpu(cpu_offline, cpu) & CPU_IDLE_LINE) {
 		put_cpu();
@@ -255,7 +257,7 @@ int tzdev_scm_watch(unsigned long dev_id, unsigned long func_id,
 			    (unsigned int)dev_id, (unsigned int)func_id);
 		return -EPERM;
 	}
-#endif /* !CONFIG_PSCI */
+#endif /* !CONFIG_ARM_PSCI */
 
 	put_cpu();
 
@@ -297,7 +299,7 @@ static inline void tzio_flushd_notify(void)
 	wake_up_all(&oom_waitq);
 }
 
-#ifndef CONFIG_PSCI
+#ifndef CONFIG_ARM_PSCI
 static void tzio_reset_softlock_timer(int cpu)
 {
 	unsigned long flags;
@@ -310,7 +312,7 @@ static void tzio_reset_softlock_timer(int cpu)
 	}
 	spin_unlock_irqrestore(&tzio_context_slock, flags);
 }
-#endif /* !CONFIG_PSCI */
+#endif /* !CONFIG_ARM_PSCI */
 
 void tzio_init_context(struct tzio_context *ctx, struct file *filp,
 		       void *payload, uint32_t seconds)
@@ -1160,6 +1162,32 @@ static long tzio_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		debugging_started = arg;
 		break;
 
+	case TZIO_GET_INFO:
+		{
+			struct secos_kern_info kinfo = {};
+			struct tzio_info tz_info = {};
+			kinfo.size = sizeof(kinfo);
+			kinfo.abi = SECOS_ABI_VERSION;
+			ret = scm_query_kernel_info(&kinfo);
+			strncpy(tz_info.secos_build_id, kinfo.build_id,
+					sizeof(tz_info.secos_build_id) - 1);
+#ifdef CONFIG_MODULE_BUILD_VCS_ID
+			strncpy(tz_info.linux_module_build_id, CONFIG_MODULE_BUILD_VCS_ID,
+					sizeof(tz_info.linux_module_build_id) - 1);
+#endif
+			strncpy(tz_info.machine_name, kinfo.machine_name,
+					sizeof(tz_info.machine_name) - 1);
+			strncpy(tz_info.secos_build_type, kinfo.build_type,
+					sizeof(tz_info.secos_build_type) - 1);
+#ifdef CONFIG_MODULE_BUILD_TYPE
+			strncpy(tz_info.linux_module_build_type, CONFIG_MODULE_BUILD_TYPE,
+					sizeof(tz_info.linux_module_build_type) - 1);
+#endif
+
+			ret = copy_to_user((void *)arg, &tz_info, sizeof(tz_info));
+			break;
+		}
+
 	default:
 		tzlog_print(TZLOG_ERROR, "Unknown TZIO Command: %d\n", cmd);
 		ret = -EINVAL;
@@ -1235,7 +1263,7 @@ static ssize_t tzlog_write(struct file *filp, const char *buf, size_t count,
 	return 0;
 }
 
-#ifndef CONFIG_PSCI
+#ifndef CONFIG_ARM_PSCI
 static int scm_cpu_shutdown(unsigned long cpu)
 {
 	int error = 0;
@@ -1406,7 +1434,7 @@ static struct notifier_block tzdev_cpu_idle_block = {
 	.notifier_call = tzdev_cpu_idle_notify
 };
 #endif
-#endif /* !CONFIG_PSCI */
+#endif /* !CONFIG_ARM_PSCI */
 
 static const struct file_operations tzdev_fops = {
 	.owner = THIS_MODULE,
@@ -1439,7 +1467,7 @@ static struct miscdevice tzdev = {
 	.fops = &tzdev_fops,
 };
 
-#ifndef CONFIG_PSCI
+#ifndef CONFIG_ARM_PSCI
 static ssize_t tzpm_show(struct kobject *kobj, struct kobj_attribute *attr,
 			 char *buf)
 {
@@ -1465,7 +1493,7 @@ static ssize_t tzpm_store(struct kobject *kobj, struct kobj_attribute *attr,
 
 	return count;
 }
-#endif /* !CONFIG_PSCI */
+#endif /* !CONFIG_ARM_PSCI */
 
 static ssize_t tzdev_show(struct kobject *kobj, struct kobj_attribute *attr,
 			  char *buf)
@@ -1516,22 +1544,6 @@ static ssize_t tzmem_show(struct kobject *kobj, struct kobj_attribute *attr,
 	return snprintf(buf, 256, "TZMEM Show Test\n");
 }
 
-#ifdef CONFIG_FETCH_TEE_INFO
-static ssize_t tzinfo_show(struct kobject *kobj, struct kobj_attribute *attr,
-			  char *buf)
-{
-		int ret;
-		char *info;
-
-		ret = tzinfo_fetch_info(&info);
-
-		if (ret >= PAGE_SIZE)
-			tzlog_print(TZLOG_WARNING,
-				"Extracted TEE information is suppressed");
-
-		return snprintf(buf, PAGE_SIZE, "%s\n", info);
-}
-#endif /* !CONFIG_FETCH_TEE_INFO */
 
 static ssize_t tzmem_store(struct kobject *kobj, struct kobj_attribute *attr,
 			   const char *buf, size_t count)
@@ -1576,26 +1588,18 @@ __ATTR(tzlog, 0660, tzlog_show, tzlog_store);
 static struct kobj_attribute tzmem_attr =
 __ATTR(tzmem, 0660, tzmem_show, tzmem_store);
 
-#ifdef CONFIG_FETCH_TEE_INFO
-static struct kobj_attribute tzinfo_attr =
-__ATTR(tzinfo, 0440, tzinfo_show, NULL);
-#endif /* !CONFIG_FETCH_TEE_INFO */
-
-#ifndef CONFIG_PSCI
+#ifndef CONFIG_ARM_PSCI
 static struct kobj_attribute tzpm_attr =
 __ATTR(tzpm, 0660, tzpm_show, tzpm_store);
-#endif /* !CONFIG_PSCI */
+#endif /* !CONFIG_ARM_PSCI */
 
 static struct attribute *tzdev_attrs[] = {
 	&tzdev_attr.attr,
 	&tzlog_attr.attr,
 	&tzmem_attr.attr,
-#ifdef CONFIG_FETCH_TEE_INFO
-	&tzinfo_attr.attr,
-#endif /* !CONFIG_FETCH_TEE_INFO */
-#ifndef CONFIG_PSCI
+#ifndef CONFIG_ARM_PSCI
 	&tzpm_attr.attr,
-#endif /* !CONFIG_PSCI */
+#endif /* !CONFIG_ARM_PSCI */
 	NULL,
 };
 
@@ -1649,6 +1653,157 @@ static int fetch_kernel_info(void)
 extern struct miscdevice tzmem;
 extern struct miscdevice tzrsrc;
 
+#ifdef CONFIG_ARTIK_USE_TZCMA_FOR_ARTIK710_CRYPTO
+static struct device *tzcma_dev;
+struct cma_info{
+	unsigned int phyAddr, virtAddr, size, chan_id;
+};
+struct dma_chan *in_chan, *out_chan;
+#define TEEC_CMA_MEMORY_ALLOC	0
+#define TEEC_CMA_MEMORY_FREE	1
+
+static bool filter(struct dma_chan *chan, void *param)
+{
+	if (strcmp(dev_name(chan->device->dev), "c0001000.pl08xdma") == 0
+			&& (strcmp(dma_chan_name(chan), "dma2chan0") == 0
+				|| strcmp(dma_chan_name(chan), "dma2chan1") == 0
+				|| strcmp(dma_chan_name(chan), "dma2chan2") == 0
+				|| strcmp(dma_chan_name(chan), "dma2chan3") == 0
+				|| strcmp(dma_chan_name(chan), "dma2chan4") == 0
+				|| strcmp(dma_chan_name(chan), "dma2chan5") == 0
+				|| strcmp(dma_chan_name(chan), "dma2chan6") == 0
+				|| strcmp(dma_chan_name(chan), "dma2chan7") == 0
+			   ))
+		return true;
+	return false;
+}
+
+static int tzcma_open(struct inode *inode, struct file *file)
+{
+	return 0;
+}
+
+static ssize_t tzcma_write(struct file *filp, const char *buf, size_t count,
+		loff_t *f_pos)
+{
+	return 0;
+}
+
+static long tzcma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+	int ret = 0;
+	struct cma_info mem, *argp;
+	struct page *page;
+	dma_cap_mask_t mask;
+
+	argp = (struct cma_info *)arg;
+	if (copy_from_user(&mem, argp, sizeof(struct cma_info))) {
+		tzlog_print(TZLOG_ERROR, "copy_from_user error\n");
+		return -EFAULT;
+	}
+
+	switch (cmd) {
+	case TEEC_CMA_MEMORY_ALLOC:
+		page = dma_alloc_from_contiguous(tzcma_dev, (int)mem.size, 0);
+		if (page == NULL) {
+			tzlog_print(TZLOG_ERROR,
+				"dma memory alloc failed\n");
+			return -EFAULT;
+		}
+		mem.phyAddr = page_to_phys(page);
+
+		dma_cap_zero(mask);
+		dma_cap_set(DMA_MEMCPY, mask);
+		if (in_chan == NULL) {
+			in_chan = dma_request_channel(mask, filter, NULL);
+			if (in_chan == NULL) {
+				tzlog_print(TZLOG_ERROR,
+					"in dma request channle failed\n");
+				return -EFAULT;
+			}
+			mem.chan_id = in_chan->chan_id;
+		}
+		else {
+			out_chan = dma_request_channel(mask, filter, NULL);
+			if (out_chan == NULL) {
+				tzlog_print(TZLOG_ERROR,
+					"out dma request channle failed\n");
+				return -EFAULT;
+			}
+			mem.chan_id = out_chan->chan_id;
+		}
+
+		if (copy_to_user(argp, &mem, sizeof(struct cma_info))) {
+			tzlog_print(TZLOG_ERROR, "copy_to_user error\n");
+			return -EFAULT;
+		}
+
+		break;
+	case TEEC_CMA_MEMORY_FREE:
+		page = phys_to_page(mem.phyAddr);
+		if (!dma_release_from_contiguous(tzcma_dev, page, (int)mem.size)) {
+			tzlog_print(TZLOG_ERROR," dma memory release failed\n");
+			return -EFAULT;
+		}
+		if (in_chan != NULL) {
+			dma_release_channel(in_chan);
+			in_chan = NULL;
+		}
+		if (out_chan != NULL) {
+			dma_release_channel(out_chan);
+			out_chan = NULL;
+		}
+		break;
+	default:
+		return ret;
+	}
+	return ret;
+}
+
+static int tzcma_release(struct inode *inode, struct file *file)
+{
+	return 0;
+}
+
+static const struct file_operations tzcma_fops = {
+	.owner = THIS_MODULE,
+	.open = tzcma_open,
+	.write = tzcma_write,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = tzcma_ioctl,
+#endif
+	.unlocked_ioctl = tzcma_ioctl,
+	.release = tzcma_release,
+};
+
+static struct miscdevice tzcma = {
+	.name = "tzcma",
+	.minor = MISC_DYNAMIC_MINOR,
+	.fops = &tzcma_fops,
+};
+
+static int tzcma_init(void)
+{
+	int ret = -1;
+
+	ret = misc_register(&tzcma);
+	if (unlikely(ret))
+	{
+		pr_err("failed to register tzcma device!\n");
+		goto tzcma_out;
+	}
+
+	tzcma_dev = tzcma.this_device;
+
+	return ret;
+
+tzcma_out:
+	misc_deregister(&tzcma);
+
+	return ret;
+}
+#endif /* CONFIG_ARTIK_USE_TZCMA_FOR_ARTIK710_CRYPTO */
+
 static int __init init_tzdev(void)
 {
 	int rc;
@@ -1680,10 +1835,15 @@ static int __init init_tzdev(void)
 	if (unlikely(rc))
 		goto tzdev_out;
 
+#ifdef CONFIG_RESOURCE_MONITOR
 	rc = misc_register(&tzrsrc);
 	if (unlikely(rc)) {
 		goto tzdev_out;
 	}
+#endif
+#ifdef CONFIG_ARTIK_USE_TZCMA_FOR_ARTIK710_CRYPTO
+	tzcma_init();
+#endif
 
 	tzlog_print(TZLOG_INFO, "tzdev version [%s.%s]\n",
 			TZDEV_MAJOR_VERSION, TZDEV_MINOR_VERSION);
@@ -1722,7 +1882,7 @@ static int __init init_tzdev(void)
 		rc = PTR_ERR(tzdev_ipc.kthread);
 		goto sysfs_out;
 	}
-#ifndef CONFIG_PSCI
+#ifndef CONFIG_ARM_PSCI
 	register_syscore_ops(&tzdev_pm_syscore_ops);
 
 	register_cpu_notifier(&tzdev_cpu_block);
@@ -1730,7 +1890,7 @@ static int __init init_tzdev(void)
 #ifdef CONFIG_TZDEV_CPU_IDLE
 	cpu_pm_register_notifier(&tzdev_cpu_idle_block);
 #endif
-#endif /* !CONFIG_PSCI */
+#endif /* !CONFIG_ARM_PSCI */
 
 #ifdef CONFIG_TZDEV_EVENT_FORWARD
 	secos_hook = tzdev_ipc_notify;
@@ -1742,15 +1902,6 @@ static int __init init_tzdev(void)
 
 #ifndef CONFIG_SECOS_NO_SECURE_STORAGE
 	init_storage();
-#endif
-
-#ifdef CONFIG_FETCH_TEE_INFO
-	rc = tzinfo_init();
-	if (rc != 0) {
-		sysfs_remove_file(tzdev_kobj, &tzinfo_attr.attr);
-
-		tzlog_print(TZLOG_WARNING, "Failed to register tzinfo node\n");
-	}
 #endif
 
 	nsrpc_init();

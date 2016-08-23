@@ -141,7 +141,8 @@ int tzlog_output_do_dump(int is_kernel)
 	else
 		tzlog_print(K_ERR, "TA Crash detected\n");
 
-	if ((ret = tzlog_create_dir_full_path(ENC_DUMP_DIR_PATH)) != 0)	{
+	ret = tzlog_create_dir_full_path(ENC_DUMP_DIR_PATH);
+	if (ret != 0) {
 		tzlog_print(K_ERR, "tzlog_create_dir_full_path failed\n");
 		return ret;
 	}

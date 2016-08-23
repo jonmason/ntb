@@ -48,10 +48,6 @@
 // R1 - CMD, R2 - wsm_id (only for register cmd)
 #define SMC_STD_RESOURCE_MONITOR	15
 
-#ifdef CONFIG_FETCH_TEE_INFO
-#define SMC_STD_FETCH_TEE_INFO		16
-#endif /* !CONFIG_FETCH_TEE_INFO */
-
 /* TODO: this should be sent to PSCI */
 #define SMC_PM_CPU_OFF			0
 #define SMC_PM_SYSTEM_OFF		1
@@ -65,6 +61,8 @@
 #define SMC_CPU_RESUME_SYS			19
 #define SMC_CPU_RESUME				20
 #endif /* !CONFIG_PSCI */
+
+#define SMC_STD_PLAT_SMC			21
 
 #define SMC_STD_GET_UUID			0xFF01
 

@@ -19,33 +19,102 @@
 #ifndef __LOG_SYSTEM_API_REE_H__
 #define __LOG_SYSTEM_API_REE_H__
 
-/* Changable */
-#define LOG_HD_MAGIC_SIZE 4
-#define LOG_HD_GP_SIZE 1
-#define LOG_HD_LEVEL_SIZE 1
-#define LOG_HD_LABEL_SIZE 2
-#define LOG_HD_BODY_SIZE 3
-#define LOG_HD_PID_SIZE 4
+#define ADD_FIELD(NAME)                 LOG_HD_##NAME
+#define ADD_SIZE(NAME, SIZE)            LOG_HD_##NAME##_SIZE = SIZE
+#define ADD_POS(NAME, IN)               \
+                LOG_HD_##NAME##_POS = ((LOG_HD_##IN##_POS) + (LOG_HD_##IN##_SIZE))
 
-/* Do Not Change */
-#define LOG_HD_MAGIC_POS        0
-#define LOG_HD_GP_POS        ((LOG_HD_MAGIC_POS) + (LOG_HD_MAGIC_SIZE))
-#define LOG_HD_LEVEL_POS        ((LOG_HD_GP_POS) + (LOG_HD_GP_SIZE))
-#define LOG_HD_LABEL_POS        ((LOG_HD_LEVEL_POS) + (LOG_HD_LEVEL_SIZE))
-#define LOG_HD_BODY_POS         ((LOG_HD_LABEL_POS) + (LOG_HD_LABEL_SIZE))
-#define LOG_HD_PID_POS          ((LOG_HD_BODY_POS) + (LOG_HD_BODY_SIZE))
+#define FIELD_NAMES(NAME1, SIZE1, NAME2, SIZE2, \
+                    NAME3, SIZE3, NAME4, SIZE4, \
+                    NAME5, SIZE5, NAME6, SIZE6, \
+                    NAME7, SIZE7, NAME8, SIZE8) \
+typedef enum {                                  \
+        ADD_FIELD(NAME1) = 0,                   \
+        ADD_FIELD(NAME2),                       \
+        ADD_FIELD(NAME3),                       \
+        ADD_FIELD(NAME4),                       \
+        ADD_FIELD(NAME5),                       \
+        ADD_FIELD(NAME6),                       \
+        ADD_FIELD(NAME7),                       \
+        ADD_FIELD(NAME8)                        \
+} log_header_field_name;                        \
+                                                \
+typedef enum {                                  \
+        ADD_SIZE(NAME1, SIZE1),                 \
+        ADD_SIZE(NAME2, SIZE2),                 \
+        ADD_SIZE(NAME3, SIZE3),                 \
+        ADD_SIZE(NAME4, SIZE4),                 \
+        ADD_SIZE(NAME5, SIZE5),                 \
+        ADD_SIZE(NAME6, SIZE6),                 \
+        ADD_SIZE(NAME7, SIZE7),                 \
+        ADD_SIZE(NAME8, SIZE8)                  \
+} log_header_field_size;                        \
+                                                \
+typedef enum {                                  \
+        LOG_HD_MAGIC_POS = 0,                   \
+        ADD_POS(NAME2, NAME1),                  \
+        ADD_POS(NAME3, NAME2),                  \
+        ADD_POS(NAME4, NAME3),                  \
+        ADD_POS(NAME5, NAME4),                  \
+        ADD_POS(NAME6, NAME5),                  \
+        ADD_POS(NAME7, NAME6),                  \
+        ADD_POS(NAME8, NAME7)                   \
+} log_header_field_pos;                         \
+                                                \
+static const int log_field_size[] = {SIZE1, SIZE2, SIZE3, SIZE4, SIZE5, SIZE6, SIZE7, SIZE8 }; \
+static const int log_field_pos[] = { LOG_HD_##NAME1##_POS,      \
+                                     LOG_HD_##NAME2##_POS,      \
+                                     LOG_HD_##NAME3##_POS,      \
+                                     LOG_HD_##NAME4##_POS,      \
+                                     LOG_HD_##NAME5##_POS,      \
+                                     LOG_HD_##NAME6##_POS,      \
+                                     LOG_HD_##NAME7##_POS,      \
+                                     LOG_HD_##NAME8##_POS };
+
+FIELD_NAMES(MAGIC, 4,   \
+            LEVEL, 2,   \
+            LABEL, 2,   \
+            BODY, 3,    \
+            RFU1, 0,    \
+            RFU2, 0,    \
+            RFU3, 0,    \
+            PID, 4)
+
+#define BIT_USER_KERN	4
+#define BIT_SWD_NWD     5
+#define BIT_ENC         6
+#define BIT_PREFIX      7
+
+typedef enum {
+        USER_MODE       = 0,
+        KERN_MODE	= 1 << BIT_USER_KERN,
+        SWD_MODE	= 0,
+        NWD_MODE	= 1 << BIT_SWD_NWD,
+        PLAIN_MODE	= 0,
+        ENC_MODE	= 1 << BIT_ENC,
+        PREFIX_MODE	= 0,
+        NOPREFIX_MODE	= 1 << BIT_PREFIX,
+} log_header_info_type;
+
+#define IS_USER(A)      (A & (1 << BIT_USER_KERNEL)) ? 0 : 1
+#define IS_SWD(A)       (A & (1 << BIT_SWD_NWD)) ? 0 : 1
+#define IS_PLAIN(A)     (A & (1 << BIT_ENC)) ? 0 : 1
+#define IS_PREFIX(A)    (A & (1 << BIT_PREFIX)) ? 0 : 1
+#define GET_LEVEL(A)    (A & 0x7)
+
+typedef struct
+{
+        uint32_t magic;
+        uint32_t level;
+        uint32_t label_size;
+        uint32_t body_size;
+
+        uint32_t pid;
+} log_header_type;
+
 #define LHDSIZE                 ((LOG_HD_PID_POS) + (LOG_HD_PID_SIZE))
 #define LOG_HD_MAGIC_VAL        0xAE18
 #define LOG_MAGIC               "AE18"
-
-typedef struct {
-	uint32_t magic;
-	uint32_t log_gen_point;
-	uint32_t log_level;
-	uint32_t log_label_size;
-	uint32_t log_body_size;
-	uint32_t log_pid;
-} log_header_type;
 
 enum {
 	NO_MAGIC = 0,
@@ -67,47 +136,24 @@ static inline uint32_t hex2int(char ch)
 		return 0;
 }
 
-static inline uint32_t get_log_gp(char *buffer)
-{				/* 1 Byte */
-	if (buffer == NULL)
-		return 0;
-
-	return hex2int(buffer[0]);
-}
-
-static inline uint32_t get_log_level(char *buffer)
-{				/* 1 Byte */
-	if (buffer == NULL)
-		return 0;
-
-	return hex2int(buffer[0]);
-}
-
-static inline uint32_t get_log_label_size(char *buffer)
-{				/* 2 Byte */
-	if (buffer == NULL)
-		return 0;
-
-	return (hex2int(buffer[0]) << 4) + (hex2int(buffer[1]));
-}
-
-static inline uint32_t get_log_body_size(char *buffer)
-{				/* 3 Byte */
-	if (buffer == NULL)
-		return 0;
-
-	return (hex2int(buffer[0]) << 8) +
-	    (hex2int(buffer[1]) << 4) + (hex2int(buffer[2]));
-}
-
-static inline uint32_t get_log_pid(char *buffer)
+static inline uint32_t get_header_field(char *buffer, log_header_field_name type)
 {
-	if (buffer == NULL)
+	int i;
+	int shift, temp;
+	uint32_t ret = 0;
+	char *pos = NULL;
+	if(buffer == NULL)
 		return 0;
 
-	return (hex2int(buffer[0]) << 12) +
-	    (hex2int(buffer[1]) << 8) +
-	    (hex2int(buffer[2]) << 4) + (hex2int(buffer[3]));
+	pos = buffer + log_field_pos[type];
+
+	for(i = 0; i < log_field_size[type]; ++i)
+	{
+		temp = log_field_size[type] - i - 1;
+		shift = 4 * temp;
+		ret += (hex2int(pos[i]) << shift);
+	}
+	return ret;
 }
 
 static inline uint32_t get_log_header(char *buffer, log_header_type *header)
@@ -122,11 +168,10 @@ static inline uint32_t get_log_header(char *buffer, log_header_type *header)
 		if (temp[i] != buffer[i])
 			return 0;
 	}
-	header->log_gen_point = get_log_gp(buffer + LOG_HD_GP_POS);
-	header->log_level = get_log_level(buffer + LOG_HD_LEVEL_POS);
-	header->log_label_size = get_log_label_size(buffer + LOG_HD_LABEL_POS);
-	header->log_body_size = get_log_body_size(buffer + LOG_HD_BODY_POS);
-	header->log_pid = get_log_pid(buffer + LOG_HD_PID_POS);
+	header->level = get_header_field(buffer, LOG_HD_LEVEL);
+	header->label_size = get_header_field(buffer, LOG_HD_LABEL);
+	header->body_size = get_header_field(buffer, LOG_HD_BODY);
+	header->pid = get_header_field(buffer, LOG_HD_PID);
 	return 1;
 }
 

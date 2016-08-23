@@ -93,6 +93,15 @@ struct secos_kern_info {
 
 	/* Send to SecureOS */
 	uint32_t ipi_fiq;
+
+	/* Secos machine name */
+	char machine_name[32];
+
+	/* Secos build id */
+	char build_id[42];
+
+	/* Secos build type */
+	char build_type[32];
 };
 
 #define SECOS_KERN_INFO_V1      (sizeof(struct secos_kern_info))

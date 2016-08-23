@@ -100,10 +100,10 @@ enum ss_sub_cmd_type {
 
 	/*for file update */
 	SS_SUB_CMD_FILE_UPDATE_OBJECT_PREPARE,
-	SS_SUB_CMD_FILE_UDPATE_OBJECT_START,
-	SS_SUB_CMD_FILE_UDPATE_OBJECT,
-	SS_SUB_CMD_FILE_UDPATE_OBJECT_END,
-	SS_SUB_CMD_FILE_UDPATE_OBJECT_POST,
+	SS_SUB_CMD_FILE_UPDATE_OBJECT_START,
+	SS_SUB_CMD_FILE_UPDATE_OBJECT,
+	SS_SUB_CMD_FILE_UPDATE_OBJECT_END,
+	SS_SUB_CMD_FILE_UPDATE_OBJECT_POST,
 
 	/*for rpmb load */
 	SS_SUB_CMD_RPMB_LOAD_OBJECT_PREPARE,
@@ -115,15 +115,15 @@ enum ss_sub_cmd_type {
 	/*for rpmb update */
 	SS_SUB_CMD_RPMB_UPDATE_OBJECT_PREPARE,
 
-	SS_SUB_CMD_RPMB_UDPATE_OBJECT_START,
-	SS_SUB_CMD_RPMB_UDPATE_OBJECT_DATA,
-	SS_SUB_CMD_RPMB_UDPATE_OBJECT_VERIFY,
-	SS_SUB_CMD_RPMB_UDPATE_OBJECT_END,
+	SS_SUB_CMD_RPMB_UPDATE_OBJECT_START,
+	SS_SUB_CMD_RPMB_UPDATE_OBJECT_DATA,
+	SS_SUB_CMD_RPMB_UPDATE_OBJECT_VERIFY,
+	SS_SUB_CMD_RPMB_UPDATE_OBJECT_END,
 
 	SS_SUB_CMD_RPMB_UPDATE_OBJECT_ENTRY_START,
 	SS_SUB_CMD_RPMB_UPDATE_OBJECT_ENTRY_END,
 
-	SS_SUB_CMD_RPMB_UDPATE_OBJECT_POST,
+	SS_SUB_CMD_RPMB_UPDATE_OBJECT_POST,
 
 	/*for rpmb header */
 	SS_SUB_CMD_RPMB_HEADER_QUERY,
@@ -135,7 +135,7 @@ enum ss_sub_cmd_type {
 enum ss_file_main_back {
 	SS_MAIN_OBJECT_FILE,
 	SS_BAKE_OBJECT_FILE,
-	SS_INVALIDE_OBJECT_FILE,
+	SS_INVALID_OBJECT_FILE,
 };
 
 #ifdef CONFIG_TEE_LIBRARY_PROVISION
@@ -509,13 +509,9 @@ static void ssdev_file_delete_data(NSRPCTransaction_t *tsx)
 #ifndef CONFIG_SECOS_NO_RPMB
 static void ssdev_rpmb_get_write_counter(NSRPCTransaction_t *tsx)
 {
+#if defined(CONFIG_MMC)
 	u32 write_counter = 0;
-
-#if defined(CONFIG_MMC) && (LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0))
 	int ret = ss_rpmb_get_wctr(&write_counter);
-#else
-	int ret = -EIO;
-#endif /* defined(CONFIG_MMC) && (LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)) */
 
 	if (ret < 0) {
 		tzlog_print(TZLOG_ERROR,
@@ -530,11 +526,14 @@ static void ssdev_rpmb_get_write_counter(NSRPCTransaction_t *tsx)
 		nsrpc_set_arg(tsx, 0, write_counter);
 		nsrpc_complete(tsx, 0);
 	}
+#else
+	nsrpc_complete(tsx, -EIO);
+#endif
 }
 
 static void ssdev_rpmb_load_frames(NSRPCTransaction_t *tsx)
 {
-#if defined(CONFIG_MMC) && (LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0))
+#if defined(CONFIG_MMC)
 	const size_t blk_nums = nsrpc_get_arg(tsx, 0);
 	const size_t object_size = blk_nums * RPMB_SECOTR;
 	const size_t piece_size = RPMB_SECOTR * RPMB_READ_BLOCKS_UNIT;
@@ -612,12 +611,12 @@ static void ssdev_rpmb_load_frames(NSRPCTransaction_t *tsx)
 	nsrpc_complete(tsx, 0);
 #else
 	nsrpc_complete(tsx, -EIO);
-#endif /* defined(CONFIG_MMC) && (LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)) */
+#endif /* defined(CONFIG_MMC) */
 }
 
 static void ssdev_rpmb_store_frames(NSRPCTransaction_t *tsx)
 {
-#if defined(CONFIG_MMC) && (LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0))
+#if defined(CONFIG_MMC)
 	const size_t blk_nums = nsrpc_get_arg(tsx, 0);
 	size_t wsm_size = 0;
 	void *wsm_buffer =
@@ -673,7 +672,7 @@ static void ssdev_rpmb_store_frames(NSRPCTransaction_t *tsx)
 	nsrpc_complete(tsx, 0);
 #else
 	nsrpc_complete(tsx, -EIO);
-#endif /* defined(CONFIG_MMC) && (LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)) */
+#endif /* defined(CONFIG_MMC) */
 }
 #endif /*CONFIG_SECOS_NO_RPMB*/
 
@@ -803,7 +802,7 @@ int libprov_register_wsm(void *addr, size_t size)
 void *libprov_load_file(const char *libname, size_t *ret_size)
 {
 	char path[MAX_PATH_LEN];
-	unsigned int filesize, offset, read_size;
+	unsigned int filesize, offset = 0, read_size;
 	struct trm_ta_image *ta_image = NULL;
 	struct file *file;
 

@@ -16,29 +16,41 @@
  *
  *********************************************************/
 
+#include <linux/pm_qos.h>
 #include "tzdev_plat.h"
 
-/*
- * This functions are not implemented for ARTIK710.
- * But these are needed to keep compatibility on other platform.
- */
+static struct pm_qos_request min_cpu_qos;
 
 int plat_init(void)
 {
-	return 0;
+	int ret = 0;
+
+	pm_qos_add_request(&min_cpu_qos, PM_QOS_CPU_FREQ_MIN, 0);
+
+	return ret;
 }
 
 int plat_preprocess(void)
 {
-	return 0;
+	int ret = 0;
+
+	if (pm_qos_request_active(&min_cpu_qos))
+		pm_qos_update_request(&min_cpu_qos, 1200000);
+
+	return ret;
 }
 
 int plat_postprocess(void)
 {
-	return 0;
+	int ret = 0;
+
+	if (pm_qos_request_active(&min_cpu_qos))
+		pm_qos_update_request(&min_cpu_qos, -1);
+
+	return ret;
 }
 
-int plat_dump_postprocess(char *uuid)
+int plat_dump_postprocess(char *name)
 {
 	return 0;
 }

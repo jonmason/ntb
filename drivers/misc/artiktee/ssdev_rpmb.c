@@ -29,7 +29,7 @@
 
 #ifndef CONFIG_SECOS_NO_SECURE_STORAGE
 
-#if defined(CONFIG_MMC) && (LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0))
+#if defined(CONFIG_MMC)
 
 #include "ssdev_rpmb.h"
 #include "tzlog_print.h"
@@ -441,7 +441,7 @@ exit:
 	return result;
 }
 
-#endif /* defined(CONFIG_MMC) && (LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)) */
+#endif /* defined(CONFIG_MMC) */
 
 #endif /* CONFIG_SECOS_NO_SECURE_STORAGE */
 #endif /* CONFIG_SECOS_NO_RPMB */

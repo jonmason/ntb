@@ -132,6 +132,7 @@ exit_tzlog_create_dir_full_path:
 
 #ifdef CONFIG_INSTANCE_DEBUG
 int tzlog_output_do_dump(int is_kernel);
+
 static int tzlog_output_to_error_log(char *data, int data_size,
 				     int is_kernel_error)
 {
@@ -140,7 +141,8 @@ static int tzlog_output_to_error_log(char *data, int data_size,
 	int ret = 0;
 	char *file_full_path = NULL;
 
-	if ((ret = tzlog_create_dir_full_path(ENC_LOG_DIR_PATH)) != 0) {
+	ret = tzlog_create_dir_full_path(ENC_LOG_DIR_PATH);
+	if (ret != 0) {
 		tzlog_print(K_ERR, "tzlog_create_dir_full_path failed\n");
 		return ret;
 	}
@@ -166,7 +168,8 @@ static int tzlog_output_to_error_log(char *data, int data_size,
 #if defined(CONFIG_INSTANCE_DEBUG) && defined(CONFIG_USB_DUMP)
 	if(ss_file_object_exist(file_full_path) == 1)
 		copy_file_to_usb(file_full_path);
-	else tzlog_print(K_ERR, "file(%s) not exist \n", file_full_path);
+	else
+		tzlog_print(K_ERR, "file(%s) not exist \n", file_full_path);
 #endif
 
 exit_tzlog_output_to_error_log:

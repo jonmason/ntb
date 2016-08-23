@@ -23,9 +23,9 @@
 
 extern kernel_log_level default_tzdev_local_log_level; /* OutPut */
 
-void tzlog_print(kernel_log_level level, const char *fmt, ...);
-void tzlog_print_for_tee(log_header_info header_info,
-		kernel_log_level level,
+void tzlog_print(uint32_t level, const char *fmt, ...);
+void tzlog_print_for_tee(
+		uint32_t level,
 		const char *label,
 		const char *fmt, ...);
 

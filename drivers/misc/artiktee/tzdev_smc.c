@@ -50,32 +50,34 @@ static void update_smc_status(int cpu, int inout_status, int function_nubmer)
 	smc_status->inout_status = inout_status;
 	smc_status->function_number = function_nubmer;
 
-	if (inout_status == 0) {
+	if (inout_status == 0)
 		do_gettimeofday(&smc_status->smc_in);
-	}
-	else if (inout_status == 1) {
+	else if (inout_status == 1)
 		do_gettimeofday(&smc_status->smc_out);
-	}
 
 	if(inout_status == 1) {
 		struct timeval temp;
 		unsigned long difftime;
-		if ((smc_status->smc_out.tv_usec-smc_status->smc_in.tv_usec)<0) {
-			temp.tv_sec = smc_status->smc_out.tv_sec-smc_status->smc_in.tv_sec-1;
-			temp.tv_usec = 1000000+smc_status->smc_out.tv_usec-smc_status->smc_in.tv_usec;
-		}
-		else {
-			temp.tv_sec = smc_status->smc_out.tv_sec-smc_status->smc_in.tv_sec;
-			temp.tv_usec = smc_status->smc_out.tv_usec-smc_status->smc_in.tv_usec;
-		}
-		difftime = (temp.tv_sec*1000+ temp.tv_usec/1000);
 
-		if(difftime > 30) {
-			tzlog_print(TZLOG_INFO,
-				"[CPU : %d ] smc call(%d) spend over %lu ms \n",
-				cpu, function_nubmer, difftime);
+		if ((smc_status->smc_out.tv_usec-smc_status->smc_in.tv_usec) < 0) {
+			temp.tv_sec =
+				smc_status->smc_out.tv_sec-smc_status->smc_in.tv_sec - 1;
+			temp.tv_usec =
+				1000000+smc_status->smc_out.tv_usec-smc_status->smc_in.tv_usec;
+		} else {
+			temp.tv_sec =
+				smc_status->smc_out.tv_sec-smc_status->smc_in.tv_sec;
+			temp.tv_usec =
+				smc_status->smc_out.tv_usec-smc_status->smc_in.tv_usec;
 		}
+		difftime = (temp.tv_sec*1000 + temp.tv_usec/1000);
+
+		if (difftime > 30)
+			tzlog_print(TZLOG_INFO,
+					"[CPU : %d ] smc call(%d) spend over %lu ms \n",
+					cpu, function_nubmer, difftime);
 	}
+
 }
 
 void init_smc_status(void)
@@ -83,7 +85,7 @@ void init_smc_status(void)
 	unsigned int cpu = num_online_cpus();
 	unsigned int loop;
 
-	SMC_STATUS * smc_status;
+	SMC_STATUS *smc_status;
 
 	for (loop = 0; loop < cpu; loop++) {
 		smc_status = &per_cpu(smc_status_each_core, loop);
@@ -98,7 +100,7 @@ void init_smc_status(void)
 #endif
 
 static inline void __do_call_smc_internal(struct monitor_arguments *args,
-					struct monitor_result *result)
+					  struct monitor_result *result)
 {
 #if defined(__aarch64__)
 	register unsigned long r0 asm("x0");
@@ -393,29 +395,7 @@ int scm_register_phys_wsm(phys_addr_t arg_pfn)
 	return res.res[0];
 }
 
-#ifdef CONFIG_FETCH_TEE_INFO
-int scm_fetch_tzinfo(int cmd, int arg)
-{
-	struct monitor_arguments args = { 0, };
-	struct monitor_result res = { {0,} };
-
-	int SMC_OP = SMC_STD_FETCH_TEE_INFO;
-
-	args.function_id =
-		SMC_32CALL | SMC_STANDARD_CALL | SMC_ENTITY_SECUREOS | SMC_OP;
-
-	args.arg[0] = cmd;
-	args.arg[1] = arg;
-	args.arg[2] = 0;
-	args.arg[3] = 0;
-
-	do_call_smc_internal(&args, &res, SMC_OP);
-
-	return res.res[0];
-}
-#endif /* !CONFIG_FETCH_TEE_INFO */
-
-#ifndef CONFIG_PSCI
+#ifndef CONFIG_ARM_PSCI
 int scm_cpu_suspend(void)
 {
 	struct monitor_arguments args = { 0, };
@@ -476,6 +456,7 @@ int scm_sys_resume(void)
 }
 #endif /* !CONFIG_PSCI */
 
+#ifdef CONFIG_RESOURCE_MONITOR
 int scm_resource_monitor_cmd(uint32_t cmd, uint32_t wsm_id)
 {
 	struct monitor_arguments args = {0,};
@@ -486,11 +467,32 @@ int scm_resource_monitor_cmd(uint32_t cmd, uint32_t wsm_id)
 	args.function_id =
 		SMC_32CALL | SMC_STANDARD_CALL | SMC_ENTITY_SECUREOS | SMC_OP;
 	args.arg[0] = cmd;
-	if(cmd == RSRC_REGISTER_WSM)
-	{
+
+	if (cmd == RSRC_REGISTER_WSM)
 		args.arg[1] = wsm_id;
-	}
 
 	do_call_smc_internal(&args, &res, SMC_OP);
+	return res.res[0];
+}
+#endif /* CONFIG_RESOURCE_MONITOR */
+
+int scm_plat_smc(uint32_t x0, uint32_t x1, uint32_t x2, uint32_t x3)
+{
+	struct monitor_arguments args = { 0, };
+	struct monitor_result res = { {0,} };
+
+	const int SMC_OP = SMC_STD_PLAT_SMC;
+
+	args.function_id =
+	    SMC_32CALL | SMC_STANDARD_CALL | SMC_ENTITY_SECUREOS |
+	    SMC_OP;
+
+	args.arg[0] = x0;
+	args.arg[1] = x1;
+	args.arg[2] = x2;
+	args.arg[3] = x3;
+
+	do_call_smc_internal(&args, &res, SMC_OP);
+
 	return res.res[0];
 }

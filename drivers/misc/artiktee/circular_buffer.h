@@ -166,8 +166,8 @@ static inline ssize_t __chimera_read_from_buffer(
 	wmb();
 #endif /* defined(__KERNEL__) && defined(__SecureOS__) */
 
-	buffer->first = (buffer_first + bytesRead) % buffer_size;
-	buffer->in = buffer_in - bytesRead;
+	buffer->first = (int)((buffer_first + bytesRead) % buffer_size);
+	buffer->in = (int)(buffer_in - bytesRead);
 
 #if defined(__KERNEL__) && defined(__SecureOS__)
 	mb();
@@ -280,7 +280,7 @@ static inline ssize_t __chimera_write_to_buffer(
 		}
 	}
 
-	buffer->in = buffer_in + bytesWritten;
+	buffer->in = (int)(buffer_in + bytesWritten);
 
 	return bytesWritten;
 }

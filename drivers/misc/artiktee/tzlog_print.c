@@ -20,207 +20,132 @@
 #include <linux/vmalloc.h>
 
 #include "tzlog_print.h"
+#include "log_system_api_ext.h"
 
 kernel_log_level default_tzdev_tee_log_level = TZDEV_TEE_LOG_LEVEL;
 kernel_log_level default_tzdev_local_log_level = TZDEV_LOCAL_LOG_LEVEL;
 
 #define DEFAULT_MEM_SIZE PAGE_SIZE
-/* #define ENABLE_LOG_DEBUG */
 
-static char buf_for_local[DEFAULT_MEM_SIZE];
+static char buf_for_tzdev[DEFAULT_MEM_SIZE];
 static char buf_for_tee[DEFAULT_MEM_SIZE];
+const static char buf_for_prefix[8][10] = {"[EMERG]", "[ALERT]", "[CRIT]", "[ERR]", \
+					   "[WARN]", "[NOTI]", "[INFO]", "[DEBUG]"};
 
-static int tzlog_print_common(log_header_info header_info,
-		kernel_log_level level,
+static int tzlog_print_common(
+		uint32_t level,
 		const char *label,
-		int is_ree,
 		va_list *ap,
 		const char *fmt)
 {
 	int write_len = 0;
 	int buf_size = 0;
 	char *printk_buf = NULL;
+	kernel_log_level only_level = GET_LEVEL(level);
 
-	if (is_ree == 1) {
-		printk_buf = buf_for_local;
-		buf_size = sizeof(buf_for_local);
-	} else {
+	if(IS_SWD(level)) {
 		printk_buf = buf_for_tee;
 		buf_size = sizeof(buf_for_tee);
+	} else {
+		printk_buf = buf_for_tzdev;
+		buf_size = sizeof(buf_for_tzdev);
 	}
 
-	if (is_ree == 1) {
-		switch (level) {
-		case K_DEBUG:
-			write_len = snprintf(printk_buf,
-					buf_size, "[REE][TZDEV][DEBUG]");
-			break;
-		case K_INFO:
-			write_len = snprintf(printk_buf,
-					buf_size, "[REE][TZDEV][INFO]");
-			break;
-		case K_NOTICE:
-			write_len = snprintf(printk_buf,
-					buf_size, "[REE][TZDEV][NOTI]");
-			break;
-		case K_WARNING:
-			write_len = snprintf(printk_buf,
-					buf_size, "[REE][TZDEV][WARN]");
-			break;
-		case K_ERR:
-			write_len = snprintf(printk_buf,
-					buf_size, "[REE][TZDEV][ERR]");
-			break;
-		case K_CRIT:
-			write_len = snprintf(printk_buf,
-					buf_size, "[REE][TZDEV][CRIT]");
-			break;
-		case K_ALERT:
-			write_len = snprintf(printk_buf,
-					buf_size, "[REE][TZDEV][ALERT]");
-			break;
-		case K_EMERG:
-			write_len = snprintf(printk_buf,
-					buf_size, "[REE][TZDEV][EMERG]");
-			break;
-		default:
-			break;
-		}
+	if(IS_SWD(level)) {
+		/* Prefix addition for TEE */
+                if(IS_PREFIX(level)) {
+                        write_len = snprintf(printk_buf, buf_size, "[TEE]");
+
+                        if (label != NULL) {
+                                write_len += snprintf(printk_buf + write_len,
+                                buf_size - 1 - write_len, "[%s]", label);
+                        }
+
+                        write_len += snprintf(printk_buf + write_len,
+                                              buf_size - write_len -1,
+                                              buf_for_prefix[only_level]);
+                }
 	} else {
-		switch (header_info) {
-		case SWD_USERMODE:
-			write_len = snprintf(printk_buf,
-					buf_size, "[TEE][TA]");
-			break;
-		case SWD_KERNMODE:
-			write_len = snprintf(printk_buf,
-					buf_size, "[TEE][KERN]");
-			break;
-		default:
-			write_len = snprintf(printk_buf,
-					buf_size, "[TEE]");
-			break;
-		}
-
-		switch (level) {
-		case K_DEBUG:
-			write_len += snprintf(printk_buf + write_len,
-					buf_size - 1 - write_len, "[DEBUG]");
-			break;
-		case K_INFO:
-			write_len += snprintf(printk_buf + write_len,
-					buf_size - 1 - write_len, "[INFO]");
-			break;
-		case K_NOTICE:
-			write_len += snprintf(printk_buf + write_len,
-					buf_size - 1 - write_len, "[NOTI]");
-			break;
-		case K_WARNING:
-			write_len += snprintf(printk_buf + write_len,
-					buf_size - 1 - write_len, "[WARN]");
-			break;
-		case K_ERR:
-			write_len += snprintf(printk_buf + write_len,
-					buf_size - 1 - write_len, "[ERR]");
-			break;
-		case K_CRIT:
-			write_len += snprintf(printk_buf + write_len,
-					buf_size - 1 - write_len, "[CRIT]");
-			break;
-		case K_ALERT:
-			write_len += snprintf(printk_buf + write_len,
-					buf_size - 1 - write_len, "[ALERT]");
-			break;
-		case K_EMERG:
-			write_len += snprintf(printk_buf + write_len,
-					buf_size - 1 - write_len, "[EMERG]");
-			break;
-		default:
-			break;
-		}
-
-		if (label != NULL)
-			write_len += snprintf(printk_buf + write_len,
-					buf_size - 1 - write_len, "[%s]",
-					label);
+		/* Prefix addition for REE */
+                write_len = snprintf(printk_buf, buf_size, "[REE][TZDEV]");
+                write_len += snprintf(printk_buf + write_len,
+                                      buf_size - write_len -1,
+                                      buf_for_prefix[only_level]);
 	}
 
 	write_len += vsnprintf(printk_buf + write_len,
-			buf_size - 1 - write_len, fmt, *ap);
+			       buf_size - 1 - write_len, fmt, *ap);
 
-	if (write_len + 1 >= buf_size) /* buffer is not enough */
-		pr_err("buffer is not enough(ree(%d) / cur : %d )\n",
-				is_ree, buf_size);
+	if (write_len + 1 >= buf_size) {
+		/* buffer is not enough */
+		printk(KERN_ERR "buffer is not enough, \
+		       write:%d, avail:%d\n", write_len, buf_size);
+	}
 
-	switch (level) {
-	case K_DEBUG:
-		pr_debug("%s", printk_buf);
-		break;
-	case K_INFO:
-		pr_info("%s", printk_buf);
-		break;
-	case K_NOTICE:
-		pr_notice("%s", printk_buf);
-		break;
-	case K_WARNING:
-		pr_warn("%s", printk_buf);
-		break;
-	case K_ERR:
-		pr_err("%s", printk_buf);
-		break;
-	case K_CRIT:
-		pr_crit("%s", printk_buf);
-		break;
-	case K_ALERT:
-		pr_alert("%s", printk_buf);
-		break;
-	case K_EMERG:
-		pr_emerg("%s", printk_buf);
-		break;
-	default:
-		break;
+	switch (only_level) {
+		case K_DEBUG:
+			printk(KERN_DEBUG "%s", printk_buf);
+			break;
+		case K_INFO:
+			printk(KERN_INFO "%s", printk_buf);
+			break;
+		case K_NOTICE:
+			printk(KERN_NOTICE "%s", printk_buf);
+			break;
+		case K_WARNING:
+			printk(KERN_WARNING "%s", printk_buf);
+			break;
+		case K_ERR:
+			printk(KERN_ERR "%s", printk_buf);
+			break;
+		case K_CRIT:
+			printk(KERN_CRIT "%s", printk_buf);
+			break;
+		case K_ALERT:
+			printk(KERN_ALERT "%s", printk_buf);
+			break;
+		case K_EMERG:
+			printk(KERN_EMERG "%s", printk_buf);
+			break;
+		default:
+			break;
 	}
 	return 0;
 }
 
-/*
-   will be use bit flag for decreasing parameter count.
-   we can change log_header_info to use bit flag
- */
-void tzlog_print_for_tee(log_header_info header_info,
-		kernel_log_level level,
-		const char *label,
-		const char *fmt, ...)
+void tzlog_print_for_tee(uint32_t level,
+			 const char *label,
+			 const char *fmt, ...)
 {
 	int ret;
 	va_list ap;
+	int only_level = GET_LEVEL((int)level);
 
-	if (!(default_tzdev_tee_log_level >= level))
+	if (((uint32_t)default_tzdev_tee_log_level < only_level)
+	    || default_tzdev_tee_log_level == K_SILENT)
 		return;
 
 	va_start(ap, fmt);
-	ret = tzlog_print_common(header_info, level, label, 0, &ap, fmt);
+	ret = tzlog_print_common(level, label, &ap, fmt);
 	va_end(ap);
 
-#ifdef ENABLE_LOG_DEBUG
 	if (ret == -1)
-		pr_err("tzlog_print_common return err\n");
-#endif
+		printk(KERN_ERR "@tzlog_print_for_tee returns err\n");
 }
 
-void tzlog_print(kernel_log_level level, const char *fmt, ...)
+void tzlog_print(uint32_t level, const char *fmt, ...)
 {
 	int ret;
 	va_list ap;
-	if (!(default_tzdev_local_log_level >= level))
+
+	if (((uint32_t)default_tzdev_local_log_level < level)
+	    || default_tzdev_local_log_level == K_SILENT)
 		return;
 
 	va_start(ap, fmt);
-	ret = tzlog_print_common(0, level, NULL, 1, &ap, fmt);
+	ret = tzlog_print_common(level | NWD_MODE, NULL, &ap, fmt);
 	va_end(ap);
 
-#ifdef ENABLE_LOG_DEBUG
 	if (ret == -1)
-		pr_err("tzlog_print_common return err\n");
-#endif
+		printk(KERN_ERR "tzlog_print returns err\n");
 }

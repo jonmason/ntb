@@ -34,7 +34,13 @@
 #include "tzlog_print.h"
 #include "log_system_api_ext.h"
 
-/*#define ENABLE_LOG_DEBUG*/
+/* #define LOG_RING_BUF_DEBUG */
+#ifdef LOG_RING_BUF_DEBUG
+#define DPRINTF(X...) \
+	tzlog_print(K_INFO, X)
+#else
+#define DPRINTF(X...)
+#endif
 
 #define TZLOG_LOCAL_BUFFERING_SIZE (PAGE_SIZE * 2)
 #define TZLOG_TZDAEMON_BUFFERING_SIZE (PAGE_SIZE * 10)
@@ -134,34 +140,26 @@ exit_processing_resources:
 static ssize_t tzlog_read(struct file *filp, char __user *buffer, size_t size,
 			  loff_t *off)
 {
-#ifdef ENABLE_LOG_DEBUG
-	tzlog_print(K_INFO, "tzlog_read called\n");
-#endif
 	int error = mutex_lock_interruptible(&log_data_for_tzdaemon.read_lock);
 	ssize_t result;
 
 	if (error < 0)
 		return error;
 
-#ifdef ENABLE_LOG_DEBUG
-	tzlog_print(K_INFO, "TZLOG read %d size = %d, in = %d, out = %d\n",
-		    (int)size, log_data_for_tzdaemon.ring->size,
-		    log_data_for_tzdaemon.ring->in,
-		    log_data_for_tzdaemon.ring->first);
-#endif
+	DPRINTF("TZLOG read %d size = %d, in = %d, out = %d\n",
+	        (int)size, log_data_for_tzdaemon.ring->size,
+	        log_data_for_tzdaemon.ring->in,
+	        log_data_for_tzdaemon.ring->first);
 
 	result =
 	    chimera_ring_buffer_user_read(log_data_for_tzdaemon.ring,
 					  (uint8_t *) buffer, size,
 					  TZLOG_TZDAEMON_BUFFERING_SIZE);
 
-#ifdef ENABLE_LOG_DEBUG
-	tzlog_print(K_INFO,
-		    "TZLOG read result %d size = %d, in = %d, out = %d\n",
-		    (int)result, log_data_for_tzdaemon.ring->size,
-		    log_data_for_tzdaemon.ring->in,
-		    log_data_for_tzdaemon.ring->first);
-#endif
+	DPRINTF("TZLOG read result %d size = %d, in = %d, out = %d\n",
+	        (int)result, log_data_for_tzdaemon.ring->size,
+	        log_data_for_tzdaemon.ring->in,
+	        log_data_for_tzdaemon.ring->first);
 
 	if (result > 0)
 		wake_up(&log_data_for_tzdaemon.full_wait);
@@ -174,13 +172,10 @@ static ssize_t tzlog_read(struct file *filp, char __user *buffer, size_t size,
 static unsigned int tzlog_poll(struct file *file, poll_table *wait)
 {
 	unsigned int mask;
-#ifdef ENABLE_LOG_DEBUG
-	tzlog_print(K_INFO, "tzlog_poll call\n");
-#endif
+
+	DPRINTF("tzlog_poll call\n");
 	poll_wait(file, &log_data_for_tzdaemon.empty_wait, wait);
-#ifdef ENABLE_LOG_DEBUG
-	tzlog_print(K_INFO, "tzlog_poll call end\n");
-#endif
+	DPRINTF("tzlog_poll call end\n");
 	mask = 0;
 
 	if (chimera_ring_buffer_readable(log_data_for_tzdaemon.ring))
@@ -208,16 +203,14 @@ static int tzlog_copy_buffer(s_tzlog_process *dst_data, int dst_buffer_size,
 							    iov[i].iov_base,
 							    iov[i].iov_len,
 							    dst_buffer_size);
-
-		if (written < 0) {
-			/* Occur error */
+		/* Occur error */
+		if (written < 0)
 			break;
-		}
 
-		if (written == 0) {
-			/* Can not write All Log */
+		/* Can not write All Log */
+		if (written == 0)
 			break;
-		}
+
 		n_written += written;
 	}
 	return n_written;
@@ -240,23 +233,21 @@ void tzlog_transfer_to_tzdaemon(s_tzlog_data *src_data, int src_buffer_size)
 		kill_fasync(&fasync, SIGIO, POLL_IN);
 
 		/* Wait for tzdaemon's read */
-		{
-			DEFINE_WAIT(__wait);
+		tzlog_print(K_ERR,
+			    "tzdaemon log full. wait for drain(src:%d,avail:%d)\n",
+			    src_size, avail);
 
-			tzlog_print(K_INFO,
-				"tzdaemon log full. wait for drain(src:%d,avail:%d)\n",
-				src_size, avail);
-
-			while (chimera_ring_buffer_writable
-			       (log_data_for_tzdaemon.ring) < src_size) {
-				prepare_to_wait(&log_data_for_tzdaemon.
-						full_wait, &__wait,
-						TASK_UNINTERRUPTIBLE);
-				mutex_unlock(&log_data_for_tzdaemon.ring_lock);
-				schedule();
-				mutex_lock(&log_data_for_tzdaemon.ring_lock);
-			}
-			finish_wait(&log_data_for_tzdaemon.full_wait, &__wait);
+		mutex_unlock(&log_data_for_tzdaemon.ring_lock);
+		wait_event_timeout(log_data_for_tzdaemon.full_wait,
+				   chimera_ring_buffer_writable
+				   (log_data_for_tzdaemon.ring) >= src_size,
+				   5 * HZ);
+		mutex_lock(&log_data_for_tzdaemon.ring_lock);
+		if (chimera_ring_buffer_writable(log_data_for_tzdaemon.ring) <
+		    src_size) {
+			chimera_ring_buffer_clear(log_data_for_tzdaemon.ring);
+			tzlog_print(K_ERR,
+				    "tzdaemon was cleared necessarily\n");
 		}
 	}
 
@@ -271,8 +262,8 @@ void tzlog_transfer_to_tzdaemon(s_tzlog_data *src_data, int src_buffer_size)
 		    chimera_ring_buffer_readable(log_data_for_tzdaemon.ring);
 		if (stored_size - origin_size != src_size) {
 			tzlog_print(K_ERR,
-				"log can loss for tzdaemon(src size : %d, written size: %d stored size : %d)\n",
-				src_size, ret_write, stored_size);
+				    "log can loss(tzdaemon, src sz : %d, written sz: %d stored sz : %d)\n",
+				    src_size, ret_write, stored_size);
 		}
 	}
 	mutex_unlock(&log_data_for_tzdaemon.ring_lock);
@@ -308,17 +299,14 @@ static void tzlog_print_with_header(log_header_type *header, int body_size)
 					 TZLOG_LOCAL_BUFFERING_SIZE);
 		if (header != NULL) {
 			memset(buf_label, 0, sizeof(buf_label));
-			if (header->log_label_size <= sizeof(buf_label)) {
+			if (header->label_size <= sizeof(buf_label)) {
 				memcpy(buf_label, read_body,
-				       header->log_label_size);
+				       header->label_size);
 			}
-			tzlog_print_for_tee(header->log_gen_point,
-					    header->log_level, buf_label,
-					    (read_body +
-					     header->log_label_size));
+			tzlog_print_for_tee(header->level, buf_label,
+					    (read_body + header->label_size));
 		} else
-			tzlog_print_for_tee(0, NO_HEADER_LOG_LEVEL, NULL,
-					    read_body);
+			tzlog_print_for_tee(NO_HEADER_LOG_LEVEL, NULL, read_body);
 	}
 
 	if (temp_read_body != NULL) {
@@ -338,27 +326,18 @@ void tzlog_transfer_to_local(s_tzlog_data *src_data, int src_buffer_size)
 	ring_data_origin_size =
 	    chimera_ring_buffer_readable(log_data_for_local.ring);
 	src_size = chimera_ring_buffer_readable(src_data->ring);
-#ifdef ENABLE_LOG_DEBUG
-	tzlog_print(K_INFO, "tzdev receive log(%d) ori(%d)\n", src_size,
-		    ring_data_origin_size);
-	if (ring_data_origin_size > 0) {
-		char temp_buf[1024] = { 0, };
 
-		chimera_ring_buffer_peek(log_data_for_local.ring, 0, temp_buf,
-					 sizeof(temp_buf),
-					 TZLOG_LOCAL_BUFFERING_SIZE);
-		tzlog_print(K_INFO, "tzdev ori log(%s)\n", temp_buf);
-	}
-#endif
+	DPRINTF("tzdev receive log(%d) ori(%d)\n", src_size,
+		ring_data_origin_size);
+
 	ret_write =
 	    tzlog_copy_buffer(&log_data_for_local, TZLOG_LOCAL_BUFFERING_SIZE,
-			      src_data, src_buffer_size);
+	                      src_data, src_buffer_size);
 	if (src_size != ret_write || ret_write == 0) {
 		int stored_size =
 		    chimera_ring_buffer_readable(log_data_for_local.ring);
 		if (stored_size - ring_data_origin_size != src_size) {
-			tzlog_print(K_INFO,
-				    "log can loss for tzdev(src size : %d, written size: %d stored size : %d)\n",
+			DPRINTF("log can loss(tzdev, src sz:%d, written sz:%d, stored sz:%d)\n",
 				    src_size, ret_write, stored_size);
 		}
 	}
@@ -380,92 +359,67 @@ continue_read:
 			int is_find_header = 0;
 			int find_cnt = 0;
 			int find_max_cnt = ring_data_remain_size - LHDSIZE + 1;
-#ifdef ENABLE_LOG_DEBUG
-			/* Magic Check */
-			tzlog_print(K_INFO, "Magic compare (%c %c %c %c)\n",
-				    header[0], header[1], header[2], header[3]);
-#endif
 
-#ifdef ENABLE_LOG_DEBUG
-			tzlog_print(K_INFO, "Header is not compete\n");
-#endif
+			/* Magic Check */
+			DPRINTF("Magic compare (%c %c %c %c)\n",
+				header[0], header[1], header[2], header[3]);
+			DPRINTF("Header is not compete\n");
+
 			for (; find_cnt < find_max_cnt; find_cnt++) {
-				chimera_ring_buffer_peek(
-						log_data_for_local.ring,
-						find_cnt,
-						header,
-						LHDSIZE,
-						TZLOG_LOCAL_BUFFERING_SIZE);
+				chimera_ring_buffer_peek(log_data_for_local.ring,
+				                         find_cnt,
+				                         header,
+				                         LHDSIZE,
+				                         TZLOG_LOCAL_BUFFERING_SIZE);
 				if (get_log_header(header, &log_header) == 1) {
-#ifdef ENABLE_LOG_DEBUG
-					tzlog_print(K_INFO, "Header find\n");
-#endif
+					DPRINTF("Header find\n");
 					is_find_header = 1;
 					break;
 				}
 			}
 
 			if (is_find_header == 1) {
-#ifdef ENABLE_LOG_DEBUG
-				tzlog_print(K_INFO,
-					    "print msg(without magic-case-1)\n");
-#endif
+				DPRINTF("print msg(without magic-case-1)\n");
 				tzlog_print_with_header(NULL, find_cnt);
 				goto continue_read;
 			} else {
-#ifdef ENABLE_LOG_DEBUG
-				tzlog_print(K_INFO,
-					    "print msg(without magic-case-2)\n");
-#endif
+				DPRINTF("print msg(without magic-case-2)\n");
 				tzlog_print_with_header(NULL,
 							ring_data_remain_size);
 			}
 		} else {
-#ifdef ENABLE_LOG_DEBUG
-			if (log_header.log_body_size == 0
-			    || log_header.log_label_size == 0) {
-				tzlog_print(K_INFO, "Header is compete(%s)\n",
-					    header);
-				tzlog_print(K_INFO,
-					"gp is %d / body size is %d / label size is %d / level %d / pid %d\n",
-					log_header.log_gen_point,
-					log_header.log_body_size,
-					log_header.log_label_size,
-					log_header.log_level,
-					log_header.log_pid);
+			if (log_header.body_size == 0
+			    || log_header.label_size == 0) {
+				DPRINTF("Header is compete(%s)\n", header);
+				DPRINTF("body size:%d/ label size:%d/ level:%d/ pid:%d\n",
+				        log_header.body_size,
+				        log_header.label_size,
+				        log_header.level,
+				        log_header.pid);
 			}
-#endif
 			is_need_continue = 1;
 			/*
 			 * if header ok & body size is enough,
 			 * will be processing
 			 */
-			body_size = log_header.log_body_size;
+			body_size = log_header.body_size;
 			if (chimera_ring_buffer_readable
 			    (log_data_for_local.ring) >=
 			    (head_size + body_size)) {
-#ifdef ENABLE_LOG_DEBUG
-				tzlog_print(K_INFO, "Can receive body data\n");
-#endif
-				chimera_ring_buffer_read(
-						log_data_for_local.ring,
-						(uint8_t *) header,
-						head_size,
-						TZLOG_LOCAL_BUFFERING_SIZE);
+				DPRINTF("Can receive body data\n");
+				chimera_ring_buffer_read(log_data_for_local.ring,
+				                         (uint8_t *) header,
+				                         head_size,
+				                         TZLOG_LOCAL_BUFFERING_SIZE);
 				tzlog_print_with_header(&log_header, body_size);
 			} else {
-#ifdef ENABLE_LOG_DEBUG
-				tzlog_print(K_INFO,
-					"gp is %d / body size is %d / label size is %d / level %d / pid %d\n",
-					log_header.log_gen_point,
-					log_header.log_body_size,
-					log_header.log_label_size,
-					log_header.log_level,
-					log_header.log_pid);
-				tzlog_print(K_INFO,
-					"Header + Body size is not enough(%d,%d)\n",
-					head_size, body_size);
-#endif
+				DPRINTF("body size is %d / label size is %d / level %d / pid %d\n",
+				        log_header.body_size,
+				        log_header.label_size,
+				        log_header.level,
+				        log_header.pid);
+				DPRINTF("Header + Body size is not enough(%d,%d)\n",
+				        head_size, body_size);
 				is_need_continue = 0;
 			}
 			if (is_need_continue == 1)
@@ -483,12 +437,8 @@ continue_read:
 			if (magic_ret == NO_MAGIC) {
 				tzlog_print_with_header(NULL,
 							ring_data_remain_size);
-#ifdef ENABLE_LOG_DEBUG
-				tzlog_print(K_INFO,
-					"Find NO_MAGIC Data - (size : %d) (%s)\n",
-					ring_data_remain_size,
-					(char *)header);
-#endif
+				DPRINTF("Find NO_MAGIC Data - (size : %d) (%s)\n",
+				        ring_data_remain_size, (char *)header);
 			}
 		}
 	}

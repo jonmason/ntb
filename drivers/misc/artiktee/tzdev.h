@@ -33,6 +33,7 @@
 
 #define TZIO_SMC		_IOWR(TZ_IOC_MAGIC, 102, struct tzio_message)
 #define TZIO_DBG_START		_IOR(TZ_IOC_MAGIC, 113, unsigned long)
+#define TZIO_GET_INFO		_IOR(TZ_IOC_MAGIC, 115, struct tzio_info)
 
 #define TZMEM_EXPORT_MEMORY	_IOWR(TZ_IOC_MAGIC, 122, struct tzmem_region)
 #define TZMEM_RELEASE_MEMORY	_IOWR(TZ_IOC_MAGIC, 123, int)
@@ -58,6 +59,15 @@ struct tzmem_region {
 	__s32		id;	/* Memory region ID (out) */
 	__u32		tee_ctx_id;	/* (in) */
 	__s32		writable;
+};
+
+
+struct tzio_info {
+	char secos_build_id[42];
+	char linux_module_build_id[42];
+	char machine_name[32];
+	char secos_build_type[32];
+	char linux_module_build_type[32];
 };
 
 #ifdef CONFIG_COMPAT
@@ -94,16 +104,7 @@ typedef void (*tzdev_notify_handler_t)(uint32_t target_id,
 		const void *buffer, size_t data_size, void *user_data);
 
 /*
- *
  * Register notification handler for commands send using scm_send_notification()
- *
- * WARNING: Commands may be executed on any thread and any CPU !
- * Please keep the handler as short possible
- * (for example only notify completion) and avoid waiting on resources.
- *
- * WARNING 2: Do not send messages from notify handler to SecureOS.
- * This will cause deadlock.
- *
  */
 int tzdev_register_notify_handler(uint32_t target_id, tzdev_notify_handler_t handler, void *user_data);
 int tzdev_unregister_notify_handler(uint32_t target_id, tzdev_notify_handler_t handler, void *user_data);
