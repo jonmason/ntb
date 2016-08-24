@@ -668,19 +668,6 @@
 	status = "okay";
 };
 
-&spi_0 {
-	status = "okay";
-	cs-gpios = <&gpio_c 30 0>;
-	spidev@0 {
-		compatible = "linux,spidev";
-		reg = <0>;
-		spi-max-frequency = <10000000>;
-		controller-data {
-			samsung,spi-feedback-delay = <0>;
-		};
-	};
-};
-
 &spi_2 {
 	status = "okay";
 	cs-gpios = <&gpio_c 10 0>;
