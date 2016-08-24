@@ -40,6 +40,7 @@
 #include <asm/cputype.h>
 #include <asm/exception.h>
 #include <asm/smp_plat.h>
+#include <asm/outercache.h>
 
 #include "irq-gic-common.h"
 
@@ -157,6 +158,10 @@ static void resume_one_vic(struct vic_device *vic)
 static void vic_resume(void)
 {
 	int id;
+
+#if defined(CONFIG_ARM_PSCI) && defined(CONFIG_SECURE_REG_ACCESS)
+	outer_resume();
+#endif
 
 	for (id = vic_id - 1; id >= 0; id--)
 		resume_one_vic(vic_devices + id);
