@@ -450,7 +450,7 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 	panel->panel_node = np;
 	if (!np) {
 		struct gpio_descs *gpios;
-		struct gpio_desc **desc;
+		struct gpio_desc **desc = NULL;
 		int i, ngpios = 0;
 
 		DRM_INFO("not use remote panel node (%s) !\n",

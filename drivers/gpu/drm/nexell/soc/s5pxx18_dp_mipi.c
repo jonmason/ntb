@@ -193,6 +193,14 @@ static int nx_soc_dp_mipi_set_prepare(struct dp_control_dev *dpc,
 				    dev->lp_pllpms, dev->lp_bandctl, 0, 0);
 		msleep(20);
 
+#ifdef CONFIG_ARCH_S5P4418
+		/*
+		 * disable the escape clock generating prescaler
+		 * before soft reset.
+		 */
+		nx_mipi_dsi_set_clock(index, 0, 0, 1, 1, 1, 0, 0, 0, 0, 10);
+		mdelay(1);
+#endif
 		nx_mipi_dsi_software_reset(index);
 		nx_mipi_dsi_set_clock(index, 0, 0, 1, 1, 1, 0, 0, 0, 1,
 				      esc_pre_value);
@@ -225,6 +233,16 @@ static int nx_soc_dp_mipi_set_enable(struct dp_control_dev *dpc,
 	int width = sync->h_active_len;
 	int height = sync->v_active_len;
 
+	int en_prescaler = 1;
+
+	/*
+	 * disable the escape clock generating prescaler
+	 * before soft reset.
+	 */
+#ifdef CONFIG_ARCH_S5P4418
+	en_prescaler = 0;
+#endif
+
 	pr_debug("%s: flags=0x%x\n", __func__, flags);
 
 	if (flags)
@@ -235,7 +253,8 @@ static int nx_soc_dp_mipi_set_enable(struct dp_control_dev *dpc,
 			    dev->hs_pllpms, dev->hs_bandctl, 0, 0);
 	mdelay(1);
 
-	nx_mipi_dsi_set_clock(index, 0, 0, 1, 1, 1, 0, 0, 0, 1, 10);
+	nx_mipi_dsi_set_clock(index, 0, 0, 1, 1, 1, 0, 0, 0, en_prescaler, 10);
+
 	mdelay(1);
 
 	nx_mipi_dsi_software_reset(index);
@@ -269,6 +288,11 @@ static int nx_soc_dp_mipi_set_enable(struct dp_control_dev *dpc,
 
 static int nx_soc_dp_mipi_set_unprepare(struct dp_control_dev *dpc)
 {
+	int index = MIPI_INDEX;
+
+	pr_debug("%s\n", __func__);
+	nx_mipi_dsi_set_clock(index, 0, 0, 1, 1, 1, 0, 0, 0, 0, 10);
+
 	return 0;
 }
 

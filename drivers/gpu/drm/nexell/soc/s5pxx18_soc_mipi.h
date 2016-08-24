@@ -84,56 +84,6 @@ struct nx_mipi_register_set {
 	u32 mipi_csis_pktdata[0x2000 / 4];
 };
 
-enum nx_mipi_csi_format {
-	nx_mipi_csi_format_yuv420_8 = 0x18,
-	nx_mipi_csi_format_yuv420_10 = 0x19,
-	nx_mipi_csi_format_yuv420_8l = 0x1A,
-	nx_mipi_csi_format_yuv420_8c = 0x1C,
-	nx_mipi_csi_format_yuv420_10c = 0x1D,
-	nx_mipi_csi_format_yuv422_8 = 0x1E,
-	nx_mipi_csi_format_yuv422_10 = 0x1F,
-	nx_mipi_csi_format_rgb565 = 0x22,
-	nx_mipi_csi_format_rgb666 = 0x23,
-	nx_mipi_csi_format_rgb888 = 0x24,
-	nx_mipi_csi_format_raw6 = 0x28,
-	nx_mipi_csi_format_raw7 = 0x29,
-	nx_mipi_csi_format_raw8 = 0x2A,
-	nx_mipi_csi_format_raw10 = 0x2B,
-	nx_mipi_csi_format_raw12 = 0x2C,
-	nx_mipi_csi_format_raw14 = 0x2D,
-	nx_mipi_csi_format_user0 = 0x30,
-	nx_mipi_csi_format_user1 = 0x31,
-	nx_mipi_csi_format_user2 = 0x32,
-	nx_mipi_csi_format_user3 = 0x33,
-};
-
-enum nx_mipi_csi_interleave {
-	nx_mipi_csi_interleave_ch0 = 0,
-	nx_mipi_csi_interleave_dt = 1,
-	nx_mipi_csi_interleave_vc = 2,
-	nx_mipi_csi_interleave_vcdt = 3
-};
-
-enum nx_mipi_csi_prediction {
-	nx_mipi_csi_prediction_simple = 0,
-	nx_mipi_csi_prediction_normal = 1
-};
-
-enum nx_mipi_csi_yuv422layout {
-	nx_mipi_csi_yuv422layout_half = 0,
-	nx_mipi_csi_yuv422layout_full = 1
-};
-
-enum nx_mipi_csi_vclksrc {
-	nx_mipi_csi_vclksrc_pclk = 0,
-	nx_mipi_csi_vclksrc_extclk = 1
-};
-
-enum nx_mipi_csi_rgblayout {
-	nx_mipi_csi_rgblayout_rgb = 0,
-	nx_mipi_csi_rgblayout_bgr = 1
-};
-
 enum nx_mipi_dsi_syncmode {
 	nx_mipi_dsi_syncmode_event = 0,
 	nx_mipi_dsi_syncmode_pulse = 1,
@@ -257,56 +207,6 @@ enum nx_mipi_int {
 #define DSI_TX_FIFO_SIZE	2048
 #define DSI_RX_FIFO_SIZE	256
 #define DSI_RX_FIFO_EMPTY	0x30800002
-
-void nx_mipi_csi_set_size(u32 module_index,
-				int channel, u32 width, u32 height);
-void nx_mipi_csi_set_format(u32 module_index, int channel,
-				enum nx_mipi_csi_format format);
-
-void nx_mipi_csi_set_interleave_mode(u32 module_index,
-				enum nx_mipi_csi_interleave
-				interleave_mode);
-
-void nx_mipi_csi_set_timing_control(u32 module_index, int channel,
-				int t1, int t2, int t5);
-
-void nx_mipi_csi_set_interleave_channel(u32 module_index, int channel,
-				int interleave_channel);
-void nx_mipi_csi_enable_decompress(u32 module_index, int enable);
-
-void nx_mipi_csi_set_prediction(u32 module_index, int channel,
-				enum nx_mipi_csi_prediction prediction);
-
-void nx_mipi_csi_set_yuv422_layout(u32 module_index, int channel,
-				enum nx_mipi_csi_yuv422layout
-				yuv422_layout);
-void nx_mipi_csi_set_parallel_data_alignment32(u32 module_index,
-				int channel,
-				int enable_align32);
-
-void nx_mipi_csi_set_rgblayout(u32 module_index, int channel,
-				enum nx_mipi_csi_rgblayout rgb_layout);
-
-void nx_mipi_csi_set_vclk(u32 module_index, int channel,
-				enum nx_mipi_csi_vclksrc clock_source);
-void nx_mipi_csi_software_reset(u32 module_index);
-
-void nx_mipi_csi_set_enable(u32 module_index, int enable);
-void nx_mipi_csi_set_phy(u32 module_index, u32 number_of_data_lanes,
-				int enable_clock_lane, int enable_data_lane0,
-				int enable_data_lane1, int enable_data_lane2,
-				int enable_data_lane3, int swap_clock_lane,
-				int swap_data_lane);
-
-void nx_mipi_csi_get_current_state(u32 module_index, int channel,
-				int *pwidth, int *pheight, int *pt1,
-				int *pt2, int *pt5,
-				enum nx_mipi_csi_format *pformat,
-				int *pinterleavechannel);
-
-u32 nx_mipi_csi_get_non_image_data(u32 module_index, u32 address32);
-void nx_mipi_csi_get_status(u32 module_index, u32 *pulps, u32 *pstop);
-u32 nx_mipi_csi_get_version(u32 module_index);
 
 void nx_mipi_dsi_get_status(u32 module_index, u32 *pulps, u32 *pstop,
 				u32 *pispllstable, u32 *pisinreset,

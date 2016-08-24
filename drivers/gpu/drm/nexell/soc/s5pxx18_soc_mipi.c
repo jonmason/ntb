@@ -23,29 +23,46 @@
 
 static struct nx_mipi_register_set *__g_pregister[NUMBER_OF_MIPI_MODULE];
 
+#ifdef CONFIG_SECURE_REG_ACCESS
+#include <linux/soc/nexell/sec_reg.h>
+
+static u32 __mipi_phys = PHY_BASEADDR_MIPI_MODULE;
+
+#define	__writel(v, a)	\
+	write_sec_reg((void *)(__mipi_phys +	\
+		(long)((void *)a - (void *)__g_pregister[0])), v)
+
+#define	__readl(a)	\
+	read_sec_reg((void *)(__mipi_phys +	\
+		(long)((void *)a - (void *)__g_pregister[0])))
+#else
+#define	__writel(v, a)	writel(v, a)
+#define	__readl(a)	readl(a)
+#endif
+
 int nx_mipi_smoke_test(u32 module_index)
 {
 	register struct nx_mipi_register_set *pregister;
 
 	pregister = __g_pregister[module_index];
 
-	if (0x000000FC != pregister->csis_config_ch0)
+	if (0x000000FC != __readl(&pregister->csis_config_ch0))
 		return false;
 
-	if (0xB337FFFF != pregister->dsim_intmsk)
+	if (0xB337FFFF != __readl(&pregister->dsim_intmsk))
 		return false;
 
-	writel(0xDEADC0DE, &pregister->csis_dphyctrl);
-	writel(0xFFFFFFFF, &pregister->csis_ctrl2);
-	writel(0xDEADC0DE, &pregister->dsim_msync);
+	__writel(0xDEADC0DE, &pregister->csis_dphyctrl);
+	__writel(0xFFFFFFFF, &pregister->csis_ctrl2);
+	__writel(0xDEADC0DE, &pregister->dsim_msync);
 
-	if (0xDE80001E != pregister->csis_dphyctrl)
+	if (0xDE80001E != __readl(&pregister->csis_dphyctrl))
 		return false;
 
-	if (0xEEE00010 != (pregister->csis_ctrl2 & (~1)))
+	if (0xEEE00010 != (__readl(&pregister->csis_ctrl2) & (~1)))
 		return false;
 
-	if (0xDE80C0DE != pregister->dsim_msync)
+	if (0xDE80C0DE != __readl(&pregister->dsim_msync))
 		return false;
 
 	return true;
@@ -95,8 +112,8 @@ int nx_mipi_open_module(u32 module_index)
 
 	pregister = __g_pregister[module_index];
 
-	writel(0, &pregister->csis_dphyctrl_1);
-	writel((22 << 24), &pregister->csis_dphyctrl);
+	__writel(0, &pregister->csis_dphyctrl_1);
+	__writel((22 << 24), &pregister->csis_dphyctrl);
 
 	return true;
 }
@@ -122,26 +139,35 @@ void nx_mipi_set_interrupt_enable(u32 module_index, u32 int_num, int enable)
 
 	pregister = __g_pregister[module_index];
 	if (int_num < 32) {
-		regvalue = pregister->csis_intmsk;
+		regvalue = __readl(&pregister->csis_intmsk);
 		regvalue &= ~(1ul << int_num);
 		regvalue |= (u32)enable << int_num;
-		writel(regvalue, &pregister->csis_intmsk);
+		__writel(regvalue, &pregister->csis_intmsk);
 	} else {
-		regvalue = pregister->dsim_intmsk;
+		regvalue = __readl(&pregister->dsim_intmsk);
 		regvalue &= ~(1ul << (int_num - 32));
 		regvalue |= (u32)enable << (int_num - 32);
-		writel(regvalue, &pregister->dsim_intmsk);
+		__writel(regvalue, &pregister->dsim_intmsk);
 	}
 }
 
 int nx_mipi_get_interrupt_enable(u32 module_index, u32 int_num)
 {
-	if (int_num < 32)
-		return (int)((__g_pregister[module_index]->csis_intmsk >>
-			      int_num) & 0x01);
-	else
-		return (int)((__g_pregister[module_index]->dsim_intmsk >>
-			      (int_num - 32)) & 0x01);
+	register struct nx_mipi_register_set *pregister;
+	register u32 regvalue;
+	int ret;
+
+	pregister = __g_pregister[module_index];
+
+	if (int_num < 32) {
+		regvalue = __readl(&pregister->csis_intmsk);
+		ret = (int)((regvalue >> int_num) & 0x01);
+	} else {
+		regvalue = __readl(&pregister->dsim_intmsk);
+		ret = (int)((regvalue >> (int_num - 32)) & 0x01);
+	}
+
+	return ret;
 }
 
 int nx_mipi_get_interrupt_pending(u32 module_index, u32 int_num)
@@ -152,12 +178,12 @@ int nx_mipi_get_interrupt_pending(u32 module_index, u32 int_num)
 
 	pregister = __g_pregister[module_index];
 	if (int_num < 32) {
-		regvalue = pregister->csis_intmsk;
-		regvalue &= pregister->csis_intsrc;
+		regvalue = __readl(&pregister->csis_intmsk);
+		regvalue &= __readl(&pregister->csis_intsrc);
 		ret = (int)((regvalue >> int_num) & 0x01);
 	} else {
-		regvalue = pregister->dsim_intmsk;
-		regvalue &= pregister->dsim_intsrc;
+		regvalue = __readl(&pregister->dsim_intmsk);
+		regvalue &= __readl(&pregister->dsim_intsrc);
 		ret = (int)((regvalue >> (int_num - 32)) & 0x01);
 	}
 
@@ -170,9 +196,9 @@ void nx_mipi_clear_interrupt_pending(u32 module_index, u32 int_num)
 
 	pregister = __g_pregister[module_index];
 	if (int_num < 32)
-		writel(1ul << int_num, &pregister->csis_intsrc);
+		__writel(1ul << int_num, &pregister->csis_intsrc);
 	else
-		writel(1ul << (int_num - 32), &pregister->dsim_intsrc);
+		__writel(1ul << (int_num - 32), &pregister->dsim_intsrc);
 }
 
 void nx_mipi_set_interrupt_enable_all(u32 module_index, int enable)
@@ -181,20 +207,22 @@ void nx_mipi_set_interrupt_enable_all(u32 module_index, int enable)
 
 	pregister = __g_pregister[module_index];
 	if (enable) {
-		writel(__nx_mipi_valid_csi_intmask__, &pregister->csis_intmsk);
-		writel(__nx_mipi_valid_dsi_intmask__, &pregister->dsim_intmsk);
+		__writel(__nx_mipi_valid_csi_intmask__,
+			&pregister->csis_intmsk);
+		__writel(__nx_mipi_valid_dsi_intmask__,
+			&pregister->dsim_intmsk);
 	} else {
-		writel(0, &pregister->csis_intmsk);
-		writel(0, &pregister->dsim_intmsk);
+		__writel(0, &pregister->csis_intmsk);
+		__writel(0, &pregister->dsim_intmsk);
 	}
 }
 
 int nx_mipi_get_interrupt_enable_all(u32 module_index)
 {
-	if (__g_pregister[module_index]->csis_intmsk)
+	if (__readl(&__g_pregister[module_index]->csis_intmsk))
 		return true;
 
-	if (__g_pregister[module_index]->dsim_intmsk)
+	if (__readl(&__g_pregister[module_index]->dsim_intmsk))
 		return true;
 
 	return false;
@@ -206,14 +234,14 @@ int nx_mipi_get_interrupt_pending_all(u32 module_index)
 	register u32 regvalue;
 
 	pregister = __g_pregister[module_index];
-	regvalue = pregister->csis_intmsk;
-	regvalue &= pregister->csis_intsrc;
+	regvalue = __readl(&pregister->csis_intmsk);
+	regvalue &= __readl(&pregister->csis_intsrc);
 
 	if (regvalue)
 		return true;
 
-	regvalue = pregister->dsim_intmsk;
-	regvalue &= pregister->dsim_intsrc;
+	regvalue = __readl(&pregister->dsim_intmsk);
+	regvalue &= __readl(&pregister->dsim_intsrc);
 
 	if (regvalue)
 		return true;
@@ -226,8 +254,8 @@ void nx_mipi_clear_interrupt_pending_all(u32 module_index)
 	register struct nx_mipi_register_set *pregister;
 
 	pregister = __g_pregister[module_index];
-	writel(__nx_mipi_valid_csi_intmask__, &pregister->csis_intsrc);
-	writel(__nx_mipi_valid_dsi_intmask__, &pregister->dsim_intsrc);
+	__writel(__nx_mipi_valid_csi_intmask__, &pregister->csis_intsrc);
+	__writel(__nx_mipi_valid_dsi_intmask__, &pregister->dsim_intsrc);
 }
 
 int32_t nx_mipi_get_interrupt_pending_number(u32 module_index)
@@ -237,8 +265,9 @@ int32_t nx_mipi_get_interrupt_pending_number(u32 module_index)
 	int i;
 
 	pregister = __g_pregister[module_index];
-	regvalue = pregister->csis_intmsk;
-	regvalue &= pregister->csis_intsrc;
+	regvalue = __readl(&pregister->csis_intmsk);
+	regvalue &= __readl(&pregister->csis_intsrc);
+
 	if (0 != regvalue) {
 		for (i = 0; i < 32; i++) {
 			if (regvalue & 1ul)
@@ -247,8 +276,8 @@ int32_t nx_mipi_get_interrupt_pending_number(u32 module_index)
 		}
 	}
 
-	regvalue = pregister->dsim_intmsk;
-	regvalue &= pregister->dsim_intsrc;
+	regvalue = __readl(&pregister->dsim_intmsk);
+	regvalue &= __readl(&pregister->dsim_intsrc);
 	if (0 != regvalue) {
 		for (i = 0; i < 32; i++) {
 			if (regvalue & 1ul)
@@ -260,417 +289,10 @@ int32_t nx_mipi_get_interrupt_pending_number(u32 module_index)
 }
 
 #define writereg(regname, mask, value) do { \
-	regvalue = pregister->regname;	\
+	regvalue = __readl(&pregister->regname);	\
 	regvalue = (regvalue & (~(mask))) | (value); \
-	writel(regvalue, &pregister->regname);	\
+	__writel(regvalue, &pregister->regname);	\
 	} while (0)
-
-void nx_mipi_csi_set_size(u32 module_index, int channel, u32 width, u32 height)
-{
-	register struct nx_mipi_register_set *pregister;
-
-	pregister = __g_pregister[module_index];
-	switch (channel) {
-		writel((width << 16) | height, &pregister->csis_resol_ch0);
-		break;
-		writel((width << 16) | height, &pregister->csis_resol_ch1);
-		break;
-		writel((width << 16) | height, &pregister->csis_resol_ch2);
-		break;
-		writel((width << 16) | height, &pregister->csis_resol_ch3);
-		break;
-	default:
-		break;
-	}
-}
-
-void nx_mipi_csi_set_format(u32 module_index, int channel,
-			    enum nx_mipi_csi_format format)
-{
-	register struct nx_mipi_register_set *pregister;
-	register u32 regvalue;
-	const u32 regmask = 0xFC;
-	u32 newvalue = format << 2;
-
-	pregister = __g_pregister[module_index];
-	switch (channel) {
-	case 0:
-		writereg(csis_config_ch0, regmask, newvalue);
-		break;
-	case 1:
-		writereg(csis_config_ch1, regmask, newvalue);
-		break;
-	case 2:
-		writereg(csis_config_ch2, regmask, newvalue);
-		break;
-	case 3:
-		writereg(csis_config_ch3, regmask, newvalue);
-		break;
-	default:
-		break;
-	}
-}
-
-void nx_mipi_csi_set_interleave_mode(u32 module_index,
-				     enum nx_mipi_csi_interleave
-				     interleave_mode)
-{
-	register struct nx_mipi_register_set *pregister;
-	register u32 regvalue;
-
-	pregister = __g_pregister[module_index];
-	writereg(csis_control, (3 << 22), (interleave_mode << 22));
-}
-
-void nx_mipi_csi_set_timing_control(u32 module_index, int channel, int t1,
-				    int t2, int t5)
-{
-	register struct nx_mipi_register_set *pregister;
-	register u32 regvalue;
-	const u32 regmask = 0xFFFFFF00;
-	u32 newvalue = ((t2 - 2) << 26) | ((t1 - 1) << 20) | ((t5) << 8);
-
-	pregister = __g_pregister[module_index];
-
-	switch (channel) {
-	case 0:
-		writereg(csis_config_ch0, regmask, newvalue);
-		break;
-	case 1:
-		writereg(csis_config_ch1, regmask, newvalue);
-		break;
-	case 2:
-		writereg(csis_config_ch2, regmask, newvalue);
-		break;
-	case 3:
-		writereg(csis_config_ch3, regmask, newvalue);
-		break;
-	default:
-		break;
-	}
-}
-
-void nx_mipi_csi_set_interleave_channel(u32 module_index, int channel,
-					int interleave_channel)
-{
-	register struct nx_mipi_register_set *pregister;
-	register u32 regvalue;
-	const u32 regmask = 0x3;
-	u32 newvalue = interleave_channel;
-
-	pregister = __g_pregister[module_index];
-
-	switch (channel) {
-	case 0:
-		writereg(csis_config_ch0, regmask, newvalue);
-		break;
-	case 1:
-		writereg(csis_config_ch1, regmask, newvalue);
-		break;
-	case 2:
-		writereg(csis_config_ch2, regmask, newvalue);
-		break;
-	case 3:
-		writereg(csis_config_ch3, regmask, newvalue);
-		break;
-	default:
-		break;
-	}
-}
-
-void nx_mipi_csi_enable_decompress(u32 module_index, int enable)
-{
-	register struct nx_mipi_register_set *pregister;
-	register u32 regvalue;
-
-	pregister = __g_pregister[module_index];
-	writereg(csis_control, (1 << 24), (enable << 24));
-}
-
-void nx_mipi_csi_set_prediction(u32 module_index, int channel,
-				enum nx_mipi_csi_prediction prediction)
-{
-	register struct nx_mipi_register_set *pregister;
-	register u32 regvalue;
-
-	pregister = __g_pregister[module_index];
-	switch (channel) {
-	case 0:
-		writereg(csis_control, 1 << 25, prediction << 25);
-		break;
-	case 1:
-		writereg(csis_ctrl2, 1 << 29, prediction << 29);
-		break;
-	case 2:
-		writereg(csis_ctrl2, 1 << 30, prediction << 30);
-		break;
-	case 3:
-		writereg(csis_ctrl2, 1 << 31, prediction << 31);
-		break;
-	default:
-		break;
-	}
-}
-
-void nx_mipi_csi_set_yuv422_layout(u32 module_index, int channel,
-				   enum nx_mipi_csi_yuv422layout yuv422_layout)
-{
-	register struct nx_mipi_register_set *pregister;
-	register u32 regvalue;
-
-	pregister = __g_pregister[module_index];
-	switch (channel) {
-	case 0:
-		writereg(csis_control, 1 << 21, yuv422_layout << 21);
-		break;
-	case 1:
-		writereg(csis_ctrl2, 1 << 25, yuv422_layout << 25);
-		break;
-	case 2:
-		writereg(csis_ctrl2, 1 << 26, yuv422_layout << 26);
-		break;
-	case 3:
-		writereg(csis_ctrl2, 1 << 27, yuv422_layout << 27);
-		break;
-	default:
-		break;
-	}
-}
-
-void nx_mipi_csi_set_parallel_data_alignment32(u32 module_index, int channel,
-					       int enable_align32)
-{
-	register struct nx_mipi_register_set *pregister;
-	register u32 regvalue;
-
-	pregister = __g_pregister[module_index];
-	switch (channel) {
-	case 0:
-		writereg(csis_control, 1 << 20, enable_align32 << 20);
-		break;
-	case 1:
-		writereg(csis_ctrl2, 1 << 21, enable_align32 << 21);
-		break;
-	case 2:
-		writereg(csis_ctrl2, 1 << 22, enable_align32 << 22);
-		break;
-	case 3:
-		writereg(csis_ctrl2, 1 << 23, enable_align32 << 23);
-		break;
-	default:
-		break;
-	}
-}
-
-void nx_mipi_csi_set_rgblayout(u32 module_index, int channel,
-			       enum nx_mipi_csi_rgblayout rgb_layout)
-{
-	register struct nx_mipi_register_set *pregister;
-	register u32 regvalue;
-
-	pregister = __g_pregister[module_index];
-	switch (channel) {
-	case 0:
-		writereg(csis_control, 1 << 12, rgb_layout << 12);
-		break;
-	case 1:
-		writereg(csis_control, 1 << 13, rgb_layout << 13);
-		break;
-	case 2:
-		writereg(csis_control, 1 << 14, rgb_layout << 14);
-		break;
-	case 3:
-		writereg(csis_control, 1 << 15, rgb_layout << 15);
-		break;
-	default:
-		break;
-	}
-}
-
-void nx_mipi_csi_set_vclk(u32 module_index, int channel,
-			  enum nx_mipi_csi_vclksrc clock_source)
-{
-	register struct nx_mipi_register_set *pregister;
-	register u32 regvalue;
-
-	pregister = __g_pregister[module_index];
-	switch (channel) {
-	case 0:
-		writereg(csis_control, 1 << 8, clock_source << 8);
-		break;
-	case 1:
-		writereg(csis_control, 1 << 9, clock_source << 9);
-		break;
-	case 2:
-		writereg(csis_control, 1 << 10, clock_source << 10);
-		break;
-	case 3:
-		writereg(csis_control, 1 << 11, clock_source << 11);
-		break;
-	default:
-		break;
-	}
-}
-
-void nx_mipi_csi_software_reset(u32 module_index)
-{
-	register struct nx_mipi_register_set *pregister;
-	register u32 regvalue;
-
-	pregister = __g_pregister[module_index];
-	writereg(csis_control, (1 << 4), (1 << 4));
-}
-
-void nx_mipi_csi_set_enable(u32 module_index, int enable)
-{
-	register struct nx_mipi_register_set *pregister;
-	register u32 regvalue;
-
-	pregister = __g_pregister[module_index];
-	writereg(csis_control, (1 << 0) | (15 << 16) | (15 << 12),
-		 (enable << 0) | (15 << 16) | (15 << 12));
-}
-
-void nx_mipi_csi_set_phy(u32 module_index, u32 number_of_data_lanes,
-			 int enable_clock_lane, int enable_data_lane0,
-			 int enable_data_lane1, int enable_data_lane2,
-			 int enable_data_lane3, int swap_clock_lane,
-			 int swap_data_lane)
-{
-	register struct nx_mipi_register_set *pregister;
-	register u32 regvalue;
-	u32 newvalue;
-
-	pregister = __g_pregister[module_index];
-	newvalue = (enable_data_lane3 << 4) | (enable_data_lane2 << 3) |
-	    (enable_data_lane1 << 2) | (enable_data_lane0 << 1) |
-	    (enable_clock_lane << 0);
-	writereg(csis_dphyctrl, (0x1F << 0), newvalue);
-
-	newvalue = (swap_clock_lane << 31) | (swap_data_lane << 30) |
-	    (number_of_data_lanes << 2);
-	writereg(csis_control, (0x3 << 30) | (3 << 2), newvalue);
-}
-
-u32 nx_mipi_csi_get_version(u32 module_index)
-{
-	register struct nx_mipi_register_set *pregister;
-
-	pregister = __g_pregister[module_index];
-	return pregister->csis_version;
-}
-
-void nx_mipi_csi_get_current_state(u32 module_index, int channel,
-				   int *pwidth, int *pheight, int *pt1,
-				   int *pt2, int *pt5,
-				   enum nx_mipi_csi_format *pformat,
-				   int *pinterleavechannel)
-{
-	register struct nx_mipi_register_set *pregister;
-	register u32 regvalue = 0;
-	register u32 regvalue2 = 0;
-
-	pregister = __g_pregister[module_index];
-	switch (channel) {
-	case 0:
-		writereg(csis_control, 1 << 16, 1 << 16);
-		while (readl(&pregister->csis_control) & (1 << 16))
-			;
-		regvalue = pregister->csis_config_ch0;
-		regvalue2 = pregister->csis_resol_ch0;
-		break;
-	case 1:
-		writereg(csis_control, 1 << 17, 1 << 17);
-		while (readl(&pregister->csis_control) & (1 << 17))
-			;
-		regvalue = pregister->csis_config_ch1;
-		regvalue2 = pregister->csis_resol_ch1;
-		break;
-
-	case 2:
-		writereg(csis_control, 1 << 18, 1 << 18);
-		while (readl(&pregister->csis_control) & (1 << 18))
-			;
-		regvalue = pregister->csis_config_ch2;
-		regvalue2 = pregister->csis_resol_ch2;
-		break;
-	case 3:
-		writereg(csis_control, 1 << 19, 1 << 19);
-		while (readl(&pregister->csis_control) & (1 << 19))
-			;
-		regvalue = pregister->csis_config_ch3;
-		regvalue2 = pregister->csis_resol_ch3;
-		break;
-	default:
-		break;
-	}
-
-	if (pwidth)
-		*pwidth = (((regvalue2) >> 16) & 0xFFFF);
-
-	if (pheight)
-		*pheight = (((regvalue2) >> 0) & 0xFFFF);
-
-	if (pt1)
-		*pt1 = (((regvalue) >> 20) & 0x3F) + 1;
-
-	if (pt2)
-		*pt2 = (((regvalue) >> 26) & 0x3F) + 2;
-
-	if (pt5)
-		*pt5 = (((regvalue) >> 8) & 0xFFF);
-
-	if (pformat)
-		*pformat = (enum nx_mipi_csi_format)(((regvalue) >> 2) & 0x3F);
-
-	if (pinterleavechannel)
-		*pinterleavechannel = (((regvalue) >> 0) & 0x3);
-}
-
-u32 nx_mipi_csi_get_non_image_data(u32 module_index, u32 address32)
-{
-	register struct nx_mipi_register_set *pregister;
-
-	pregister = __g_pregister[module_index];
-	return pregister->mipi_csis_pktdata[address32];
-}
-
-void nx_mipi_csi_get_status(u32 module_index, u32 *pulps, u32 *pstop)
-{
-	register struct nx_mipi_register_set *pregister;
-	register u32 regvalue;
-
-	pregister = __g_pregister[module_index];
-	regvalue = pregister->csis_dphysts;
-
-	if (pulps) {
-		*pulps = 0;
-		if (regvalue & (1 << 8))
-			*pulps |= (1 << 0);
-		if (regvalue & (1 << 9))
-			*pulps |= (1 << 1);
-		if (regvalue & (1 << 10))
-			*pulps |= (1 << 2);
-		if (regvalue & (1 << 11))
-			*pulps |= (1 << 3);
-		if (regvalue & (1 << 1))
-			*pulps |= (1 << 4);
-	}
-
-	if (pstop) {
-		*pstop = 0;
-		if (regvalue & (1 << 4))
-			*pstop |= (1 << 0);
-		if (regvalue & (1 << 5))
-			*pstop |= (1 << 1);
-		if (regvalue & (1 << 6))
-			*pstop |= (1 << 2);
-		if (regvalue & (1 << 7))
-			*pstop |= (1 << 3);
-		if (regvalue & (1 << 0))
-			*pstop |= (1 << 4);
-	}
-}
 
 void nx_mipi_dsi_get_status(u32 module_index, u32 *pulps, u32 *pstop,
 			    u32 *pispllstable, u32 *pisinreset,
@@ -680,7 +302,8 @@ void nx_mipi_dsi_get_status(u32 module_index, u32 *pulps, u32 *pstop,
 	register u32 regvalue;
 
 	pregister = __g_pregister[module_index];
-	regvalue = pregister->dsim_status;
+	regvalue = __readl(&pregister->dsim_status);
+
 	if (pulps) {
 		*pulps = 0;
 		if (regvalue & (1 << 4))
@@ -727,13 +350,10 @@ void nx_mipi_dsi_software_reset(u32 module_index)
 	register struct nx_mipi_register_set *pregister;
 
 	pregister = __g_pregister[module_index];
+	__writel(0x00010001, &pregister->dsim_swrst);
 
-	writel(0x00010001, &pregister->dsim_swrst);
-
-	while (0 != (readl(&pregister->dsim_status) & (1 << 20)))
+	while (0 != (__readl(&pregister->dsim_status) & (1 << 20)))
 		;
-
-	writel(0x00000000, &pregister->dsim_swrst);
 }
 
 void nx_mipi_dsi_set_clock(u32 module_index, int enable_txhsclock,
@@ -750,6 +370,7 @@ void nx_mipi_dsi_set_clock(u32 module_index, int enable_txhsclock,
 
 	pregister = __g_pregister[module_index];
 	regvalue = 0;
+
 	regvalue |= (enable_txhsclock << 31);
 	regvalue |= (use_external_clock << 27);
 	regvalue |= (enable_byte_clock << 24);
@@ -761,7 +382,7 @@ void nx_mipi_dsi_set_clock(u32 module_index, int enable_txhsclock,
 	regvalue |= (enable_escprescaler << 28);
 	regvalue |= escprescalervalue;
 
-	writel(regvalue, &pregister->dsim_clkctrl);
+	__writel(regvalue, &pregister->dsim_clkctrl);
 }
 
 void nx_mipi_dsi_set_timeout(u32 module_index, u32 bta_tout, u32 lpdrtout)
@@ -774,7 +395,7 @@ void nx_mipi_dsi_set_timeout(u32 module_index, u32 bta_tout, u32 lpdrtout)
 	regvalue |= (bta_tout << 16);
 	regvalue |= (lpdrtout << 0);
 
-	writel(regvalue, &pregister->dsim_timeout);
+	__writel(regvalue, &pregister->dsim_timeout);
 }
 
 void nx_mipi_dsi_set_config_video_mode(u32 module_index,
@@ -820,17 +441,17 @@ void nx_mipi_dsi_set_config_video_mode(u32 module_index,
 	newvalue |= (number_of_lines_in_vfp << 16);
 	newvalue |= (number_of_lines_in_vbp << 0);
 
-	writel(newvalue, &pregister->dsim_mvporch);
+	__writel(newvalue, &pregister->dsim_mvporch);
 
 	newvalue = (number_of_words_in_hfp << 16);
 	newvalue |= (number_of_words_in_hbp << 0);
 
-	writel(newvalue, &pregister->dsim_mhporch);
+	__writel(newvalue, &pregister->dsim_mhporch);
 
 	newvalue = (number_of_words_in_hsync << 0);
 	newvalue |= (number_of_lines_in_vsync << 22);
 
-	writel(newvalue, &pregister->dsim_msync);
+	__writel(newvalue, &pregister->dsim_msync);
 }
 
 void nx_mipi_dsi_set_config_command_mode(u32 module_index,
@@ -895,7 +516,7 @@ void nx_mipi_dsi_remote_reset_trigger(u32 module_index)
 	newvalue = (1 << 4);
 	writereg(dsim_escmode, (1 << 4), newvalue);
 
-	while (readl(&pregister->dsim_escmode) & (1 << 4))
+	while (__readl(&pregister->dsim_escmode) & (1 << 4))
 		;
 }
 
@@ -905,7 +526,7 @@ void nx_mipi_dsi_set_ulps(u32 module_index, int ulpsclocklane, int ulpsdatalane)
 	register u32 regvalue;
 
 	pregister = __g_pregister[module_index];
-	regvalue = pregister->dsim_escmode;
+	regvalue = __readl(&pregister->dsim_escmode);
 
 	if (ulpsclocklane) {
 		regvalue &= ~(1 << 0);
@@ -921,22 +542,22 @@ void nx_mipi_dsi_set_ulps(u32 module_index, int ulpsclocklane, int ulpsdatalane)
 		regvalue |= (1 << 2);
 	}
 
-	writel(regvalue, &pregister->dsim_escmode);
+	__writel(regvalue, &pregister->dsim_escmode);
 
 	if (ulpsclocklane)
 		while ((1 << 9) ==
-		       (readl(&pregister->dsim_status) & (1 << 9)))
+		       (__readl(&pregister->dsim_status) & (1 << 9)))
 			;
 	else
-		while (0 != (readl(&pregister->dsim_status) & (1 << 9)))
+		while (0 != (__readl(&pregister->dsim_status) & (1 << 9)))
 			;
 
 	if (ulpsdatalane)
 		while ((15 << 4) ==
-		       (readl(&pregister->dsim_status) & (15 << 4)))
+		       (__readl(&pregister->dsim_status) & (15 << 4)))
 			;
 	else
-		while (0 != (readl(&pregister->dsim_status) & (15 << 4)))
+		while (0 != (__readl(&pregister->dsim_status) & (15 << 4)))
 			;
 
 	if (!ulpsclocklane)
@@ -945,7 +566,7 @@ void nx_mipi_dsi_set_ulps(u32 module_index, int ulpsclocklane, int ulpsdatalane)
 	if (!ulpsdatalane)
 		regvalue |= (3 << 2);
 
-	writel(regvalue, &pregister->dsim_escmode);
+	__writel(regvalue, &pregister->dsim_escmode);
 }
 
 void nx_mipi_dsi_set_size(u32 module_index, u32 width, u32 height)
@@ -1008,9 +629,9 @@ void nx_mipi_dsi_set_pll(u32 module_index, int enable, u32 pllstabletimer,
 		writereg(dsim_pllctrl, 0x0FFFFFFF, newvalue);
 	}
 
-	writel(m_dphyctl, &pregister->dsim_phyacchr);
-	writel(pllstabletimer, &pregister->dsim_plltmr);
-	writel((b_dphyctl << 9), &pregister->dsim_phyacchr1);
+	__writel(m_dphyctl, &pregister->dsim_phyacchr);
+	__writel(pllstabletimer, &pregister->dsim_plltmr);
+	__writel((b_dphyctl << 9), &pregister->dsim_phyacchr1);
 
 	if (enable) {
 		newvalue = (enable << 23);
@@ -1025,7 +646,7 @@ void nx_mipi_dsi_write_pkheader(u32 module_index, u32 data)
 	register struct nx_mipi_register_set *pregister;
 
 	pregister = __g_pregister[module_index];
-	writel(data, &pregister->dsim_pkthdr);
+	__writel(data, &pregister->dsim_pkthdr);
 }
 
 void nx_mipi_dsi_write_payload(u32 module_index, u32 data)
@@ -1033,7 +654,7 @@ void nx_mipi_dsi_write_payload(u32 module_index, u32 data)
 	register struct nx_mipi_register_set *pregister;
 
 	pregister = __g_pregister[module_index];
-	writel(data, &pregister->dsim_payload);
+	__writel(data, &pregister->dsim_payload);
 }
 
 u32 nx_mipi_dsi_read_fifo(u32 module_index)
@@ -1041,5 +662,5 @@ u32 nx_mipi_dsi_read_fifo(u32 module_index)
 	register struct nx_mipi_register_set *pregister;
 
 	pregister = __g_pregister[module_index];
-	return readl(&pregister->dsim_rxfifo);
+	return __readl(&pregister->dsim_rxfifo);
 }
