@@ -44,20 +44,50 @@ enum mali_interrupt_result {
 _mali_osk_errcode_t mali_hw_core_create(struct mali_hw_core *core, const _mali_osk_resource_t *resource, u32 reg_size);
 void mali_hw_core_delete(struct mali_hw_core *core);
 
+/* nexell add */
+#if defined(CONFIG_ARCH_S5P4418) && defined(CONFIG_SECURE_REG_ACCESS)
+#define USE_PSCI_REG_READ_WRITE
+extern void write_sec_reg(void __iomem *reg, int val);
+extern int read_sec_reg(void __iomem *reg);
+#endif
+
+#ifdef USE_PSCI_REG_READ_WRITE
+MALI_STATIC_INLINE u32 nx_register_read(u32 phys_addr_page, u32 offset)
+{
+	void *phys_addr = (void*)(phys_addr_page + offset);
+	return read_sec_reg(phys_addr);
+}
+
+MALI_STATIC_INLINE void nx_register_write(u32 phys_addr_page, u32 offset,
+					  u32 new_val)
+{
+	void *phys_addr = (void*)(phys_addr_page + offset);
+	write_sec_reg(phys_addr, new_val);
+}
+#endif
+
 MALI_STATIC_INLINE u32 mali_hw_core_register_read(struct mali_hw_core *core, u32 relative_address)
 {
+#if !defined( USE_PSCI_REG_READ_WRITE )
 	u32 read_val;
 	read_val = _mali_osk_mem_ioread32(core->mapped_registers, relative_address);
 	MALI_DEBUG_PRINT(6, ("register_read for core %s, relative addr=0x%04X, val=0x%08X\n",
 			     core->description, relative_address, read_val));
 	return read_val;
+#else
+	return nx_register_read(core->phys_addr, relative_address);
+#endif
 }
 
 MALI_STATIC_INLINE void mali_hw_core_register_write_relaxed(struct mali_hw_core *core, u32 relative_address, u32 new_val)
 {
 	MALI_DEBUG_PRINT(6, ("register_write_relaxed for core %s, relative addr=0x%04X, val=0x%08X\n",
 			     core->description, relative_address, new_val));
+#if !defined( USE_PSCI_REG_READ_WRITE )
 	_mali_osk_mem_iowrite32_relaxed(core->mapped_registers, relative_address, new_val);
+#else
+	nx_register_write(core->phys_addr, relative_address, new_val);
+#endif
 }
 
 /* Conditionally write a register.
@@ -68,7 +98,11 @@ MALI_STATIC_INLINE void mali_hw_core_register_write_relaxed_conditional(struct m
 	MALI_DEBUG_PRINT(6, ("register_write_relaxed for core %s, relative addr=0x%04X, val=0x%08X\n",
 			     core->description, relative_address, new_val));
 	if (old_val != new_val) {
+#if !defined( USE_PSCI_REG_READ_WRITE )
 		_mali_osk_mem_iowrite32_relaxed(core->mapped_registers, relative_address, new_val);
+#else
+		nx_register_write(core->phys_addr, relative_address, new_val);
+#endif
 	}
 }
 
@@ -76,7 +110,11 @@ MALI_STATIC_INLINE void mali_hw_core_register_write(struct mali_hw_core *core, u
 {
 	MALI_DEBUG_PRINT(6, ("register_write for core %s, relative addr=0x%04X, val=0x%08X\n",
 			     core->description, relative_address, new_val));
+#if !defined( USE_PSCI_REG_READ_WRITE )
 	_mali_osk_mem_iowrite32(core->mapped_registers, relative_address, new_val);
+#else
+	nx_register_write(core->phys_addr, relative_address, new_val);
+#endif
 }
 
 MALI_STATIC_INLINE void mali_hw_core_register_write_array_relaxed(struct mali_hw_core *core, u32 relative_address, u32 *write_array, u32 nr_of_regs)
