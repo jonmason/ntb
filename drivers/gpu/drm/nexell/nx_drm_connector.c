@@ -183,6 +183,7 @@ struct drm_connector *nx_drm_connector_create_and_attach(
 		break;
 	case dp_panel_type_hdmi:
 		con_type = DRM_MODE_CONNECTOR_HDMIA;
+		enc_type = DRM_MODE_ENCODER_TMDS;
 		interlace_allowed = true;
 		break;
 	case dp_panel_type_vidi:
