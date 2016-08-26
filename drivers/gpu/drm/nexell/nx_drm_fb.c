@@ -26,9 +26,13 @@
 #define PREFERRED_BPP		32
 
 static int fb_buffer_count = 1;
+static bool fb_format_bgr;
 
 MODULE_PARM_DESC(fb_buffers, "frame buffer count");
 module_param_named(fb_buffers, fb_buffer_count, int, 0600);
+
+MODULE_PARM_DESC(fb_bgr, "frame buffer BGR pixel format");
+module_param_named(fb_bgr, fb_format_bgr, bool, 0600);
 
 static void nx_drm_fb_destroy(struct drm_framebuffer *fb)
 {
@@ -172,6 +176,38 @@ static int nx_drm_fb_dirty(struct drm_framebuffer *fb,
 	return 0;
 }
 
+static uint32_t nx_drm_mode_fb_format(uint32_t bpp, uint32_t depth, bool bgr)
+{
+	uint32_t fmt;
+
+	switch (bpp) {
+	case 8:
+		fmt = DRM_FORMAT_C8;
+		break;
+	case 16:
+		if (depth == 15)
+			fmt = bgr ? DRM_FORMAT_XBGR1555 : DRM_FORMAT_XRGB1555;
+		else
+			fmt = bgr ? DRM_FORMAT_BGR565 : DRM_FORMAT_RGB565;
+		break;
+	case 24:
+		fmt = bgr ? DRM_FORMAT_BGR888 : DRM_FORMAT_RGB888;
+		break;
+	case 32:
+		if (depth == 24)
+			fmt = bgr ? DRM_FORMAT_XBGR8888 : DRM_FORMAT_XRGB8888;
+		else
+			fmt = bgr ? DRM_FORMAT_ABGR8888 : DRM_FORMAT_ARGB8888;
+		break;
+	default:
+		DRM_ERROR("bad bpp, assuming x8r8g8b8 pixel format\n");
+		fmt = DRM_FORMAT_XRGB8888;
+		break;
+	}
+
+	return fmt;
+}
+
 static int nx_drm_fb_helper_probe(struct drm_fb_helper *helper,
 			struct drm_fb_helper_surface_size *sizes)
 {
@@ -197,8 +233,8 @@ static int nx_drm_fb_helper_probe(struct drm_fb_helper *helper,
 	mode_cmd.width = sizes->surface_width;
 	mode_cmd.height = sizes->surface_height;
 	mode_cmd.pitches[0] = sizes->surface_width * bytes_per_pixel;
-	mode_cmd.pixel_format = drm_mode_legacy_fb_format(sizes->surface_bpp,
-		sizes->surface_depth);
+	mode_cmd.pixel_format = nx_drm_mode_fb_format(sizes->surface_bpp,
+		sizes->surface_depth, fb_format_bgr);
 
 	/* for double buffer */
 	size = mode_cmd.pitches[0] * (mode_cmd.height * buffers);

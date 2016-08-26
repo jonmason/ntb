@@ -61,6 +61,12 @@ static int convert_dp_rgb_format(uint32_t pixel_format,
 
 	switch (pixel_format) {
 	/* 16 bpp RGB */
+	case DRM_FORMAT_XRGB1555:
+		fmt = nx_mlc_rgbfmt_x1r5g5b5;
+		break;
+	case DRM_FORMAT_XBGR1555:
+		fmt = nx_mlc_rgbfmt_x1b5g5r5;
+		break;
 	case DRM_FORMAT_RGB565:
 		fmt = nx_mlc_rgbfmt_r5g6b5;
 		break;
