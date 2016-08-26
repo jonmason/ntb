@@ -951,21 +951,21 @@ void nx_drm_dp_display_mode_to_sync(struct drm_display_mode *mode,
 	drm_display_mode_to_videomode(mode, &vm);
 
 	sync->interlace =
-		vm.flags | DISPLAY_FLAGS_INTERLACED ? 1 : 0;
+		vm.flags & DISPLAY_FLAGS_INTERLACED ? 1 : 0;
 
 	sync->h_active_len = vm.hactive;
 	sync->h_sync_width = vm.hsync_len;
 	sync->h_back_porch = vm.hback_porch;
 	sync->h_front_porch = vm.hfront_porch;
 	sync->h_sync_invert =
-		vm.flags | DISPLAY_FLAGS_HSYNC_HIGH ? 1 : 0;
+		vm.flags & DISPLAY_FLAGS_HSYNC_HIGH ? 1 : 0;
 
 	sync->v_active_len = vm.vactive;
 	sync->v_sync_width = vm.vsync_len;
 	sync->v_back_porch = vm.vback_porch;
 	sync->v_front_porch = vm.vfront_porch;
 	sync->v_sync_invert =
-		vm.flags | DISPLAY_FLAGS_VSYNC_HIGH ? 1 : 0;
+		vm.flags & DISPLAY_FLAGS_VSYNC_HIGH ? 1 : 0;
 	sync->pixel_clock_hz = vm.pixelclock;
 }
 
