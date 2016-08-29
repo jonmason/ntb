@@ -499,8 +499,11 @@ static int bq24296_battery_probe(struct i2c_client *client,
 	dev_dbg(&client->dev, "%s\n", __func__);
 
 	bq24296_node = of_node_get(client->dev.of_node);
-	if (!bq24296_node)
+	if (!bq24296_node) {
 		dev_err(&client->dev, "could not find bq24296-node\n");
+		ret = -ENXIO;
+		goto batt_failed_2;
+	}
 
 	di = devm_kzalloc(&client->dev, sizeof(*di), GFP_KERNEL);
 	if (!di) {
