@@ -128,7 +128,7 @@ static int s3t9mf_probe(struct platform_device *pdev)
 		NULL, 0, "%s", "ssafelite");
 	if (IS_ERR(chip->se_dev)) {
 		dev_err(&pdev->dev, "failed to create se_dev\n");
-		ret = ENODEV;
+		return -ENODEV;
 	}
 
 	ret = sysfs_create_files(&chip->se_dev->kobj, s3t9mf_attrs);
