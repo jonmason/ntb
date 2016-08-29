@@ -90,6 +90,7 @@ struct tzmem_region32 {
 #ifdef __KERNEL__
 
 typedef unsigned long tzdev_page_handle;
+extern char *tzpath_buf;
 
 tzdev_page_handle tzdev_alloc_watch_page(void);
 void *tzdev_get_virt_addr(tzdev_page_handle h);
@@ -99,7 +100,7 @@ int tzdev_scm_watch(unsigned long dev_id, unsigned long func_id,
 		unsigned long param1,
 		unsigned long param2,
 		unsigned long param3);
-
+int tzpath_fullpath_create(const char *dir_path);
 typedef void (*tzdev_notify_handler_t)(uint32_t target_id,
 		const void *buffer, size_t data_size, void *user_data);
 

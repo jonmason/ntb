@@ -44,7 +44,7 @@
 #include "usb_dump.h"
 #endif
 #include <linux/vmalloc.h>
-#define ENC_LOG_DIR_PATH  "/opt/usr/apps/save_error_log/error_log/secureos_log/"
+#define ENC_LOG_DIR_PATH  "/save_error_log/error_log/secureos_log/"
 #define SYSLOG_ENCRYPT_MEM_SIZE (PAGE_SIZE * 8)
 #endif /* CONFIG_INSTANCE_DEBUG */
 #define TZLOG_TYPE_PURE 1
@@ -90,46 +90,6 @@ int tzlog_create_dir(char *dir_full_path)
 	return err;
 }
 
-int tzlog_create_dir_full_path(char *dir_full_path)
-{
-	int ret = 0;
-	int index = 0;
-	int all_len = 0;
-	char *parent_dir = NULL;
-
-	if (dir_full_path == NULL) {
-		tzlog_print(K_ERR, "dir_full_path param is NULL\n");
-		return -1;
-	}
-
-	all_len = strlen(dir_full_path);
-	if (dir_full_path[0] != '/' || dir_full_path[all_len - 1] != '/') {
-		tzlog_print(K_ERR, "dir_full_path path is not correct\n");
-		return -1;
-	}
-
-	parent_dir = (char*)vmalloc(PATH_MAX);
-	if (parent_dir == NULL)	{
-		tzlog_print(K_ERR, "vmalloc failed\n");
-		ret = -1;
-		goto exit_tzlog_create_dir_full_path;
-	}
-
-	for (index = 0; index < all_len; index++) {
-		if (dir_full_path[index] == '/' && index != 0) {
-			memset(parent_dir, 0, PATH_MAX);
-			memcpy(parent_dir, dir_full_path, index);
-			tzlog_create_dir(parent_dir);
-		}
-	}
-
-exit_tzlog_create_dir_full_path:
-	if (parent_dir != NULL)
-		vfree(parent_dir);
-
-	return ret;
-}
-
 #ifdef CONFIG_INSTANCE_DEBUG
 int tzlog_output_do_dump(int is_kernel);
 
@@ -141,9 +101,9 @@ static int tzlog_output_to_error_log(char *data, int data_size,
 	int ret = 0;
 	char *file_full_path = NULL;
 
-	ret = tzlog_create_dir_full_path(ENC_LOG_DIR_PATH);
+	ret = tzpath_fullpath_create(ENC_LOG_DIR_PATH);
 	if (ret != 0) {
-		tzlog_print(K_ERR, "tzlog_create_dir_full_path failed\n");
+		tzlog_print(K_ERR, "Failed to create encrypted log path\n");
 		return ret;
 	}
 
@@ -153,13 +113,12 @@ static int tzlog_output_to_error_log(char *data, int data_size,
 	file_full_path = (char*)vmalloc(PATH_MAX);
 	if (file_full_path == NULL) {
 		tzlog_print(K_ERR, "vmalloc failed\n");
-		ret = -1;
+		ret = -ENOMEM;
 		goto exit_tzlog_output_to_error_log;
 	}
 
-	snprintf(file_full_path, PATH_MAX, "%sminilog_%s_%010lld.log",
-		 ENC_LOG_DIR_PATH,
-		 ((is_kernel_error == 1) ? "os" : "app"), T);
+	snprintf(file_full_path, PATH_MAX, "%s/%sminilog_%s_%010lld.log",
+		 tzpath_buf, ENC_LOG_DIR_PATH, ((is_kernel_error == 1) ? "os" : "app"), T);
 
 	ret = ss_file_create_object(file_full_path, data, data_size);
 

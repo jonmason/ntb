@@ -16,8 +16,8 @@
  *
  *********************************************************/
 
-#ifndef __SOURCE_TZDEV_NSRPC_H__
-#define __SOURCE_TZDEV_NSRPC_H__
+#ifndef __SOURCE_TZDEV_NSRPC_REE_SLAVE_H__
+#define __SOURCE_TZDEV_NSRPC_REE_SLAVE_H__
 
 #include <linux/kernel.h>
 
@@ -40,4 +40,4 @@ void *nsrpc_payload_ptr(NSRPCTransaction_t *tsx);
 unsigned int nsrpc_wsm_offset(NSRPCTransaction_t *tsx, size_t *p_size);
 int nsrpc_count_completions(void);
 
-#endif /* __SOURCE_TZDEV_NSRPC_H__ */
+#endif /* __SOURCE_TZDEV_NSRPC_REE_SLAVE_H__ */

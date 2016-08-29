@@ -22,5 +22,6 @@
 #include "tzdev.h"
 
 int __init init_storage(void);
+int storage_path_init(void);
 
 #endif /* __SECURE_STORAGE_H__ */

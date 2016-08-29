@@ -41,13 +41,13 @@
 #ifdef CONFIG_INSTANCE_DEBUG
 #include <linux/vmalloc.h>
 #define CONFIG_TZDEV_MINIDUMP
-#define ENC_DUMP_DIR_PATH  "/opt/usr/apps/save_error_log/error_log/secureos_dump/"
+#define ENC_DUMP_DIR_PATH  "/save_error_log/error_log/secureos_dump/"
 #endif
 
 struct secos_syspage *tz_syspage;
 #ifdef CONFIG_TZDEV_MINIDUMP
 char *tz_minidump_data;
-uint  tz_minidump_data_size;
+uint tz_minidump_data_size;
 #endif
 static atomic_t tz_crashed;
 
@@ -116,7 +116,7 @@ void __init tzsys_init(void)
 }
 
 #ifdef CONFIG_TZDEV_MINIDUMP
-int tzlog_create_dir_full_path(char *dir_full_path);
+
 int tzlog_output_do_dump(int is_kernel)
 {
 	int write_size;
@@ -131,7 +131,8 @@ int tzlog_output_do_dump(int is_kernel)
 	if (is_kernel == 0) {
 		if (tz_syspage->syscrash0 == SYSCRASH_VALUE_0 &&
 		    tz_syspage->syscrash1 == SYSCRASH_VALUE_1) {
-			tzlog_print(K_ERR, "Secure kernel crash already occurred\n");
+			tzlog_print(K_ERR,
+				    "Secure kernel crash already occurred\n");
 			return -1;
 		}
 	}
@@ -141,9 +142,9 @@ int tzlog_output_do_dump(int is_kernel)
 	else
 		tzlog_print(K_ERR, "TA Crash detected\n");
 
-	ret = tzlog_create_dir_full_path(ENC_DUMP_DIR_PATH);
+	ret = tzpath_fullpath_create(ENC_DUMP_DIR_PATH);
 	if (ret != 0) {
-		tzlog_print(K_ERR, "tzlog_create_dir_full_path failed\n");
+		tzlog_print(K_ERR, "Failed to craete encrypted dump path\n");
 		return ret;
 	}
 
@@ -156,9 +157,8 @@ int tzlog_output_do_dump(int is_kernel)
 		ret = -1;
 		goto exit_tzlog_output_do_dump;
 	}
-	snprintf(file_full_path, PATH_MAX, "%sminidump_%s_%010lld.elf",
-		 ENC_DUMP_DIR_PATH,
-		 ((is_kernel == 1) ? "os" : "app"), T);
+	snprintf(file_full_path, PATH_MAX, "%s/%sminidump_%s_%010lld.elf",
+		 tzpath_buf, ENC_DUMP_DIR_PATH, ((is_kernel == 1) ? "os" : "app"), T);
 
 	write_size = ss_file_create_object(file_full_path, tz_minidump_data,
 			tz_syspage->minidump_size);
@@ -172,9 +172,11 @@ int tzlog_output_do_dump(int is_kernel)
 	}
 
 	if (is_kernel == 1)
-		tzlog_print(K_ERR, "Writing SecureOS minidump to %s\n", file_full_path);
+		tzlog_print(K_ERR, "Writing SecureOS minidump to %s\n",
+			    file_full_path);
 	else
-		tzlog_print(K_INFO, "Writing TA minidump to %s\n", file_full_path);
+		tzlog_print(K_INFO, "Writing TA minidump to %s\n",
+			    file_full_path);
 
 	if (is_kernel == 1)
 		tzlog_print(K_ERR, "Minidump stored %u bytes\n",
@@ -191,12 +193,14 @@ int tzlog_output_do_dump(int is_kernel)
 #if defined(CONFIG_INSTANCE_DEBUG) && defined(CONFIG_USB_DUMP)
 	if (ss_file_object_exist(file_full_path) == 1)
 		copy_file_to_usb(file_full_path);
-	else tzlog_print(K_ERR, "file(%s) not exist \n", file_full_path);
+	else
+		tzlog_print(K_ERR, "file(%s) not exist \n", file_full_path);
 #endif
 
 	if (is_kernel == 1)
 		plat_dump_postprocess("TrustWare");
-	else plat_dump_postprocess(tz_syspage->uid);
+	else
+		plat_dump_postprocess(tz_syspage->uid);
 
 	memset(tz_syspage->uid, 0, sizeof(tz_syspage->uid));
 
@@ -207,7 +211,6 @@ exit_tzlog_output_do_dump:
 
 	if (file_full_path != NULL)
 		vfree(file_full_path);
-
 	return ret;
 }
 

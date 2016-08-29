@@ -39,6 +39,8 @@
 #include <linux/sched.h>
 #include <linux/errno.h>
 #include <linux/slab.h>
+#include <linux/dcache.h>
+#include <linux/vmalloc.h>
 #ifdef CONFIG_ARTIK_USE_TZCMA_FOR_ARTIK710_CRYPTO
 #include <linux/dma-contiguous.h>
 #include <linux/dma-mapping.h>
@@ -61,6 +63,7 @@
 
 #define TZDEV_MAJOR_VERSION  "007"
 #define TZDEV_MINOR_VERSION  "0"
+#define TZDEV_DEFAULT_TZPATH "/opt/usr/apps/"
 
 MODULE_PARM_DESC(default_tzdev_local_log_level,
 		 "Loglevel of tz driver (7 - debug, 6 - info, 5 - notice, 4 - warning, 3 - error, ...)");
@@ -69,6 +72,8 @@ MODULE_PARM_DESC(default_tzdev_local_log_level,
 #ifdef CONFIG_TZDEV_CPU_IDLE
 void sdp_cpuidle_enable_c1(void);
 #endif
+
+char *tzpath_buf;
 
 static int debugging_started;
 
@@ -1495,6 +1500,113 @@ static ssize_t tzpm_store(struct kobject *kobj, struct kobj_attribute *attr,
 }
 #endif /* !CONFIG_ARM_PSCI */
 
+static int tzpath_subpath_create(const char *dir_full_path)
+{
+	struct dentry *dentry;
+	struct path p;
+	int err;
+	struct inode *inode;
+
+	dentry =
+	    kern_path_create(AT_FDCWD, dir_full_path, &p, LOOKUP_DIRECTORY);
+
+	if (IS_ERR(dentry))
+		return PTR_ERR(dentry);
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0))
+	inode = p.dentry->d_inode;
+#else
+	inode = d_inode(p.dentry);
+#endif
+
+	err = vfs_mkdir(inode, dentry, S_IRWXU | S_IRWXG | S_IRWXO);
+
+	done_path_create(&p, dentry);
+	return err;
+}
+
+int tzpath_fullpath_create(const char *dir_path)
+{
+	int ret = 0;
+	int index = 0;
+	int all_len = 0;
+	char *full_path = NULL;
+	char *parent_dir = NULL;
+
+	if( tzpath_buf == NULL) {
+		tzlog_print(K_ERR, "Failed to create tzpath, tz rootpath is NULL\n");
+		return -EINVAL;
+	}
+
+	if (dir_path == NULL) {
+		tzlog_print(K_ERR, "dir_path param is NULL\n");
+		return -EINVAL;
+	}
+
+	parent_dir = (char *)kmalloc(PATH_MAX, GFP_KERNEL);
+	if (parent_dir == NULL) {
+		tzlog_print(K_ERR, "vmalloc failed\n");
+		ret = -ENOMEM;
+		goto error_exit;
+	}
+
+	full_path = (char *)kmalloc(PATH_MAX, GFP_KERNEL);
+	if (full_path == NULL) {
+		tzlog_print(K_ERR, "vmalloc failed\n");
+		ret = -ENOMEM;
+		goto error_exit;
+	}
+
+	snprintf(full_path, PATH_MAX, "%s/%s", tzpath_buf, dir_path);
+	all_len = strlen(full_path);
+
+	for (index = 0; index < all_len; index++) {
+		if (full_path[index] == '/' && index != 0) {
+			memset(parent_dir, 0, PATH_MAX);
+			memcpy(parent_dir, full_path, index);
+			ret = tzpath_subpath_create(parent_dir);
+		}
+	}
+
+	if( ret != 0 && ret != -EEXIST)
+		tzlog_print(K_ERR, "Failed to mkdir fullpath, path : %s, err: %d",
+				full_path, ret);
+	else
+		ret = 0;
+
+error_exit:
+	kfree(full_path);
+	kfree(parent_dir);
+
+	return ret;
+}
+
+
+static int tzpath_alloc(const char * path, ssize_t sz)
+{
+	int ret;
+	char *old_tzpath = tzpath_buf;
+
+	if( path==NULL)
+		return -EINVAL;
+
+	tzpath_buf = kstrndup ( path, sz, GFP_KERNEL);
+
+	if( tzpath_buf == NULL) {
+		ret = -ENOMEM;
+		goto error;
+		return -ENOMEM;
+	}
+
+	kfree(old_tzpath);
+
+	return 0;
+
+error:
+	tzpath_buf = old_tzpath;
+	return ret;
+}
+
 static ssize_t tzdev_show(struct kobject *kobj, struct kobj_attribute *attr,
 			  char *buf)
 {
@@ -1517,6 +1629,72 @@ static ssize_t tzdev_store(struct kobject *kobj, struct kobj_attribute *attr,
 	return 0;
 #endif
 }
+
+static int check_privilege(void)
+{
+	if( !uid_eq(current_euid(), GLOBAL_ROOT_UID))
+		return -1;
+
+	if( strncmp( current->comm, "tzdaemon", 9) != 0 )
+		return -1;
+
+	return 0;
+}
+
+static ssize_t tzpath_show(struct kobject *kobj, struct kobj_attribute *attr,
+			  char *buf)
+{
+	int len;
+
+	len = strlen(tzpath_buf);
+
+	return sprintf(buf, "%s\n", tzpath_buf);
+}
+
+static ssize_t tzpath_store(struct kobject *kobj, struct kobj_attribute *attr,
+			   const char *buf, size_t count)
+{
+	int rc;
+	struct path file_path;
+
+	if( buf == NULL || count > 128) {
+		return -EINVAL;
+	}
+
+	if( check_privilege() != 0 ) {
+		tzlog_print(TZLOG_ERROR, "Permission denied\n");
+		return -EPERM;
+	}
+
+	rc = kern_path(buf, LOOKUP_FOLLOW, &file_path);
+
+	if( rc < 0 ) {
+		tzlog_print(TZLOG_ERROR, "Failed to open path : %s err:%d\n", buf, rc);
+		return rc;
+	}
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(3, 15, 0))
+	if( !d_is_dir(file_path.dentry) ) {
+		tzlog_print(TZLOG_ERROR, "Failed to access path : %s\n", buf);
+		path_put(&file_path);
+		return -ENOENT;
+	}
+#endif
+
+	path_put(&file_path);
+
+	rc = tzpath_alloc(buf, count);
+	if( rc != 0 ) {
+		tzlog_print(TZLOG_ERROR, "Failed to setup tzpath : %s\n", buf);
+		return -EINVAL;
+	}
+
+	if( storage_path_init() != 0 )
+		return -EIO;
+
+	return count;
+}
+
+
 
 static ssize_t tzlog_show(struct kobject *kobj, struct kobj_attribute *attr,
 			  char *buf)
@@ -1588,6 +1766,9 @@ __ATTR(tzlog, 0660, tzlog_show, tzlog_store);
 static struct kobj_attribute tzmem_attr =
 __ATTR(tzmem, 0660, tzmem_show, tzmem_store);
 
+static struct kobj_attribute tzpath_attr =
+__ATTR(tzpath, 0600, tzpath_show, tzpath_store);
+
 #ifndef CONFIG_ARM_PSCI
 static struct kobj_attribute tzpm_attr =
 __ATTR(tzpm, 0660, tzpm_show, tzpm_store);
@@ -1597,6 +1778,7 @@ static struct attribute *tzdev_attrs[] = {
 	&tzdev_attr.attr,
 	&tzlog_attr.attr,
 	&tzmem_attr.attr,
+	&tzpath_attr.attr,
 #ifndef CONFIG_ARM_PSCI
 	&tzpm_attr.attr,
 #endif /* !CONFIG_ARM_PSCI */
@@ -1831,6 +2013,15 @@ static int __init init_tzdev(void)
 	if (unlikely(rc))
 		goto err1;
 
+	rc = tzpath_alloc(TZDEV_DEFAULT_TZPATH, strlen(TZDEV_DEFAULT_TZPATH));
+	if(unlikely(rc))
+		goto tzpath_out;
+
+	if( storage_path_init() != 0 ) {
+		rc = -EIO;
+		goto tzpath_out;
+	}
+
 	rc = misc_register(&tzmem);
 	if (unlikely(rc))
 		goto tzdev_out;
@@ -1940,6 +2131,8 @@ tzmem_out:
 tzdev_out:
 	misc_deregister(&tzdev);
 
+tzpath_out:
+	kfree(tzpath_buf);
 err1:
 
 	return rc;

@@ -454,7 +454,7 @@ int scm_sys_resume(void)
 
 	return res.res[0];
 }
-#endif /* !CONFIG_PSCI */
+#endif /* !CONFIG_ARM_PSCI */
 
 #ifdef CONFIG_RESOURCE_MONITOR
 int scm_resource_monitor_cmd(uint32_t cmd, uint32_t wsm_id)
