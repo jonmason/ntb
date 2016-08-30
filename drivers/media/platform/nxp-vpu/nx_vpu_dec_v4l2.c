@@ -152,8 +152,13 @@ static int vidioc_g_fmt_vid_cap_mplane(struct file *file, void *priv,
 	pix_mp->plane_fmt[2].sizeimage = ctx->chroma_size;
 
 	/* TBD. Patch for fedora */
-	pix_mp->reserved[1] = (__u8)ctx->codec.dec.frame_buffer_cnt;
-	pix_mp->reserved[2] = (__u8)ctx->codec.dec.frame_buffer_cnt;
+	if (7 == sizeof(pix_mp->reserved)) {
+		pix_mp->reserved[0] = (__u8)ctx->codec.dec.frame_buffer_cnt;
+		pix_mp->reserved[1] = (__u8)ctx->codec.dec.frame_buffer_cnt;
+	} else if (8 == sizeof(pix_mp->reserved)) {
+		pix_mp->reserved[1] = (__u8)ctx->codec.dec.frame_buffer_cnt;
+		pix_mp->reserved[2] = (__u8)ctx->codec.dec.frame_buffer_cnt;
+	}
 
 	NX_DbgMsg(INFO_MSG, ("vidioc_g_fmt_vid_cap_mplane : W = %d, H = %d\n",
 		pix_mp->width, pix_mp->height));
@@ -1190,6 +1195,7 @@ int vpu_dec_decode_slice(struct nx_vpu_ctx *ctx)
 		vbuf = to_vb2_v4l2_buffer(&buf->vb);
 		buf->vb.index = idx;
 		vbuf->field = dec_ctx->interlace_flg[idx];
+		vbuf->flags = dec_ctx->frm_type[idx];
 		buf->vb.planes[0].bytesused = ctx->strm_size;
 		vbuf->timestamp.tv_sec =
 			dec_ctx->timeStamp[idx].tv_sec;
@@ -1209,6 +1215,7 @@ int vpu_dec_decode_slice(struct nx_vpu_ctx *ctx)
 
 		vbuf = to_vb2_v4l2_buffer(&buf->vb);
 		vbuf->field = dec_ctx->interlace_flg[idx];
+		vbuf->flags = dec_ctx->frm_type[idx];
 		vbuf->timestamp.tv_sec =
 			dec_ctx->timeStamp[idx].tv_sec;
 		vbuf->timestamp.tv_usec =
