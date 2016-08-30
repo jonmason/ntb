@@ -44,22 +44,26 @@ static ssize_t s3t9mf_sysfs_se_enable(struct device *dev,
 		return 0;
 
 	if (value) {
-		pwm_period = pwm_get_period(chip->pwm);
-		ret = pwm_config(chip->pwm, pwm_period/2, pwm_period);
-		if (ret) {
-			dev_err(chip->se_dev, "pwm config fail %d\n", ret);
-			return -EIO;
-		}
+		if (chip->pwm) {
+			pwm_period = pwm_get_period(chip->pwm);
+			ret = pwm_config(chip->pwm, pwm_period/2, pwm_period);
+			if (ret) {
+				dev_err(chip->se_dev,
+					"pwm config fail %d\n", ret);
+				return -EIO;
+			}
 
-		ret = pwm_enable(chip->pwm);
-		if (ret) {
-			dev_err(chip->se_dev, "pwm enable fail %d\n", ret);
-			return -EIO;
+			ret = pwm_enable(chip->pwm);
+			if (ret) {
+				dev_err(chip->se_dev,
+					"pwm enable fail %d\n", ret);
+				return -EIO;
+			}
 		}
-
 		gpiod_set_value(chip->reset_gpio, 1);
 	} else {
-		pwm_disable(chip->pwm);
+		if (chip->pwm)
+			pwm_disable(chip->pwm);
 		gpiod_set_value(chip->reset_gpio, 0);
 	}
 
@@ -121,7 +125,7 @@ static int s3t9mf_probe(struct platform_device *pdev)
 	chip->pwm = devm_pwm_get(&pdev->dev, "pwm_t9mf");
 	if (IS_ERR(chip->pwm)) {
 		dev_err(&pdev->dev, "unable to request PWM\n");
-		return -ENODEV;
+		chip->pwm = NULL;
 	}
 
 	chip->se_dev = device_create(sedev_class,
