@@ -349,7 +349,6 @@ static int alc5658_probe(struct platform_device *pdev)
 		if (!alc5658_dai_link.codec_of_node) {
 			dev_err(&pdev->dev,
 			    "Property 'audio-codec' missing or invalid\n");
-			ret = -EINVAL;
 		}
 	}
 
