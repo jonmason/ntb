@@ -823,6 +823,8 @@ static int nx_video_streamoff(struct file *file, void *fh, enum v4l2_buf_type i)
 		return -ENODEV;
 	}
 
+	v4l2_set_subdev_hostdata(subdev, me->name);
+
 	if (me->vbq) {
 		ret = v4l2_subdev_call(subdev, video, s_stream, 0);
 		if (ret < 0) {
