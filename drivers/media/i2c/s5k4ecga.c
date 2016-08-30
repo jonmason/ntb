@@ -1672,7 +1672,7 @@ static int sensor_4ec_init(struct v4l2_subdev *subdev, u32 val)
 			vmalloc((u32)sizeof(struct s5k4ec_regset)
 				* init_reg_2_size);
 		if (reg_tbl == NULL) {
-			kfree(regset_data);
+			vfree(regset_data);
 			return -ENOMEM;
 		}
 
