@@ -493,7 +493,7 @@
 &dp_drm_lvds {
 	status = "ok";
 
-	enable-gpios = <&gpio_e 13 GPIO_ACTIVE_LOW>;
+	enable-gpios = <&gpio_b 25 GPIO_ACTIVE_HIGH>,<&gpio_c 11 GPIO_ACTIVE_HIGH>;
 
 	display-timing {
 		clock-frequency = <50000000>;
