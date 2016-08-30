@@ -238,8 +238,10 @@ int nx_soc_dp_cont_prepare(struct dp_control_dev *dpc)
 		nx_dpc_set_dither(module, r_dither, g_dither, b_dither);
 	} else {
 		enum polarity fd_polarity = polarity_activehigh;
-		enum polarity hs_polarity = polarity_activehigh;
-		enum polarity vs_polarity = polarity_activehigh;
+		enum polarity hs_polarity = sync->h_sync_invert ?
+				polarity_activelow : polarity_activehigh;
+		enum polarity vs_polarity = sync->v_sync_invert ?
+				polarity_activelow : polarity_activehigh;
 
 		nx_dpc_set_sync(module,
 				progressive,
@@ -262,22 +264,21 @@ int nx_soc_dp_cont_prepare(struct dp_control_dev *dpc)
 		nx_dpc_set_quantization_mode(module, qmode_256, qmode_256);
 	}
 
-	pr_debug("%s: %s dev.%d (x=%4d, hfp=%3d, hbp=%3d, hsw=%3d)\n",
-		 __func__, dp_panel_type_name(dpc->panel_type), module,
-		 sync->h_active_len, sync->h_front_porch,
-		 sync->h_back_porch, sync->h_sync_width);
-	pr_debug("%s: dev.%d (y=%4d, vfp=%3d, vbp=%3d, vsw=%3d)\n",
-		 __func__, module, sync->v_active_len, sync->v_front_porch,
-		 sync->v_back_porch, sync->v_sync_width);
-	pr_debug
-	    ("%s: dev.%d clk 0[s=%d, d=%3d], 1[s=%d, d=%3d], inv[%d:%d]\n",
-	     __func__, module, ctl->clk_src_lv0, ctl->clk_div_lv0,
+	pr_debug("%s: %s\n", __func__, dp_panel_type_name(dpc->panel_type));
+	pr_debug("dev.%d (x=%4d, hfp=%3d, hbp=%3d, hsw=%3d, hi=%d)\n",
+		 module, sync->h_active_len, sync->h_front_porch,
+		 sync->h_back_porch, sync->h_sync_width, sync->h_sync_invert);
+	pr_debug("dev.%d (y=%4d, vfp=%3d, vbp=%3d, vsw=%3d, vi=%d)\n",
+		 module, sync->v_active_len, sync->v_front_porch,
+		 sync->v_back_porch, sync->v_sync_width, sync->h_sync_invert);
+	pr_debug("dev.%d clk 0[s=%d, d=%3d], 1[s=%d, d=%3d], inv[%d:%d]\n",
+	     module, ctl->clk_src_lv0, ctl->clk_div_lv0,
 	     ctl->clk_src_lv1, ctl->clk_div_lv1, ctl->clk_inv_lv0,
 	     ctl->clk_inv_lv1);
-	pr_debug("%s: dev.%d v_vso=%d, v_veo=%d, e_vso=%d, e_veo=%d\n",
-		 __func__, module, v_vso, v_veo, e_vso, e_veo);
-	pr_debug("%s: dev.%d delay RGB=%d, HS=%d, VS=%d, DE=%d\n", __func__,
-		 module, rgb_pvd, hsync_cp1, vsync_fram, de_cp2);
+	pr_debug("dev.%d v_vso=%d, v_veo=%d, e_vso=%d, e_veo=%d\n",
+		module, v_vso, v_veo, e_vso, e_veo);
+	pr_debug("dev.%d delay RGB=%d, HS=%d, VS=%d, DE=%d fmt:0x%x\n",
+		module, rgb_pvd, hsync_cp1, vsync_fram, de_cp2, out_format);
 
 	return 0;
 }
@@ -380,7 +381,7 @@ void nx_soc_dp_plane_top_set_format(struct dp_plane_top *top,
 	top->height = height;
 
 	pr_debug("%s: crtc.%d, %d by %d, prior %d, bg 0x%x\n",
-		__func__, module, width, height, prior, bgcolor);
+		__func__, module, top->width, top->height, prior, bgcolor);
 
 	nx_mlc_set_screen_size(module, top->width, top->height);
 	nx_mlc_set_background(module, bgcolor & 0x00FFFFFF);
@@ -534,7 +535,7 @@ int nx_soc_dp_plane_rgb_set_position(struct dp_plane_layer *layer,
 
 	pr_debug("%s: %s, (%d, %d, %d, %d) to (%d, %d, %d, %d) adjust=%d\n",
 		 __func__, layer->name, sx, sy, sw, sh,
-		 dst_x, dst_y, sw, sh, adjust);
+		 dst_x, dst_y, w, h, adjust);
 
 	nx_mlc_set_position(module, num, dst_x, dst_y, w - 1, h - 1);
 	dp_plane_adjust(module, num, adjust);
