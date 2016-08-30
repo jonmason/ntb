@@ -1184,7 +1184,6 @@ static int nx_scaler_open(struct inode *inode, struct file *filp)
 
 	if (atomic_read(&me->open_count) > 0) {
 		atomic_inc(&me->open_count);
-		atomic_read(&me->open_count);
 
 		return 0;
 	}
