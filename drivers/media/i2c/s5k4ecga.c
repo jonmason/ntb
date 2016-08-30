@@ -1406,7 +1406,7 @@ static int sensor_4ec_s_focus_mode(struct v4l2_subdev *subdev,
 		goto p_err;
 	}
 
-	ret = sensor_4ec_apply_set(subdev, &regs_set.continuous_af_on);
+	ret |= sensor_4ec_apply_set(subdev, &regs_set.continuous_af_on);
 
 p_err:
 	mutex_unlock(&s5k4ec_state->af_lock);
