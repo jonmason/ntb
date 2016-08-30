@@ -303,6 +303,39 @@ UP_AND_OUT:
 	return 0;
 }
 
+/**
+ * called by VIDIOC_SUBDEV_S_CROP
+ */
+static int nx_decimator_get_selection(struct v4l2_subdev *sd,
+				      struct v4l2_subdev_pad_config *cfg,
+				      struct v4l2_subdev_selection *sel)
+{
+	struct nx_decimator *me = v4l2_get_subdevdata(sd);
+	struct v4l2_subdev *remote = get_remote_source_subdev(me);
+
+	return v4l2_subdev_call(remote, pad, get_selection, cfg, sel);
+}
+
+static int nx_decimator_set_selection(struct v4l2_subdev *sd,
+				      struct v4l2_subdev_pad_config *cfg,
+				      struct v4l2_subdev_selection *sel)
+{
+	struct nx_decimator *me = v4l2_get_subdevdata(sd);
+	struct v4l2_subdev *remote = get_remote_source_subdev(me);
+	int ret;
+
+	ret = v4l2_subdev_call(remote, pad, set_selection, cfg, sel);
+	if (ret < 0) {
+		dev_err(&me->pdev->dev, "failed to remote set_selection!\n");
+		return ret;
+	}
+
+	me->width = sel->r.width;
+	me->height = sel->r.height;
+
+	return 0;
+}
+
 static int nx_decimator_get_fmt(struct v4l2_subdev *sd,
 			      struct v4l2_subdev_pad_config *cfg,
 			      struct v4l2_subdev_format *format)
@@ -348,11 +381,48 @@ static int nx_decimator_set_fmt(struct v4l2_subdev *sd,
 	return v4l2_subdev_call(remote, pad, set_fmt, NULL, format);
 }
 
+static int nx_decimator_g_crop(struct v4l2_subdev *sd,
+			     struct v4l2_crop *crop)
+{
+	struct nx_decimator *me = v4l2_get_subdevdata(sd);
+
+	crop->c.left = 0;
+	crop->c.top = 0;
+	crop->c.width = me->width;
+	crop->c.height = me->height;
+
+	return 0;
+}
+
+static int nx_decimator_s_crop(struct v4l2_subdev *sd,
+			     const struct v4l2_crop *crop)
+{
+	struct nx_decimator *me = v4l2_get_subdevdata(sd);
+
+	if (me->width < crop->c.width || me->height < crop->c.height) {
+		dev_err(&me->pdev->dev, "Invalid scaledown size.\n");
+		dev_err(&me->pdev->dev, "The size must be less than");
+		dev_err(&me->pdev->dev, " w(%d)xh(%d)\n",
+			me->width, me->height);
+
+		return -EINVAL;
+	}
+
+	me->width = crop->c.width;
+	me->height = crop->c.height;
+
+	return 0;
+}
+
 static const struct v4l2_subdev_video_ops nx_decimator_video_ops = {
 	.s_stream = nx_decimator_s_stream,
+	.g_crop = nx_decimator_g_crop,
+	.s_crop = nx_decimator_s_crop,
 };
 
 static const struct v4l2_subdev_pad_ops nx_decimator_pad_ops = {
+	.get_selection = nx_decimator_get_selection,
+	.set_selection = nx_decimator_set_selection,
 	.get_fmt = nx_decimator_get_fmt,
 	.set_fmt = nx_decimator_set_fmt,
 };
@@ -437,6 +507,7 @@ static int register_v4l2(struct nx_decimator *me)
 	char dev_name[64] = {0, };
 	struct media_entity *entity = &me->subdev.entity;
 	struct nx_video *video;
+	struct v4l2_subdev *clipper;
 
 	ret = nx_v4l2_register_subdev(&me->subdev);
 	if (ret)
@@ -461,9 +532,7 @@ static int register_v4l2(struct nx_decimator *me)
 	if (ret)
 		BUG();
 
-#ifdef CONFIG_VIDEO_NEXELL_CLIPPER
-	struct v4l2_subdev *clipper = nx_v4l2_get_subdev("nx-clipper");
-
+	clipper = nx_v4l2_get_subdev("nx-clipper");
 	if (!clipper) {
 		dev_err(&me->pdev->dev, "can't get clipper subdev\n");
 		return -1;
@@ -475,7 +544,6 @@ static int register_v4l2(struct nx_decimator *me)
 
 	ret = setup_link(&clipper->entity.pads[2],
 			&entity->pads[NX_DECIMATOR_PAD_SINK]);
-#endif
 
 	return 0;
 }
