@@ -76,8 +76,6 @@
 	artik_s3t9mf {
 		compatible = "samsung,s3t9mf";
 		reset-gpio = <&gpio_b 26 0>;
-		pwms = <&pwm 1 1000 0>;
-		pwm-names = "pwm_t9mf";
 		status = "okay";
 	};
 
