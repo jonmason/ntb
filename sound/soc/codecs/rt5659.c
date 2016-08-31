@@ -5101,7 +5101,7 @@ void rt5659_calibrate(struct rt5659_priv *rt5659)
 
 		if (count > 30) {
 			pr_err("HP Calibration 1 Failure\n");
-			return;
+			goto out;
 		}
 
 		count++;
@@ -5125,7 +5125,7 @@ void rt5659_calibrate(struct rt5659_priv *rt5659)
 
 		if (count > 85) {
 			pr_err("HP Calibration 2 Failure\n");
-			return;
+			goto out;
 		}
 
 		count++;
@@ -5172,7 +5172,7 @@ void rt5659_calibrate(struct rt5659_priv *rt5659)
 
 		if (count > 10) {
 			pr_err("SPK Calibration Failure\n");
-			return;
+			goto out;
 		}
 
 		count++;
@@ -5204,7 +5204,7 @@ void rt5659_calibrate(struct rt5659_priv *rt5659)
 
 		if (count > 35) {
 			pr_err("Mono Calibration Failure\n");
-			return;
+			goto out;
 		}
 
 		count++;
@@ -5244,6 +5244,7 @@ void rt5659_calibrate(struct rt5659_priv *rt5659)
 	/* Recovery the volatile values */
 	regmap_write(rt5659->regmap, RT5659_MONO_NG2_CTRL_5, 0x0009);
 
+out:
 	mutex_unlock(&rt5659->calibrate_mutex);
 	mutex_unlock(&rt5659->codec->component.card->dapm_mutex);
 }
