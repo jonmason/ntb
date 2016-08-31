@@ -71,34 +71,29 @@ static int artik_zb_power_control(struct artik_zb_power_platform_data *pdata,
 	return ret;
 }
 
-static int artik_zb_recovery_control(struct artik_zb_power_platform_data *pdata,
+static void artik_zb_recovery_control(struct artik_zb_power_platform_data *pdata,
 				  int onoff)
 {
-	int ret;
+	if (onoff != pdata->recovery_mode) {
+		 /* Turn off */
+		 gpiod_set_value(pdata->reset_gpio, 0);
+		 if (!IS_ERR_OR_NULL(pdata->bootloader_gpio))
+			  gpiod_set_value(pdata->bootloader_gpio, 0);
 
-	if (onoff == pdata->recovery_mode)
-		return 0;
+		 /* EM358x chip needs 26usec hold time to reset device */
+		 udelay(30);
 
-	/* Turn off */
-	gpiod_set_value(pdata->reset_gpio, 0);
-	if (!IS_ERR_OR_NULL(pdata->bootloader_gpio))
-		gpiod_set_value(pdata->bootloader_gpio, 0);
-
-	/* EM358x chip needs 26usec hold time to reset device */
-	udelay(30);
-
-	if (onoff) {
-		/* Go to recovery mode */
-		gpiod_set_value(pdata->reset_gpio, 1);
-	} else {
-		/* Go to normal mode */
-		if (!IS_ERR_OR_NULL(pdata->bootloader_gpio))
-			gpiod_set_value(pdata->bootloader_gpio, 1);
-		gpiod_set_value(pdata->reset_gpio, 1);
+		 if (onoff) {
+			  /* Go to recovery mode */
+			  gpiod_set_value(pdata->reset_gpio, 1);
+		 } else {
+			  /* Go to normal mode */
+			  if (!IS_ERR_OR_NULL(pdata->bootloader_gpio))
+				   gpiod_set_value(pdata->bootloader_gpio, 1);
+			  gpiod_set_value(pdata->reset_gpio, 1);
+		 }
+		 pdata->recovery_mode = onoff;
 	}
-	pdata->recovery_mode = onoff;
-
-	return ret;
 }
 
 static ssize_t show_zb_power_status(struct device *dev,
@@ -156,9 +151,7 @@ static ssize_t set_zb_recovery_status(struct device *dev,
 	if (ret)
 		return -EINVAL;
 
-	ret = artik_zb_recovery_control(pdata, !!val);
-	if (ret)
-		return -EINVAL;
+	artik_zb_recovery_control(pdata, !!val);
 
 	return count;	/* if success returns count, if failed returns - */
 }
