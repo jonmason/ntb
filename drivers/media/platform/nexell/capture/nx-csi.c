@@ -289,7 +289,7 @@ extern int read_sec_reg(void __iomem *reg);
 		write_reg_wrapper(regvalue, &pregister->regname);	\
 	} while (0)
 #else
-#define write_reg_wrapper(val, reg)	writel(reg, val)
+#define write_reg_wrapper(val, reg)	writel(val, reg)
 
 #define read_reg_wrapper(pval, reg)	do { \
 	*pval = readl(reg); \
