@@ -664,3 +664,12 @@ u32 nx_mipi_dsi_read_fifo(u32 module_index)
 	pregister = __g_pregister[module_index];
 	return __readl(&pregister->dsim_rxfifo);
 }
+
+u32 nx_mipi_dsi_read_fifo_status(u32 module_index)
+{
+	register struct nx_mipi_register_set *pregister;
+
+	pregister = __g_pregister[module_index];
+
+	return __readl(&pregister->dsim_fifoctrl);
+}

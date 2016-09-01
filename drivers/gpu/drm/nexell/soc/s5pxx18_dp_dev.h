@@ -366,6 +366,7 @@ int nx_dp_device_mipi_register(struct device *dev,
 			struct device_node *np, struct dp_control_dev *dpc);
 int nx_soc_dp_mipi_tx_transfer(struct dp_mipi_xfer *xfer);
 int nx_soc_dp_mipi_rx_transfer(struct dp_mipi_xfer *xfer);
+int nx_soc_dp_mipi_ransfer_done(void);
 #endif
 
 #endif /* __S5PXX18_DP_DEV_H__ */

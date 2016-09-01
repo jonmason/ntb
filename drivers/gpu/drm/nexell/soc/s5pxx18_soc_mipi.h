@@ -278,6 +278,7 @@ void nx_mipi_dsi_set_pll(u32 module_index, int enable,
 void nx_mipi_dsi_write_pkheader(u32 module_index, u32 data);
 void nx_mipi_dsi_write_payload(u32 module_index, u32 data);
 u32 nx_mipi_dsi_read_fifo(u32 module_index);
+u32 nx_mipi_dsi_read_fifo_status(u32 module_index);
 
 int nx_mipi_smoke_test(u32 module_index);
 int nx_mipi_initialize(void);

@@ -210,9 +210,10 @@ static void panel_lcd_enable(struct device *dev, struct drm_panel *panel)
 		nx_drm_dp_panel_res_resume(dev, display);
 
 	nx_drm_dp_lcd_prepare(display, panel);
-	drm_panel_prepare(panel);
 
+	drm_panel_prepare(panel);
 	drm_panel_enable(panel);
+
 	nx_drm_dp_lcd_enable(display, panel);
 }
 
@@ -225,11 +226,9 @@ static void panel_lcd_disable(struct device *dev, struct drm_panel *panel)
 	if (suspend)
 		nx_drm_dp_panel_res_suspend(dev, display);
 
-	/* panel disable */
 	drm_panel_unprepare(panel);
 	drm_panel_disable(panel);
 
-	/* control disable */
 	nx_drm_dp_lcd_unprepare(display, panel);
 	nx_drm_dp_lcd_disable(display, panel);
 }

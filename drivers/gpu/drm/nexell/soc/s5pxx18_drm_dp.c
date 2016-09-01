@@ -1091,7 +1091,7 @@ int nx_drm_dp_lcd_enable(struct nx_drm_device *display,
 		return 0;
 	}
 
-	if (ops && ops->prepare)
+	if (ops && ops->enable)
 		ops->enable(dpc, panel ? 1 : 0);
 
 	return 0;
@@ -1189,6 +1189,8 @@ int nx_drm_dp_mipi_transfer(struct mipi_dsi_host *host,
 
 	if (xfer.rx_len)
 		err = nx_soc_dp_mipi_rx_transfer(&xfer);
+
+	nx_soc_dp_mipi_ransfer_done();
 
 	return err;
 }

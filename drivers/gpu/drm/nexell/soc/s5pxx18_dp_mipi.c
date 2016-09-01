@@ -312,11 +312,30 @@ static int nx_soc_dp_mipi_set_disable(struct dp_control_dev *dpc)
 	return 0;
 }
 
+int nx_soc_dp_mipi_ransfer_done(void)
+{
+	int module = 0, count = 100;
+	u32 value;
+
+	do {
+		mdelay(1);
+		value = nx_mipi_dsi_read_fifo_status(module);
+		if (((1<<22) & value))
+			break;
+	} while (count-- > 0);
+
+	if (0 > count)
+		return -EINVAL;
+
+	return 0;
+}
+
 int nx_soc_dp_mipi_tx_transfer(struct dp_mipi_xfer *xfer)
 {
 	const u8 *txb;
 	u16 size;
 	u32 data;
+	int module = 0;
 
 	if (xfer->tx_len > DSI_TX_FIFO_SIZE)
 		pr_warn("warn: tx %d size over fifo %d\n", (int)xfer->tx_len,
@@ -331,7 +350,7 @@ int nx_soc_dp_mipi_tx_transfer(struct dp_mipi_xfer *xfer)
 	while (size >= 4) {
 		data = (txb[3] << 24) | (txb[2] << 16) |
 			(txb[1] << 8) | (txb[0]);
-		nx_mipi_dsi_write_payload(0, data);
+		nx_mipi_dsi_write_payload(module, data);
 		txb += 4, size -= 4;
 		data = 0;
 	}
@@ -343,7 +362,7 @@ int nx_soc_dp_mipi_tx_transfer(struct dp_mipi_xfer *xfer)
 		data |= txb[1] << 8;
 	case 1:
 		data |= txb[0];
-		nx_mipi_dsi_write_payload(0, data);
+		nx_mipi_dsi_write_payload(module, data);
 		break;
 	case 0:
 		break;	/* no payload */
@@ -355,7 +374,7 @@ int nx_soc_dp_mipi_tx_transfer(struct dp_mipi_xfer *xfer)
 	data = (xfer->data[1] << 16) |
 		   (xfer->data[0] <<  8) | xfer->id;
 
-	nx_mipi_dsi_write_pkheader(0, data);
+	nx_mipi_dsi_write_pkheader(module, data);
 
 	return 0;
 }
@@ -369,6 +388,8 @@ int nx_soc_dp_mipi_rx_transfer(struct dp_mipi_xfer *xfer)
 	u32 data;
 	u32 count = 0;
 	int err = -EINVAL;
+
+	nx_mipi_clear_interrupt_pending(module, 50);
 
 	while (1) {
 		/* Completes receiving data. */
