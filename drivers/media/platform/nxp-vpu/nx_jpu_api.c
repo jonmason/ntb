@@ -1614,7 +1614,7 @@ int JPU_DecParseHeader(struct vpu_dec_info *pInfo, uint8_t *pbyStream,
 	pInfo->headerSize = (uint32_t)((long)pbyStrm - (long)pbyStream + 3);
 
 	{
-		int ecsPtr = 0;
+		int ecsPtr = pInfo->headerSize;
 
 		pInfo->pagePtr = ecsPtr / 256;
 		pInfo->wordPtr = (ecsPtr % 256) / 4;
