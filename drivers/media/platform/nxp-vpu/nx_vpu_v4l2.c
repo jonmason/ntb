@@ -973,8 +973,9 @@ static int nx_vpu_open(struct file *file)
 	/* Deinit when failure occurred */
 err_hw_init:
 err_ctx_init:
-	dev->ctx[ctx->idx] = 0;
-
+	if (ctx->idx < NX_MAX_VPU_INSTANCE){
+		dev->ctx[ctx->idx] = 0;
+	}
 err_no_ctx:
 
 err_ctx_mem:
@@ -1283,7 +1284,6 @@ static int nx_vpu_probe(struct platform_device *pdev)
 	ret = video_register_device(vfd, VFL_TYPE_GRABBER, NX_VPU_START);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to register video device\n");
-		video_device_release(vfd);
 		goto err_enc_reg;
 	}
 
@@ -1311,7 +1311,6 @@ static int nx_vpu_probe(struct platform_device *pdev)
 	ret = video_register_device(vfd, VFL_TYPE_GRABBER, NX_VPU_START + 1);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to register video device\n");
-		video_device_release(vfd);
 		goto err_dec_reg;
 	}
 
