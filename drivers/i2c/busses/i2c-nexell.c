@@ -324,7 +324,7 @@ static inline int nx_i2c_wait_busy(struct nx_i2c_param *par)
 	/* busy status check*/
 	nx_i2c_wait_dev(par, wait);
 
-	if (0 > wait) {
+	if (0 == wait) {
 		dev_err(par->dev, "Fail, i2c.%d is busy, arbitration %s ...\n",
 			par->hw.port, _ARBITSTAT(base)?"busy":"free");
 		ret = -1;
@@ -608,7 +608,7 @@ static int nx_i2c_set_param(struct nx_i2c_param *par,
 	unsigned long rate = 0;
 	int ret = 0;
 
-	unsigned long get_real_clk = 0, req_rate = 0;
+	unsigned long real_clk, get_real_clk = 0, req_rate = 0;
 	unsigned long calc_clk, t_clk = 0;
 	unsigned int t_src = 0, t_div = 0;
 	int div = 0;
@@ -670,11 +670,14 @@ static int nx_i2c_set_param(struct nx_i2c_param *par,
 				t_clk = calc_clk;
 				t_div = div;
 				t_src = src;
+				real_clk = get_real_clk;
 			} else if (calc_clk == 0) {
 				t_div = div;
 				t_src = src;
+				real_clk = get_real_clk;
 				break;
-			}
+			} else
+				break;
 		}
 		if (calc_clk == 0)
 			break;
@@ -697,7 +700,7 @@ static int nx_i2c_set_param(struct nx_i2c_param *par,
 	init_waitqueue_head(&par->wait_q);
 
 	dev_info(par->dev, "%s.%d: %8ld hz [pclk=%ld, clk = %3d,", "nexell-i2c",
-		 par->hw.port, rate/t_src/t_div, rate, par->hw.clksrc);
+		 par->hw.port, real_clk, rate, par->hw.clksrc);
 	dev_info(par->dev, "scale=%2d, timeout=%4d ms]\n", par->hw.clkscale-1,
 		 par->timeout);
 
@@ -756,11 +759,6 @@ static int nx_i2c_probe(struct platform_device *pdev)
 
 	pinctrl_select_state(par->pctrl, par->pins_sda_dft);
 	pinctrl_select_state(par->pctrl, par->pins_scl_dft);
-
-	if (ret < 0) {
-		dev_err(&pdev->dev, "can't set state for dft mode\n");
-		return ret;
-	}
 
 	ret = i2c_add_numbered_adapter(&par->adapter);
 	if (ret) {
