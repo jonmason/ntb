@@ -259,9 +259,15 @@ static int __init cpu_sys_id_setup(void)
 	int ret = 0;
 	u32 lotid;
 	char strlotid[6];
+	void __iomem *base_addr = NULL;
 
-	nx_ecid_set_base_address(ioremap_nocache(PHY_BASEADDR_ECID_MODULE,
-						 0x1000));
+	base_addr = ioremap_nocache(PHY_BASEADDR_ECID_MODULE, 0x1000);
+	if (!base_addr) {
+		pr_err("Failed to ioremap to ECIO base address.\n");
+		return -EIO;
+	}
+
+	nx_ecid_set_base_address(base_addr);
 
 	kobj = kobject_create_and_add("cpu", &platform_bus.kobj);
 	if (!kobj) {
