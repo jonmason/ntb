@@ -72,6 +72,10 @@ static void flush_context(unsigned int cpu)
 	/* Queue a TLB invalidate and flush the I-cache if necessary. */
 	cpumask_setall(&tlb_flush_pending);
 
+#ifdef CONFIG_ARM64_WORKAROUND_CCI400_DVMV7
+	flush_tlb_all();
+#endif
+
 	if (icache_is_aivivt())
 		__flush_icache_all();
 }
@@ -182,10 +186,10 @@ void check_and_switch_context(struct mm_struct *mm, unsigned int cpu)
 	raw_spin_unlock_irqrestore(&cpu_asid_lock, flags);
 
 switch_mm_fastpath:
+	cpu_switch_mm(mm->pgd, mm);
 #ifdef CONFIG_ARM64_WORKAROUND_CCI400_DVMV7
 	flush_tlb_all();
 #endif
-	cpu_switch_mm(mm->pgd, mm);
 }
 
 static int asids_init(void)
