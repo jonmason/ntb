@@ -36,15 +36,49 @@
 	}
 
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
-static struct pm_qos_request nx_disp_qos;
+static struct pm_qos_request dev_qos_req;
 
-static void nx_disp_qos_update(int val)
+static inline void dev_qos_update(int khz)
 {
-	if (!pm_qos_request_active(&nx_disp_qos))
-		pm_qos_add_request(&nx_disp_qos, PM_QOS_BUS_THROUGHPUT, val);
+	int active = pm_qos_request_active(&dev_qos_req);
+
+	if (!active)
+		pm_qos_add_request(&dev_qos_req, PM_QOS_BUS_THROUGHPUT, khz);
 	else
-		pm_qos_update_request(&nx_disp_qos, val);
+		pm_qos_update_request(&dev_qos_req, khz);
 }
+
+static void nx_drm_qos_up(struct drm_encoder *encoder)
+{
+	int khz = NX_BUS_CLK_DISP_KHZ;
+
+	DRM_DEBUG_KMS("[ENCODER:%d] qos up to %d khz\n",
+		encoder->base.id, khz);
+	dev_qos_update(khz);
+}
+
+static void nx_drm_qos_down(struct drm_encoder *encoder)
+{
+	struct drm_encoder *enc;
+	struct drm_device *drm = encoder->dev;
+	int khz = NX_BUS_CLK_IDLE_KHZ;
+	bool power = false;
+
+	list_for_each_entry(enc, &drm->mode_config.encoder_list, head) {
+		power = to_nx_encoder(enc)->enabled;
+		if (power)
+			break;
+	}
+
+	if (!power) {
+		DRM_DEBUG_KMS("[ENCODER:%d] qos idle to %d khz\n",
+			encoder->base.id, khz);
+		dev_qos_update(khz);
+	}
+}
+#else
+#define nx_drm_qos_up(encoder)
+#define nx_drm_qos_down(encoder)
 #endif
 
 static void nx_drm_encoder_dpms(struct drm_encoder *encoder, int mode)
@@ -54,10 +88,11 @@ static void nx_drm_encoder_dpms(struct drm_encoder *encoder, int mode)
 	struct nx_drm_panel *panel = &display->panel;
 	struct nx_drm_ops *ops = display->ops;
 
-	DRM_DEBUG_KMS("enter [ENCODER:%d] %s dpms:%d, %s\n",
+	DRM_DEBUG_KMS("enter [ENCODER:%d] %s dpms:%d, %s, power %s\n",
 		encoder->base.id,
 		dp_panel_type_name(dp_panel_get_type(display)),
-		mode, panel->is_connected ? "connected" : "disconnected");
+		mode, panel->is_connected ? "connected" : "disconnected",
+		nx_encoder->enabled ? "on" : "off");
 
 	if (nx_encoder->dpms == mode) {
 		DRM_DEBUG_KMS("desired dpms mode is same as previous one.\n");
@@ -67,9 +102,7 @@ static void nx_drm_encoder_dpms(struct drm_encoder *encoder, int mode)
 	switch (mode) {
 	case DRM_MODE_DPMS_ON:
 		if (panel->is_connected) {
-#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
-			nx_disp_qos_update(NX_BUS_CLK_DISP_KHZ);
-#endif
+			nx_drm_qos_up(encoder);
 			nx_drm_dp_encoder_dpms(encoder, true);
 			if (ops && ops->dpms)
 				ops->dpms(display->dev, mode);
@@ -84,9 +117,7 @@ static void nx_drm_encoder_dpms(struct drm_encoder *encoder, int mode)
 				ops->dpms(display->dev, mode);
 			nx_drm_dp_encoder_dpms(encoder, false);
 			nx_encoder->enabled = false;
-#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
-			nx_disp_qos_update(NX_BUS_CLK_IDLE_KHZ);
-#endif
+			nx_drm_qos_down(encoder);
 		}
 		break;
 
