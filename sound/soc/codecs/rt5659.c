@@ -4317,7 +4317,7 @@ static int rt5659_pll_calc(const unsigned int freq_in,
 	const unsigned int freq_out, struct rt5659_pll_code *pll_code)
 {
 	int max_n = RT5659_PLL_N_MAX, max_m = RT5659_PLL_M_MAX;
-	int k, n = 0, m = 0, red, n_t, m_t, pll_out, in_t;
+	int k, n = 0, m = 0, red, n_t, m_t = 0, pll_out, in_t;
 	int out_t, red_t = abs(freq_out - freq_in);
 	bool m_bypass = false, k_bypass = false;
 
@@ -4611,7 +4611,7 @@ static ssize_t rt5659_codec_adb_store(struct device *dev,
 	int i = 2, j = 0;
 
 	if (buf[0] == 'R' || buf[0] == 'r') {
-		while (j <= 0x100 && i < count) {
+		while (j < 0x100 && i < count) {
 			rt5659->adb_reg_addr[j] = 0;
 			value = 0;
 			for ( ; i < count; i++) {
@@ -4634,7 +4634,7 @@ static ssize_t rt5659_codec_adb_store(struct device *dev,
 		}
 		rt5659->adb_reg_num = j;
 	} else if (buf[0] == 'W' || buf[0] == 'w') {
-		while (j <= 0x100 && i < count) {
+		while (j < 0x100 && i < count) {
 			/* Get address */
 			rt5659->adb_reg_addr[j] = 0;
 			value = 0;
