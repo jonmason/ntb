@@ -259,7 +259,7 @@ int mali_platform_device_deinit(struct platform_device *device)
 
 	mali_core_scaling_term();
 
-#ifdef CONFIG_MALI_PLATFORM_S5P6818
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
 	if (nexell_qos_added) {
 		pm_qos_remove_request(&nexell_gpu_qos);
 		nexell_qos_added = false;
