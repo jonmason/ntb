@@ -1335,9 +1335,9 @@ static int nx_vpu_probe(struct platform_device *pdev)
 
 err_vpu_init:
 err_dec_reg:
-	video_device_release(dev->vfd_dec);
-err_dec_alloc:
 	video_unregister_device(dev->vfd_dec);
+err_dec_alloc:
+	video_device_release(dev->vfd_dec);
 err_enc_reg:
 	video_device_release(dev->vfd_enc);
 err_enc_alloc:
