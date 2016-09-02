@@ -168,7 +168,7 @@ struct zinitix_touch_dev {
 	u16 icon_event_reg;
 	u16 event_type;
 	u32 int_gpio_num;
-	u32 irq;
+	int irq;
 	u8 button[MAX_SUPPORTED_BUTTON_NUM];
 	u8 work_proceedure;
 	struct semaphore work_proceedure_lock;
