@@ -1367,6 +1367,7 @@ int s5pxx18_alive_suspend(void)
 {
 	struct nx_alive_reg_set *reg;
 	struct nx_alive_reg_set *alive_save;
+	u32 both_edge = 0;
 
 	reg = alive_regs;
 	alive_save = &alive_saves;
@@ -1396,6 +1397,11 @@ int s5pxx18_alive_suspend(void)
 		readl(&reg->ALIVEGPIOPADOUTREADREG);
 	alive_save->ALIVEGPIOPADPULLUPREADREG
 		= readl(&reg->ALIVEGPIOPADPULLUPREADREG);
+
+	/* change both edge detect to falling only */
+	both_edge = (alive_save->ALIVEGPIOFALLDETECTMODEREADREG &
+		    alive_save->ALIVEGPIORISEDETECTMODEREADREG);
+	writel((u32)both_edge, &reg->ALIVEGPIODETECTMODERSTREG1);
 
 	return 0;
 }
