@@ -31,7 +31,7 @@ Change log:
 #include "mlan_main.h"
 #include "mlan_wmm.h"
 #include "mlan_11n.h"
-
+#include "mlan_11ac.h"
 /********************************************************
 			Local Variables
 ********************************************************/
@@ -2537,15 +2537,13 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 		/* support the VHT if the network to be join has the VHT
 		   operation */
 		if (ISSUPP_11ACENABLED(pmadapter->fw_cap_info) &&
+		    (!(pmpriv->curr_chan_flags & CHAN_FLAGS_NO_80MHZ)) &&
+		    wlan_11ac_bandconfig_allowed(pmpriv, pbss_desc->bss_band) &&
 		    pbss_desc->pvht_oprat &&
 		    pbss_desc->pvht_oprat->chan_width == VHT_OPER_CHWD_80MHZ) {
-			if ((pbss_desc->bss_band & BAND_GAC)
-			    || (pbss_desc->bss_band & BAND_AAC)
-				) {
-				pchan_list->chan_scan_param[0].radio_type |=
-					CHAN_BW_80MHZ << 2;
-				pbss_desc->curr_bandwidth = BW_80MHZ;
-			}
+			pchan_list->chan_scan_param[0].radio_type |=
+				CHAN_BW_80MHZ << 2;
+			pbss_desc->curr_bandwidth = BW_80MHZ;
 		} else if (ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap) &&
 			   ISALLOWED_CHANWIDTH40(pbss_desc->pht_info->ht_info.
 						 field2) &&
@@ -2623,7 +2621,7 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 		wlan_add_ext_capa_info_ie(pmpriv, ppbuffer);
 		ret_len += sizeof(MrvlIETypes_ExtCap_t);
 	}
-
+	PRINTM(MCMND, "curr_bandwidth=%d\n", pbss_desc->curr_bandwidth);
 	if (orig_usr_dot_11n_dev_cap)
 		pmpriv->usr_dot_11n_dev_cap_bg = orig_usr_dot_11n_dev_cap;
 
@@ -3108,6 +3106,31 @@ wlan_get_txbastream_tbl(mlan_private *priv, tx_ba_stream_tbl *buf)
 
 	LEAVE();
 	return count;
+}
+
+/**
+ *  @brief This function check if 11AC is allowed in bandcfg
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param bss_band     bss band
+ *
+ *  @return 0--not allowed, other value allowed
+ */
+t_u8
+wlan_11n_bandconfig_allowed(mlan_private *pmpriv, t_u8 bss_band)
+{
+	if (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS) {
+		if (bss_band & BAND_G)
+			return (pmpriv->adapter->adhoc_start_band & BAND_GN);
+		else
+			return (pmpriv->adapter->adhoc_start_band & BAND_GN);
+	} else {
+		if (bss_band & BAND_A)
+			return (pmpriv->config_bands & BAND_GN);
+		else
+			return (pmpriv->config_bands & BAND_AN);
+	}
+	return 0;
 }
 
 /**

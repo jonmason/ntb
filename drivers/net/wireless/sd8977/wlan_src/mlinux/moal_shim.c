@@ -51,6 +51,10 @@ typedef struct _moal_lock {
 extern int cfg80211_wext;
 
 extern int hw_test;
+
+#ifdef ANDROID_KERNEL
+extern int wakelock_timeout;
+#endif
 /********************************************************
 		Local Functions
 ********************************************************/
@@ -1086,8 +1090,9 @@ moal_recv_packet(IN t_void *pmoal_handle, IN pmlan_buffer pmbuf)
 			priv->stats.rx_bytes += skb->len;
 			priv->stats.rx_packets++;
 #ifdef ANDROID_KERNEL
-			wake_lock_timeout(&handle->wake_lock,
-					  WAKE_LOCK_TIMEOUT);
+			if (wakelock_timeout)
+				wake_lock_timeout(&handle->wake_lock,
+						  wakelock_timeout);
 #endif
 			if (in_interrupt())
 				netif_rx(skb);
@@ -1143,6 +1148,10 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 	    (pmevent->event_id != MLAN_EVENT_ID_DRV_DEFER_HANDLING) &&
 	    (pmevent->event_id != MLAN_EVENT_ID_DRV_MGMT_FRAME))
 		PRINTM(MEVENT, "event id:0x%x\n", pmevent->event_id);
+	if (pmevent->event_id == MLAN_EVENT_ID_FW_DUMP_INFO) {
+		woal_store_firmware_dump(pmoal_handle, pmevent);
+		goto done;
+	}
 	priv = woal_bss_index_to_priv(pmoal_handle, pmevent->bss_index);
 	if (priv == NULL) {
 		PRINTM(MERROR, "%s: priv is null\n", __func__);
@@ -2379,9 +2388,6 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 		}
 #endif
 #endif
-		break;
-	case MLAN_EVENT_ID_FW_DUMP_INFO:
-		woal_store_firmware_dump(priv, pmevent);
 		break;
 	default:
 		break;

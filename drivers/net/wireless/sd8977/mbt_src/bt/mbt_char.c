@@ -88,7 +88,11 @@ mbtchar_chmod(char *name, mode_t mode)
 	} while (ret);
 	inode = path.dentry->d_inode;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,7,0)
 	mutex_lock(&inode->i_mutex);
+#else
+	inode_lock(inode);
+#endif
 	ret = mnt_want_write(path.mnt);
 	if (ret)
 		goto out_unlock;
@@ -103,14 +107,22 @@ mbtchar_chmod(char *name, mode_t mode)
 		ret = inode_setattr(inode, &newattrs);
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,7,0)
 	mutex_unlock(&inode->i_mutex);
+#else
+	inode_unlock(inode);
+#endif
 	mnt_drop_write(path.mnt);
 
 	path_put(&path);
 	LEAVE();
 	return ret;
 out_unlock:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,7,0)
 	mutex_unlock(&inode->i_mutex);
+#else
+	inode_unlock(inode);
+#endif
 	mnt_drop_write(path.mnt);
 	path_put(&path);
 	return ret;
@@ -145,7 +157,11 @@ mbtchar_chown(char *name, uid_t user, gid_t group)
 		}
 	} while (ret);
 	inode = path.dentry->d_inode;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,7,0)
 	mutex_lock(&inode->i_mutex);
+#else
+	inode_lock(inode);
+#endif
 	ret = mnt_want_write(path.mnt);
 	if (ret)
 		goto out_unlock;
@@ -178,14 +194,22 @@ mbtchar_chown(char *name, uid_t user, gid_t group)
 		ret = inode_setattr(inode, &newattrs);
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,7,0)
 	mutex_unlock(&inode->i_mutex);
+#else
+	inode_unlock(inode);
+#endif
 	mnt_drop_write(path.mnt);
 
 	path_put(&path);
 	LEAVE();
 	return ret;
 out_unlock:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,7,0)
 	mutex_unlock(&inode->i_mutex);
+#else
+	inode_unlock(inode);
+#endif
 	mnt_drop_write(path.mnt);
 	path_put(&path);
 	return ret;

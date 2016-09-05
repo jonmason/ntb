@@ -3950,7 +3950,7 @@ woal_passphrase(moal_private *priv, struct iwreq *wrq)
 			}
 			sec->param.passphrase.ssid.ssid_len = strlen(end);
 			strncpy((char *)sec->param.passphrase.ssid.ssid, end,
-				strlen(end));
+				MIN((MLAN_MAX_SSID_LENGTH - 1), strlen(end)));
 			PRINTM(MINFO, "ssid=%s, len=%d\n",
 			       sec->param.passphrase.ssid.ssid,
 			       (int)sec->param.passphrase.ssid.ssid_len);
@@ -5039,7 +5039,7 @@ woal_get_scan_table_ioctl(moal_private *priv, struct iwreq *wrq)
 	int ret = 0;
 	mlan_ioctl_req *req = NULL;
 	mlan_ds_scan *scan = NULL;
-	t_u32 scan_start;
+	int scan_start = 0;
 	mlan_status status = MLAN_STATUS_SUCCESS;
 
 	ENTER();
@@ -5063,7 +5063,7 @@ woal_get_scan_table_ioctl(moal_private *priv, struct iwreq *wrq)
 		ret = -EFAULT;
 		goto done;
 	}
-	if (scan_start)
+	if (scan_start > 0)
 		scan->sub_command = MLAN_OID_SCAN_NORMAL;
 	else
 		scan->sub_command = MLAN_OID_SCAN_GET_CURRENT_BSS;

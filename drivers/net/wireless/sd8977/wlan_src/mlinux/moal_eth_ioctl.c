@@ -2208,7 +2208,7 @@ woal_setget_priv_passphrase(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 			}
 			sec->param.passphrase.ssid.ssid_len = strlen(end);
 			strncpy((char *)sec->param.passphrase.ssid.ssid, end,
-				strlen(end));
+				MIN(strlen(end), MLAN_MAX_SSID_LENGTH));
 			PRINTM(MINFO, "ssid=%s, len=%d\n",
 			       sec->param.passphrase.ssid.ssid,
 			       (int)sec->param.passphrase.ssid.ssid_len);
@@ -3299,34 +3299,96 @@ done:
  *  @param priv         A pointer to moal_private structure
  *  @param respbuf      A pointer to response buffer
  *  @param respbuflen   Available length of response buffer
+ *  @param bBSSID       A variable that bssid is set or not
  *
  *  @return             Number of bytes written, negative for failure.
  */
 int
-woal_priv_assocessid(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
+woal_priv_assocessid(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen,
+		     t_u8 bBSSID)
 {
-	mlan_802_11_ssid req_ssid;
 	mlan_ssid_bssid ssid_bssid;
 	moal_handle *handle = priv->phandle;
 	int ret = 0;
-	t_u8 *essid_ptr;
-	t_u16 essid_length = 0;
+	int header_len = 0;
+	int copy_len = 0;
+	char buf[64];
+	t_u8 buflen = 0;
+	t_u8 i = 0;
+	t_u8 mac_idx = 0;
 
 	ENTER();
 
-	if (strlen(respbuf) ==
-	    (strlen(CMD_MARVELL) + strlen(PRIV_CMD_ASSOCESSID))) {
+	if (bBSSID)
+		header_len = strlen(CMD_MARVELL) + strlen(PRIV_CMD_ASSOCBSSID);
+	else
+		header_len = strlen(CMD_MARVELL) + strlen(PRIV_CMD_ASSOCESSID);
+
+	if (strlen(respbuf) == header_len) {
 		PRINTM(MERROR, "No argument, invalid operation!\n");
 		ret = -EINVAL;
 		LEAVE();
 		return ret;
-	} else {
-		/* SET operation */
-		essid_ptr =
-			respbuf + (strlen(CMD_MARVELL) +
-				   strlen(PRIV_CMD_ASSOCESSID));
-		essid_length = strlen(essid_ptr);
 	}
+	copy_len = strlen(respbuf) - header_len;
+	buflen = MIN(copy_len, (sizeof(buf) - 1));
+	memset(buf, 0, sizeof(buf));
+	memset(&ssid_bssid, 0, sizeof(mlan_ssid_bssid));
+	memcpy(buf, respbuf + header_len, buflen);
+	priv->assoc_with_mac = MFALSE;
+
+	/* check if has parameter BSSID */
+	if (bBSSID) {
+		if (buflen < (3 * ETH_ALEN) + 2) {
+			PRINTM(MERROR,
+			       "Associate: Insufficient length in IOCTL input\n");
+			/* buffer should be at least 3 characters per BSSID
+			   octet "00:" ** plus a space separater and at least 1
+			   char in the SSID */
+			ret = -EINVAL;
+			goto setessid_ret;
+		}
+		for (; (i < buflen) && (mac_idx < ETH_ALEN) && (buf[i] != ' ');
+		     i++) {
+			if (buf[i] == ':') {
+				mac_idx++;
+			} else {
+				ssid_bssid.bssid[mac_idx] =
+					(t_u8)woal_atox(buf + i);
+				while ((i < buflen) && isxdigit(buf[i + 1]))
+					/* Skip entire hex value */
+					i++;
+			}
+		}
+		/* Skip one space between the BSSID and start of the SSID */
+		i++;
+		PRINTM(MMSG, "Trying to associate AP BSSID = [" MACSTR "]\n",
+		       MAC2STR(ssid_bssid.bssid));
+		priv->assoc_with_mac = MTRUE;
+	}
+
+	ssid_bssid.ssid.ssid_len = buflen - i;
+	/* Check the size of the ssid_len */
+	if (ssid_bssid.ssid.ssid_len > MLAN_MAX_SSID_LENGTH + 1) {
+		PRINTM(MERROR, "ssid_bssid.ssid.ssid_len = %d\n",
+		       ssid_bssid.ssid.ssid_len);
+		ret = -E2BIG;
+		goto setessid_ret;
+	}
+
+	/* Copy the SSID */
+	memcpy(ssid_bssid.ssid.ssid, buf + i,
+	       MIN(ssid_bssid.ssid.ssid_len, MLAN_MAX_SSID_LENGTH));
+
+	if (!ssid_bssid.ssid.ssid_len ||
+	    (MFALSE == woal_ssid_valid(&ssid_bssid.ssid))) {
+		PRINTM(MERROR, "Invalid SSID - aborting set_essid\n");
+		ret = -EINVAL;
+		goto setessid_ret;
+	}
+
+	PRINTM(MMSG, "Trying to associate AP SSID = %s\n",
+	       (char *)ssid_bssid.ssid.ssid);
 
 	/* Cancel re-association */
 	priv->reassoc_required = MFALSE;
@@ -3338,45 +3400,23 @@ woal_priv_assocessid(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 		return ret;
 	}
 
-	/* Check the size of the string */
-	if (essid_length > MW_ESSID_MAX_SIZE + 1) {
-		ret = -E2BIG;
-		goto setessid_ret;
-	}
 	if (priv->scan_type == MLAN_SCAN_TYPE_PASSIVE)
 		woal_set_scan_type(priv, MLAN_SCAN_TYPE_ACTIVE);
-	memset(&req_ssid, 0, sizeof(mlan_802_11_ssid));
-	memset(&ssid_bssid, 0, sizeof(mlan_ssid_bssid));
 
-	req_ssid.ssid_len = essid_length;
-
-	/* Set the SSID */
-	memcpy(req_ssid.ssid, essid_ptr,
-	       MIN(req_ssid.ssid_len, MLAN_MAX_SSID_LENGTH));
-	if (!req_ssid.ssid_len || (MFALSE == woal_ssid_valid(&req_ssid))) {
-		PRINTM(MERROR, "Invalid SSID - aborting set_essid\n");
-		ret = -EINVAL;
-		goto setessid_ret;
-	}
-
-	PRINTM(MINFO, "Requested new SSID = %s\n", (char *)req_ssid.ssid);
-	memcpy(&ssid_bssid.ssid, &req_ssid, sizeof(mlan_802_11_ssid));
 	if (MTRUE == woal_is_connected(priv, &ssid_bssid)) {
 		PRINTM(MIOCTL, "Already connect to the network\n");
 		ret = sprintf(respbuf,
 			      "Has already connected to this ESSID!\n") + 1;
 		goto setessid_ret;
 	}
-
-	memcpy(&priv->prev_ssid_bssid.ssid, &req_ssid,
-	       sizeof(mlan_802_11_ssid));
+	memcpy(&priv->prev_ssid_bssid, &ssid_bssid, sizeof(mlan_ssid_bssid));
 	/* disconnect before driver assoc */
 	woal_disconnect(priv, MOAL_IOCTL_WAIT, NULL);
 	priv->set_asynced_essid_flag = MTRUE;
 	priv->reassoc_required = MTRUE;
 	priv->phandle->is_reassoc_timer_set = MTRUE;
 	woal_mod_timer(&priv->phandle->reassoc_timer, 0);
-	ret = sprintf(respbuf, "%s\n", essid_ptr) + 1;
+	ret = sprintf(respbuf, "%s\n", buf) + 1;
 
 setessid_ret:
 	if (priv->scan_type == MLAN_SCAN_TYPE_PASSIVE)
@@ -3637,7 +3677,7 @@ int
 woal_priv_hscfg(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen,
 		BOOLEAN invoke_hostcmd)
 {
-	int data[3];
+	int data[5];
 	int user_data_len = 0;
 	int ret = 0;
 	mlan_ds_hs_cfg hscfg;
@@ -3686,7 +3726,7 @@ woal_priv_hscfg(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen,
 	if (user_data_len == 0) {
 		action = MLAN_ACT_GET;
 	} else {
-		if (user_data_len >= 1 && user_data_len <= 3) {
+		if (user_data_len >= 1 && user_data_len <= 5) {
 			action = MLAN_ACT_SET;
 		} else {
 			PRINTM(MERROR, "Invalid arguments\n");
@@ -3707,8 +3747,10 @@ woal_priv_hscfg(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen,
 		}
 	}
 
+	/* Initialize to invalid value */
+	hscfg.ind_gpio = 0xff;
 	/* Do a GET first if some arguments are not provided */
-	if (user_data_len >= 1 && user_data_len < 3) {
+	if (user_data_len >= 1 && user_data_len < 5) {
 		woal_set_get_hs_params(priv, MLAN_ACT_GET, MOAL_IOCTL_WAIT,
 				       &hscfg);
 	}
@@ -3717,8 +3759,18 @@ woal_priv_hscfg(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen,
 		hscfg.conditions = data[0];
 	if (user_data_len >= 2)
 		hscfg.gpio = data[1];
-	if (user_data_len == 3)
+	if (user_data_len >= 3)
 		hscfg.gap = data[2];
+	if (user_data_len >= 4)
+		hscfg.ind_gpio = data[3];
+	if (user_data_len == 5) {
+		if (data[4] != 0 && data[4] != 1) {
+			PRINTM(MERROR, "Invalid arguments\n");
+			ret = -EINVAL;
+			goto done;
+		}
+		hscfg.level = data[4];
+	}
 
 	if ((invoke_hostcmd == MTRUE) && (action == MLAN_ACT_SET)) {
 		/* Need to issue an extra IOCTL first to set up parameters */
@@ -3759,7 +3811,7 @@ done:
 int
 woal_priv_hssetpara(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 {
-	int data[3];
+	int data[5];
 	int user_data_len = 0;
 	int ret = 0;
 
@@ -3784,7 +3836,7 @@ woal_priv_hssetpara(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 		return -EINVAL;
 	}
 
-	if (user_data_len >= 1 && user_data_len <= 3) {
+	if (user_data_len >= 1 && user_data_len <= 5) {
 		sprintf(respbuf, "%s%s%s", CMD_MARVELL, PRIV_CMD_HSCFG,
 			respbuf + (strlen(CMD_MARVELL) +
 				   strlen(PRIV_CMD_HSSETPARA)));
@@ -7920,7 +7972,8 @@ woal_priv_get_signal_ext(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 		out_data[data_len++] = (int)signal_get[path].data_nf_last;
 		out_data[data_len++] = (int)signal_get[path].data_nf_avg;
 	}
-	memcpy(respbuf, out_data, (data_len * sizeof(int)));
+	memcpy(respbuf, out_data,
+	       (MIN((PATH_SIZE * MAX_PATH_NUM), data_len) * sizeof(int)));
 	ret = data_len * sizeof(int);
 done:
 	if (status != MLAN_STATUS_PENDING)
@@ -8056,7 +8109,8 @@ woal_priv_get_signal_ext_v2(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
 		out_data[data_len++] = (int)signal_get[path].data_nf_last;
 		out_data[data_len++] = (int)signal_get[path].data_nf_avg;
 	}
-	memcpy(respbuf, out_data, (data_len * sizeof(int)));
+	memcpy(respbuf, out_data,
+	       (MIN((PATH_SIZE * MAX_PATH_NUM), data_len) * sizeof(int)));
 	ret = data_len * sizeof(int);
 done:
 	if (status != MLAN_STATUS_PENDING)
@@ -11182,6 +11236,53 @@ done:
 
 #if defined(UAP_SUPPORT)
 /**
+ * @brief               Check validation of channel and oper class
+ *
+ * @param priv          Pointer to moal_private structure
+ * @param channel       channel
+ * @param oper_class    oper_class
+
+ *  @return             SUCCESS/FAIL
+ */
+static int
+woal_check_valid_channel_operclass(moal_private *priv, int channel,
+				   int oper_class)
+{
+	int ret = 0;
+	mlan_ioctl_req *ioctl_req = NULL;
+	mlan_ds_misc_cfg *misc = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (ioctl_req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	misc = (mlan_ds_misc_cfg *)ioctl_req->pbuf;
+	misc->sub_command = MLAN_OID_MISC_OPER_CLASS_CHECK;
+	ioctl_req->req_id = MLAN_IOCTL_MISC_CFG;
+	ioctl_req->action = MLAN_ACT_GET;
+	misc->param.bw_chan_oper.oper_class = (t_u8)oper_class;
+	misc->param.bw_chan_oper.channel = (t_u8)channel;
+
+	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(ioctl_req);
+
+	LEAVE();
+	return ret;
+}
+
+/**
  ** @brief               Set extended channel switch ie
  **
  ** @param priv          Pointer to moal_private structure
@@ -11270,6 +11371,11 @@ woal_priv_extend_channel_switch(moal_private *priv, t_u8 *respbuf,
 		ret = -EINVAL;
 		goto done;
 	}
+	if (woal_check_valid_channel_operclass(priv, data[2], data[1])) {
+		PRINTM(MERROR, "Wrong operating class parameter!\n");
+		ret = -EINVAL;
+		goto done;
+	}
 	if (ext_chan_switch->chan_switch_mode) {
 		if (netif_carrier_ok(priv->netdev))
 			netif_carrier_off(priv->netdev);
@@ -11341,9 +11447,10 @@ woal_priv_get_nonglobal_operclass_by_bw_channel(moal_private *priv,
 	misc->sub_command = MLAN_OID_MISC_OPER_CLASS;
 	ioctl_req->req_id = MLAN_IOCTL_MISC_CFG;
 	ioctl_req->action = MLAN_ACT_GET;
-	misc->param.bw_chan_oper.bandwidth = bandwidth,
-		misc->param.bw_chan_oper.channel = channel,
-		status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+	misc->param.bw_chan_oper.bandwidth = bandwidth;
+	misc->param.bw_chan_oper.channel = channel;
+
+	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
 	if (status != MLAN_STATUS_SUCCESS) {
 		ret = -EFAULT;
 		goto done;
@@ -11947,11 +12054,18 @@ woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			goto handled;
 #ifdef REASSOCIATION
 		} else if (strnicmp
+			   (buf + strlen(CMD_MARVELL), PRIV_CMD_ASSOCBSSID,
+			    strlen(PRIV_CMD_ASSOCBSSID)) == 0) {
+			/* Associate to essid */
+			len = woal_priv_assocessid(priv, buf,
+						   priv_cmd.total_len, 1);
+			goto handled;
+		} else if (strnicmp
 			   (buf + strlen(CMD_MARVELL), PRIV_CMD_ASSOCESSID,
 			    strlen(PRIV_CMD_ASSOCESSID)) == 0) {
 			/* Associate to essid */
 			len = woal_priv_assocessid(priv, buf,
-						   priv_cmd.total_len);
+						   priv_cmd.total_len, 0);
 			goto handled;
 #endif
 		} else if (strnicmp

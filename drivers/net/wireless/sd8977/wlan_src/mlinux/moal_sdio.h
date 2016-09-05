@@ -49,10 +49,6 @@ Change log:
 #define FIXED_ADDRESS	0
 #endif
 
-/** SD8997 chip revision ID */
-#define SD8997_Z       0x02
-#define SD8997_V2       0x10
-
 #ifdef STA_SUPPORT
 /** Default firmware name */
 
@@ -68,6 +64,7 @@ Change log:
 #define DEFAULT_FW_NAME_8997 "mrvl/sdsd8997_combo.bin"
 #define SD8997_Z_FW_NAME "mrvl/sdsd8997_combo.bin"
 #define SD8997_V2_FW_NAME "mrvl/sdsd8997_combo_v2.bin"
+#define SD8997_V3_FW_NAME "mrvl/sdsd8997_combo_v3.bin"
 #define DEFAULT_FW_NAME_8797 "mrvl/sd8797_uapsta.bin"
 #define SD8887_A0_FW_NAME    "mrvl/sd8887_uapsta.bin"
 #define SD8887_A2_FW_NAME    "mrvl/sd8887_uapsta_a2.bin"
@@ -78,6 +75,7 @@ Change log:
 #define SD8977_WLAN_V0_FW_NAME "mrvl/sd8977_wlan.bin"
 #define SD8997_WLAN_Z_FW_NAME "mrvl/sd8997_wlan.bin"
 #define SD8997_WLAN_V2_FW_NAME "mrvl/sd8997_wlan_v2.bin"
+#define SD8997_WLAN_V3_FW_NAME "mrvl/sd8997_wlan_v3.bin"
 #ifndef DEFAULT_FW_NAME
 #define DEFAULT_FW_NAME ""
 #endif

@@ -2114,7 +2114,7 @@ woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 			goto done;
 		}
 		memcpy(country_code, buf + strlen("COUNTRY") + 1,
-		       strlen(buf) - strlen("COUNTRY") - 1);
+		       COUNTRY_CODE_LEN - 1);
 		PRINTM(MIOCTL, "Set COUNTRY %s\n", country_code);
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_set_region_code(priv, country_code)) {

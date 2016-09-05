@@ -91,6 +91,7 @@ CONFIG_DFS_TESTING_SUPPORT=y
 CONFIG_MULTI_CHAN_SUPPORT=y
 
 
+CONFIG_ANDROID_KERNEL=n
 
 
 #32bit app over 64bit kernel support
@@ -389,6 +390,7 @@ ifeq ($(CONFIG_PROC_DEBUG),y)
 MOALOBJS += mlinux/moal_debug.o
 endif
 endif
+
 
 
 

@@ -221,7 +221,9 @@ mlan_register(IN pmlan_device pmdevice, OUT t_void **ppmlan_adapter)
 	t_u8 i = 0;
 	t_u32 j = 0;
 
-	MASSERT(pmdevice);
+	if (!pmdevice || !ppmlan_adapter) {
+		return MLAN_STATUS_FAILURE;
+	}
 	MASSERT(ppmlan_adapter);
 	MASSERT(pmdevice->callbacks.moal_print);
 #ifdef DEBUG_LEVEL1
@@ -235,6 +237,13 @@ mlan_register(IN pmlan_device pmdevice, OUT t_void **ppmlan_adapter)
 	MASSERT(pmdevice->callbacks.moal_malloc);
 	MASSERT(pmdevice->callbacks.moal_memset);
 	MASSERT(pmdevice->callbacks.moal_memmove);
+
+	if (!pmdevice->callbacks.moal_malloc ||
+	    !pmdevice->callbacks.moal_memset ||
+	    !pmdevice->callbacks.moal_memmove) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
 
 	/* Allocate memory for adapter structure */
 	if (pmdevice->callbacks.moal_vmalloc && pmdevice->callbacks.moal_vfree)
@@ -358,11 +367,17 @@ mlan_register(IN pmlan_device pmdevice, OUT t_void **ppmlan_adapter)
 
 	pmadapter->fixed_beacon_buffer = pmdevice->fixed_beacon_buffer;
 
-#ifdef WIFI_DIRECT_SUPPORT
-	pmadapter->GoAgeoutTime = pmdevice->GoAgeoutTime;
-#endif
 	pmadapter->multiple_dtim = pmdevice->multi_dtim;
 	pmadapter->inact_tmo = pmdevice->inact_tmo;
+	if (pmdevice->indication_gpio != 0xff) {
+		pmadapter->ind_gpio = pmdevice->indication_gpio & 0x0f;
+		pmadapter->level = (pmdevice->indication_gpio & 0xf0) >> 4;
+		if (pmadapter->level != 0 && pmadapter->level != 1) {
+			PRINTM(MERROR,
+			       "Indication GPIO level is wrong and will use default value 0.\n");
+			pmadapter->level = 0;
+		}
+	}
 
 	pmadapter->priv_num = 0;
 	for (i = 0; i < MLAN_MAX_BSS_NUM; i++) {
@@ -1227,6 +1242,10 @@ mlan_send_packet(IN t_void *pmlan_adapter, IN pmlan_buffer pmbuf)
 	ENTER();
 	MASSERT(pmlan_adapter &&pmbuf);
 
+	if (!pmlan_adapter ||!pmbuf) {
+		return MLAN_STATUS_FAILURE;
+	}
+
 	MASSERT(pmbuf->bss_index < pmadapter->priv_num);
 	pmbuf->flags |= MLAN_BUF_FLAG_MOAL_TX_BUF;
 	pmpriv = pmadapter->priv[pmbuf->bss_index];
@@ -1280,8 +1299,8 @@ mlan_ioctl(IN t_void *adapter, IN pmlan_ioctl_req pioctl_req)
 	ENTER();
 
 	if (pioctl_req == MNULL) {
-		PRINTM(MERROR, "MLAN IOCTL information buffer is NULL\n");
-		ret = MLAN_STATUS_FAILURE;
+		PRINTM(MMSG, "Cancel all pending cmd!\n");
+		wlan_cancel_all_pending_cmd(pmadapter);
 		goto exit;
 	}
 	if (pioctl_req->action == MLAN_ACT_CANCEL) {

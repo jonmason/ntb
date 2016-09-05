@@ -1148,6 +1148,11 @@ wlan_init_fw(IN pmlan_adapter pmadapter)
 		   interfaces it will be called after getting the last init
 		   command response of previous interface */
 		priv = wlan_get_priv(pmadapter, MLAN_BSS_ROLE_ANY);
+		if (!priv) {
+			ret = MLAN_STATUS_FAILURE;
+			goto done;
+		}
+
 		ret = priv->ops.init_cmd(priv, MTRUE);
 		if (ret == MLAN_STATUS_FAILURE)
 			goto done;

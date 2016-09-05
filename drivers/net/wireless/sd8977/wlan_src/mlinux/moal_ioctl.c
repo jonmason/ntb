@@ -570,9 +570,10 @@ woal_request_ioctl(moal_private *priv, mlan_ioctl_req *req, t_u8 wait_option)
 		return MLAN_STATUS_FAILURE;
 	}
 
-	if (priv->phandle->surprise_removed == MTRUE) {
+	if (priv->phandle->surprise_removed == MTRUE ||
+	    priv->phandle->driver_state) {
 		PRINTM(MERROR,
-		       "IOCTL is not allowed while the device is not present\n");
+		       "IOCTL is not allowed while the device is not present or hang\n");
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
@@ -583,7 +584,6 @@ woal_request_ioctl(moal_private *priv, mlan_ioctl_req *req, t_u8 wait_option)
 		return MLAN_STATUS_FAILURE;
 	}
 #endif
-
 	/* For MLAN_OID_MISC_HOST_CMD, action is 0, "action set" is checked
 	   later */
 	if ((req->action == MLAN_ACT_SET || req->action == 0) &&

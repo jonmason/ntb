@@ -40,7 +40,6 @@ Change log:
 /********************************************************
 		Global Variables
 ********************************************************/
-
 /********************************************************
 		Local Functions
 ********************************************************/
@@ -3164,7 +3163,7 @@ woal_uap_ap_cfg_parse_data(mlan_uap_bss_param *ap_cfg, char *buf)
 					       "Skipping SSID, found again!\n");
 					continue;
 				}
-				if (strlen(value) > MLAN_MAX_SSID_LENGTH) {
+				if (strlen(value) >= MLAN_MAX_SSID_LENGTH) {
 					PRINTM(MERROR,
 					       "SSID length exceeds max length\n");
 					ret = -EFAULT;
@@ -3172,7 +3171,8 @@ woal_uap_ap_cfg_parse_data(mlan_uap_bss_param *ap_cfg, char *buf)
 				}
 				ap_cfg->ssid.ssid_len = strlen(value);
 				strncpy((char *)ap_cfg->ssid.ssid, value,
-					strlen(value));
+					MIN(MLAN_MAX_SSID_LENGTH - 1,
+					    strlen(value)));
 				PRINTM(MINFO, "ssid=%s, len=%d\n",
 				       ap_cfg->ssid.ssid,
 				       (int)ap_cfg->ssid.ssid_len);
@@ -3243,7 +3243,8 @@ woal_uap_ap_cfg_parse_data(mlan_uap_bss_param *ap_cfg, char *buf)
 				ap_cfg->wep_cfg.key0.is_default = 1;
 				ap_cfg->wep_cfg.key0.length = strlen(value);
 				memcpy(ap_cfg->wep_cfg.key0.key, value,
-				       strlen(value));
+				       MIN(sizeof(ap_cfg->wep_cfg.key0.key),
+					   strlen(value)));
 				set_key = 1;
 				continue;
 			}

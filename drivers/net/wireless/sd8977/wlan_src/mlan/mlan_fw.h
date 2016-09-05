@@ -295,8 +295,10 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** TLV type : Power capability */
 #define TLV_TYPE_POWER_CAPABILITY               0x0021
 
+#define TLV_TYPE_HT_CAPABILITY                  0x002d
+
 /** TLV type : Vendor Specific IE */
-#define TLV_TYPE_VENDOR_SPECIFIC_IE             0xdd
+#define TLV_TYPE_VENDOR_SPECIFIC_IE             0x00dd
 
 /** TLV type : Key material */
 #define TLV_TYPE_KEY_MATERIAL       (PROPRIETARY_TLV_BASE_ID + 0x00)	/* 0x0100
@@ -422,6 +424,9 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** TLV type: hs wake hold off */
 #define TLV_TYPE_HS_WAKE_HOLDOFF     (PROPRIETARY_TLV_BASE_ID + 0xB6)	/* 0x01b6
 									 */
+/** TLV type: wake up source */
+#define TLV_TYPE_HS_WAKEUP_SOURCE_GPIO     (PROPRIETARY_TLV_BASE_ID + 0x105)	/* 0x0205
+										 */
 
 /** TLV type : TDLS IDLE TIMEOUT */
 #define TLV_TYPE_TDLS_IDLE_TIMEOUT   (PROPRIETARY_TLV_BASE_ID + 0xC2)	/* 0x01C2
@@ -2352,7 +2357,7 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_RsnParamSet_t {
     /** Header */
 	MrvlIEtypesHeader_t header;
     /** RSN IE */
-	t_u8 rsn_ie[1];
+	t_u8 rsn_ie[0];
 } MLAN_PACK_END MrvlIEtypes_RsnParamSet_t;
 
 /** Key Info flag for multicast key */
@@ -4807,6 +4812,16 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_PsParamsInHs_t {
     /** Host sleep inactivity timeout (in msec) */
 	t_u32 hs_inactivity_timeout;
 } MLAN_PACK_END MrvlIEtypes_PsParamsInHs_t;
+
+/** MrvlIEtypes_WakeupSourceGPIO_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_WakeupSourceGPIO_t {
+    /** Header */
+	MrvlIEtypesHeader_t header;
+    /** GPIO for indication of wakeup source */
+	t_u8 ind_gpio;
+    /** Level on ind_gpio for normal wakeup source */
+	t_u8 level;
+} MLAN_PACK_END MrvlIEtypes_WakeupSourceGPIO_t;
 
 /** HostCmd_DS_INACTIVITY_TIMEOUT_EXT */
 typedef MLAN_PACK_START struct _HostCmd_DS_INACTIVITY_TIMEOUT_EXT {

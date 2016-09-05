@@ -1014,14 +1014,17 @@ wlan_cmd_append_11ac_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 	} else
 	    /**set 1 nss*/
 		SET_OPER_MODE_1NSS(pmrvl_oper_mode->oper_mode);
-	/** current region don't allow bandwidth 80 */
-	if (pmpriv->curr_chan_flags & CHAN_FLAGS_NO_80MHZ)
-		// set bandwidth 40M
-		SET_OPER_MODE_40M(pmrvl_oper_mode->oper_mode);
-	if (pmpriv->curr_chan_flags & CHAN_FLAGS_NO_HT40PLUS &&
-	    pmpriv->curr_chan_flags & CHAN_FLAGS_NO_HT40MINUS)
-		// set bandwidth 20M
+	switch (pbss_desc->curr_bandwidth) {
+	case BW_20MHZ:
 		SET_OPER_MODE_20M(pmrvl_oper_mode->oper_mode);
+		break;
+	case BW_40MHZ:
+		SET_OPER_MODE_40M(pmrvl_oper_mode->oper_mode);
+		break;
+	case BW_80MHZ:
+	default:
+		break;
+	}
 	HEXDUMP("OPER MODE NTF IE", (t_u8 *)pmrvl_oper_mode,
 		sizeof(MrvlIETypes_OperModeNtf_t));
 	*ppbuffer += sizeof(MrvlIETypes_OperModeNtf_t);
@@ -1180,4 +1183,29 @@ wlan_update_11ac_cap(mlan_private *pmpriv)
 	pmpriv->usr_dot_11ac_dev_cap_a =
 		pmadapter->
 		hw_dot_11ac_dev_cap & ~DEFALUT_11AC_CAP_BEAMFORMING_RESET_MASK;
+}
+
+/**
+ *  @brief This function check if 11AC is allowed in bandcfg
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param bss_band     bss band
+ *
+ *  @return 0--not allowed, other value allowed
+ */
+t_u8
+wlan_11ac_bandconfig_allowed(mlan_private *pmpriv, t_u8 bss_band)
+{
+	if (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS) {
+		if (bss_band & BAND_G)
+			return (pmpriv->adapter->adhoc_start_band & BAND_GAC);
+		else
+			return (pmpriv->adapter->adhoc_start_band & BAND_AAC);
+	} else {
+		if (bss_band & BAND_A)
+			return (pmpriv->config_bands & BAND_GAC);
+		else
+			return (pmpriv->config_bands & BAND_AAC);
+	}
+	return 0;
 }

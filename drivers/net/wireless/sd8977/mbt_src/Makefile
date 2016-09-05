@@ -22,7 +22,8 @@ CONFIG_DEBUG=1
 # SDIO suspend/resume
 CONFIG_SDIO_SUSPEND_RESUME=y
 
-
+# Update Tx MAX power level
+CONFIG_UPDATE_TX_MAX_PWR_LVL=y
 
 #############################################################################
 # Select Platform Tools
@@ -64,7 +65,7 @@ BINDIR = ../bin_sd8xxx_bt
 #############################################################################
 # Compiler Flags
 #############################################################################
-	EXTRA_CFLAGS += -DFPNUM='"28"'
+	EXTRA_CFLAGS += -DFPNUM='"26"'
 
 ifeq ($(CONFIG_DEBUG),1)
 	EXTRA_CFLAGS += -DDEBUG_LEVEL1
@@ -78,6 +79,10 @@ endif
 
 ifeq ($(CONFIG_SDIO_SUSPEND_RESUME),y)
 	EXTRA_CFLAGS += -DSDIO_SUSPEND_RESUME
+endif
+
+ifeq ($(CONFIG_UPDATE_TX_MAX_PWR_LVL),y)
+	EXTRA_CFLAGS += -DUPDATE_TX_MAX_PWR_LVL
 endif
 
 ifeq ($(CONFIG_MRVL_SDIO_OOB_IRQ),y)

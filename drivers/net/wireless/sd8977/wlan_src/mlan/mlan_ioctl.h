@@ -286,6 +286,8 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_IND_RST_CFG = 0x00200040,
 	MLAN_OID_MISC_GET_TSF = 0x00200045,
 	MLAN_OID_MISC_GET_CHAN_REGION_CFG = 0x00200046,
+	MLAN_OID_MISC_OPER_CLASS_CHECK = 0x00200049,
+
 };
 
 /** Sub command size */
@@ -2598,6 +2600,10 @@ typedef struct _mlan_ds_hs_cfg {
 	t_u32 gap;
     /** Host sleep wake interval */
 	t_u32 hs_wake_interval;
+    /** GPIO pin for indication wakeup source */
+	t_u32 ind_gpio;
+    /** Level on ind_gpio pin for indication normal wakeup source */
+	t_u32 level;
 } mlan_ds_hs_cfg, *pmlan_ds_hs_cfg;
 
 /** Enable deep sleep mode */
@@ -3941,6 +3947,8 @@ typedef struct _mlan_ds_misc_tdls_oper {
 #define TDLS_IE_FLAGS_SUPP_CS_IE        0x0040
 /** flag for TDLS Qos info */
 #define TDLS_IE_FLAGS_QOS_INFO        0x0080
+/** flag for TDLS SETUP */
+#define TDLS_IE_FLAGS_SETUP        0x0100
 
 /** TDLS ie buffer */
 typedef struct _mlan_ds_misc_tdls_ies {
@@ -4086,7 +4094,7 @@ typedef struct _mlan_ds_misc_cfg {
 	/** Hotspot config param set */
 		t_u32 hotspot_cfg;
 #ifdef STA_SUPPORT
-		t_u8 ext_cap[8];
+		t_u8 ext_cap[9];
 #endif
 		mlan_ds_misc_otp_user_data otp_user_data;
 	/** Tx control */

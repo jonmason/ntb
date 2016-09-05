@@ -478,7 +478,6 @@ wlan_reset_connect_state(pmlan_private priv, t_u8 drv_disconnect)
 
 	wlan_prepare_cmd(priv, HostCmd_CMD_GTK_REKEY_OFFLOAD_CFG,
 			 HostCmd_ACT_GEN_REMOVE, 0, MNULL, MNULL);
-
 	LEAVE();
 }
 

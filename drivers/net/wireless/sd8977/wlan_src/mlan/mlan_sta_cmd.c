@@ -477,6 +477,7 @@ wlan_cmd_802_11_hs_cfg(IN pmlan_private pmpriv,
 	t_u8 *tlv = (t_u8 *)phs_cfg + sizeof(HostCmd_DS_802_11_HS_CFG_ENH);
 	MrvlIEtypes_HsWakeHoldoff_t *holdoff_tlv = MNULL;
 	MrvlIEtypes_PsParamsInHs_t *psparam_tlv = MNULL;
+	MrvlIEtypes_WakeupSourceGPIO_t *gpio_tlv = MNULL;
 
 	ENTER();
 
@@ -556,6 +557,21 @@ wlan_cmd_802_11_hs_cfg(IN pmlan_private pmpriv,
 			PRINTM(MCMND, "hs_inactivity_timeout=%d\n",
 			       pmadapter->hs_inactivity_timeout);
 		}
+		if (pmadapter->ind_gpio != 0xff) {
+			cmd->size += sizeof(MrvlIEtypes_WakeupSourceGPIO_t);
+			gpio_tlv = (MrvlIEtypes_WakeupSourceGPIO_t *) tlv;
+			gpio_tlv->header.type =
+				wlan_cpu_to_le16
+				(TLV_TYPE_HS_WAKEUP_SOURCE_GPIO);
+			gpio_tlv->header.len =
+				wlan_cpu_to_le16(sizeof
+						 (MrvlIEtypes_WakeupSourceGPIO_t)
+						 - sizeof(MrvlIEtypesHeader_t));
+			gpio_tlv->ind_gpio = (t_u8)pmadapter->ind_gpio;
+			gpio_tlv->level = (t_u8)pmadapter->level;
+			tlv += sizeof(MrvlIEtypes_WakeupSourceGPIO_t);
+		}
+
 		cmd->size = wlan_cpu_to_le16(cmd->size);
 		PRINTM(MCMND,
 		       "HS_CFG_CMD: condition:0x%x gpio:0x%x gap:0x%x holdoff=%d wake_interval=%d inactivity_timeout=%d\n",
@@ -1950,8 +1966,6 @@ wlan_cmd_tdls_oper(IN pmlan_private pmpriv,
 		}
 		break;
 	case WLAN_TDLS_DISABLE_LINK:
-		if (sta_ptr)
-			sta_ptr->status = TDLS_TEAR_DOWN;
 		ptdls_oper->tdls_action = wlan_cpu_to_le16(TDLS_DELETE);
 		break;
 	default:
@@ -2989,6 +3003,11 @@ wlan_ops_sta_prepare_cmd(IN t_void *priv,
 	case HostCmd_CMD_MEASUREMENT_REPORT:
 		ret = wlan_meas_cmd_process(pmpriv, cmd_ptr, pdata_buf);
 		break;
+#if defined(SYSKT_MULTI) && defined(OOB_WAKEUP) || defined(SUSPEND_SDIO_PULL_DOWN)
+	case HostCmd_CMD_SDIO_PULL_CTRL:
+		ret = wlan_cmd_sdio_pull_ctl(pmpriv, cmd_ptr, cmd_action);
+		break;
+#endif
 #ifdef WIFI_DIRECT_SUPPORT
 	case HostCmd_CMD_802_11_REMAIN_ON_CHANNEL:
 		ret = wlan_cmd_remain_on_channel(pmpriv, cmd_ptr, cmd_action,

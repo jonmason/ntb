@@ -69,6 +69,7 @@ mlan_status wlan_ret_tx_bf_cfg(IN pmlan_private pmpriv,
 			       IN HostCmd_DS_COMMAND *resp,
 			       IN mlan_ioctl_req *pioctl_buf);
 #ifdef STA_SUPPORT
+t_u8 wlan_11n_bandconfig_allowed(mlan_private *pmpriv, t_u8 bss_band);
 /** Append the 802_11N tlv */
 int wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 			    IN BSSDescriptor_t *pbss_desc, OUT t_u8 **ppbuffer);

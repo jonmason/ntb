@@ -127,9 +127,9 @@ woal_info_proc_read(struct seq_file *sfp, void *data)
 	}
 #endif /* UAP_SUPPORT */
 #ifdef STA_SUPPORT
+	memset(&info, 0, sizeof(info));
 	if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_STA) {
 		woal_get_version(handle, fmt, sizeof(fmt) - 1);
-		memset(&info, 0, sizeof(info));
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_get_bss_info(priv, MOAL_PROC_WAIT, &info)) {
 			MODULE_PUT;
@@ -683,7 +683,7 @@ woal_create_proc_entry(moal_private *priv)
 	struct proc_dir_entry *r;
 	struct net_device *dev = priv->netdev;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
-	char proc_dir_name[20];
+	char proc_dir_name[22];
 #endif
 
 	ENTER();

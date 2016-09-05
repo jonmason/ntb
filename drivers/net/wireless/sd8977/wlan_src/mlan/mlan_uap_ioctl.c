@@ -301,7 +301,8 @@ wlan_uap_bss_ioctl_start(IN pmlan_adapter pmadapter,
 
 	bss = (mlan_ds_bss *)pioctl_req->pbuf;
 	pmpriv->uap_host_based = bss->param.host_based;
-	if (!pmpriv->uap_host_based && pmpriv->intf_state_11h.is_11h_active) {
+	if (!pmpriv->intf_state_11h.is_11h_host &&
+	    pmpriv->intf_state_11h.is_11h_active) {
 		/* if FW supports ACS+DFS then sequence is different */
 
 		/* First check channel report, defer BSS_START CMD to callback.
@@ -1894,6 +1895,12 @@ wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 			status = wlan_misc_ioctl_get_tsf(pmadapter, pioctl_req);
 		if (misc->sub_command == MLAN_OID_MISC_GET_CHAN_REGION_CFG)
 			status = wlan_misc_chan_reg_cfg(pmadapter, pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_OPER_CLASS_CHECK)
+			status = wlan_misc_ioctl_operclass_validation(pmadapter,
+								      pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_OPER_CLASS)
+			status = wlan_misc_ioctl_oper_class(pmadapter,
+							    pioctl_req);
 		break;
 	case MLAN_IOCTL_PM_CFG:
 		pm = (mlan_ds_pm_cfg *)pioctl_req->pbuf;

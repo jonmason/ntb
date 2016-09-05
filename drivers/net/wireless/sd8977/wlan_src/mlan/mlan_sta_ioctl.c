@@ -5460,56 +5460,6 @@ wlan_misc_ioctl_gtk_rekey_offload(IN pmlan_adapter pmadapter,
 }
 
 /**
- *  @brief Get non-global operating class
- *
- *  @param pmadapter    A pointer to mlan_adapter structure
- *  @param pioctl_req   Pointer to the IOCTL request buffer
- *
- *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
- */
-mlan_status
-wlan_misc_ioctl_oper_class(IN pmlan_adapter pmadapter,
-			   IN mlan_ioctl_req *pioctl_req)
-{
-	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
-	mlan_ds_misc_cfg *misc = MNULL;
-	t_u8 channel, bandwidth, oper_class;
-	mlan_status ret = MLAN_STATUS_SUCCESS;
-
-	ENTER();
-
-	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
-	channel = misc->param.bw_chan_oper.channel;
-	switch (misc->param.bw_chan_oper.bandwidth) {
-	case 20:
-		bandwidth = BW_20MHZ;
-		break;
-	case 40:
-		bandwidth = BW_40MHZ;
-		break;
-	case 80:
-		bandwidth = BW_80MHZ;
-		break;
-	default:
-		bandwidth = BW_20MHZ;
-		break;
-	}
-
-	if (pioctl_req->action == MLAN_ACT_GET) {
-		ret = wlan_get_curr_oper_class(pmpriv, bandwidth, channel,
-					       &oper_class);
-		misc->param.bw_chan_oper.oper_class = oper_class;
-	} else {
-		PRINTM(MERROR, "Unsupported cmd_action\n");
-		LEAVE();
-		return MLAN_STATUS_FAILURE;
-	}
-
-	LEAVE();
-	return ret;
-}
-
-/**
  *  @brief Miscellaneous configuration handler
  *
  *  @param pmadapter	A pointer to mlan_adapter structure
@@ -5683,6 +5633,10 @@ wlan_misc_cfg_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		break;
 	case MLAN_OID_MISC_OPER_CLASS:
 		status = wlan_misc_ioctl_oper_class(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_MISC_OPER_CLASS_CHECK:
+		status = wlan_misc_ioctl_operclass_validation(pmadapter,
+							      pioctl_req);
 		break;
 	case MLAN_OID_MISC_GTK_REKEY_OFFLOAD:
 		status = wlan_misc_ioctl_gtk_rekey_offload(pmadapter,

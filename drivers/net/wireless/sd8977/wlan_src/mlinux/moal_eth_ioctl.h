@@ -97,6 +97,7 @@ Change log:
 #define PRIV_CMD_TCPACKENH      "tcpackenh"
 #ifdef REASSOCIATION
 #define PRIV_CMD_ASSOCESSID      "assocessid"
+#define PRIV_CMD_ASSOCBSSID      "assocessid_bssid"
 #endif
 #define PRIV_CMD_WAKEUPREASON     "wakeupreason"
 #ifdef STA_SUPPORT

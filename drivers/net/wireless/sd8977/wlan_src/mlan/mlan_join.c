@@ -993,8 +993,7 @@ wlan_cmd_802_11_associate(IN mlan_private *pmpriv,
 
 	if (ISSUPP_11NENABLED(pmadapter->fw_cap_info)
 	    && (!pbss_desc->disable_11n)
-	    && (pmpriv->config_bands & BAND_GN
-		|| pmpriv->config_bands & BAND_AN))
+	    && wlan_11n_bandconfig_allowed(pmpriv, pbss_desc->bss_band))
 		wlan_cmd_append_11n_tlv(pmpriv, pbss_desc, &pos);
 	else if ((pmpriv->hotspot_cfg & HOTSPOT_ENABLED) &&
 		 !(pmpriv->hotspot_cfg & HOTSPOT_BY_SUPPLICANT))
@@ -1011,9 +1010,7 @@ wlan_cmd_802_11_associate(IN mlan_private *pmpriv,
 	}
 	if (ISSUPP_11ACENABLED(pmadapter->fw_cap_info)
 	    && (!pbss_desc->disable_11n)
-	    && (pbss_desc->bss_band & BAND_A)
-	    && (pmpriv->config_bands & BAND_GAC
-		|| pmpriv->config_bands & BAND_AAC))
+	    && wlan_11ac_bandconfig_allowed(pmpriv, pbss_desc->bss_band))
 		wlan_cmd_append_11ac_tlv(pmpriv, pbss_desc, &pos);
 
 	wlan_wmm_process_association_req(pmpriv, &pos, &pbss_desc->wmm_ie,
@@ -1168,7 +1165,6 @@ wlan_ret_802_11_associate(IN mlan_private *pmpriv,
 	t_u8 cur_mac[MLAN_MAC_ADDR_LENGTH];
 	t_u8 media_connected = pmpriv->media_connected;
 	mlan_adapter *pmadapter = pmpriv->adapter;
-
 	ENTER();
 
 	passoc_rsp = (IEEEtypes_AssocRsp_t *)&resp->params;
@@ -1407,6 +1403,7 @@ done:
 			pioctl_req->status_code = MLAN_ERROR_NO_ERROR;
 		}
 	}
+
 	LEAVE();
 	return ret;
 }
@@ -2140,12 +2137,12 @@ wlan_cmd_802_11_ad_hoc_join(IN mlan_private *pmpriv,
 	}
 
 	if (ISSUPP_11NENABLED(pmadapter->fw_cap_info)
+	    && wlan_11n_bandconfig_allowed(pmpriv, pbss_desc->bss_band)
 		)
 		cmd_append_size +=
 			wlan_cmd_append_11n_tlv(pmpriv, pbss_desc, &pos);
 	if (ISSUPP_11ACENABLED(pmadapter->fw_cap_info)
-	    && (pmadapter->adhoc_start_band & BAND_GAC
-		|| pmadapter->adhoc_start_band & BAND_AAC))
+	    && wlan_11ac_bandconfig_allowed(pmpriv, pbss_desc->bss_band))
 		cmd_append_size +=
 			wlan_cmd_append_11ac_tlv(pmpriv, pbss_desc, &pos);
 

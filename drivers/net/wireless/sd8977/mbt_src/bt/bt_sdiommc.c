@@ -121,6 +121,8 @@ static u8 fw_crc_header_rb_1[FW_CRC_HEADER_RB] = {
 #define SD8997_Z_BT_FW_NAME "mrvl/sd8997_bt.bin"
 #define SD8997_V2_FW_NAME "mrvl/sdsd8997_combo_v2.bin"
 #define SD8997_V2_BT_FW_NAME "mrvl/sd8997_bt_v2.bin"
+#define SD8997_V3_FW_NAME "mrvl/sdsd8997_combo_v3.bin"
+#define SD8997_V3_BT_FW_NAME "mrvl/sd8997_bt_v3.bin"
 
 /** Function number 2 */
 #define FN2			2
@@ -987,10 +989,21 @@ sd_download_firmware_w_helper(bt_private *priv)
 				break;
 			case SD8997_V2:
 				if (bt_fw_serial == 1
-				    && !priv->fw_reload && !bt_fw_reload)
-					cur_fw_name = SD8997_V2_FW_NAME;
-				else
-					cur_fw_name = SD8997_V2_BT_FW_NAME;
+				    && !priv->fw_reload && !bt_fw_reload) {
+					if (priv->adapter->magic_val ==
+					    MAGIC_VAL)
+						cur_fw_name = SD8997_V3_FW_NAME;
+					else
+						cur_fw_name = SD8997_V2_FW_NAME;
+				} else {
+					if (priv->adapter->magic_val ==
+					    MAGIC_VAL)
+						cur_fw_name =
+							SD8997_V3_BT_FW_NAME;
+					else
+						cur_fw_name =
+							SD8997_V2_BT_FW_NAME;
+				}
 				break;
 			default:
 				cur_fw_name = DEFAULT_FW_NAME_8997;
@@ -1514,6 +1527,12 @@ bt_sdio_suspend(struct device *dev)
 
 	priv = cardp->priv;
 
+	m_dev = &(priv->bt_dev.m_dev[BT_SEQ]);
+	PRINTM(CMD, "BT %s: SDIO suspend\n", m_dev->name);
+	hcidev = (struct hci_dev *)m_dev->dev_pointer;
+	hci_suspend_dev(hcidev);
+	skb_queue_purge(&priv->adapter->tx_queue);
+
 	if ((mbt_pm_keep_power) && (priv->adapter->hs_state != HS_ACTIVATED)) {
 
 		/* disable FM event mask */
@@ -1528,11 +1547,6 @@ bt_sdio_suspend(struct device *dev)
 			}
 		}
 	}
-	m_dev = &(priv->bt_dev.m_dev[BT_SEQ]);
-	PRINTM(CMD, "BT %s: SDIO suspend\n", m_dev->name);
-	hcidev = (struct hci_dev *)m_dev->dev_pointer;
-	hci_suspend_dev(hcidev);
-	skb_queue_purge(&priv->adapter->tx_queue);
 
 	priv->adapter->is_suspended = TRUE;
 
@@ -1755,6 +1769,8 @@ sbi_register_dev(bt_private *priv)
 	u8 io_port_0_reg = priv->psdio_device->reg->io_port_0;
 	u8 io_port_1_reg = priv->psdio_device->reg->io_port_1;
 	u8 io_port_2_reg = priv->psdio_device->reg->io_port_2;
+	u8 card_magic_reg = CARD_MAGIC_REG;
+	u8 magic_val = 0;
 
 	ENTER();
 
@@ -1790,6 +1806,14 @@ sbi_register_dev(bt_private *priv)
 	}
 	priv->adapter->chip_rev = chiprev;
 	PRINTM(INFO, "revision=%#x\n", chiprev);
+
+	magic_val = sdio_readb(func, card_magic_reg, &ret);
+	if (ret) {
+		PRINTM(FATAL, ": cannot read CARD_MAGIC_REG\n");
+		goto release_irq;
+	}
+	priv->adapter->magic_val = magic_val;
+	PRINTM(INFO, "magic_val=%#x\n", magic_val);
 
 	/*
 	 * Read the HOST_INTSTATUS_REG for ACK the first interrupt got

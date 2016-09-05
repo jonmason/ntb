@@ -800,7 +800,7 @@ mlan_11n_rxreorder_pkt(void *priv, t_u16 seq_num, t_u16 tid,
 
 	rx_reor_tbl_ptr =
 		wlan_11n_get_rxreorder_tbl((mlan_private *)priv, tid, ta);
-	if (!rx_reor_tbl_ptr) {
+	if (!rx_reor_tbl_ptr || rx_reor_tbl_ptr->win_size <= 1) {
 		if (pkt_type != PKT_TYPE_BAR)
 			wlan_11n_dispatch_pkt(priv, payload);
 

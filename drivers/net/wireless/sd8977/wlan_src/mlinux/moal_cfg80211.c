@@ -1320,7 +1320,7 @@ woal_cfg80211_del_key(struct wiphy *wiphy, struct net_device *netdev,
 		PRINTM(MERROR,
 		       "Block woal_cfg80211_del_key in abnormal driver state\n");
 		LEAVE();
-		return 0;
+		return -EFAULT;
 	}
 
 	if (MLAN_STATUS_FAILURE ==

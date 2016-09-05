@@ -2207,6 +2207,10 @@ typedef struct _mlan_adapter {
 	t_u32 hs_wake_interval;
     /** Host sleep inactivity timeout (in msec) */
 	t_u32 hs_inactivity_timeout;
+    /** GPIO pin for indication wakeup source */
+	t_u32 ind_gpio;
+    /** Level on ind_gpio pin for indication normal wakeup source */
+	t_u32 level;
 
     /** Bypass TX queue pkt count  */
 	t_u16 bypass_pkt_count;
@@ -2238,9 +2242,6 @@ typedef struct _mlan_adapter {
 	/** fw rx block size */
 	t_u16 sdio_rx_block_size;
 	t_u8 chanrpt_param_bandcfg;
-#ifdef WIFI_DIRECT_SUPPORT
-	t_u8 GoAgeoutTime;
-#endif
 } mlan_adapter, *pmlan_adapter;
 
 /** Check if stream 2X2 enabled */
@@ -3078,6 +3079,12 @@ int wlan_add_supported_oper_class_ie(IN mlan_private *pmpriv,
 				     t_u8 curr_oper_class);
 mlan_status wlan_get_curr_oper_class(mlan_private *pmpriv, t_u8 channel,
 				     t_u8 bw, t_u8 *oper_class);
+mlan_status wlan_check_operclass_validation(mlan_private *pmpriv, t_u8 channel,
+					    t_u8 oper_class);
+mlan_status wlan_misc_ioctl_operclass_validation(IN pmlan_adapter pmadapter,
+						 IN mlan_ioctl_req *pioctl_req);
+mlan_status wlan_misc_ioctl_oper_class(IN pmlan_adapter pmadapter,
+				       IN mlan_ioctl_req *pioctl_req);
 
 t_u8 wlan_adjust_data_rate(mlan_private *priv, t_u8 rx_rate, t_u8 rate_info);
 t_u8 wlan_adjust_antenna(pmlan_private priv, RxPD *prx_pd);
@@ -3127,6 +3134,8 @@ void wlan_bt_coex_wlan_param_update_event(pmlan_private priv,
 mlan_status wlan_misc_ioctl_dfs_repeater_cfg(IN pmlan_adapter pmadapter,
 					     IN pmlan_ioctl_req pioctl_req);
 
+t_bool wlan_check_interface_active(mlan_adapter *pmadapter);
+
 mlan_status wlan_misc_ioctl_coalesce_cfg(IN pmlan_adapter pmadapter,
 					 IN pmlan_ioctl_req pioctl_req);
 
@@ -3164,6 +3173,11 @@ mlan_status wlan_cmd_ps_inactivity_timeout(IN pmlan_private pmpriv,
 mlan_status wlan_ret_chan_region_cfg(IN pmlan_private pmpriv,
 				     IN HostCmd_DS_COMMAND *resp,
 				     IN mlan_ioctl_req *pioctl_buf);
+#if defined(SYSKT_MULTI) && defined(OOB_WAKEUP) || defined(SUSPEND_SDIO_PULL_DOWN)
+mlan_status wlan_cmd_sdio_pull_ctl(pmlan_private pmpriv,
+				   IN HostCmd_DS_COMMAND *cmd,
+				   IN t_u16 cmd_action);
+#endif
 /**
  *  @brief RA based queueing
  *

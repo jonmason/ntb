@@ -156,6 +156,17 @@ Change log:
 #endif
 
 /**
+ * Linux kernel later 4.7 use nl80211_band instead of ieee80211_band
+ * Linux kernel later 4.7 use new macro
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
+#define ieee80211_band          nl80211_band
+#define IEEE80211_BAND_2GHZ     NL80211_BAND_2GHZ
+#define IEEE80211_BAND_5GHZ     NL80211_BAND_5GHZ
+#define IEEE80211_NUM_BANDS     NUM_NL80211_BANDS
+#endif
+
+/**
  * define write_can_lock() to fix compile issue on ACTIA platform
  */
 #if !defined(write_can_lock) && defined(CONFIG_PREEMPT_RT_FULL)
@@ -1242,6 +1253,7 @@ struct _moal_private {
 
     /** rx hgm data */
 	hgm_data *hist_data[3];
+	BOOLEAN assoc_with_mac;
 };
 /** card info */
 typedef struct _card_info {
@@ -1632,7 +1644,11 @@ woal_set_trans_start(struct net_device *dev)
 	for (i = 0; i < dev->num_tx_queues; i++)
 		netdev_get_tx_queue(dev, i)->trans_start = jiffies;
 #endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
 	dev->trans_start = jiffies;
+#else
+	netif_trans_update(dev);
+#endif
 }
 
 /**
@@ -2183,7 +2199,7 @@ void woal_dump_firmware_info(moal_handle *phandle);
 void woal_dump_firmware_info_v2(moal_handle *phandle);
 void woal_dump_firmware_info_v3(moal_handle *phandle);
 /* Store the FW dumps received from events in a file */
-void woal_store_firmware_dump(moal_private *priv, mlan_event *pmevent);
+void woal_store_firmware_dump(moal_handle *phandle, mlan_event *pmevent);
 
 /** get deep sleep */
 int woal_get_deep_sleep(moal_private *priv, t_u32 *data);

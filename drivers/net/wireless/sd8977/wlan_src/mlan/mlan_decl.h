@@ -27,7 +27,7 @@ Change log:
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION		 "C178"
+#define MLAN_RELEASE_VERSION		 "C194"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -588,7 +588,7 @@ typedef struct _mlan_event {
     /** Event length */
 	t_u32 event_len;
     /** Event buffer */
-	t_u8 event_buf[1];
+	t_u8 event_buf[0];
 } mlan_event, *pmlan_event;
 
 /** mlan_ioctl_req data structure */
@@ -1284,16 +1284,14 @@ typedef struct _mlan_device {
 	t_u32 dev_cap_mask;
     /** oob independent reset */
 	t_u32 indrstcfg;
-#ifdef WIFI_DIRECT_SUPPORT
-    /** Go age out time */
-	t_u32 GoAgeoutTime;
-#endif
     /** dtim interval */
 	t_u32 multi_dtim;
     /** IEEE ps inactivity timeout value */
 	t_u32 inact_tmo;
 	/** card type */
 	t_u16 card_type;
+    /** GPIO to indicate wakeup source */
+	t_u8 indication_gpio;
 } mlan_device, *pmlan_device;
 
 /** MLAN API function prototype */

@@ -1156,6 +1156,53 @@ exit:
 }
 
 /**
+ *  @brief This function sends update_max_tx_pwr comm
+ *
+ *  @param priv    A pointer to bt_privat
+ *  @return    BT_STATUS_SUCCESS or BT_ST
+ */
+#ifdef UPDATE_TX_MAX_PWR_LVL
+int
+bt_send_update_max_tx_pwr(bt_private *priv)
+{
+	struct sk_buff *skb = NULL;
+    int ret = BT_STATUS_SUCCESS;
+    BT_CMD *pcmd;
+    ENTER();
+	skb = bt_skb_alloc(sizeof(BT_CMD), GFP_ATOMIC);
+    if (skb == NULL) {
+        PRINTM(WARN, "No free skb\n");
+        ret = BT_STATUS_FAILURE;
+        goto exit;
+	}
+    pcmd = (BT_CMD *)skb->data;
+    pcmd->ocf_ogf =
+		__cpu_to_le16((VENDOR_OGF << 10) | HCI_CMD_MARVELL_UPDATE_TX_MAX_PWR_LVL);
+	pcmd->length = 1;
+	pcmd->data[0] = 0x01;
+    bt_cb(skb)->pkt_type = MRVL_VENDOR_PKT;
+    skb_put(skb, BT_CMD_HEADER_SIZE + pcmd->length);
+    skb->dev = (void *)(&(priv->bt_dev.m_dev[BT_SEQ]));
+    skb_queue_head(&priv->adapter->tx_queue, skb);
+    PRINTM(CMD, "Queue UPDATE_TX_MAX_PWR_LVL Command(0x%x),value=0x%x\n",
+			__le16_to_cpu(pcmd->ocf_ogf), pcmd->data[0]);
+    priv->bt_dev.sendcmdflag = TRUE;
+    priv->bt_dev.send_cmd_opcode = __le16_to_cpu(pcmd->ocf_ogf);
+    priv->adapter->cmd_complete = FALSE;
+    wake_up_interruptible(&priv->MainThread.waitQ);
+    if (!os_wait_interruptible_timeout
+	    (priv->adapter->cmd_wait_q, priv->adapter->cmd_complete, WAIT_UNTIL_CMD_RESP)) {
+			ret = BT_STATUS_FAILURE;
+			PRINTM(MSG, "BT: UPDATE_TX_MAX_PWR_LVL timeout:\n");
+			bt_cmd_timeout_func(priv, HCI_CMD_MARVELL_UPDATE_TX_MAX_PWR_LVL);
+    }
+exit:
+    LEAVE();
+    return ret;
+}
+#endif
+
+/**
  *  @brief This function sends sdio pull ctrl command
  *
  *  @param priv    A pointer to bt_private structure
@@ -3001,6 +3048,15 @@ bt_init_cmd(bt_private *priv)
 		goto done;
 	}
 #endif
+
+#ifdef UPDATE_TX_MAX_PWR_LVL
+	ret = bt_send_update_max_tx_pwr(priv);
+	if (ret < 0) {
+			PRINTM(FATAL, "Send UPDATE_TX_MAX_PWR_LVL failed!\n");
+			goto done;
+	}
+#endif
+
 	priv->bt_dev.sdio_pull_cfg = 0xffffffff;
 	priv->bt_dev.sdio_pull_ctrl = 0;
 	wake_up_interruptible(&priv->MainThread.waitQ);

@@ -366,6 +366,8 @@ typedef struct _bt_dev {
 typedef struct _bt_adapter {
 	/** Chip revision ID */
 	u8 chip_rev;
+    /** magic val */
+	u8 magic_val;
 	/** Surprise removed flag */
 	u8 SurpriseRemoved;
 	/** IRQ number */
@@ -797,6 +799,9 @@ int bt_init_mac_address(bt_private *priv, char *mac);
 int bt_set_independent_reset(bt_private *priv);
 /** Bluetooth command : Independent reset */
 #define BT_CMD_INDEPENDENT_RESET     0x0D
+
+/** Update Tx Max power level command */
+#define HCI_CMD_MARVELL_UPDATE_TX_MAX_PWR_LVL	0xEE
 
 typedef struct _BT_HCI_CMD {
 	/** OCF OGF */

@@ -279,7 +279,10 @@ Hostsa_get_station_entry(t_void *pmlan_private, t_u8 *mac, t_void **ppconPtr)
 	ENTER();
 
 	sta_ptr = wlan_get_station_entry(priv, mac);
-	*ppconPtr = sta_ptr->cm_connectioninfo;
+	if (sta_ptr)
+		*ppconPtr = sta_ptr->cm_connectioninfo;
+	else
+		*ppconPtr = MNULL;
 
 	LEAVE();
 }

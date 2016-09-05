@@ -221,7 +221,7 @@ wlan_custom_ioctl_auto_delete(IN pmlan_private pmpriv,
 	memset(pmpriv->adapter, del_ie, 0, MAX_IE_SIZE);
 	memcpy(pmpriv->adapter, del_ie, ie_data->ie_buffer,
 	       MIN(MAX_IE_SIZE, ie_data->ie_length));
-	del_len = MIN(MAX_IE_SIZE, ie_data->ie_length);
+	del_len = MIN(MAX_IE_SIZE - 1, ie_data->ie_length);
 
 	if (MLAN_CUSTOM_IE_AUTO_IDX_MASK == idx)
 		ie_data->ie_index = 0;
@@ -242,7 +242,9 @@ wlan_custom_ioctl_auto_delete(IN pmlan_private pmpriv,
 				    (cnt + del_len))
 					memcpy(pmpriv->adapter, &ie[cnt],
 					       &pmpriv->mgmt_ie[index].
-					       ie_buffer[cnt + del_len],
+					       ie_buffer[MIN
+							 ((MAX_IE_SIZE - 1),
+							  (cnt + del_len))],
 					       (pmpriv->mgmt_ie[index].
 						ie_length - (cnt + del_len)));
 				memset(pmpriv->adapter,
@@ -731,6 +733,8 @@ wlan_pm_ioctl_hscfg(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 				pm->param.hs_cfg.conditions;
 			pmadapter->hs_cfg.gpio = (t_u8)pm->param.hs_cfg.gpio;
 			pmadapter->hs_cfg.gap = (t_u8)pm->param.hs_cfg.gap;
+			pmadapter->ind_gpio = (t_u8)pm->param.hs_cfg.ind_gpio;
+			pmadapter->level = (t_u8)pm->param.hs_cfg.level;
 			pmadapter->hs_wake_interval =
 				pm->param.hs_cfg.hs_wake_interval;
 		}
@@ -739,6 +743,8 @@ wlan_pm_ioctl_hscfg(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		pm->param.hs_cfg.conditions = pmadapter->hs_cfg.conditions;
 		pm->param.hs_cfg.gpio = pmadapter->hs_cfg.gpio;
 		pm->param.hs_cfg.gap = pmadapter->hs_cfg.gap;
+		pm->param.hs_cfg.ind_gpio = pmadapter->ind_gpio;
+		pm->param.hs_cfg.level = pmadapter->level;
 		pm->param.hs_cfg.hs_wake_interval = pmadapter->hs_wake_interval;
 		break;
 	default:
@@ -2395,7 +2401,9 @@ wlan_misc_ioctl_tdls_get_ies(IN pmlan_adapter pmadapter,
 	sta_node *sta_ptr = MNULL;
 	ENTER();
 
-	sta_ptr = wlan_get_station_entry(pmpriv, tdls_ies->peer_mac);
+	/* We don't need peer information for TDLS setup */
+	if (!(tdls_ies->flags & TDLS_IE_FLAGS_SETUP))
+		sta_ptr = wlan_get_station_entry(pmpriv, tdls_ies->peer_mac);
 	pbss_desc = &pmpriv->curr_bss_params.bss_descriptor;
 	wlan_get_ap_ext_cap(pmpriv, &ap_ext_cap);
 	if (pbss_desc->bss_band & BAND_A)
@@ -4257,7 +4265,7 @@ fail:
  *
  *  @return             MTRUE/MFALSE
  */
-static t_bool
+t_bool
 wlan_check_interface_active(mlan_adapter *pmadapter)
 {
 	t_bool ret = MFALSE;
@@ -4564,6 +4572,91 @@ wlan_misc_chan_reg_cfg(IN pmlan_adapter pmadapter,
 
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Check operating class validation
+ *
+ *  @param pmadapter    A pointer to mlan_adapter structure
+ *  @param pioctl_req   Pointer to the IOCTL request buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status
+wlan_misc_ioctl_operclass_validation(IN pmlan_adapter pmadapter,
+				     IN mlan_ioctl_req *pioctl_req)
+{
+	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_ds_misc_cfg *misc = MNULL;
+	t_u8 channel, oper_class;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+	channel = misc->param.bw_chan_oper.channel;
+	oper_class = misc->param.bw_chan_oper.oper_class;
+	if (pioctl_req->action == MLAN_ACT_GET) {
+		ret = wlan_check_operclass_validation(pmpriv, channel,
+						      oper_class);
+	} else {
+		PRINTM(MERROR, "Unsupported cmd_action\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Get non-global operating class
+ *
+ *  @param pmadapter    A pointer to mlan_adapter structure
+ *  @param pioctl_req   Pointer to the IOCTL request buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status
+wlan_misc_ioctl_oper_class(IN pmlan_adapter pmadapter,
+			   IN mlan_ioctl_req *pioctl_req)
+{
+	pmlan_private pmpriv = pmadapter->priv[pioctl_req->bss_index];
+	mlan_ds_misc_cfg *misc = MNULL;
+	t_u8 channel, bandwidth, oper_class;
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+	channel = misc->param.bw_chan_oper.channel;
+	switch (misc->param.bw_chan_oper.bandwidth) {
+	case 20:
+		bandwidth = BW_20MHZ;
+		break;
+	case 40:
+		bandwidth = BW_40MHZ;
+		break;
+	case 80:
+		bandwidth = BW_80MHZ;
+		break;
+	default:
+		bandwidth = BW_20MHZ;
+		break;
+	}
+
+	if (pioctl_req->action == MLAN_ACT_GET) {
+		ret = wlan_get_curr_oper_class(pmpriv, channel, bandwidth,
+					       &oper_class);
+		misc->param.bw_chan_oper.oper_class = oper_class;
+	} else {
+		PRINTM(MERROR, "Unsupported cmd_action\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
 
 	LEAVE();
 	return ret;

@@ -29,7 +29,6 @@
 /********************************************************
 				Global Variables
 ********************************************************/
-
 /********************************************************
 				Local Functions
 ********************************************************/
@@ -81,7 +80,7 @@ int
 woal_cfg80211_vendor_event(IN moal_private *priv,
 			   IN int event, IN t_u8 *data, IN int len)
 {
-	struct wiphy *wiphy = priv->wdev->wiphy;
+	struct wiphy *wiphy = NULL;
 	struct sk_buff *skb = NULL;
 	int event_id = 0;
 	t_u8 *pos = NULL;
@@ -89,6 +88,11 @@ woal_cfg80211_vendor_event(IN moal_private *priv,
 
 	ENTER();
 
+	if (!priv || !priv->wdev || !priv->wdev->wiphy) {
+		LEAVE();
+		return ret;
+	}
+	wiphy = priv->wdev->wiphy;
 	PRINTM(MEVENT, "vendor event :0x%x\n", event);
 	event_id = woal_get_event_id(event);
 	if (event_max == event_id) {

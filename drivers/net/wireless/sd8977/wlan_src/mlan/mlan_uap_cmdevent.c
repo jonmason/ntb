@@ -266,6 +266,7 @@ wlan_uap_cmd_802_11_hs_cfg(IN pmlan_private pmpriv,
 			holdoff_tlv->min_wake_holdoff =
 				wlan_cpu_to_le16(pmpriv->adapter->
 						 min_wake_holdoff);
+			tlv += sizeof(MrvlIEtypes_HsWakeHoldoff_t);
 		}
 		PRINTM(MCMND,
 		       "HS_CFG_CMD: condition:0x%x gpio:0x%x gap:0x%x holdoff=%d\n",
@@ -273,6 +274,7 @@ wlan_uap_cmd_802_11_hs_cfg(IN pmlan_private pmpriv,
 		       phs_cfg->params.hs_config.gpio,
 		       phs_cfg->params.hs_config.gap,
 		       pmpriv->adapter->min_wake_holdoff);
+
 	}
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
@@ -667,12 +669,7 @@ wlan_uap_cmd_ap_config(pmlan_private pmpriv,
 
 	if (((bss->param.bss_config.sta_ageout_timer >= MIN_STAGE_OUT_TIME) &&
 	     (bss->param.bss_config.sta_ageout_timer <= MAX_STAGE_OUT_TIME)) ||
-	    (bss->param.bss_config.sta_ageout_timer == 0)
-#ifdef WIFI_DIRECT_SUPPORT
-	    || (pmpriv->adapter->GoAgeoutTime &&
-		pmpriv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT)
-#endif
-		) {
+	    (bss->param.bss_config.sta_ageout_timer == 0)) {
 		tlv_sta_ageout = (MrvlIEtypes_sta_ageout_t *)tlv;
 		tlv_sta_ageout->header.type =
 			wlan_cpu_to_le16(TLV_TYPE_UAP_STA_AGEOUT_TIMER);
@@ -680,12 +677,6 @@ wlan_uap_cmd_ap_config(pmlan_private pmpriv,
 		tlv_sta_ageout->sta_ageout_timer =
 			wlan_cpu_to_le32(bss->param.bss_config.
 					 sta_ageout_timer);
-#ifdef WIFI_DIRECT_SUPPORT
-		if (pmpriv->adapter->GoAgeoutTime &&
-		    pmpriv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT)
-			tlv_sta_ageout->sta_ageout_timer =
-				wlan_cpu_to_le32(pmpriv->adapter->GoAgeoutTime);
-#endif
 		cmd_size += sizeof(MrvlIEtypes_sta_ageout_t);
 		tlv += sizeof(MrvlIEtypes_sta_ageout_t);
 	}
@@ -2053,7 +2044,7 @@ wlan_uap_ret_cmd_ap_config(IN pmlan_private pmpriv,
 				(bss->param.bss_config.
 				 bss_status) ? MTRUE : MFALSE;
 			break;
-		case HT_CAPABILITY:
+		case TLV_TYPE_HT_CAPABILITY:
 			tlv_htcap = (MrvlIETypes_HTCap_t *)tlv;
 			bss->param.bss_config.ht_cap_info =
 				wlan_le16_to_cpu(tlv_htcap->ht_cap.ht_cap_info);
@@ -3936,6 +3927,11 @@ wlan_ops_uap_prepare_cmd(IN t_void *priv,
 					 S_DS_GEN);
 		cmd_ptr->params.reg_cfg.action = wlan_cpu_to_le16(cmd_action);
 		break;
+#if defined(SYSKT_MULTI) && defined(OOB_WAKEUP) || defined(SUSPEND_SDIO_PULL_DOWN)
+	case HostCmd_CMD_SDIO_PULL_CTRL:
+		ret = wlan_cmd_sdio_pull_ctl(pmpriv, cmd_ptr, cmd_action);
+		break;
+#endif
 	default:
 		PRINTM(MERROR, "PREP_CMD: unknown command- %#x\n", cmd_no);
 		if (pioctl_req)
@@ -3972,7 +3968,6 @@ wlan_ops_uap_process_cmdresp(IN t_void *priv,
 	wlan_dfs_device_state_t *pstate_dfs = (wlan_dfs_device_state_t *)
 		&pmpriv->adapter->state_dfs;
 	t_u32 sec, usec;
-
 	ENTER();
 
 	/* If the command is not successful, cleanup and return failure */
@@ -3989,7 +3984,8 @@ wlan_ops_uap_process_cmdresp(IN t_void *priv,
 		/* Timestamp update is required because bss_start after
 		   skip_cac enabled should not select non-current channel just
 		   because timestamp got expired */
-		if (!pmpriv->uap_host_based && !pstate_dfs->dfs_check_pending &&
+		if (!pmpriv->intf_state_11h.is_11h_host &&
+		    !pstate_dfs->dfs_check_pending &&
 		    pstate_dfs->dfs_check_channel) {
 			pmpriv->adapter->callbacks.moal_get_system_time(pmpriv->
 									adapter->
@@ -4015,14 +4011,13 @@ wlan_ops_uap_process_cmdresp(IN t_void *priv,
 		pmpriv->uap_host_based = MFALSE;
 		break;
 	case HOST_CMD_APCMD_BSS_START:
-		if (!pmpriv->uap_host_based &&
+		if (!pmpriv->intf_state_11h.is_11h_host &&
 		    pmpriv->adapter->state_rdh.stage == RDH_RESTART_INTFS)
 			wlan_11h_radar_detected_callback((t_void *)pmpriv);
 		/* Stop pps_uapsd_mode once bss_start */
 		pmpriv->adapter->tx_lock_flag = MFALSE;
 		pmpriv->adapter->pps_uapsd_mode = MFALSE;
 		pmpriv->adapter->delay_null_pkt = MFALSE;
-
 		break;
 	case HOST_CMD_APCMD_SYS_RESET:
 		pmpriv->uap_bss_started = MFALSE;
@@ -4220,7 +4215,10 @@ wlan_ops_uap_process_cmdresp(IN t_void *priv,
 	case HostCmd_CMD_CHAN_REGION_CFG:
 		ret = wlan_ret_chan_region_cfg(pmpriv, resp, pioctl_buf);
 		break;
-
+#if defined(SYSKT_MULTI) && defined(OOB_WAKEUP) || defined(SUSPEND_SDIO_PULL_DOWN)
+	case HostCmd_CMD_SDIO_PULL_CTRL:
+		break;
+#endif
 	default:
 		PRINTM(MERROR, "CMD_RESP: Unknown command response %#x\n",
 		       resp->command);
@@ -4629,7 +4627,6 @@ wlan_ops_uap_init_cmd(IN t_void *priv, IN t_u8 first_bss)
 	t_u16 last_cmd = 0;
 
 	ENTER();
-
 	if (!pmpriv) {
 		LEAVE();
 		return MLAN_STATUS_FAILURE;

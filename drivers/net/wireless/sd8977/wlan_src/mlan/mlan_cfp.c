@@ -1512,13 +1512,13 @@ wlan_get_supported_rates(mlan_private *pmpriv, t_u32 bss_mode,
 	if (bss_mode == MLAN_BSS_MODE_INFRA) {
 		/* Infra. mode */
 		switch (config_bands) {
-		case BAND_B:
+		case (t_u8)BAND_B:
 			PRINTM(MINFO, "Infra Band=%d SupportedRates_B\n",
 			       config_bands);
 			k = wlan_copy_rates(rates, k, SupportedRates_B,
 					    sizeof(SupportedRates_B));
 			break;
-		case BAND_G:
+		case (t_u8)BAND_G:
 		case BAND_G | BAND_GN:
 		case BAND_G | BAND_GN | BAND_GAC:
 			PRINTM(MINFO, "Infra band=%d SupportedRates_G\n",
@@ -1576,12 +1576,12 @@ wlan_get_supported_rates(mlan_private *pmpriv, t_u32 bss_mode,
 	} else {
 		/* Ad-hoc mode */
 		switch (config_bands) {
-		case BAND_B:
+		case (t_u8)BAND_B:
 			PRINTM(MINFO, "Band: Adhoc B\n");
 			k = wlan_copy_rates(rates, k, AdhocRates_B,
 					    sizeof(AdhocRates_B));
 			break;
-		case BAND_G:
+		case (t_u8)BAND_G:
 		case BAND_G | BAND_GN:
 		case BAND_G | BAND_GN | BAND_GAC:
 			PRINTM(MINFO, "Band: Adhoc G only\n");
@@ -1614,111 +1614,137 @@ wlan_get_supported_rates(mlan_private *pmpriv, t_u32 bss_mode,
 #define COUNTRY_ID_JP 1
 #define COUNTRY_ID_CN 2
 #define COUNTRY_ID_EU 3
+typedef struct _oper_bw_chan {
+	t_u8 oper_class;	// operating class
+	t_u8 bandwidth;		// bandwidth 0-20M 1-40M 2-80M 3-160M
+	t_u8 channel_list[13];	// channel list
+} oper_bw_chan;
+
+/** Global operation class table */
+static oper_bw_chan global_oper_bw_chan[] = {
+    /** Global oper class, bandwidth, channel list*/
+	{81, 0, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}},
+	{82, 0, {14}},
+	{83, 1, {1, 2, 3, 4, 5, 6, 7}},
+	{84, 1, {8, 9, 10, 11, 13}},
+	{115, 0, {36, 40, 44, 48}},
+	{116, 1, {36, 44}},
+	{117, 1, {40, 48}},
+	{124, 0, {149, 153, 157, 161}},
+	{125, 0, {149, 153, 157, 161, 165, 169}},
+	{126, 1, {149, 157}},
+	{127, 1, {153, 161}},
+	{128, 2, {42, 58, 106, 122, 138, 155}},
+	{129, 3, {50, 114}},
+	{130, 2, {42, 58, 106, 122, 138, 155}},
+};
+
+/** non-global oper class table for US*/
+static oper_bw_chan oper_bw_chan_us[] = {
+    /** non-Global oper class, bandwidth, channel list*/
+	{1, 0, {36, 40, 44, 48}},
+	{2, 0, {52, 56, 60, 64}},
+	{3, 0, {149, 153, 157, 161}},
+	{4, 0, {100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140}},
+	{5, 0, {149, 153, 157, 161, 165}},
+	{12, 0, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}},
+	{22, 1, {36, 44}},
+	{23, 1, {52, 60}},
+	{24, 1, {100, 108, 116, 124, 132}},
+	{25, 1, {149, 157}},
+	{26, 1, {149, 157}},
+	{27, 1, {40, 48}},
+	{28, 1, {56, 64}},
+	{29, 1, {104, 112, 120, 128, 136}},
+	{30, 1, {153, 161}},
+	{31, 1, {153, 161}},
+	{32, 1, {1, 2, 3, 4, 5, 6, 7}},
+	{33, 1, {5, 6, 7, 8, 9, 10, 11}},
+	{128, 2, {42, 58, 106, 122, 138, 155}},
+	{129, 3, {50, 114}},
+	{130, 2, {42, 58, 106, 122, 138, 155}},
+};
+
+/** non-global oper class table for EU*/
+static oper_bw_chan oper_bw_chan_eu[] = {
+    /** non-Global oper class, bandwidth, channel list*/
+	{1, 0, {36, 40, 44, 48}},
+	{2, 0, {52, 56, 60, 64}},
+	{3, 0, {100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140}},
+	{4, 0, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}},
+	{5, 1, {36, 44}},
+	{6, 1, {52, 60}},
+	{7, 1, {100, 108, 116, 124, 132}},
+	{8, 1, {40, 48}},
+	{9, 1, {56, 64}},
+	{10, 1, {104, 112, 120, 128, 136}},
+	{11, 1, {1, 2, 3, 4, 5, 6, 7, 8, 9}},
+	{12, 1, {5, 6, 7, 8, 9, 10, 11, 12, 13}},
+	{17, 0, {149, 153, 157, 161, 165, 169}},
+	{128, 2, {42, 58, 106, 122, 138, 155}},
+	{129, 3, {50, 114}},
+	{130, 2, {42, 58, 106, 122, 138, 155}},
+};
+
+/** non-global oper class table for Japan*/
+static oper_bw_chan oper_bw_chan_jp[] = {
+    /** non-Global oper class, bandwidth, channel list*/
+	{1, 0, {34, 38, 42, 46, 36, 40, 44, 48}},
+	{30, 0, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}},
+	{31, 0, {14}},
+	{32, 0, {52, 56, 60, 64}},
+	{33, 0, {52, 56, 60, 64}},
+	{34, 0, {100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140}},
+	{35, 0, {100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140}},
+	{36, 1, {36, 44}},
+	{37, 1, {52, 60}},
+	{38, 1, {52, 60}},
+	{39, 1, {100, 108, 116, 124, 132}},
+	{40, 1, {100, 108, 116, 124, 132}},
+	{41, 1, {40, 48}},
+	{42, 1, {56, 64}},
+	{43, 1, {56, 64}},
+	{44, 1, {104, 112, 120, 128, 136}},
+	{45, 1, {104, 112, 120, 128, 136}},
+	{56, 1, {1, 2, 3, 4, 5, 6, 7, 8, 9}},
+	{57, 1, {5, 6, 7, 8, 9, 10, 11, 12, 13}},
+	{58, 0, {100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140}},
+	{128, 2, {42, 58, 106, 122, 138, 155}},
+	{129, 3, {50, 114}},
+	{130, 2, {42, 58, 106, 122, 138, 155}},
+};
+
+/** non-global oper class table for China*/
+static oper_bw_chan oper_bw_chan_cn[] = {
+    /** non-Global oper class, bandwidth, channel list*/
+	{1, 0, {36, 40, 44, 48}},
+	{2, 0, {52, 56, 60, 64}},
+	{3, 0, {149, 153, 157, 161, 165}},
+	{4, 1, {36, 44}},
+	{5, 1, {52, 60}},
+	{6, 1, {149, 157}},
+	{7, 0, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}},
+	{8, 0, {1, 2, 3, 4, 5, 6, 7, 8, 9}},
+	{9, 1, {5, 6, 7, 8, 9, 10, 11, 12, 13}},
+	{128, 2, {42, 58, 106, 122, 138, 155}},
+	{129, 3, {50, 114}},
+	{130, 2, {42, 58, 106, 122, 138, 155}},
+};
+
 /**
- *  @brief Get current operating class from channel and bandwidth
+ *  @brief Get non-global operaing class table according to country
  *
  *  @param pmpriv             A pointer to mlan_private structure
- *  @param channel            Channel number
- *  @param bw                 Bandwidth
- *  @param oper_class         A pointer to current operating class
+ *  @param arraysize          A pointer to table size
  *
- *  @return                   MLAN_STATUS_PENDING --success, otherwise fail
+ *  @return                   A pointer to oper_bw_chan
  */
-mlan_status
-wlan_get_curr_oper_class(mlan_private *pmpriv, t_u8 channel, t_u8 bw,
-			 t_u8 *oper_class)
+oper_bw_chan *
+wlan_get_nonglobal_operclass_table(mlan_private *pmpriv, int *arraysize)
 {
-	typedef struct _oper_bw_chan {
-		t_u8 non_global_oper;	// non_global operating class
-		t_u8 bandwidth;	// bandwidth 0-20M 1-40M 2-80M 3-160M
-		t_u8 channel_list[13];	// channel list
-	} oper_bw_chan;
-	static oper_bw_chan oper_bw_chan_us[] = {
-		{1, 0, {36, 40, 44, 48}},
-		{2, 0, {52, 56, 60, 64}},
-		{3, 0, {149, 153, 157, 161}},
-		{4, 0, {100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140}},
-		{5, 0, {149, 153, 157, 161, 165}},
-		{12, 0, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}},
-		{22, 1, {36, 44}},
-		{23, 1, {52, 60}},
-		{24, 1, {100, 108, 116, 124, 132}},
-		{25, 1, {149, 157}},
-		{26, 1, {149, 157}},
-		{27, 1, {40, 48}},
-		{28, 1, {56, 64}},
-		{29, 1, {104, 112, 120, 128, 136}},
-		{30, 1, {153, 161}},
-		{31, 1, {153, 161}},
-		{32, 1, {1, 2, 3, 4, 5, 6, 7}},
-		{33, 1, {5, 6, 7, 8, 9, 10, 11}},
-		{128, 2, {42, 58, 106, 122, 138, 155}},
-		{129, 3, {50, 114}},
-		{130, 2, {42, 58, 106, 122, 138, 155}},
-	};
-	static oper_bw_chan oper_bw_chan_eu[] = {
-		{1, 0, {36, 40, 44, 48}},
-		{2, 0, {52, 56, 60, 64}},
-		{3, 0, {100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140}},
-		{4, 0, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}},
-		{5, 1, {36, 44}},
-		{6, 1, {52, 60}},
-		{7, 1, {100, 108, 116, 124, 132}},
-		{8, 1, {40, 48}},
-		{9, 1, {56, 64}},
-		{10, 1, {104, 112, 120, 128, 136}},
-		{11, 1, {1, 2, 3, 4, 5, 6, 7, 8, 9}},
-		{12, 1, {5, 6, 7, 8, 9, 10, 11, 12, 13}},
-		{17, 0, {149, 153, 157, 161, 165, 169}},
-		{128, 2, {42, 58, 106, 122, 138, 155}},
-		{129, 3, {50, 114}},
-		{130, 2, {42, 58, 106, 122, 138, 155}},
-	};
-	static oper_bw_chan oper_bw_chan_jp[] = {
-		{1, 0, {34, 38, 42, 46, 36, 40, 44, 48}},
-		{30, 0, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}},
-		{31, 0, {14}},
-		{32, 0, {52, 56, 60, 64}},
-		{33, 0, {52, 56, 60, 64}},
-		{34, 0,
-		 {100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140}},
-		{35, 0,
-		 {100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140}},
-		{36, 1, {36, 44}},
-		{37, 1, {52, 60}},
-		{38, 1, {52, 60}},
-		{39, 1, {100, 108, 116, 124, 132}},
-		{40, 1, {100, 108, 116, 124, 132}},
-		{41, 1, {40, 48}},
-		{42, 1, {56, 64}},
-		{43, 1, {56, 64}},
-		{44, 1, {104, 112, 120, 128, 136}},
-		{45, 1, {104, 112, 120, 128, 136}},
-		{56, 1, {1, 2, 3, 4, 5, 6, 7, 8, 9}},
-		{57, 1, {5, 6, 7, 8, 9, 10, 11, 12, 13}},
-		{58, 0,
-		 {100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140}},
-		{128, 2, {42, 58, 106, 122, 138, 155}},
-		{129, 3, {50, 114}},
-		{130, 2, {42, 58, 106, 122, 138, 155}},
-	};
-	static oper_bw_chan oper_bw_chan_cn[] = {
-		{1, 0, {36, 40, 44, 48}},
-		{2, 0, {52, 56, 60, 64}},
-		{3, 0, {149, 153, 157, 161, 165}},
-		{4, 1, {36, 44}},
-		{5, 1, {52, 60}},
-		{6, 1, {149, 157}},
-		{7, 0, {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}},
-		{8, 0, {1, 2, 3, 4, 5, 6, 7, 8, 9}},
-		{9, 1, {5, 6, 7, 8, 9, 10, 11, 12, 13}},
-		{128, 2, {42, 58, 106, 122, 138, 155}},
-		{129, 3, {50, 114}},
-		{130, 2, {42, 58, 106, 122, 138, 155}},
-	};
-	oper_bw_chan *poper_bw_chan;
 	t_u8 country_code[][COUNTRY_CODE_LEN] = { "US", "JP", "CN" };
-	int i = 0, country_id = 0, channum = 0, arraysize = 0;
+	int country_id = 0;
+	oper_bw_chan *poper_bw_chan = MNULL;
 
 	ENTER();
 
@@ -1737,24 +1763,110 @@ wlan_get_curr_oper_class(mlan_private *pmpriv, t_u8 channel, t_u8 bw,
 	switch (country_id) {
 	case COUNTRY_ID_US:
 		poper_bw_chan = oper_bw_chan_us;
-		arraysize = sizeof(oper_bw_chan_us);
+		*arraysize = sizeof(oper_bw_chan_us);
 		break;
 	case COUNTRY_ID_JP:
 		poper_bw_chan = oper_bw_chan_jp;
-		arraysize = sizeof(oper_bw_chan_jp);
+		*arraysize = sizeof(oper_bw_chan_jp);
 		break;
 	case COUNTRY_ID_CN:
 		poper_bw_chan = oper_bw_chan_cn;
-		arraysize = sizeof(oper_bw_chan_cn);
+		*arraysize = sizeof(oper_bw_chan_cn);
 		break;
 	case COUNTRY_ID_EU:
 		poper_bw_chan = oper_bw_chan_eu;
-		arraysize = sizeof(oper_bw_chan_eu);
+		*arraysize = sizeof(oper_bw_chan_eu);
 		break;
 	default:
 		PRINTM(MERROR, "Country not support!\n");
 		break;
 	}
+
+	LEAVE();
+	return poper_bw_chan;
+}
+
+/**
+ *  @brief Check validation of given channel and oper class
+ *
+ *  @param pmpriv             A pointer to mlan_private structure
+ *  @param channel            Channel number
+ *  @param oper_class         operating class
+ *
+ *  @return                   MLAN_STATUS_PENDING --success, otherwise fail
+ */
+mlan_status
+wlan_check_operclass_validation(mlan_private *pmpriv, t_u8 channel,
+				t_u8 oper_class)
+{
+	int arraysize = 0, i = 0, channum = 0;
+	oper_bw_chan *poper_bw_chan = MNULL;
+
+	ENTER();
+
+	if (oper_class >= 81) {	// User set global operating class
+		poper_bw_chan = global_oper_bw_chan;
+		arraysize = sizeof(oper_bw_chan_us);
+	} else if (oper_class > 0 && oper_class < 81) {	// User set non-global
+							// operating class
+		poper_bw_chan =
+			wlan_get_nonglobal_operclass_table(pmpriv, &arraysize);
+	}
+
+	if (!poper_bw_chan) {
+		PRINTM(MERROR, "Operating class table do not find!\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
+	for (i = 0; i < arraysize / sizeof(oper_bw_chan); i++) {
+		if (poper_bw_chan[i].oper_class == oper_class) {
+			for (channum = 0;
+			     channum < sizeof(poper_bw_chan[i].channel_list);
+			     channum++) {
+				if (poper_bw_chan[i].channel_list[channum] &&
+				    poper_bw_chan[i].channel_list[channum] ==
+				    channel) {
+					LEAVE();
+					return MLAN_STATUS_SUCCESS;
+				}
+			}
+		}
+	}
+
+	PRINTM(MERROR, "Operating class %d do not match channel %d!\n",
+	       oper_class, channel);
+	LEAVE();
+	return MLAN_STATUS_FAILURE;
+}
+
+/**
+ *  @brief Get current operating class from channel and bandwidth
+ *
+ *  @param pmpriv             A pointer to mlan_private structure
+ *  @param channel            Channel number
+ *  @param bw                 Bandwidth
+ *  @param oper_class         A pointer to current operating class
+ *
+ *  @return                   MLAN_STATUS_PENDING --success, otherwise fail
+ */
+mlan_status
+wlan_get_curr_oper_class(mlan_private *pmpriv, t_u8 channel, t_u8 bw,
+			 t_u8 *oper_class)
+{
+	oper_bw_chan *poper_bw_chan = MNULL;
+	int i = 0, arraysize = 0, channum = 0;
+
+	ENTER();
+
+	poper_bw_chan = wlan_get_nonglobal_operclass_table(pmpriv, &arraysize);
+
+	if (!poper_bw_chan) {
+		PRINTM(MERROR, "Operating class table do not find!\n");
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
 	for (i = 0; i < arraysize / sizeof(oper_bw_chan); i++) {
 		if (poper_bw_chan[i].bandwidth == bw) {
 			for (channum = 0;
@@ -1764,8 +1876,7 @@ wlan_get_curr_oper_class(mlan_private *pmpriv, t_u8 channel, t_u8 bw,
 				    poper_bw_chan[i].channel_list[channum] ==
 				    channel) {
 					*oper_class =
-						poper_bw_chan[i].
-						non_global_oper;
+						poper_bw_chan[i].oper_class;
 					return MLAN_STATUS_SUCCESS;
 				}
 			}

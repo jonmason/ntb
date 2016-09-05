@@ -189,6 +189,10 @@ wlan_write_data_complete(IN pmlan_adapter pmadapter,
 	ENTER();
 
 	MASSERT(pmadapter && pmbuf);
+	if (!pmadapter || !pmbuf) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
 
 	pcb = &pmadapter->callbacks;
 
@@ -233,6 +237,11 @@ wlan_recv_packet_complete(IN pmlan_adapter pmadapter,
 	ENTER();
 
 	MASSERT(pmadapter && pmbuf);
+	if (!pmadapter || !pmbuf) {
+		LEAVE();
+		return MLAN_STATUS_FAILURE;
+	}
+
 	pcb = &pmadapter->callbacks;
 	MASSERT(pmbuf->bss_index < pmadapter->priv_num);
 

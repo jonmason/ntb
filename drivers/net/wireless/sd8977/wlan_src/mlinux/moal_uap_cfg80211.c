@@ -36,7 +36,9 @@
 /********************************************************
 				Global Variables
 ********************************************************/
-
+#ifdef WIFI_DIRECT_SUPPORT
+extern int GoAgeoutTime;
+#endif
 /********************************************************
 				Local Functions
 ********************************************************/
@@ -728,6 +730,12 @@ woal_cfg80211_beacon_config(moal_private *priv,
 	sys_config.mgmt_ie_passthru_mask = priv->mgmt_subtype_mask;
 	memcpy(sys_config.mac_addr, priv->current_addr, ETH_ALEN);
 
+#ifdef WIFI_DIRECT_SUPPORT
+	if (priv->bss_type == MLAN_BSS_TYPE_WIFIDIRECT && GoAgeoutTime) {
+		sys_config.sta_ageout_timer = GoAgeoutTime;
+		sys_config.ps_sta_ageout_timer = GoAgeoutTime;
+	}
+#endif
 	/* Set frag_threshold, rts_threshold, and retry limit */
 	sys_config.frag_threshold = wiphy->frag_threshold;
 	sys_config.rts_threshold = wiphy->rts_threshold;
@@ -2374,7 +2382,7 @@ woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 		PRINTM(MERROR,
 		       "Block  woal_cfg80211_del_beacon in abnormal driver state\n");
 		LEAVE();
-		return 0;
+		return -EFAULT;
 	}
 	if (priv->bss_started != MTRUE) {
 		PRINTM(MMSG, "wlan: AP already stopped!");

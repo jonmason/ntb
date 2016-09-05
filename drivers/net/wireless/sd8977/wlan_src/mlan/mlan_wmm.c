@@ -2315,7 +2315,7 @@ wlan_ret_wmm_get_status(pmlan_private priv, t_u8 *ptlv, int resp_len)
 				ptlv_wmm_q_status->flow_created;
 			break;
 
-		case WMM_IE:
+		case TLV_TYPE_VENDOR_SPECIFIC_IE:	/* WMM_IE */
 			/*
 			 * Point the regular IEEE IE 2 bytes into the Marvell IE
 			 *   and setup the IEEE IE type and length byte fields

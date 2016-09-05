@@ -3264,96 +3264,102 @@ wlan_adapter_init_cmd(IN pmlan_adapter pmadapter)
 		goto done;
 	}
 
-	/* Reconfigure tx buf size */
-	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_RECONFIGURE_TX_BUFF,
-			       HostCmd_ACT_GEN_SET, 0, MNULL,
-			       &pmadapter->max_tx_buf_size);
+#if defined(SYSKT_MULTI) && defined(OOB_WAKEUP) || defined(SUSPEND_SDIO_PULL_DOWN)
+	/* Send request to firmware */
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_SDIO_PULL_CTRL,
+			       HostCmd_ACT_GEN_SET, 0, MNULL, MNULL);
 	if (ret) {
 		ret = MLAN_STATUS_FAILURE;
 		goto done;
 	}
+}
+#endif
+
+    /* Reconfigure tx buf size */
+ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_RECONFIGURE_TX_BUFF,
+		       HostCmd_ACT_GEN_SET, 0, MNULL,
+		       &pmadapter->max_tx_buf_size);
+if (ret) {
+	ret = MLAN_STATUS_FAILURE;
+	goto done;
+}
 #if defined(STA_SUPPORT)
-	if (pmpriv_sta && (pmpriv_sta->state_11d.user_enable_11d == ENABLE_11D)) {
-		/* Send command to FW to enable 11d */
-		ret = wlan_prepare_cmd(pmpriv_sta,
-				       HostCmd_CMD_802_11_SNMP_MIB,
-				       HostCmd_ACT_GEN_SET,
-				       Dot11D_i,
-				       MNULL,
-				       &pmpriv_sta->state_11d.user_enable_11d);
-		if (ret) {
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
+if (pmpriv_sta && (pmpriv_sta->state_11d.user_enable_11d == ENABLE_11D)) {
+	/* Send command to FW to enable 11d */
+	ret = wlan_prepare_cmd(pmpriv_sta,
+			       HostCmd_CMD_802_11_SNMP_MIB,
+			       HostCmd_ACT_GEN_SET,
+			       Dot11D_i,
+			       MNULL, &pmpriv_sta->state_11d.user_enable_11d);
+	if (ret) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
 	}
+}
 #endif
 
 #if defined(STA_SUPPORT)
-	if (pmpriv_sta && (pmadapter->ps_mode == Wlan802_11PowerModePSP)) {
-		ret = wlan_prepare_cmd(pmpriv_sta,
-				       HostCmd_CMD_802_11_PS_MODE_ENH,
-				       EN_AUTO_PS, BITMAP_STA_PS, MNULL, MNULL);
-		if (ret) {
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
+if (pmpriv_sta && (pmadapter->ps_mode == Wlan802_11PowerModePSP)) {
+	ret = wlan_prepare_cmd(pmpriv_sta, HostCmd_CMD_802_11_PS_MODE_ENH,
+			       EN_AUTO_PS, BITMAP_STA_PS, MNULL, MNULL);
+	if (ret) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
 	}
+}
 #endif
 
-	if (pmadapter->init_auto_ds) {
-		mlan_ds_auto_ds auto_ds;
-		/* Enable auto deep sleep */
-		auto_ds.idletime = pmadapter->idle_time;
-		ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_PS_MODE_ENH,
-				       EN_AUTO_PS, BITMAP_AUTO_DS, MNULL,
-				       &auto_ds);
-		if (ret) {
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
+if (pmadapter->init_auto_ds) {
+	mlan_ds_auto_ds auto_ds;
+	/* Enable auto deep sleep */
+	auto_ds.idletime = pmadapter->idle_time;
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_PS_MODE_ENH,
+			       EN_AUTO_PS, BITMAP_AUTO_DS, MNULL, &auto_ds);
+	if (ret) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
 	}
+}
 #define DEF_AUTO_NULL_PKT_PERIOD    30
-	if (pmpriv_sta) {
-		t_u32 value = DEF_AUTO_NULL_PKT_PERIOD;
-		ret = wlan_prepare_cmd(pmpriv_sta,
-				       HostCmd_CMD_802_11_SNMP_MIB,
-				       HostCmd_ACT_GEN_SET,
-				       NullPktPeriod_i, MNULL, &value);
-		if (ret) {
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
+if (pmpriv_sta) {
+	t_u32 value = DEF_AUTO_NULL_PKT_PERIOD;
+	ret = wlan_prepare_cmd(pmpriv_sta,
+			       HostCmd_CMD_802_11_SNMP_MIB,
+			       HostCmd_ACT_GEN_SET,
+			       NullPktPeriod_i, MNULL, &value);
+	if (ret) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
 	}
-	if (pmadapter->init_para.indrstcfg != 0xffffffff) {
-		mlan_ds_ind_rst_cfg ind_rst_cfg;
-		ind_rst_cfg.ir_mode = pmadapter->init_para.indrstcfg & 0xff;
-		ind_rst_cfg.gpio_pin =
-			(pmadapter->init_para.indrstcfg & 0xff00) >> 8;
-		ret = wlan_prepare_cmd(pmpriv,
-				       HostCmd_CMD_INDEPENDENT_RESET_CFG,
-				       HostCmd_ACT_GEN_SET, 0, MNULL,
-				       (t_void *)&ind_rst_cfg);
-		if (ret) {
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
+}
+if (pmadapter->init_para.indrstcfg != 0xffffffff) {
+	mlan_ds_ind_rst_cfg ind_rst_cfg;
+	ind_rst_cfg.ir_mode = pmadapter->init_para.indrstcfg & 0xff;
+	ind_rst_cfg.gpio_pin = (pmadapter->init_para.indrstcfg & 0xff00) >> 8;
+	ret = wlan_prepare_cmd(pmpriv,
+			       HostCmd_CMD_INDEPENDENT_RESET_CFG,
+			       HostCmd_ACT_GEN_SET,
+			       0, MNULL, (t_void *)&ind_rst_cfg);
+	if (ret) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
 	}
+}
 
-	if (pmadapter->inact_tmo) {
-		ret = wlan_prepare_cmd(pmpriv,
-				       HostCmd_CMD_802_11_PS_INACTIVITY_TIMEOUT,
-				       HostCmd_ACT_GEN_SET, 0, MNULL,
-				       &pmadapter->inact_tmo);
-		if (ret) {
-			ret = MLAN_STATUS_FAILURE;
-			goto done;
-		}
+if (pmadapter->inact_tmo) {
+	ret = wlan_prepare_cmd(pmpriv, HostCmd_CMD_802_11_PS_INACTIVITY_TIMEOUT,
+			       HostCmd_ACT_GEN_SET, 0, MNULL,
+			       &pmadapter->inact_tmo);
+	if (ret) {
+		ret = MLAN_STATUS_FAILURE;
+		goto done;
 	}
+}
 
-	ret = MLAN_STATUS_PENDING;
+ret = MLAN_STATUS_PENDING;
 done:
-	LEAVE();
-	return ret;
+LEAVE();
+return ret;
 }
 
 #ifdef RX_PACKET_COALESCE
@@ -5315,3 +5321,39 @@ wlan_ret_chan_region_cfg(IN pmlan_private pmpriv,
 	LEAVE();
 	return MLAN_STATUS_SUCCESS;
 }
+
+#if defined(SYSKT_MULTI) && defined(OOB_WAKEUP) || defined(SUSPEND_SDIO_PULL_DOWN)
+/**
+ *  @brief This function prepares command of sdio_pull_ctl
+ *
+ *  @param pmpriv       A pointer to mlan_private structure
+ *  @param cmd          A pointer to HostCmd_DS_COMMAND structure
+ *  @param cmd_action   The action: GET or SET
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_cmd_sdio_pull_ctl(pmlan_private pmpriv,
+		       IN HostCmd_DS_COMMAND *cmd, IN t_u16 cmd_action)
+{
+	HostCmd_DS_SDIO_PULL_CTRL *pull_ctrl = &cmd->params.sdio_pull_ctl;
+
+	ENTER();
+
+	cmd->command = wlan_cpu_to_le16(HostCmd_CMD_SDIO_PULL_CTRL);
+	cmd->size =
+		wlan_cpu_to_le16((sizeof(HostCmd_DS_SDIO_PULL_CTRL)) +
+				 S_DS_GEN);
+
+	memset(pmpriv->adapter, pull_ctrl, 0,
+	       sizeof(HostCmd_DS_SDIO_PULL_CTRL));
+	pull_ctrl->action = wlan_cpu_to_le16(cmd_action);
+	if (cmd_action == HostCmd_ACT_GEN_SET) {
+		pull_ctrl->pull_up = wlan_cpu_to_le16(DEFAULT_PULLUP_DELAY);
+		pull_ctrl->pull_down = wlan_cpu_to_le16(DEFAULT_PULLDOWN_DELAY);
+		pull_ctrl->gpio_pullup_req = DEFAULT_GPIO_PULLUP_REQ;
+		pull_ctrl->gpio_pullup_ack = DEFAULT_GPIO_ACK_PULLUP;
+	}
+	LEAVE();
+	return MLAN_STATUS_SUCCESS;
+}
+#endif

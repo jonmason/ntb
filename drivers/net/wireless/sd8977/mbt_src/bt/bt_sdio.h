@@ -77,6 +77,12 @@ typedef IRQ_RET_TYPE (*isr_notifier_fn_t) (s32 irq, void *dev_id,
 #define SD_BUS_WIDTH_MASK		0x03
 /** Asynchronous interrupt mode */
 #define ASYNC_INT_MODE			0x20
+
+/** magic register */
+#define CARD_MAGIC_REG          0xF0
+/** magic value */
+#define MAGIC_VAL               0x24
+
 /* Host Control Registers */
 /** Host Control Registers : Configuration */
 #define CONFIGURATION_REG		0x00

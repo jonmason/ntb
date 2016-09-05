@@ -467,7 +467,7 @@ extern int p2p_enh;
 #endif
 #endif
 
-int cfg80211_drcs = 1;
+int cfg80211_drcs = 0;
 
 #ifdef CONFIG_PM
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
@@ -2459,6 +2459,7 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 	if (priv->wdev && priv->wdev->wiphy &&
 	    (request->initiator != NL80211_REGDOM_SET_BY_COUNTRY_IE))
 		woal_send_domain_info_cmd_fw(priv, MOAL_IOCTL_WAIT);
+
 	LEAVE();
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
 	return ret;
@@ -2720,7 +2721,16 @@ woal_cfg80211_scan(struct wiphy *wiphy, struct net_device *dev,
 	priv->phandle->scan_request = request;
 	spin_unlock_irqrestore(&priv->phandle->scan_req_lock, flags);
 	memset(&scan_req, 0x00, sizeof(scan_req));
-	scan_req.ext_scan_type = EXT_SCAN_ENHANCE;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
+	if (!is_broadcast_ether_addr(request->bssid)) {
+		memcpy(scan_req.specific_bssid, request->bssid, ETH_ALEN);
+		PRINTM(MIOCTL, "scan: bssid=" MACSTR "\n",
+		       MAC2STR(scan_req.specific_bssid));
+	}
+#endif
+
+	if (priv->phandle->scan_request->n_channels <= 38)
+		scan_req.ext_scan_type = EXT_SCAN_ENHANCE;
 
 #ifdef WIFI_DIRECT_SUPPORT
 	if (priv->phandle->miracast_mode ||
@@ -3527,7 +3537,7 @@ woal_cfg80211_disconnect(struct wiphy *wiphy, struct net_device *dev,
 		PRINTM(MERROR,
 		       "Block woal_cfg80211_disconnect in abnormal driver state\n");
 		LEAVE();
-		return 0;
+		return -EFAULT;
 	}
 
 	if (priv->cfg_disconnect) {
@@ -3932,7 +3942,7 @@ woal_cfg80211_set_power_mgmt(struct wiphy *wiphy,
 		PRINTM(MERROR,
 		       "Block woal_cfg80211_set_power_mgmt in abnormal driver state\n");
 		LEAVE();
-		return 0;
+		return -EFAULT;
 	}
 #if defined(WIFI_DIRECT_SUPPORT)
 #if LINUX_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
@@ -4732,6 +4742,7 @@ woal_cfg80211_suspend(struct wiphy *wiphy, struct cfg80211_wowlan *wow)
 {
 	moal_handle *handle = (moal_handle *)woal_get_wiphy_priv(wiphy);
 	int i;
+	int ret = 0;
 
 	PRINTM(MCMND, "<--- Enter woal_cfg80211_suspend --->\n");
 	for (i = 0; i < MIN(handle->priv_num, MLAN_MAX_BSS_NUM); i++) {
@@ -4748,8 +4759,9 @@ woal_cfg80211_suspend(struct wiphy *wiphy, struct cfg80211_wowlan *wow)
 	}
 
 	handle->cfg80211_suspend = MTRUE;
+
 	PRINTM(MCMND, "<--- Leave woal_cfg80211_suspend --->\n");
-	return 0;
+	return ret;
 }
 #endif
 
@@ -5236,6 +5248,7 @@ woal_construct_tdls_data_frame(moal_private *priv,
 	case WLAN_TDLS_SETUP_REQUEST:
 		if (fw_info.fw_bands & BAND_AAC)
 			woal_tdls_get_ies(priv, peer, tdls_ies,
+					  TDLS_IE_FLAGS_SETUP |
 					  TDLS_IE_FLAGS_EXTCAP |
 					  TDLS_IE_FLAGS_HTCAP |
 					  TDLS_IE_FLAGS_VHTCAP |
@@ -5243,6 +5256,7 @@ woal_construct_tdls_data_frame(moal_private *priv,
 					  TDLS_IE_FLAGS_SUPP_CS_IE);
 		else
 			woal_tdls_get_ies(priv, peer, tdls_ies,
+					  TDLS_IE_FLAGS_SETUP |
 					  TDLS_IE_FLAGS_EXTCAP |
 					  TDLS_IE_FLAGS_HTCAP |
 					  TDLS_IE_FLAGS_SUPP_CS_IE);
@@ -7317,6 +7331,23 @@ woal_register_cfg80211(moal_private *priv)
 			break;
 		}
 	}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+	if (fw_region) {
+		priv->phandle->regd = woal_create_custom_regdomain(priv);
+		if (priv->phandle->regd) {
+			wiphy->regulatory_flags |= REGULATORY_CUSTOM_REG |
+				REGULATORY_DISABLE_BEACON_HINTS |
+				REGULATORY_COUNTRY_IE_IGNORE;
+			wiphy_apply_custom_regulatory(wiphy,
+						      priv->phandle->regd);
+		} else {
+			PRINTM(MERROR,
+			       "creating custom regulatory domain failed\n");
+		}
+	}
+#endif
+
 	if (wiphy_register(wiphy) < 0) {
 		PRINTM(MERROR, "Wiphy device registration failed!\n");
 		ret = MLAN_STATUS_FAILURE;
@@ -7331,40 +7362,32 @@ woal_register_cfg80211(moal_private *priv)
 #endif
 	wiphy->interface_modes &= ~(MBIT(NL80211_IFTYPE_MONITOR));
 
-    /** we will try driver parameter first */
-	if (reg_alpha2 && woal_is_valid_alpha2(reg_alpha2)) {
-		PRINTM(MIOCTL, "Notify reg_alpha2 %c%c\n", reg_alpha2[0],
-		       reg_alpha2[1]);
-		regulatory_hint(wiphy, reg_alpha2);
-	} else {
-		country = region_code_2_string(fw_info.region_code);
-		if (country) {
-			if (fw_info.region_code != 0) {
-				PRINTM(MIOCTL,
-				       "Notify hw region code=%d %c%c\n",
-				       fw_info.region_code, country[0],
-				       country[1]);
-				regulatory_hint(wiphy, country);
-			}
-		} else
-			PRINTM(MERROR, "hw region code=%d not supported\n",
-			       fw_info.region_code);
-	}
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-	if (fw_region) {
-		priv->phandle->regd = woal_create_custom_regdomain(priv);
-		if (priv->phandle->regd) {
-			wiphy->regulatory_flags |= REGULATORY_CUSTOM_REG;
-			wiphy_apply_custom_regulatory(wiphy,
-						      priv->phandle->regd);
+	if (!priv->phandle->regd) {
+#endif
+	/** we will try driver parameter first */
+		if (reg_alpha2 && woal_is_valid_alpha2(reg_alpha2)) {
+			PRINTM(MIOCTL, "Notify reg_alpha2 %c%c\n",
+			       reg_alpha2[0], reg_alpha2[1]);
+			regulatory_hint(wiphy, reg_alpha2);
 		} else {
-			PRINTM(MERROR,
-			       "creating custom regulatory domain failed\n");
+			country = region_code_2_string(fw_info.region_code);
+			if (country) {
+				if (fw_info.region_code != 0) {
+					PRINTM(MIOCTL,
+					       "Notify hw region code=%d %c%c\n",
+					       fw_info.region_code, country[0],
+					       country[1]);
+					regulatory_hint(wiphy, country);
+				}
+			} else
+				PRINTM(MERROR,
+				       "hw region code=%d not supported\n",
+				       fw_info.region_code);
 		}
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	}
 #endif
-
 	priv->phandle->wiphy = wiphy;
 	woal_cfg80211_init_wiphy(priv, MOAL_CMD_WAIT);
 

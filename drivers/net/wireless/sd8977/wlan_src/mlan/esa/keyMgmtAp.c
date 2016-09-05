@@ -179,6 +179,11 @@ keyApi_ApUpdateKeyMaterial(void *priv, cm_Connection *connPtr,
 			encrypt_key.key_flags |= KEY_FLAG_SET_TX_KEY;
 		}
 
+		if (!pKeyData || !pCipher) {
+			PRINTM(MERROR, "Invalid KeyData or Cipher pointer!\n");
+			return 1;
+		}
+
 		if (pCipher->ccmp) {
 	    /**AES*/
 			encrypt_key.key_len = TK_SIZE;
@@ -870,14 +875,18 @@ void
 ApMicErrTimerExpCb(t_void *context)
 {
 	cm_Connection *connPtr = (cm_Connection *)context;
-	phostsa_private priv = (phostsa_private)connPtr->priv;
+	phostsa_private priv;
 	// UINT32 int_save;
-	apInfo_t *pApInfo = &priv->apinfo;
+	apInfo_t *pApInfo;
 
 	if (connPtr == NULL) {
 		// no AP connection. Do nothing, just return
 		return;
 	}
+	priv = (phostsa_private)connPtr->priv;
+	if (!priv)
+		return;
+	pApInfo = &priv->apinfo;
 
 	switch (connPtr->staData.apMicError.status) {
 	case FIRST_MIC_FAIL_IN_60_SEC:

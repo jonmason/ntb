@@ -189,6 +189,8 @@ assocSrvAp_checkRsnWpa(cm_Connection *connPtr,
 
 	memset(util_fns, &wpaType, 0x00, sizeof(wpaType));
 	memset(util_fns, &apCipher, 0x00, sizeof(apCipher));
+	memset(util_fns, &pwCipher, 0x00, sizeof(pwCipher));
+	memset(util_fns, &grpCipher, 0x00, sizeof(grpCipher));
 	staRsnCap.shortInt = 0xFFFF;
 
 	if (pRsn && (pSecType->wpa2 == 1)) {
