@@ -264,7 +264,7 @@ static inline void nx_i2c_stop_dev(struct nx_i2c_param *par, int nostop,
 	spin_unlock_irqrestore(&par->lock, flags);
 }
 
-static inline void nx_i2c_wait_dev(struct nx_i2c_param *par, int wait)
+static inline void nx_i2c_wait_dev(struct nx_i2c_param *par, int *wait)
 {
 	void __iomem *base = par->hw.base_addr;
 	unsigned int ICSR = 0;
@@ -275,7 +275,7 @@ static inline void nx_i2c_wait_dev(struct nx_i2c_param *par, int wait)
 		    !(ICSR & (1<<ICSR_ARI_STA_POS)))
 			break;
 		mdelay(1);
-	} while (wait-- > 0);
+	} while ((*wait)-- > 0);
 }
 
 static inline void nx_i2c_bus_off(struct nx_i2c_param *par)
@@ -322,8 +322,7 @@ static inline int nx_i2c_wait_busy(struct nx_i2c_param *par)
 		par->hw.port, par->no_stop);
 
 	/* busy status check*/
-	nx_i2c_wait_dev(par, wait);
-
+	nx_i2c_wait_dev(par, &wait);
 	if (0 == wait) {
 		dev_err(par->dev, "Fail, i2c.%d is busy, arbitration %s ...\n",
 			par->hw.port, _ARBITSTAT(base)?"busy":"free");
@@ -608,7 +607,7 @@ static int nx_i2c_set_param(struct nx_i2c_param *par,
 	unsigned long rate = 0;
 	int ret = 0;
 
-	unsigned long real_clk, get_real_clk = 0, req_rate = 0;
+	unsigned long real_clk = 0, get_real_clk = 0, req_rate = 0;
 	unsigned long calc_clk, t_clk = 0;
 	unsigned int t_src = 0, t_div = 0;
 	int div = 0;
