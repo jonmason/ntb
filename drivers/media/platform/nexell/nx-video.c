@@ -571,6 +571,21 @@ static struct vb2_ops nx_vb2_ops = {
 	.buf_finish	= nx_vb2_buf_finish,
 };
 
+static int nx_video_vbq_init(struct nx_video *me, uint32_t type)
+{
+	struct vb2_queue *vbq = me->vbq;
+	vbq->type = type;
+
+	vbq->io_modes = VB2_DMABUF | VB2_MMAP;
+	vbq->drv_priv = me;
+	vbq->ops      = &nx_vb2_ops;
+	vbq->mem_ops  = &vb2_dma_contig_memops;
+
+	vbq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
+
+	return vb2_queue_init(vbq);
+}
+
 /*
  * v4l2_ioctl_ops
  */
@@ -642,7 +657,10 @@ static int nx_video_set_format(struct file *file, void *fh,
 	int i;
 	u32 width, height, pixelformat, colorspace, field;
 
-	me->vbq->type = f->type;
+	if (me->vbq->type != f->type) {
+		vb2_queue_release(me->vbq);
+		nx_video_vbq_init(me, f->type);
+	}
 
 	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE ||
 	    f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
@@ -1226,23 +1244,14 @@ struct nx_video *nx_video_create(char *name, u32 type,
 		goto free_me;
 	}
 
-	vbq->type = type == NX_VIDEO_TYPE_CAPTURE ?
-		V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE :
-		V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
-	/* nx video supports only DMABUF */
-	vbq->io_modes = VB2_DMABUF | VB2_MMAP;
-	vbq->drv_priv = me;
-	vbq->ops      = &nx_vb2_ops;
-	vbq->mem_ops  = &vb2_dma_contig_memops;
-
-	vbq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
-
-	ret = vb2_queue_init(vbq);
+	me->vbq = vbq;
+	ret = nx_video_vbq_init(me, type == NX_VIDEO_TYPE_CAPTURE ?
+				V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE :
+				V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
 	if (ret < 0) {
-		pr_err("[nx video] failed to vb2_queue_init()\n");
+		pr_err("[nx video] failed to nx_video_vbq_init()\n");
 		goto free_vbq;
 	}
-	me->vbq = vbq;
 
 	INIT_LIST_HEAD(&me->source_consumer_list);
 	INIT_LIST_HEAD(&me->sink_consumer_list);
