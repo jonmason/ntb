@@ -1814,13 +1814,13 @@ static int fetch_kernel_info(void)
 		return rc;
 
 	if (kinfo.size != sizeof(kinfo)) {
-		tzlog_print(TZLOG_WARNING,
+		tzlog_print(TZLOG_INFO,
 			    "Kernel info size mismatch detected\n");
 		return -EINVAL;
 	}
 
 	if (kinfo.abi != SECOS_ABI_VERSION) {
-		tzlog_print(TZLOG_WARNING,
+		tzlog_print(TZLOG_INFO,
 			    "Unsupported ABI version. Outdated tzdev\n");
 		return -EINVAL;
 	}
@@ -1839,10 +1839,13 @@ extern struct miscdevice tzrsrc;
 static struct device *tzcma_dev;
 struct cma_info{
 	unsigned int phyAddr, virtAddr, size, chan_id;
+	unsigned long long cpuAddr;
 };
 struct dma_chan *in_chan, *out_chan;
 #define TEEC_CMA_MEMORY_ALLOC	0
 #define TEEC_CMA_MEMORY_FREE	1
+#define CMA_PAGE_SIZE	4096 /* 4kbyte*/
+#define LLI_TBL_PAGE	1 /* page is 4kbyte */
 
 static bool filter(struct dma_chan *chan, void *param)
 {
@@ -1873,10 +1876,11 @@ static ssize_t tzcma_write(struct file *filp, const char *buf, size_t count,
 
 static long tzcma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	int ret = 0;
+	int ret = 0, page_cnt;
 	struct cma_info mem, *argp;
-	struct page *page;
 	dma_cap_mask_t mask;
+	dma_addr_t phyAddr;
+	void *cpuAddr;
 
 	argp = (struct cma_info *)arg;
 	if (copy_from_user(&mem, argp, sizeof(struct cma_info))) {
@@ -1886,13 +1890,17 @@ static long tzcma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	switch (cmd) {
 	case TEEC_CMA_MEMORY_ALLOC:
-		page = dma_alloc_from_contiguous(tzcma_dev, (int)mem.size, 0);
-		if (page == NULL) {
-			tzlog_print(TZLOG_ERROR,
-				"dma memory alloc failed\n");
+		page_cnt = (mem.size + CMA_PAGE_SIZE - 1)
+				/ CMA_PAGE_SIZE + LLI_TBL_PAGE;
+		cpuAddr = dma_alloc_writecombine(tzcma_dev, page_cnt,
+					&phyAddr, GFP_KERNEL | GFP_DMA);
+
+		if (cpuAddr == NULL) {
+			tzlog_print(TZLOG_ERROR, "dma alloc failed\n");
 			return -EFAULT;
 		}
-		mem.phyAddr = page_to_phys(page);
+		mem.phyAddr = (unsigned int)phyAddr;
+		mem.cpuAddr = (unsigned long long)cpuAddr;
 
 		dma_cap_zero(mask);
 		dma_cap_set(DMA_MEMCPY, mask);
@@ -1919,14 +1927,14 @@ static long tzcma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			tzlog_print(TZLOG_ERROR, "copy_to_user error\n");
 			return -EFAULT;
 		}
-
 		break;
 	case TEEC_CMA_MEMORY_FREE:
-		page = phys_to_page(mem.phyAddr);
-		if (!dma_release_from_contiguous(tzcma_dev, page, (int)mem.size)) {
-			tzlog_print(TZLOG_ERROR," dma memory release failed\n");
-			return -EFAULT;
-		}
+		page_cnt = (mem.size + CMA_PAGE_SIZE - 1)
+				/ CMA_PAGE_SIZE + LLI_TBL_PAGE;
+		phyAddr = (dma_addr_t)mem.phyAddr;
+		cpuAddr = (void *)mem.cpuAddr;
+		dma_free_writecombine(tzcma_dev, page_cnt, cpuAddr, phyAddr);
+
 		if (in_chan != NULL) {
 			dma_release_channel(in_chan);
 			in_chan = NULL;
@@ -1997,14 +2005,14 @@ static int __init init_tzdev(void)
 
 	rc = smc_init_monitor();
 	if (rc < 0) {
-		tzlog_print(TZLOG_WARNING,
+		tzlog_print(TZLOG_INFO,
 		       "Unable to initialize monitor connection\n");
 		return rc;
 	}
 
 	rc = fetch_kernel_info();
 	if (unlikely(rc)) {
-		tzlog_print(TZLOG_WARNING,
+		tzlog_print(TZLOG_INFO,
 			    "Failed to fetch kernel info. Probably incorrect SwD version\n");
 		return rc;
 	}

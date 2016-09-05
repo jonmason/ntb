@@ -164,7 +164,7 @@ int smc_init_monitor(void)
 	do_call_smc_internal(&args, &res, SMC_OP);
 
 	if (res.res[0] == -1) {
-		tzlog_print(TZLOG_ERROR, "Failed to query SecureOS UUID.\n");
+		tzlog_print(TZLOG_INFO, "Failed to query SecureOS UUID.\n");
 		return -1;
 	}
 	uuid.uuid0 = res.res[0];
