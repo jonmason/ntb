@@ -167,7 +167,7 @@ struct zinitix_touch_dev {
 	struct _ts_zinitix_point_info reported_touch_info;
 	u16 icon_event_reg;
 	u16 event_type;
-	u32 int_gpio_num;
+	int int_gpio_num;
 	int irq;
 	u8 button[MAX_SUPPORTED_BUTTON_NUM];
 	u8 work_proceedure;
