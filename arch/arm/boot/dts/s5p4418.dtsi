@@ -115,6 +115,12 @@
 		status = "disabled";
 	};
 
+	nx-devfreq {
+		compatible = "nexell,s5pxx18-devfreq";
+		pll = <0>;
+		status = "disabled";
+	};
+
 	busqos {
 		compatible = "nexell,s5p4418-busqos";
 		reg = <PHYS_BASE_DREX 0x1000>;
