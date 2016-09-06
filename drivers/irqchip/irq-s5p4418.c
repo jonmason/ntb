@@ -885,9 +885,10 @@ void s5p4418_gic_cpu_config(void __iomem *base, void (*sync_access)(void))
 	 * Deal with the banked PPI and SGI interrupts - disable all
 	 * PPI interrupts, ensure all SGI interrupts are enabled.
 	 */
-	writel_relaxed(0x5fff0000, base + GIC_DIST_ENABLE_CLEAR);
-	writel_relaxed(0xa000ffff, base + GIC_DIST_ENABLE_SET);
-
+	if(raw_smp_processor_id() == 0) {
+		writel_relaxed(0x5fff0000, base + GIC_DIST_ENABLE_CLEAR);
+		writel_relaxed(0xa000ffff, base + GIC_DIST_ENABLE_SET);
+	}
 	/*
 	 * Set priority on PPI and SGI interrupts
 	 */
