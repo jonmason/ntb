@@ -141,6 +141,7 @@ struct pll_pms {
 	u32 S;
 };
 
+#if defined(CONFIG_ARCH_S5P6818)
 static struct pll_pms pll0_1_pms[] = {
 	[0] = { .rate =  NX_BUS_CLK_HIGH_KHZ, .voltage = 1200000, .P = 3, .M = 200, .S = 1, },
 	[1] = { .rate =  NX_BUS_CLK_MID_KHZ,  .voltage = 1000000, .P = 3, .M = 300, .S = 3, },
@@ -152,11 +153,24 @@ static struct pll_pms pll2_3_pms[] = {
 	[1] = { .rate =  NX_BUS_CLK_MID_KHZ,  .voltage = 1000000, .P = 3, .M = 200, .S = 3, },
 	[2] = { .rate =  NX_BUS_CLK_LOW_KHZ,  .voltage = 1000000, .P = 3, .M = 250, .S = 4, },
 };
+#elif defined(CONFIG_ARCH_S5P4418)
+static struct pll_pms pll0_1_pms[] = {
+	[0] = { .rate =  NX_BUS_CLK_HIGH_KHZ, .voltage = 1100000, .P = 3, .M = 200, .S = 1, },
+	[1] = { .rate =  NX_BUS_CLK_MID_KHZ,  .voltage = 1000000, .P = 2, .M = 200, .S = 3, },
+	[2] = { .rate =  NX_BUS_CLK_LOW_KHZ,  .voltage = 1000000, .P = 3, .M = 200, .S = 3, },
+};
+
+static struct pll_pms pll2_3_pms[] = {
+	[0] = { .rate =  NX_BUS_CLK_HIGH_KHZ, .voltage = 1100000, .P = 3, .M = 200, .S = 1, },
+	[1] = { .rate =  NX_BUS_CLK_MID_KHZ,  .voltage = 1000000, .P = 3, .M = 150, .S = 2, },
+	[2] = { .rate =  NX_BUS_CLK_LOW_KHZ,  .voltage = 1000000, .P = 3, .M = 200, .S = 3, },
+};
+#endif
 
 static int get_pll_data(u32 pll, unsigned long rate, u32 *pll_data,
 			unsigned long *voltage)
 {
-	struct pll_pms *p;
+	struct pll_pms *p = NULL;
 	int len;
 	int i;
 	unsigned long freq = 0;
@@ -190,16 +204,23 @@ static int get_pll_data(u32 pll, unsigned long rate, u32 *pll_data,
 	return -EINVAL;
 }
 
+#if defined(CONFIG_ARCH_S5P4418)
+asmlinkage int __invoke_nexell_fn_smc(u32, u32, u32, u32);
+#endif
+
 static int change_bus_freq(u32 pll_data)
 {
+#if defined(CONFIG_ARCH_S5P6818)
 	uint32_t pll_num = pll_data & 0x00000003;
 	uint32_t s       = (pll_data & 0x000000fc) >> 2;
 	uint32_t m       = (pll_data & 0x00ffff00) >> 8;
 	uint32_t p       = (pll_data & 0xff000000) >> 24;
 
 	nx_pll_set_rate(pll_num, p, m, s);
-
 	return 0;
+#else
+	return __invoke_nexell_fn_smc(0x82000009, pll_data, 0, 0);
+#endif
 }
 
 /* profile */
