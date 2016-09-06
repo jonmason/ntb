@@ -399,9 +399,9 @@ static irqreturn_t nx_i2c_irq_thread(int irqno, void *dev_id)
 			par->pre_data = msg->buf[cnt];
 			par->request_ack =
 				(msg->flags & I2C_M_IGNORE_NAK) ? 0 : 1;
-			par->trans_count += 1;
-
-			if (len == par->trans_count)
+			if (len == 0)
+				par->trans_status = I2C_TRANS_DONE;
+			else if (len == ++par->trans_count)
 				par->trans_status = I2C_TRANS_DONE;
 
 			_SETDATA((void *)base, msg->buf[cnt]);
@@ -458,7 +458,10 @@ static int nx_i2c_trans_done(struct nx_i2c_param *par)
 
 	par->condition = 0;
 
-	wait = msg->len * msecs_to_jiffies(par->timeout);
+	if (msg->len)
+		wait = msg->len * msecs_to_jiffies(par->timeout);
+	else
+		wait = msecs_to_jiffies(par->timeout);
 	timeout = wait_event_timeout(par->wait_q, par->condition, wait);
 
 	if (par->condition) { /* done or error */
