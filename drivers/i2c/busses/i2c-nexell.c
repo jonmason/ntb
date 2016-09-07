@@ -40,6 +40,12 @@
 #include <linux/reset.h>
 #endif
 
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+#include <linux/cpufreq.h>
+#include <linux/pm_qos.h>
+#include <linux/soc/nexell/cpufreq.h>
+#endif
+
 #define	I2C_CLOCK_RATE		(100000)	/* 100kHz */
 #define	WAIT_ACK_TIME		(500)		/* wait 50 msec */
 
@@ -105,6 +111,11 @@ struct nx_i2c_param {
 	int sda_delay;
 	int retry_delay;
 	struct device *dev;
+
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+	struct notifier_block	freq_transition;
+#endif
+	unsigned long		clk_in;
 };
 
 /*
@@ -601,18 +612,59 @@ static struct i2c_algorithm nx_i2c_algo = {
 	.functionality	= nx_i2c_algo_fn,
 };
 
+static void nx_i2c_set_clk_param(struct nx_i2c_param *par, unsigned long rate)
+{
+	unsigned int t_src = 0, t_div = 0;
+	unsigned long calc_clk, t_clk = 0;
+	unsigned long real_clk = 0, get_real_clk = 0, req_rate = 0;
+	unsigned int i = 0, src = 0;
+	int div = 0;
+
+	req_rate = par->rate;
+	t_clk = rate/CLKSRC_DIV16/CLKSCALE_MIN;
+
+	for (i = 0; i < CLKSRC_CNT; i++) {
+		src = (i == 0) ? CLKSRC_DIV16 : CLKSRC_DIV256;
+		for (div = CLKSCALE_MIN ; div < CLKSCALE_MAX; div++) {
+			get_real_clk = rate/src/div;
+			if (get_real_clk > req_rate)
+				calc_clk = get_real_clk - req_rate;
+			else
+				calc_clk = req_rate - get_real_clk;
+
+			if (calc_clk < t_clk) {
+				t_clk = calc_clk;
+				t_div = div;
+				t_src = src;
+				real_clk = get_real_clk;
+			} else if (calc_clk == 0) {
+				t_div = div;
+				t_src = src;
+				real_clk = get_real_clk;
+				break;
+			} else
+				break;
+		}
+		if (calc_clk == 0)
+			break;
+	}
+
+	par->hw.clksrc = t_src;
+	par->hw.clkscale = t_div;
+	par->clk_in = rate;
+
+	dev_dbg(par->dev, "%s.%d: %8ld hz [pclk=%ld, clk = %3d,", "nexell-i2c",
+		par->hw.port, real_clk, rate, par->hw.clksrc);
+	dev_dbg(par->dev, "scale=%2d, timeout=%4d ms]\n", par->hw.clkscale-1,
+		par->timeout);
+}
+
 static int nx_i2c_set_param(struct nx_i2c_param *par,
 			    struct platform_device *pdev)
 {
-	unsigned long rate = 0;
-	int ret = 0;
-
-	unsigned long real_clk = 0, get_real_clk = 0, req_rate = 0;
-	unsigned long calc_clk, t_clk = 0;
-	unsigned int t_src = 0, t_div = 0;
-	int div = 0;
+	unsigned long rate;
+	int ret;
 	struct clk *clk;
-	unsigned int i = 0, src = 0;
 #ifdef CONFIG_RESET_CONTROLLER
 	struct reset_control *rst;
 #endif
@@ -652,39 +704,9 @@ static int nx_i2c_set_param(struct nx_i2c_param *par,
 
 	rate = clk_get_rate(clk);
 	clk_prepare_enable(clk);
-
-	req_rate = par->rate;
-	t_clk = rate/CLKSRC_DIV16/CLKSCALE_MIN;
-
-	for (i = 0; i < CLKSRC_CNT; i++) {
-		src = (i == 0) ? CLKSRC_DIV16 : CLKSRC_DIV256;
-		for (div = CLKSCALE_MIN ; div < CLKSCALE_MAX; div++) {
-			get_real_clk = rate/src/div;
-			if (get_real_clk > req_rate)
-				calc_clk = get_real_clk - req_rate;
-			else
-				calc_clk = req_rate - get_real_clk;
-
-			if (calc_clk < t_clk) {
-				t_clk = calc_clk;
-				t_div = div;
-				t_src = src;
-				real_clk = get_real_clk;
-			} else if (calc_clk == 0) {
-				t_div = div;
-				t_src = src;
-				real_clk = get_real_clk;
-				break;
-			} else
-				break;
-		}
-		if (calc_clk == 0)
-			break;
-	}
-
-	par->hw.clksrc = t_src;
-	par->hw.clkscale = t_div;
 	par->clk = clk;
+
+	nx_i2c_set_clk_param(par, rate);
 
 #ifdef CONFIG_RESET_CONTROLLER
 	rst = devm_reset_control_get(&pdev->dev, "i2c-reset");
@@ -698,10 +720,6 @@ static int nx_i2c_set_param(struct nx_i2c_param *par,
 	spin_lock_init(&par->lock);
 	init_waitqueue_head(&par->wait_q);
 
-	dev_info(par->dev, "%s.%d: %8ld hz [pclk=%ld, clk = %3d,", "nexell-i2c",
-		 par->hw.port, real_clk, rate, par->hw.clksrc);
-	dev_info(par->dev, "scale=%2d, timeout=%4d ms]\n", par->hw.clkscale-1,
-		 par->timeout);
 
 	ret = devm_request_threaded_irq(par->dev, par->hw.irqno,
 					nx_i2c_irq_handler, nx_i2c_irq_thread,
@@ -714,6 +732,57 @@ static int nx_i2c_set_param(struct nx_i2c_param *par,
 
 	return ret;
 }
+
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+
+#define freq_to_i2c(_n) container_of(_n, struct nx_i2c_param, freq_transition)
+
+static int nx_i2c_freq_transition(struct notifier_block *nb, unsigned long val,
+				  void *data)
+{
+	unsigned long freq;
+	struct nx_i2c_param *i2c = freq_to_i2c(nb);
+
+	if (val == 0 || val == PM_QOS_DEFAULT_VALUE)
+		val = NX_BUS_CLK_LOW_KHZ;
+
+	/* change KHz to MHz and bus to pclk*/
+	freq = (val * 1000) / 2;
+
+	dev_dbg(i2c->dev, "[nx-devfreq] freq %lu, clk_in %lu\n",
+		 freq, i2c->clk_in);
+
+	if (freq != i2c->clk_in) {
+		i2c_lock_adapter(&i2c->adapter);
+		nx_i2c_set_clk_param(i2c, freq);
+		i2c_unlock_adapter(&i2c->adapter);
+	}
+
+	return 0;
+}
+
+static inline int nx_i2c_register_freq_notifier(struct nx_i2c_param *i2c)
+{
+	i2c->freq_transition.notifier_call = nx_i2c_freq_transition;
+
+	return nx_bus_add_notifier(&i2c->freq_transition);
+}
+
+static inline void nx_i2c_unregister_freq_notifier(struct nx_i2c_param *i2c)
+{
+	nx_bus_remove_notifier(&i2c->freq_transition);
+	pm_qos_remove_notifier(PM_QOS_BUS_THROUGHPUT, &i2c->freq_transition);
+}
+#else
+static inline int nx_i2c_register_freq_notifier(struct nx_i2c_param *i2c)
+{
+	return 0;
+}
+
+static inline void nx_i2c_unregister_freq_notifier(struct nx_i2c_param *i2c)
+{
+}
+#endif
 
 static int nx_i2c_probe(struct platform_device *pdev)
 {
@@ -758,6 +827,13 @@ static int nx_i2c_probe(struct platform_device *pdev)
 
 	pinctrl_select_state(par->pctrl, par->pins_sda_dft);
 	pinctrl_select_state(par->pctrl, par->pins_scl_dft);
+
+	ret = nx_i2c_register_freq_notifier(par);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "failed to register freq notifier for i2c %d\n",
+			par->hw.port);
+		return ret;
+	}
 
 	ret = i2c_add_numbered_adapter(&par->adapter);
 	if (ret) {
