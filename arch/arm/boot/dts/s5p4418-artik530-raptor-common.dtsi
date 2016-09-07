@@ -59,6 +59,27 @@
 			i2c0:i2c@c00ae000 { clock-frequency = <200000000>;};
 			i2c1:i2c@c00af000 { clock-frequency = <200000000>;};
 			i2c2:i2c@c00b0000 { clock-frequency = <200000000>;};
+			pwm0:pwm0@c00ba000 {
+				clk-input = <I_PLL2>;
+				clock-frequency = <10000000>;
+			};
+			pwm1:pwm1@c00ba000 {
+				clk-input = <I_PLL2>;
+				clock-frequency = <10000000>;
+			};
+			pwm2:pwm2@c00be000 {
+				clk-input = <I_PLL2>;
+				clock-frequency = <10000000>;
+			};
+			pwm3:pwm3@c00be000 {
+				clk-input = <I_PLL2>;
+				clock-frequency = <10000000>;
+			};
+		};
+
+		pwm:pwm@c0018000 {
+			clocks =  <&pwm0>, <&pwm1>, <&pwm2>, <&pwm3>;
+			clock-names = "pwm-tclk0", "pwm-tclk1", "pwm-tclk2", "pwm-tclk3";
 		};
 
 		dynamic-freq@bb000 {
