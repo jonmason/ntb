@@ -509,7 +509,7 @@
 
 	sound {
 		compatible = "simple-audio-card";
-		simple-audio-card,name = "s5p6818 Soc Audio";
+		simple-audio-card,name = "Artik530 raptor Audio";
 		simple-audio-card,mclk-fs = <256>;
 		simple-audio-card,widgets =
 		    "Headphone", "Out Jack",
