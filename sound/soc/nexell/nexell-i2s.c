@@ -514,6 +514,7 @@ static int nx_i2s_set_plat_param(struct nx_i2s_snd_param *par, void *data)
 	unsigned int phy_base = 0;
 	int i = 0, ret = 0;
 	unsigned int id = 0;
+	static struct snd_soc_dai_driver *dai = &i2s_dai_driver;
 
 	id = of_alias_get_id(pdev->dev.of_node, "i2s");
 
@@ -531,10 +532,25 @@ static int nx_i2s_set_plat_param(struct nx_i2s_snd_param *par, void *data)
 			     &par->frame_bit);
 	if (!par->frame_bit)
 		par->frame_bit = DEF_FRAME_BIT;
+
+	if (par->frame_bit == 32) {
+		dai->playback.formats = SNDRV_PCM_FMTBIT_S16_LE;
+		dai->capture.formats = SNDRV_PCM_FMTBIT_S16_LE;
+	} else {
+		dai->playback.formats = SNDRV_PCM_FMTBIT_S24_LE;
+		dai->capture.formats = SNDRV_PCM_FMTBIT_S24_LE;
+	}
+
 	of_property_read_u32(pdev->dev.of_node, "sample-rate",
 			     &par->sample_rate);
 	if (!par->sample_rate)
 		par->sample_rate = DEF_SAMPLE_RATE;
+
+	dai->playback.rates =
+		snd_pcm_rate_to_rate_bit(par->sample_rate);
+	dai->capture.rates =
+		snd_pcm_rate_to_rate_bit(par->sample_rate);
+
 	of_property_read_u32(pdev->dev.of_node, "pre-supply-mclk",
 			     &par->pre_supply_mclk);
 	of_property_read_u32(pdev->dev.of_node, "LR-pol-inv",
