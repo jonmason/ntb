@@ -84,14 +84,16 @@ mrvl_sdio_irq_register(struct mmc_card *card)
 {
 	int ret = 0;
 
+	irq_enabled = 1;
 	ret = request_irq(oob_irq, mrvl_sdio_irq,
 			IRQF_TRIGGER_LOW | IRQF_SHARED,
 			"mrvl_sdio_irq", card);
 
 	if (!ret) {
 		irq_registered = 1;
-		irq_enabled = 1;
 		enable_irq_wake(oob_irq);
+	} else {
+		irq_enabled = 0;
 	}
 
 	return ret;
