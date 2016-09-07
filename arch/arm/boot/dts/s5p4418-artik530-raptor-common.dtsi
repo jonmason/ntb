@@ -562,6 +562,13 @@
 				regulator-always-on;
 				regulator-boot-on;};
 	}; /* regulators */
+
+	nx-devfreq {
+		pll = <3>;
+		supply_name = "vdd_arm_regulator";
+		vdd_arm_regulator-supply = <&VCC_DCDC1>;
+		status = "okay";
+	};
 };
 
 &pwm {
