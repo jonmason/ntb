@@ -77,6 +77,11 @@
 			};
 		};
 
+		timer@c0017000 {
+			clocks =  <&timer0>, <&timer1>;
+			clock-names = "timer0", "timer1";
+		};
+
 		pwm:pwm@c0018000 {
 			clocks =  <&pwm0>, <&pwm1>, <&pwm2>, <&pwm3>;
 			clock-names = "pwm-tclk0", "pwm-tclk1", "pwm-tclk2", "pwm-tclk3";
