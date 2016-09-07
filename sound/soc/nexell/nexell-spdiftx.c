@@ -284,21 +284,32 @@ static int nx_spdif_check_param(struct nx_spdif_snd_param *par, struct device
 	return 0;
 }
 
+static struct snd_soc_dai_driver spdif_dai_driver;
+
 static int nx_spdif_set_plat_param(struct nx_spdif_snd_param *par, void *data)
 {
 	struct platform_device *pdev = data;
 	struct nx_pcm_dma_param *dma = &par->dma;
 	unsigned int phy_base = SPDIF_BASEADDR;
 	int ret = 0;
+	static struct snd_soc_dai_driver *dai = &spdif_dai_driver;
 
 	of_property_read_u32(pdev->dev.of_node, "pcm-bit",
 			     &par->pcm_bit);
 	if (!par->pcm_bit)
 		par->pcm_bit = DEF_SAMPLE_BIT;
+	if (par->pcm_bit == 16)
+		dai->playback.formats = SNDRV_PCM_FMTBIT_S16_LE;
+	else
+		dai->playback.formats = SNDRV_PCM_FMTBIT_S24_LE;
+
 	of_property_read_u32(pdev->dev.of_node, "sample_rate",
 			     &par->sample_rate);
 	if (!par->sample_rate)
 		par->sample_rate = DEF_SAMPLE_RATE;
+	dai->playback.rates =
+		snd_pcm_rate_to_rate_bit(par->sample_rate);
+
 	par->base_addr = of_iomap(pdev->dev.of_node, 0);
 	spin_lock_init(&par->lock);
 
@@ -320,8 +331,6 @@ static int nx_spdif_set_plat_param(struct nx_spdif_snd_param *par, void *data)
 
 	return nx_spdif_check_param(par, &pdev->dev);
 }
-
-static struct snd_soc_dai_driver spdif_dai_driver;
 
 static int nx_spdif_setup(struct snd_soc_dai *dai)
 {
