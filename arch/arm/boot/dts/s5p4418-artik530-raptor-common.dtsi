@@ -37,6 +37,11 @@
 	compatible = "samsung,artik530-raptor", "samsung,artik530",
 		   "nexell,s5p4418";
 
+	psci {
+		compatible = "arm,psci-0.2";
+		method = "smc";
+	};
+
 	aliases {
 		i2c1 = &i2c_1;
 		i2c3 = &i2c_gpio3;
