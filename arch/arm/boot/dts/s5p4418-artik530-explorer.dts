@@ -47,6 +47,10 @@
 		snd_null_card1 = &snd_null_card_1;
 	};
 
+	cpus {
+		enable-method = "nexell,s5p4418-smp";
+	};
+
 	nx-v4l2 {
 		status = "okay";
 	};
