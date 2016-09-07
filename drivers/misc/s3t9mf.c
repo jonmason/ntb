@@ -124,7 +124,7 @@ static int s3t9mf_probe(struct platform_device *pdev)
 
 	chip->pwm = devm_pwm_get(&pdev->dev, "pwm_t9mf");
 	if (IS_ERR(chip->pwm)) {
-		dev_err(&pdev->dev, "unable to request PWM\n");
+		dev_info(&pdev->dev, "unable to request PWM\n");
 		chip->pwm = NULL;
 	}
 
