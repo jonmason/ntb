@@ -77,7 +77,7 @@ config ARM_MVEBU_V7_CPUIDLE
 
 config ARM_NEXELL_CPUIDLE
 	bool "Cpu Idle Driver for the nexell processors"
-	depends on ARCH_S5P4418 && !ARM64
+	depends on ARCH_S5P4418  || ARCH_S5P6818
         select DT_IDLE_STATES
 	help
 	  Select this to enable cpuidle for Nexell processors

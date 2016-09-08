@@ -40,7 +40,9 @@ static struct cpuidle_driver nexell_idle_driver = {
 	.name = "nexell_idle",
 	.owner = THIS_MODULE,
 	.states = {
+#ifdef CONFIG_ARM
 		ARM_CPUIDLE_WFI_STATE,
+#endif
 		{
 			.enter			= nexell_enter_idle,
 			.exit_latency		= 10,
