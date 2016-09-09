@@ -111,6 +111,7 @@ static const struct reg_sequence init_list[] = {
 	{RT5640_ASRC_1,		0x4000},
 #endif
 };
+#define RT5640_INIT_REG_LEN ARRAY_SIZE(init_list)
 
 static const struct reg_default rt5640_reg[] = {
 	{ 0x00, 0x000e },
