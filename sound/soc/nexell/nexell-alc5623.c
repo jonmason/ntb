@@ -124,6 +124,7 @@ static int alc5623_resume_pre(struct snd_soc_card *card)
 {
 	struct snd_soc_dai *cpu_dai = card->rtd->cpu_dai;
 	struct snd_soc_codec *codec = alc5623;
+	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 	int ret = 0;
 
 	dev_dbg(card->dev, "+%s\n", __func__);
@@ -139,7 +140,7 @@ static int alc5623_resume_pre(struct snd_soc_card *card)
 	if (cpu_resume_fn)
 		ret = cpu_resume_fn(cpu_dai);
 	dev_dbg(card->dev, "-%s\n", __func__);
-	codec_bias_level = codec->dapm.bias_level;
+	codec_bias_level = dapm->bias_level;
 
 	return ret;
 }
@@ -147,12 +148,13 @@ static int alc5623_resume_pre(struct snd_soc_card *card)
 static int alc5623_resume_post(struct snd_soc_card *card)
 {
 	struct snd_soc_codec *codec = alc5623;
+	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 	int jack = jack_gpio.gpio;
 	int invert = jack_gpio.invert;
 	int level = gpio_get_value_cansleep(jack);
 
 	dev_dbg(card->dev, "%s BAIAS=%d, PRE=%d\n", __func__,
-		codec->dapm.bias_level, codec_bias_level);
+		dapm->bias_level, codec_bias_level);
 
 	if (!codec)
 		return -1;
@@ -220,7 +222,7 @@ static struct snd_soc_jack_pin jack_pins[] = {
 static int alc5623_dai_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
-	struct snd_soc_dapm_context *dapm = &codec->dapm;
+	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 	struct snd_soc_jack_gpio *jack = &jack_gpio;
 	int ret;
 
@@ -285,7 +287,6 @@ static int alc5623_probe(struct platform_device *pdev)
 	int ret;
 	int ch;
 	const char *format_name;
-	int gpio_idx = 0, gpio_pin = 0, gpio_cnt = 0;
 
 	/* set I2S name */
 	of_property_read_u32(pdev->dev.of_node, "ch", &ch);
