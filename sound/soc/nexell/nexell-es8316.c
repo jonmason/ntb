@@ -67,6 +67,7 @@ static struct snd_soc_jack hp_jack;
 static int es8316_jack_status_check(void *data)
 {
 	struct snd_soc_codec *codec = es8316;
+	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 	int jack = jack_gpio.gpio;
 	int invert = jack_gpio.invert;
 	int level = gpio_get_value_cansleep(jack);
@@ -82,7 +83,7 @@ static int es8316_jack_status_check(void *data)
 	if (!level) {
 		es8316_jack_insert = 0;
 		es8316_mono_en(1);
-		if (codec->dapm.bias_level >= SND_SOC_BIAS_PREPARE)
+		if (dapm->bias_level >= SND_SOC_BIAS_PREPARE)
 			gpio_set_value(es8316_amp_io, 1);
 	} else {
 		es8316_jack_insert = 1;
@@ -130,6 +131,7 @@ static int es8316_resume_pre(struct snd_soc_card *card)
 {
 	struct snd_soc_dai *cpu_dai = card->rtd->cpu_dai;
 	struct snd_soc_codec *codec = es8316;
+	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 	int ret = 0;
 
 	dev_dbg(card->dev, "+%s\n", __func__);
@@ -146,7 +148,7 @@ static int es8316_resume_pre(struct snd_soc_card *card)
 		ret = cpu_resume_fn(cpu_dai);
 
 	dev_dbg(card->dev, "-%s\n", __func__);
-	codec_bias_level = codec->dapm.bias_level;
+	codec_bias_level = dapm->bias_level;
 
 	return ret;
 }
@@ -154,12 +156,13 @@ static int es8316_resume_pre(struct snd_soc_card *card)
 static int es8316_resume_post(struct snd_soc_card *card)
 {
 	struct snd_soc_codec *codec = es8316;
+	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 	int jack = jack_gpio.gpio;
 	int invert = jack_gpio.invert;
 	int level = gpio_get_value_cansleep(jack);
 
 	dev_dbg(card->dev, "%s BAIAS=%d, PRE=%d\n", __func__,
-		codec->dapm.bias_level, codec_bias_level);
+		dapm->bias_level, codec_bias_level);
 
 	if (!codec)
 		return -1;
@@ -246,7 +249,7 @@ static struct snd_soc_jack_pin jack_pins[] = {
 static int es8316_dai_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_codec *codec = rtd->codec;
-	struct snd_soc_dapm_context *dapm = &codec->dapm;
+	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 	struct snd_soc_jack_gpio *jack = &jack_gpio;
 	int ret;
 
