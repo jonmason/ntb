@@ -7192,6 +7192,8 @@ woal_register_cfg80211(moal_private *priv)
 #ifdef CONFIG_PM
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+	wiphy->wowlan_config = kzalloc(sizeof(struct cfg80211_wowlan), GFP_KERNEL);
+	wiphy->wowlan_config->any = true;
 	if (fw_info.fw_supplicant_support)
 		wiphy->wowlan = &wowlan_support_with_gtk;
 	else
