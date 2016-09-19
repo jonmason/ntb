@@ -43,7 +43,11 @@ void nx_pll_set_rate(int PLL, int P, int M, int S);
 #define NX_BUS_CLK_SPI_KHZ	NX_BUS_CLK_HIGH_KHZ
 #define NX_BUS_CLK_VIP_KHZ	NX_BUS_CLK_MID_KHZ
 #define NX_BUS_CLK_DISP_KHZ	NX_BUS_CLK_MID_KHZ
+#if defined(CONFIG_ARCH_S5P4418)
+#define NX_BUS_CLK_AUDIO_KHZ	NX_BUS_CLK_HIGH_KHZ
+#else
 #define NX_BUS_CLK_AUDIO_KHZ	NX_BUS_CLK_MID_KHZ
+#endif
 #define NX_BUS_CLK_IDLE_KHZ	NX_BUS_CLK_LOW_KHZ
 
 
