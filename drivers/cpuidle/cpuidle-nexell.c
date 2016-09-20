@@ -26,7 +26,7 @@
 
 #include "dt_idle_states.h"
 
-#define NEXELL_MAX_STATES		2
+#define NEXELL_MAX_STATES		1
 
 static int nexell_enter_idle(struct cpuidle_device *dev,
 			   struct cpuidle_driver *drv, int index)
