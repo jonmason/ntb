@@ -1338,10 +1338,10 @@ err_dec_reg:
 	video_unregister_device(dev->vfd_dec);
 err_dec_alloc:
 	video_device_release(dev->vfd_dec);
-err_enc_reg:
-	video_device_release(dev->vfd_enc);
 err_enc_alloc:
 	video_unregister_device(dev->vfd_enc);
+err_enc_reg:
+	video_device_release(dev->vfd_enc);
 err_v4l2_dev_reg:
 	v4l2_device_unregister(&dev->v4l2_dev);
 
