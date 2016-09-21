@@ -924,28 +924,28 @@ static int VPU_EncChangeParameterCommand(struct nx_vpu_codec_inst *pInst,
 {
 	int ret;
 
-	if (pChgArg->chgFlg | VPU_BIT_CHG_GOP)
+	if (pChgArg->chgFlg & VPU_BIT_CHG_GOP)
 		VpuWriteReg(CMD_ENC_SEQ_PARA_RC_GOP, pChgArg->gopSize);
 
-	if (pChgArg->chgFlg | VPU_BIT_CHG_INTRAQP)
+	if (pChgArg->chgFlg & VPU_BIT_CHG_INTRAQP)
 		VpuWriteReg(CMD_ENC_SEQ_PARA_RC_INTRA_QP, pChgArg->intraQp);
 
-	if (pChgArg->chgFlg | VPU_BIT_CHG_BITRATE)
+	if (pChgArg->chgFlg & VPU_BIT_CHG_BITRATE)
 		VpuWriteReg(CMD_ENC_SEQ_PARA_RC_BITRATE, pChgArg->bitrate);
 
-	if (pChgArg->chgFlg | VPU_BIT_CHG_FRAMERATE)
+	if (pChgArg->chgFlg & VPU_BIT_CHG_FRAMERATE)
 		VpuWriteReg(CMD_ENC_SEQ_PARA_RC_FRAME_RATE,
 		(pChgArg->frameRateNum) | ((pChgArg->frameRateDen-1) << 16));
 
-	if (pChgArg->chgFlg | VPU_BIT_CHG_INTRARF)
+	if (pChgArg->chgFlg & VPU_BIT_CHG_INTRARF)
 		VpuWriteReg(CMD_ENC_SEQ_PARA_INTRA_MB_NUM,
 			pChgArg->intraRefreshMbs);
 
-	if (pChgArg->chgFlg | VPU_BIT_CHG_SLICEMOD)
+	if (pChgArg->chgFlg & VPU_BIT_CHG_SLICEMOD)
 		VpuWriteReg(CMD_ENC_SEQ_PARA_SLICE_MODE, (pChgArg->sliceMode) |
 		(pChgArg->sliceSizeMode << 2) | (pChgArg->sliceSizeNum << 3));
 
-	if (pChgArg->chgFlg | VPU_BIT_CHG_HECMODE)
+	if (pChgArg->chgFlg & VPU_BIT_CHG_HECMODE)
 		VpuWriteReg(CMD_ENC_SEQ_PARA_HEC_MODE, pChgArg->hecMode);
 
 	VpuWriteReg(CMD_ENC_SEQ_PARA_CHANGE_ENABLE, pChgArg->chgFlg & 0x7F);
