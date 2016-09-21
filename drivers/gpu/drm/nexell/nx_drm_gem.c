@@ -744,7 +744,7 @@ int nx_drm_gem_dumb_create(struct drm_file *file_priv,
 	 * due to restriction of mali driver
 	 */
 	args->pitch = ALIGN(args->pitch, 8);
-	args->size = args->pitch * args->height;
+	args->size = (uint64_t)args->pitch * args->height;
 
 	DRM_DEBUG_DRIVER("widht:%d, bpp:%d, pitch:%d, flags:0x%x\n",
 		args->width, args->bpp, args->pitch, flags);
