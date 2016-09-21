@@ -652,7 +652,8 @@ static int nx_i2s_startup(struct snd_pcm_substream *substream,
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
 	nx_i2s_qos_update(NX_BUS_CLK_AUDIO_KHZ);
 #ifdef CONFIG_ARCH_S5P4418
-	nx_i2s_cpu_qos_update(NX_CPU_CLK_AUDIO_KHZ);
+	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
+		nx_i2s_cpu_qos_update(NX_CPU_CLK_AUDIO_KHZ);
 #endif
 #endif
 
@@ -669,7 +670,8 @@ static void nx_i2s_shutdown(struct snd_pcm_substream *substream,
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
 	nx_i2s_qos_update(NX_BUS_CLK_IDLE_KHZ);
 #ifdef CONFIG_ARCH_S5P4418
-	nx_i2s_cpu_qos_update(-1);
+	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
+		nx_i2s_cpu_qos_update(-1);
 #endif
 #endif
 }
