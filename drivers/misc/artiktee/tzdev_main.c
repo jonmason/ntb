@@ -45,6 +45,7 @@
 #include <linux/dma-contiguous.h>
 #include <linux/dma-mapping.h>
 #include <linux/dmaengine.h>
+#include <linux/property.h>
 #endif
 
 #include "tzdev.h"
@@ -1868,12 +1869,6 @@ static int tzcma_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static ssize_t tzcma_write(struct file *filp, const char *buf, size_t count,
-		loff_t *f_pos)
-{
-	return 0;
-}
-
 static long tzcma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0, page_cnt;
@@ -1958,7 +1953,6 @@ static int tzcma_release(struct inode *inode, struct file *file)
 static const struct file_operations tzcma_fops = {
 	.owner = THIS_MODULE,
 	.open = tzcma_open,
-	.write = tzcma_write,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl = tzcma_ioctl,
 #endif
@@ -1984,6 +1978,7 @@ static int tzcma_init(void)
 	}
 
 	tzcma_dev = tzcma.this_device;
+	arch_setup_dma_ops(tzcma_dev, 0, 0, NULL, DEV_DMA_COHERENT);
 
 	return ret;
 
