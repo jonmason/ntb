@@ -515,6 +515,13 @@
 			linux,code = <KEY_POWER>;
 			gpio-key,wakeup;
 		};
+
+		wakeup {
+			label = "Wakeup";
+			gpios = <&alive_0 1 1>;
+			linux,code = <KEY_WAKEUP>;
+			gpio-key,wakeup;
+		};
 	};
 
 	regulators {
