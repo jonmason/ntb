@@ -117,7 +117,7 @@ int NX_VpuDecOpen(struct vpu_open_arg *pOpenArg, void *devHandle,
 	hInst->devHandle = devHandle;
 
 	hInst->instBufPhyAddr = (uint64_t)pOpenArg->instanceBuf.phyAddr;
-	hInst->instBufVirAddr = (uint64_t)pOpenArg->instanceBuf.virAddr;
+	hInst->instBufVirAddr = (unsigned long)pOpenArg->instanceBuf.virAddr;
 	hInst->instBufSize    = pOpenArg->instanceBuf.size;
 	pDecInfo = &hInst->codecInfo.decInfo;
 
@@ -137,9 +137,9 @@ int NX_VpuDecOpen(struct vpu_open_arg *pOpenArg, void *devHandle,
 	}
 
 	pDecInfo->strmBufPhyAddr = (uint64_t)pOpenArg->streamBuf.phyAddr;
-	pDecInfo->strmBufVirAddr = (uint64_t)pOpenArg->streamBuf.virAddr;
+	pDecInfo->strmBufVirAddr = (unsigned long)pOpenArg->streamBuf.virAddr;
 	pDecInfo->strmBufSize    = pOpenArg->streamBuf.size;
-	NX_DrvMemset((unsigned char *)pDecInfo->strmBufVirAddr, 0,
+	NX_DrvMemset((void *)(unsigned long)pDecInfo->strmBufVirAddr, 0,
 		pDecInfo->strmBufSize);
 
 	/* Set Other Parameters */
@@ -165,7 +165,8 @@ int NX_VpuDecOpen(struct vpu_open_arg *pOpenArg, void *devHandle,
 	pDecInfo->seqInitEscape = 0;
 	pDecInfo->streamEndian = VPU_STREAM_ENDIAN;
 
-	NX_DrvMemset((void *)hInst->paramVirAddr, 0, PARA_BUF_SIZE);
+	NX_DrvMemset((void *)(unsigned long)hInst->paramVirAddr, 0,
+			PARA_BUF_SIZE);
 
 	VpuWriteReg(pDecInfo->streamWrPtrRegAddr, pDecInfo->strmBufPhyAddr);
 	VpuWriteReg(pDecInfo->streamRdPtrRegAddr, pDecInfo->strmBufPhyAddr);
@@ -211,7 +212,8 @@ int NX_VpuDecSetSeqInfo(struct nx_vpu_codec_inst *pInst,
 
 	if (pInst->codecMode != MJPG_DEC) {
 		/* FillBuffer */
-		if (0 > FillBuffer(pInst, (uint8_t *)pSeqArg->seqData,
+		if (0 > FillBuffer(pInst,
+			(unsigned char *)(unsigned long)pSeqArg->seqData,
 			pSeqArg->seqDataSize)) {
 			NX_ErrMsg(("FillBuffer Error!!!\n"));
 			return VPU_RET_ERROR;
@@ -240,7 +242,8 @@ int NX_VpuDecSetSeqInfo(struct nx_vpu_codec_inst *pInst,
 		ret = JPU_DecSetSeqInfo(pInst, pSeqArg);
 
 		/* Fill Data */
-		if (0 > FillBuffer(pInst, (uint8_t *)pSeqArg->seqData,
+		if (0 > FillBuffer(pInst,
+			(unsigned char *)(unsigned long)pSeqArg->seqData,
 			pSeqArg->seqDataSize)) {
 			NX_ErrMsg(("FillBuffer Failed.\n"));
 			return VPU_RET_ERROR;
@@ -270,7 +273,8 @@ int NX_VpuDecRunFrame(struct nx_vpu_codec_inst *pInst,
 
 	if (pInst->codecMode != MJPG_DEC) {
 		/* Fill Data */
-		if (0 > FillBuffer(pInst, (uint8_t *)pRunArg->strmData,
+		if (0 > FillBuffer(pInst,
+			(unsigned char *)(unsigned long)pRunArg->strmData,
 			pRunArg->strmDataSize)) {
 			NX_ErrMsg(("FillBuffer Failed.\n"));
 			return VPU_RET_ERROR;
@@ -300,7 +304,7 @@ int NX_VpuDecRunFrame(struct nx_vpu_codec_inst *pInst,
 	} else {
 		if (pInfo->headerSize == 0) {
 			ret = JPU_DecParseHeader(pInfo,
-				(uint8_t *)pRunArg->strmData,
+				(uint8_t *)(unsigned long)pRunArg->strmData,
 				pRunArg->strmDataSize);
 			if (ret < 0) {
 				NX_ErrMsg(("JpgHeader is failed(Error = %d)!\n",
@@ -310,7 +314,8 @@ int NX_VpuDecRunFrame(struct nx_vpu_codec_inst *pInst,
 		}
 
 		/* Fill Data */
-		if (0 > FillBuffer(pInst, (uint8_t *)pRunArg->strmData,
+		if (0 > FillBuffer(pInst,
+			(unsigned char *)(unsigned long)pRunArg->strmData,
 			pRunArg->strmDataSize)) {
 			NX_ErrMsg(("FillBuffer Failed.\n"));
 			return VPU_RET_ERROR;
@@ -351,8 +356,8 @@ int NX_VpuDecFlush(struct nx_vpu_codec_inst *pInst)
 		pDecInfo->streamEndflag &= ~(1 << 2);
 		pDecInfo->readPos = pDecInfo->strmBufPhyAddr;
 		pDecInfo->writePos = pDecInfo->strmBufPhyAddr;
-		NX_DrvMemset((unsigned char *)pDecInfo->strmBufVirAddr, 0,
-			pDecInfo->strmBufSize);
+		NX_DrvMemset((void *)(unsigned long)pDecInfo->strmBufVirAddr,
+				0, pDecInfo->strmBufSize);
 	} else {
 		int i;
 
@@ -436,7 +441,7 @@ static int FillBuffer(struct nx_vpu_codec_inst *pInst, unsigned char *stream,
 	if ((bufSize - vWriteOffset) > size) {
 		/* Just Memory Copy */
 #if 1
-		NX_DrvMemcpy((uint8_t *)(pDecInfo->strmBufVirAddr +
+		NX_DrvMemcpy((void *)(unsigned long)(pDecInfo->strmBufVirAddr +
 			vWriteOffset), stream, size);
 #else
 		if (copy_from_user((uint8_t *)(pDecInfo->strmBufVirAddr +
@@ -448,15 +453,17 @@ static int FillBuffer(struct nx_vpu_codec_inst *pInst, unsigned char *stream,
 		/* Memory Copy */
 		int remain = bufSize - vWriteOffset;
 #if 1
-		NX_DrvMemcpy((uint8_t *)(pDecInfo->strmBufVirAddr +
+		NX_DrvMemcpy((void *)(unsigned long)(pDecInfo->strmBufVirAddr +
 			vWriteOffset), stream, remain);
-		NX_DrvMemcpy((uint8_t *)(pDecInfo->strmBufVirAddr), stream +
-			remain, size-remain);
+		NX_DrvMemcpy((void *)(unsigned long)(pDecInfo->strmBufVirAddr),
+			stream + remain, size-remain);
 #else
-		if (copy_from_user((uint8_t *)(pDecInfo->strmBufVirAddr +
+		if (copy_from_user(
+			(void *)(unsigned long)(pDecInfo->strmBufVirAddr +
 			vWriteOffset), stream, remain))
 			return -1;
-		if (copy_from_user((uint8_t *)(pDecInfo->strmBufVirAddr),
+		if (copy_from_user(
+			(void *)(unsigned long)(pDecInfo->strmBufVirAddr),
 			stream+remain, size-remain))
 			return -1;
 #endif
@@ -663,7 +670,7 @@ static int VPU_DecSeqInitCommand(struct nx_vpu_codec_inst *pInst,
 		pInfo->userDataBufPhyAddr =
 			(uint64_t)pArg->userDataBuffer.phyAddr;
 		pInfo->userDataBufVirAddr =
-			(uint64_t)pArg->userDataBuffer.virAddr;
+			(unsigned long)pArg->userDataBuffer.virAddr;
 		pInfo->userDataBufSize = pArg->userDataBuffer.size;
 		pInfo->userDataEnable = 1;
 		pInfo->userDataReportMode = 1;
@@ -824,8 +831,10 @@ static int VPU_DecRegisterFrameBufCommand(struct nx_vpu_codec_inst
 		}
 	}
 
-	swap_endian((unsigned char *)frameAddr, sizeof(frameAddr));
-	NX_DrvMemcpy((void *)pInst->paramVirAddr, frameAddr, sizeof(frameAddr));
+	swap_endian((unsigned char *)(unsigned long)frameAddr,
+			sizeof(frameAddr));
+	NX_DrvMemcpy((void *)(unsigned long)pInst->paramVirAddr, frameAddr,
+			sizeof(frameAddr));
 	NX_DrvMemcpy(pInfo->frameBuffer, pArg->frameBuffer,
 		sizeof(pArg->frameBuffer));
 
@@ -871,8 +880,8 @@ static int VPU_DecRegisterFrameBufCommand(struct nx_vpu_codec_inst
 			}
 		}
 		swap_endian((unsigned char *)colMvAddr, sizeof(colMvAddr));
-		NX_DrvMemcpy((void *)(pInst->paramVirAddr+384), colMvAddr,
-			sizeof(colMvAddr));
+		NX_DrvMemcpy((void *)(unsigned long)(pInst->paramVirAddr+384),
+				colMvAddr, sizeof(colMvAddr));
 	}
 
 	if (!ConfigDecSecAXI(pInfo->codecStd, &pInfo->sec_axi_info,

@@ -845,7 +845,7 @@ int vpu_dec_parse_vid_cfg(struct nx_vpu_ctx *ctx)
 				alignSz, 1);
 		}
 #else
-		seqArg.seqData = (uint64_t)vb2_plane_vaddr(&buf->vb, 0);
+		seqArg.seqData = (unsigned long)vb2_plane_vaddr(&buf->vb, 0);
 #endif
 
 		/*spin_unlock_irqrestore(&ctx->dev->irqlock, flags);*/
@@ -1108,7 +1108,7 @@ int vpu_dec_decode_slice(struct nx_vpu_ctx *ctx)
 		decArg.strmData = (unsigned char *)cma_get_virt(phyAddr,
 			alignSz, 1);
 #else
-		decArg.strmData = (uint64_t)vb2_plane_vaddr(&buf->vb, 0);
+		decArg.strmData = (unsigned long)vb2_plane_vaddr(&buf->vb, 0);
 #endif
 
 		decArg.eos = vbuf->flags;
