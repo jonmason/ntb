@@ -265,7 +265,7 @@ next:
 		 peri->name, peri->clk_step, peri->div_src_0, peri->div_src_1,
 		 freq_hz, peri->div_val_0, peri->div_val_1);
 	pr_debug("=  %ld, %ld diff (%ld)\n", new_rate, request,
-		 abs(new_rate - request));
+		 (long)abs(new_rate - request));
 
 	return new_rate;
 }
