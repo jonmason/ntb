@@ -82,4 +82,9 @@ config LOGO_M32R_CLUT224
 	depends on M32R
 	default y
 
+config LOGO_NEXELL_NAVI_CLUT224
+	bool "224-color Nexell Navi-Ref Linux logo"
+	depends on ARCH_S5P4418 || ARCH_S5P6818
+	default y
+
 endif # LOGO
