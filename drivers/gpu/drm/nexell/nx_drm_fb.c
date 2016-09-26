@@ -57,9 +57,19 @@ static int nx_drm_fb_create_handle(struct drm_framebuffer *fb,
 	return drm_gem_handle_create(file_priv, &nx_fb->obj[0]->base, handle);
 }
 
+static int nx_drm_fb_dirty(struct drm_framebuffer *fb,
+			struct drm_file *file_priv, unsigned flags,
+			unsigned color, struct drm_clip_rect *clips,
+			unsigned num_clips)
+{
+	/* TODO */
+	return 0;
+}
+
 static struct drm_framebuffer_funcs nx_drm_framebuffer_funcs = {
 	.destroy = nx_drm_fb_destroy,
 	.create_handle = nx_drm_fb_create_handle,
+	.dirty = nx_drm_fb_dirty,
 };
 
 static struct fb_ops nx_fb_ops = {
@@ -165,15 +175,6 @@ struct drm_framebuffer *nx_drm_fb_mode_create(struct drm_device *drm,
 	DRM_DEBUG_KMS("enter\n");
 
 	return nx_drm_fb_create(drm, file_priv, mode_cmd);
-}
-
-static int nx_drm_fb_dirty(struct drm_framebuffer *fb,
-			struct drm_file *file_priv, unsigned flags,
-			unsigned color, struct drm_clip_rect *clips,
-			unsigned num_clips)
-{
-	/* TODO */
-	return 0;
 }
 
 static uint32_t nx_drm_mode_fb_format(uint32_t bpp, uint32_t depth, bool bgr)
@@ -401,8 +402,6 @@ static void nx_drm_fbdev_fini(struct nx_drm_fbdev *fbdev)
 int nx_drm_framebuffer_init(struct drm_device *drm)
 {
 	struct nx_drm_fbdev *fbdev;
-	struct drm_fb_helper *fb_helper;
-	struct drm_framebuffer_funcs *fb_funcs;
 	struct nx_drm_priv *priv = drm->dev_private;
 	struct nx_framebuffer_dev *nx_framebuffer;
 	unsigned int num_crtc;
@@ -430,13 +429,6 @@ int nx_drm_framebuffer_init(struct drm_device *drm)
 		ret = PTR_ERR(fbdev);
 		goto err_drm_fb_dev_free;
 	}
-
-	/*
-	 * set framebuffer dirty api
-	 */
-	fb_helper = (struct drm_fb_helper *)fbdev;
-	fb_funcs = (struct drm_framebuffer_funcs *)fb_helper->fb->funcs;
-	fb_funcs->dirty = nx_drm_fb_dirty;
 
 	nx_framebuffer->fbdev = fbdev;
 
