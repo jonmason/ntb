@@ -95,14 +95,13 @@ static int nx_drm_plane_disable(struct drm_plane *plane)
 
 static void nx_drm_plane_destroy(struct drm_plane *plane)
 {
-	struct drm_device *drm = plane->dev;
 	struct nx_drm_plane *nx_plane = to_nx_plane(plane);
 
 	DRM_DEBUG_KMS("enter\n");
 
 	nx_drm_plane_disable(plane);
 	drm_plane_cleanup(plane);
-	devm_kfree(drm->dev, nx_plane);
+	kfree(nx_plane);
 }
 
 static int nx_drm_plane_set_property(struct drm_plane *plane,
@@ -188,9 +187,8 @@ struct drm_plane *nx_drm_plane_init(struct drm_device *drm,
 
 	DRM_DEBUG_KMS("plane.%d\n", plane_num);
 
-	nx_plane =
-		devm_kzalloc(drm->dev, sizeof(struct nx_drm_plane), GFP_KERNEL);
-	if (IS_ERR(nx_plane))
+	nx_plane = kzalloc(sizeof(struct nx_drm_plane), GFP_KERNEL);
+	if (!nx_plane)
 		return ERR_PTR(-ENOMEM);
 
 	nx_plane->is_yuv_plane = video;
@@ -202,7 +200,7 @@ struct drm_plane *nx_drm_plane_init(struct drm_device *drm,
 			&nx_plane_funcs, formats, format_count, drm_type);
 	if (err) {
 		DRM_ERROR("fail : initialize plane\n");
-		devm_kfree(drm->dev, nx_plane);
+		kfree(nx_plane);
 		return ERR_PTR(err);
 	}
 

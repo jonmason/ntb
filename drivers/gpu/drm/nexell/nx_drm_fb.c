@@ -418,8 +418,8 @@ int nx_drm_framebuffer_init(struct drm_device *drm)
 		      drm->mode_config.num_connector);
 
 	nx_framebuffer = kzalloc(sizeof(*nx_framebuffer), GFP_KERNEL);
-	if (IS_ERR(nx_framebuffer))
-		return PTR_ERR(nx_framebuffer);
+	if (!nx_framebuffer)
+		return -ENOMEM;
 
 	priv->framebuffer_dev = nx_framebuffer;
 	num_crtc = drm->mode_config.num_crtc;
@@ -443,7 +443,7 @@ int nx_drm_framebuffer_init(struct drm_device *drm)
 	return 0;
 
 err_drm_fb_dev_free:
-	devm_kfree(drm->dev, nx_framebuffer);
+	kfree(nx_framebuffer);
 	return ret;
 }
 
@@ -454,7 +454,7 @@ void nx_drm_framebuffer_fini(struct drm_device *drm)
 	struct nx_drm_fbdev *fbdev = nx_framebuffer->fbdev;
 
 	nx_drm_fbdev_fini(fbdev);
-	devm_kfree(drm->dev, nx_framebuffer);
+	kfree(nx_framebuffer);
 	priv->framebuffer_dev = NULL;
 }
 

@@ -201,7 +201,6 @@ static int nx_drm_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 static void nx_drm_crtc_disable(struct drm_crtc *crtc)
 {
 	struct drm_plane *plane;
-	struct drm_mode_config *config = &crtc->dev->mode_config;
 	int ret;
 
 	DRM_DEBUG_KMS("enter\n");
@@ -298,7 +297,6 @@ out:
 
 static void nx_drm_crtc_destroy(struct drm_crtc *crtc)
 {
-	struct drm_device *drm = crtc->dev;
 	struct nx_drm_priv *priv = crtc->dev->dev_private;
 	struct nx_drm_crtc *nx_crtc = to_nx_crtc(crtc);
 	int pipe = nx_crtc->pipe;
@@ -308,7 +306,7 @@ static void nx_drm_crtc_destroy(struct drm_crtc *crtc)
 	priv->crtcs[pipe] = NULL;
 
 	drm_crtc_cleanup(crtc);
-	devm_kfree(drm->dev, nx_crtc);
+	kfree(nx_crtc);
 }
 
 static struct drm_crtc_funcs nx_crtc_funcs = {
@@ -545,11 +543,10 @@ static int nx_drm_crtc_create_planes(struct drm_device *drm,
 	int num = 0, plane_num = 0;
 
 	/* setup crtc's planes */
-	planes = devm_kzalloc(drm->dev,
-				sizeof(struct drm_plane *) * top->num_planes,
+	planes = kzalloc(sizeof(struct drm_plane *) * top->num_planes,
 				GFP_KERNEL);
-	if (IS_ERR(planes))
-		return PTR_ERR(planes);
+	if (!planes)
+		return -ENOMEM;
 
 	for (i = 0; top->num_planes > i; i++) {
 		enum drm_plane_type drm_type = top->plane_type[i];
@@ -579,7 +576,7 @@ static int nx_drm_crtc_create_planes(struct drm_device *drm,
 	}
 
 	drm_crtc_helper_add(crtc, &nx_crtc_helper_funcs);
-	devm_kfree(drm->dev, planes);
+	kfree(planes);
 
 	return 0;
 
@@ -590,8 +587,7 @@ err_plane:
 			plane->funcs->destroy(plane);
 	}
 
-	if (planes)
-		devm_kfree(drm->dev, planes);
+	kfree(planes);
 
 	return ret;
 }
@@ -616,20 +612,18 @@ int nx_drm_crtc_init(struct drm_device *drm)
 		num_crtcs, fb_align_rgb, fb_vblank_wait ? "Wait" : "Pass");
 
 	/* setup crtc's planes */
-	nx_crtcs = devm_kzalloc(drm->dev,
-				sizeof(struct nx_drm_crtc *) * num_crtcs,
+	nx_crtcs = kzalloc(sizeof(struct nx_drm_crtc *) * num_crtcs,
 				GFP_KERNEL);
-	if (IS_ERR(nx_crtcs))
-		goto err_crtc;
+	if (!nx_crtcs)
+		return -ENOMEM;
 
 	for (i = 0; num_crtcs > i; i++) {
 		struct nx_drm_priv *priv;
 		struct nx_drm_crtc *nx_crtc;
 		int pipe = pipes[i];	/* reg property */
 
-		nx_crtc = devm_kzalloc(drm->dev,
-					sizeof(struct nx_drm_crtc), GFP_KERNEL);
-		if (IS_ERR(nx_crtc))
+		nx_crtc = kzalloc(sizeof(struct nx_drm_crtc), GFP_KERNEL);
+		if (!nx_crtc)
 			goto err_crtc;
 
 		priv = drm->dev_private;
@@ -655,19 +649,16 @@ int nx_drm_crtc_init(struct drm_device *drm)
 			i, pipe, nx_crtc->pipe_irq);
 	}
 
-	devm_kfree(drm->dev, nx_crtcs);
+	kfree(nx_crtcs);
 
 	DRM_DEBUG_KMS("done\n");
 	return 0;
 
 err_crtc:
-	for (i = 0; num_crtcs > i; i++) {
-		if (nx_crtcs[i])
-			devm_kfree(drm->dev, nx_crtcs[i]);
-	}
+	for (i = 0; num_crtcs > i; i++)
+		kfree(nx_crtcs[i]);
 
-	if (nx_crtcs)
-		devm_kfree(drm->dev, nx_crtcs);
+	kfree(nx_crtcs);
 
 	return ret;
 }

@@ -469,8 +469,7 @@ void nx_drm_dp_panel_dev_release(struct device *dev,
 {
 	struct dp_control_dev *dpc = display_to_dpc(display);
 
-	if (dpc->dp_output)
-		devm_kfree(dev, dpc->dp_output);
+	kfree(dpc->dp_output);
 }
 
 int nx_drm_dp_panel_ctrl_parse(struct device_node *np,

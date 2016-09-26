@@ -19,6 +19,7 @@
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/reset.h>
+#include <linux/slab.h>
 
 #include "s5pxx18_dp_dev.h"
 
@@ -243,8 +244,8 @@ int nx_dp_device_lvds_register(struct device *dev,
 {
 	struct dp_lvds_dev *out;
 
-	out = devm_kzalloc(dev, sizeof(*out), GFP_KERNEL);
-	if (IS_ERR(out))
+	out = kzalloc(sizeof(*out), GFP_KERNEL);
+	if (!out)
 		return -ENOMEM;
 
 	out->reset_control = (void *)resets;

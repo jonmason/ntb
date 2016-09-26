@@ -220,13 +220,12 @@ static struct drm_encoder_helper_funcs nx_encoder_helper_funcs = {
 
 static void nx_drm_encoder_destroy(struct drm_encoder *encoder)
 {
-	struct drm_device *drm = encoder->dev;
 	struct nx_drm_encoder *nx_encoder = to_nx_encoder(encoder);
 
 	nx_drm_dp_encoder_unprepare(encoder);
 
 	drm_encoder_cleanup(encoder);
-	devm_kfree(drm->dev, nx_encoder);
+	kfree(nx_encoder);
 }
 
 static struct drm_encoder_funcs nx_encoder_funcs = {
@@ -244,8 +243,7 @@ struct drm_encoder *nx_drm_encoder_create(struct drm_device *drm,
 
 	BUG_ON(!display || 0 == possible_crtcs);
 
-	nx_encoder =
-		devm_kzalloc(drm->dev, sizeof(*nx_encoder), GFP_KERNEL);
+	nx_encoder = kzalloc(sizeof(*nx_encoder), GFP_KERNEL);
 	if (!nx_encoder)
 		return ERR_PTR(-ENOMEM);
 

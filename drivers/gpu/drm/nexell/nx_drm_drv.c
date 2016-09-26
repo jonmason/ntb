@@ -93,8 +93,7 @@ static int nx_drm_load(struct drm_device *drm, unsigned long flags)
 
 	DRM_DEBUG_DRIVER("drm %s flags 0x%lx\n", dev_name(drm->dev), flags);
 
-	priv = devm_kzalloc(drm->dev,
-			sizeof(struct nx_drm_priv), GFP_KERNEL);
+	priv = kzalloc(sizeof(struct nx_drm_priv), GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;
 
@@ -136,7 +135,7 @@ err_unbind_all:
 
 err_mode_config_cleanup:
 	drm_mode_config_cleanup(drm);
-	devm_kfree(drm->dev, priv);
+	kfree(priv);
 
 	return ret;
 }
@@ -150,7 +149,7 @@ static int nx_drm_unload(struct drm_device *drm)
 	drm_vblank_cleanup(drm);
 	drm_kms_helper_poll_fini(drm);
 	drm_mode_config_cleanup(drm);
-	devm_kfree(drm->dev, drm->dev_private);
+	kfree(drm->dev_private);
 
 	drm->dev_private = NULL;
 	return 0;

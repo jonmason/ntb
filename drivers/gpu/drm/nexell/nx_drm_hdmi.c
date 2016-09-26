@@ -583,7 +583,7 @@ static int panel_hdmi_probe(struct platform_device *pdev)
 	DRM_DEBUG_KMS("enter (%s)\n", dev_name(dev));
 
 	ctx = devm_kzalloc(dev, sizeof(*ctx), GFP_KERNEL);
-	if (IS_ERR(ctx))
+	if (!ctx)
 		return -ENOMEM;
 
 	ctx->display = &hdmi_dp_dev;
@@ -597,22 +597,17 @@ static int panel_hdmi_probe(struct platform_device *pdev)
 
 	err = panel_hdmi_driver_setup(pdev, ctx);
 	if (0 > err)
-		goto err_parse;
+		return err;
 
 	err = panel_hdmi_parse_dt(pdev, ctx);
 	if (0 > err)
-		goto err_parse;
+		return err;
 
 	dev_set_drvdata(dev, ctx);
 
 	component_add(dev, &panel_comp_ops);
 
 	DRM_DEBUG_KMS("done\n");
-	return err;
-
-err_parse:
-	if (ctx)
-		devm_kfree(dev, ctx);
 
 	return err;
 }
@@ -637,8 +632,6 @@ static int panel_hdmi_remove(struct platform_device *pdev)
 
 	nx_drm_dp_panel_res_free(dev, &ctx->display->res);
 	nx_drm_dp_panel_dev_release(dev, ctx->display);
-
-	devm_kfree(&pdev->dev, ctx);
 
 	return 0;
 }

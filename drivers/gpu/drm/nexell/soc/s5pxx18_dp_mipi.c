@@ -19,6 +19,7 @@
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/of.h>
+#include <linux/slab.h>
 #include <video/mipi_display.h>
 
 #include "s5pxx18_dp_dev.h"
@@ -500,8 +501,8 @@ int nx_dp_device_mipi_register(struct device *dev,
 	struct dp_mipi_dev *out;
 	u32 lp_rate = 0, hs_rate = 0;
 
-	out = devm_kzalloc(dev, sizeof(*out), GFP_KERNEL);
-	if (IS_ERR(out))
+	out = kzalloc(sizeof(*out), GFP_KERNEL);
+	if (!out)
 		return -ENOMEM;
 
 	parse_read_prop(np, "lp_bitrate", lp_rate);

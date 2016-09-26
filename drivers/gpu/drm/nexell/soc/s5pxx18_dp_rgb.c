@@ -33,8 +33,8 @@ int nx_dp_device_rgb_register(struct device *dev,
 	struct dp_rgb_dev *out;
 	u32 mpu_lcd = 0;
 
-	out = devm_kzalloc(dev, sizeof(*out), GFP_KERNEL);
-	if (IS_ERR(out))
+	out = kzalloc(dev, sizeof(*out), GFP_KERNEL);
+	if (!out)
 		return -ENOMEM;
 
 	parse_read_prop(np, "panel-mpu", mpu_lcd);

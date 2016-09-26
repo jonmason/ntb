@@ -1043,8 +1043,8 @@ int nx_dp_device_hdmi_register(struct device *dev,
 {
 	struct dp_hdmi_dev *out;
 
-	out = devm_kzalloc(dev, sizeof(*out), GFP_KERNEL);
-	if (IS_ERR(out))
+	out = kzalloc(sizeof(*out), GFP_KERNEL);
+	if (!out)
 		return -ENOMEM;
 
 	dpc->panel_type = dp_panel_type_hdmi;

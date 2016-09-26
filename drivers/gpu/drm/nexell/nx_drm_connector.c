@@ -198,9 +198,8 @@ struct drm_connector *nx_drm_connector_create_and_attach(
 	}
 	polled = DRM_CONNECTOR_POLL_HPD;	/* for hpd_irq_event */
 
-	nx_connector =
-		devm_kzalloc(drm->dev, sizeof(*nx_connector), GFP_KERNEL);
-	if (IS_ERR(nx_connector))
+	nx_connector = kzalloc(sizeof(*nx_connector), GFP_KERNEL);
+	if (!nx_connector)
 		return NULL;
 
 	connector = &nx_connector->connector;
@@ -247,7 +246,7 @@ err_encoder:
 	if (encoder)
 		encoder->funcs->destroy(encoder);
 err_alloc:
-	devm_kfree(drm->dev, nx_connector);
+	kfree(nx_connector);
 
 	return NULL;
 }

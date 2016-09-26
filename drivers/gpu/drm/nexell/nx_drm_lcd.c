@@ -564,7 +564,7 @@ static int panel_lcd_probe(struct platform_device *pdev)
 
 	size = sizeof(*ctx) + sizeof(struct nx_drm_device);
 	ctx = devm_kzalloc(dev, size, GFP_KERNEL);
-	if (IS_ERR(ctx))
+	if (!ctx)
 		return -ENOMEM;
 
 	ctx->display = (void *)ctx + sizeof(*ctx);
@@ -575,11 +575,11 @@ static int panel_lcd_probe(struct platform_device *pdev)
 
 	err = panel_lcd_driver_setup(pdev, ctx, &panel_type);
 	if (0 > err)
-		goto err_parse;
+		return err;
 
 	err = panel_lcd_parse_dt(pdev, ctx, panel_type);
 	if (0 > err)
-		goto err_parse;
+		return err;
 
 	panel_type = dp_panel_get_type(ctx->display);
 
@@ -597,12 +597,6 @@ static int panel_lcd_probe(struct platform_device *pdev)
 
 	DRM_DEBUG_KMS("done\n");
 	return err;
-
-err_parse:
-	if (ctx)
-		devm_kfree(dev, ctx);
-
-	return err;
 }
 
 static int panel_lcd_remove(struct platform_device *pdev)
@@ -615,8 +609,6 @@ static int panel_lcd_remove(struct platform_device *pdev)
 
 	nx_drm_dp_panel_res_free(dev, &ctx->display->res);
 	nx_drm_dp_panel_dev_release(dev, ctx->display);
-
-	devm_kfree(&pdev->dev, ctx);
 
 	return 0;
 }
