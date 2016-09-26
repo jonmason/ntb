@@ -1263,7 +1263,7 @@ int vpu_enc_init(struct nx_vpu_ctx *ctx)
 	}
 
 	pSeqArg->strmBufPhyAddr = (uint64_t)ctx->bit_stream_buf->phyAddr;
-	pSeqArg->strmBufVirAddr = (uint64_t)ctx->bit_stream_buf->virAddr;
+	pSeqArg->strmBufVirAddr = (unsigned long)ctx->bit_stream_buf->virAddr;
 	pSeqArg->strmBufSize = ctx->bit_stream_buf->size;
 
 	if ((pSeqArg->strmBufPhyAddr == 0) || (pSeqArg->strmBufSize == 0)) {
@@ -1511,7 +1511,8 @@ int vpu_enc_encode_frame(struct nx_vpu_ctx *ctx)
 		return ret;
 	}
 
-	memcpy(stream_buf.virAddr, (void *)pRunArg->outStreamAddr,
+	memcpy(stream_buf.virAddr,
+		(void *)(unsigned long)pRunArg->outStreamAddr,
 		pRunArg->outStreamSize);
 	ctx->strm_size = pRunArg->outStreamSize;
 

@@ -693,7 +693,7 @@ int nx_vpu_buf_prepare(struct vb2_buffer *vb)
 		if (ret < 0)
 			return ret;
 
-		NX_DbgMsg(INFO_MSG, ("plane size: %ld, strm size: %ld\n",
+		NX_DbgMsg(INFO_MSG, ("plane size: %ld, strm size: %d\n",
 			vb2_plane_size(vb, 0), ctx->strm_buf_size));
 
 		if (vb2_plane_size(vb, 0) < ctx->strm_buf_size) {
@@ -1164,7 +1164,7 @@ static int nx_vpu_probe(struct platform_device *pdev)
 
 	dev = devm_kzalloc(&pdev->dev, sizeof(*dev), GFP_KERNEL);
 	if (!dev) {
-		NX_ErrMsg(("fail to kzalloc(size %ld) (%s)\n",
+		NX_ErrMsg(("fail to kzalloc(size %zu) (%s)\n",
 			sizeof(struct nx_vpu_v4l2), NX_VIDEO_NAME));
 		return -ENOMEM;
 	}

@@ -521,7 +521,7 @@ int NX_VpuInit(void *dev, void *baseAddr, void *firmVirAddr,
 	for (i = 0 ; i < NX_MAX_VPU_INSTANCE ; i++) {
 		gstVpuInstance[i].inUse = 0;
 		gstVpuInstance[i].paramPhyAddr = paramBufAddr;
-		gstVpuInstance[i].paramVirAddr = (uint64_t)(firmVirAddr +
+		gstVpuInstance[i].paramVirAddr = (unsigned long)(firmVirAddr +
 			CODE_BUF_SIZE + TEMP_BUF_SIZE);
 		gstVpuInstance[i].paramBufSize = PARA_BUF_SIZE;
 	}

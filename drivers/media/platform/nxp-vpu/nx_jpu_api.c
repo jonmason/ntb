@@ -677,7 +677,7 @@ int JPU_EncRunFrame(struct nx_vpu_codec_inst *pInst,
 		SetupJpegEncPara(pJpgInfo, pInfo->jpegQuality);
 		EncodeJpegHeader(pJpgInfo);
 
-		NX_DrvMemcpy((void *)pInfo->strmBufVirAddr,
+		NX_DrvMemcpy((void *)(unsigned long)pInfo->strmBufVirAddr,
 			(void *)pJpgInfo->jpegHeader, pJpgInfo->headerSize);
 
 		pInfo->strmBufPhyAddr += pJpgInfo->headerSize;
@@ -1508,7 +1508,8 @@ int JPU_DecSetSeqInfo(struct nx_vpu_codec_inst *pInst,
 
 	pInfo->thumbnailMode = seqArg->thumbnailMode;
 
-	if (JPU_DecParseHeader(pInfo, (uint8_t *)seqArg->seqData,
+	if (JPU_DecParseHeader(pInfo,
+		(uint8_t *)(unsigned long)seqArg->seqData,
 		seqArg->seqDataSize) < 0)
 		return -1;
 
