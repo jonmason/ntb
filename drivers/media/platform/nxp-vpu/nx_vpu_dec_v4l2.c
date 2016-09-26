@@ -945,7 +945,7 @@ int vpu_dec_parse_vid_cfg(struct nx_vpu_ctx *ctx)
 int vpu_dec_init(struct nx_vpu_ctx *ctx)
 {
 	struct vpu_dec_ctx *dec_ctx = &ctx->codec.dec;
-	struct vpu_dec_reg_frame_arg frameArg;
+	struct vpu_dec_reg_frame_arg *frameArg = dec_ctx->frameArg;
 	int i, ret = 0;
 
 	FUNC_IN();
@@ -955,9 +955,7 @@ int vpu_dec_init(struct nx_vpu_ctx *ctx)
 		return -EAGAIN;
 	}
 
-	NX_DrvMemset(&frameArg, 0, sizeof(frameArg));
-
-	frameArg.chromaInterleave = ctx->chromaInterleave;
+	frameArg->chromaInterleave = ctx->chromaInterleave;
 
 	if (ctx->codec_mode != CODEC_STD_MJPG) {
 		ret = alloc_decoder_memory(ctx);
@@ -967,31 +965,31 @@ int vpu_dec_init(struct nx_vpu_ctx *ctx)
 		}
 
 		if (dec_ctx->slice_buf)
-			frameArg.sliceBuffer = *dec_ctx->slice_buf;
+			frameArg->sliceBuffer = *dec_ctx->slice_buf;
 		if (dec_ctx->col_mv_buf)
-			frameArg.colMvBuffer = *dec_ctx->col_mv_buf;
+			frameArg->colMvBuffer = *dec_ctx->col_mv_buf;
 		if (dec_ctx->pv_slice_buf)
-			frameArg.pvbSliceBuffer = *dec_ctx->pv_slice_buf;
+			frameArg->pvbSliceBuffer = *dec_ctx->pv_slice_buf;
 
-		frameArg.sramAddr = ctx->dev->sram_base_addr;
-		frameArg.sramSize = ctx->dev->sram_size;
+		frameArg->sramAddr = ctx->dev->sram_base_addr;
+		frameArg->sramSize = ctx->dev->sram_size;
 	}
 
 	for (i = 0; i < dec_ctx->dpb_queue_cnt; i++) {
-		frameArg.frameBuffer[i].phyAddr[0]
+		frameArg->frameBuffer[i].phyAddr[0]
 			= dec_ctx->frame_buf[i].phyAddr[0];
-		frameArg.frameBuffer[i].phyAddr[1]
+		frameArg->frameBuffer[i].phyAddr[1]
 			= dec_ctx->frame_buf[i].phyAddr[1];
 
 		if (ctx->chromaInterleave == 0)
-			frameArg.frameBuffer[i].phyAddr[2]
+			frameArg->frameBuffer[i].phyAddr[2]
 				= dec_ctx->frame_buf[i].phyAddr[2];
 
-		frameArg.frameBuffer[i].stride[0] = ctx->buf_y_width;
+		frameArg->frameBuffer[i].stride[0] = ctx->buf_y_width;
 	}
-	frameArg.numFrameBuffer = dec_ctx->dpb_queue_cnt;
+	frameArg->numFrameBuffer = dec_ctx->dpb_queue_cnt;
 
-	ret = NX_VpuDecRegFrameBuf(ctx->hInst, &frameArg);
+	ret = NX_VpuDecRegFrameBuf(ctx->hInst, frameArg);
 	if (ret != VPU_RET_OK)
 		NX_ErrMsg(("NX_VpuDecRegFrameBuf() failed.(ErrorCode=%d)\n",
 			ret));
@@ -1282,6 +1280,11 @@ int alloc_decoder_memory(struct nx_vpu_ctx *ctx)
 		}
 	}
 
+	dec_ctx->frameArg = kzalloc(sizeof(struct vpu_dec_reg_frame_arg),
+			GFP_KERNEL);
+	if (!dec_ctx->frameArg)
+		goto Error_Exit;
+
 	return 0;
 
 Error_Exit:
@@ -1314,6 +1317,8 @@ int free_decoder_memory(struct nx_vpu_ctx *ctx)
 
 	if (ctx->bit_stream_buf)
 		nx_free_memory(ctx->bit_stream_buf);
+
+	kfree(dec_ctx->frameArg);
 
 	return 0;
 }
