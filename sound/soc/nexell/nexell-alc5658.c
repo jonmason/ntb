@@ -144,7 +144,6 @@ static int alc5658_resume_post(struct snd_soc_card *card)
 {
 	struct snd_soc_codec *codec = alc5658;
 	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
-	int jack = jack_gpio.gpio;
 	int invert = jack_gpio.invert;
 	int level = 1; /* gpio_get_value_cansleep(jack); */
 
