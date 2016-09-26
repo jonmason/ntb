@@ -127,6 +127,8 @@ struct vpu_dec_ctx {
 
 	/* for Jpeg */
 	int32_t thumbnailMode;
+
+	struct vpu_dec_reg_frame_arg *frameArg;
 };
 
 struct nx_vpu_fmt {
