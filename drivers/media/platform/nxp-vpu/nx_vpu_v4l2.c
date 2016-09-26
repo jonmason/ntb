@@ -909,7 +909,7 @@ static int nx_vpu_open(struct file *file)
 	ctx->idx = 0;
 	while (dev->ctx[ctx->idx]) {
 		ctx->idx++;
-		if (ctx->idx > NX_MAX_VPU_INSTANCE) {
+		if (ctx->idx >= NX_MAX_VPU_INSTANCE) {
 			dev_err(err, "Can't open nx vpu driver!!\n");
 			dev_err(err, "CurNumInstance = %d)\n",
 				dev->cur_num_instance);
