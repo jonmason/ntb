@@ -4801,7 +4801,11 @@ static void __exit cfq_exit(void)
 	kmem_cache_destroy(cfq_pool);
 }
 
+#ifdef CONFIG_EXT4_FS_INIT_LEVEL_UP
+fs_initcall(cfq_init);
+#else
 module_init(cfq_init);
+#endif
 module_exit(cfq_exit);
 
 MODULE_AUTHOR("Jens Axboe");

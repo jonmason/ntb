@@ -10,7 +10,9 @@
  * Please see Documentation/filesystems/sysfs.txt for more information.
  */
 
+#ifndef CONFIG_REDUCE_BOOT_TIME
 #define DEBUG
+#endif
 
 #include <linux/fs.h>
 #include <linux/magic.h>
