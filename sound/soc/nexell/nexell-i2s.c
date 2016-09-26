@@ -190,6 +190,18 @@ static void qos_worker(struct work_struct *work)
 {
 	nx_i2s_qos_update(NX_BUS_CLK_IDLE_KHZ);
 }
+
+#ifdef CONFIG_ARCH_S5P4418
+static struct pm_qos_request nx_i2s_cpu_qos;
+
+static void nx_i2s_cpu_qos_update(int val)
+{
+	if (!pm_qos_request_active(&nx_i2s_cpu_qos))
+		pm_qos_add_request(&nx_i2s_cpu_qos, PM_QOS_CPU_FREQ_MIN, val);
+	else
+		pm_qos_update_request(&nx_i2s_cpu_qos, val);
+}
+#endif
 #endif
 
 #define	SND_I2S_LOCK_INIT(x)		spin_lock_init(x)
@@ -639,6 +651,10 @@ static int nx_i2s_startup(struct snd_pcm_substream *substream,
 
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
 	nx_i2s_qos_update(NX_BUS_CLK_AUDIO_KHZ);
+#ifdef CONFIG_ARCH_S5P4418
+	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
+		nx_i2s_cpu_qos_update(NX_CPU_CLK_AUDIO_KHZ);
+#endif
 #endif
 
 	snd_soc_dai_set_dma_data(dai, substream, dmap);
@@ -653,6 +669,10 @@ static void nx_i2s_shutdown(struct snd_pcm_substream *substream,
 
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
 	nx_i2s_qos_update(NX_BUS_CLK_IDLE_KHZ);
+#ifdef CONFIG_ARCH_S5P4418
+	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE)
+		nx_i2s_cpu_qos_update(-1);
+#endif
 #endif
 }
 

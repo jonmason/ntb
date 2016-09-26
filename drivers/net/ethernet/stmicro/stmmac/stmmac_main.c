@@ -3087,6 +3087,8 @@ int stmmac_resume(struct net_device *ndev)
 	if (!netif_running(ndev))
 		return 0;
 
+	spin_lock_irqsave(&priv->lock, flags);
+
 	/* Power Down bit, into the PM register, is cleared
 	 * automatically as soon as a magic packet or a Wake-up frame
 	 * is received. Anyway, it's better to manually clear
@@ -3094,9 +3096,7 @@ int stmmac_resume(struct net_device *ndev)
 	 * from another devices (e.g. serial console).
 	 */
 	if (device_may_wakeup(priv->device)) {
-		spin_lock_irqsave(&priv->lock, flags);
 		priv->hw->mac->pmt(priv->hw, 0);
-		spin_unlock_irqrestore(&priv->lock, flags);
 		priv->irq_wake = 0;
 	} else {
 		pinctrl_pm_select_default_state(priv->device);
@@ -3104,13 +3104,14 @@ int stmmac_resume(struct net_device *ndev)
 		clk_enable(priv->stmmac_clk);
 		clk_enable(priv->pclk);
 		/* reset the phy so that it's ready */
-		if (priv->mii)
+		if (priv->mii) {
+			spin_unlock_irqrestore(&priv->lock, flags);
 			stmmac_mdio_reset(priv->mii);
+			spin_lock_irqsave(&priv->lock, flags);
+		}
 	}
 
 	netif_device_attach(ndev);
-
-	spin_lock_irqsave(&priv->lock, flags);
 
 	priv->cur_rx = 0;
 	priv->dirty_rx = 0;

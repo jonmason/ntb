@@ -81,21 +81,34 @@ static inline void flush_tlb_all(void)
 
 static inline void flush_tlb_mm(struct mm_struct *mm)
 {
+	/* FIXME: temporary turnaround code to resolve tlb flush by ASID BUG.
+	 * We assume the cause of this issue is synchronization between cpu
+	 * clusters. This issue must be resolved in BL1~BL3 layer not here.
+	 * This patch will be removed afterwards.
+	 */
+#if defined (CONFIG_SMP) && defined (CONFIG_ARCH_S5P6818)
+	flush_tlb_all();
+#else
 	unsigned long asid = ASID(mm) << 48;
 
 	dsb(ishst);
 	asm("tlbi	aside1is, %0" : : "r" (asid));
 	dsb(ish);
+#endif
 }
 
 static inline void flush_tlb_page(struct vm_area_struct *vma,
 				  unsigned long uaddr)
 {
+#ifdef CONFIG_ARM64_WORKAROUND_CCI400_DVMV7
+	flush_tlb_mm(vma->vm_mm);
+#else
 	unsigned long addr = uaddr >> 12 | (ASID(vma->vm_mm) << 48);
 
 	dsb(ishst);
 	asm("tlbi	vale1is, %0" : : "r" (addr));
 	dsb(ish);
+#endif
 }
 
 /*
@@ -108,6 +121,9 @@ static inline void __flush_tlb_range(struct vm_area_struct *vma,
 				     unsigned long start, unsigned long end,
 				     bool last_level)
 {
+#ifdef CONFIG_ARM64_WORKAROUND_CCI400_DVMV7
+	flush_tlb_mm(vma->vm_mm);
+#else
 	unsigned long asid = ASID(vma->vm_mm) << 48;
 	unsigned long addr;
 
@@ -127,6 +143,7 @@ static inline void __flush_tlb_range(struct vm_area_struct *vma,
 			asm("tlbi vae1is, %0" : : "r"(addr));
 	}
 	dsb(ish);
+#endif
 }
 
 static inline void flush_tlb_range(struct vm_area_struct *vma,
@@ -137,6 +154,9 @@ static inline void flush_tlb_range(struct vm_area_struct *vma,
 
 static inline void flush_tlb_kernel_range(unsigned long start, unsigned long end)
 {
+#ifdef CONFIG_ARM64_WORKAROUND_CCI400_DVMV7
+	flush_tlb_all();
+#else
 	unsigned long addr;
 
 	if ((end - start) > MAX_TLB_RANGE) {
@@ -152,6 +172,7 @@ static inline void flush_tlb_kernel_range(unsigned long start, unsigned long end
 		asm("tlbi vaae1is, %0" : : "r"(addr));
 	dsb(ish);
 	isb();
+#endif
 }
 
 /*
@@ -161,10 +182,14 @@ static inline void flush_tlb_kernel_range(unsigned long start, unsigned long end
 static inline void __flush_tlb_pgtable(struct mm_struct *mm,
 				       unsigned long uaddr)
 {
+#ifdef CONFIG_ARM64_WORKAROUND_CCI400_DVMV7
+	flush_tlb_mm(mm);
+#else
 	unsigned long addr = uaddr >> 12 | (ASID(mm) << 48);
 
 	asm("tlbi	vae1is, %0" : : "r" (addr));
 	dsb(ish);
+#endif
 }
 
 #endif

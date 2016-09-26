@@ -1527,12 +1527,31 @@ int vpu_enc_encode_frame(struct nx_vpu_ctx *ctx)
 	}
 
 	if (ctx->strm_size > 0) {
+		struct vb2_v4l2_buffer *vbuf;
 		mb_entry = list_entry(ctx->strm_queue.next, struct nx_vpu_buf,
 			list);
 
 		list_del(&mb_entry->list);
 		ctx->strm_queue_cnt--;
+		vbuf = to_vb2_v4l2_buffer(&mb_entry->vb);
 
+		switch (pRunArg->frameType) {
+			case 0:
+			case 6:
+				vbuf->flags = V4L2_BUF_FLAG_KEYFRAME;
+				break;
+			case 1:
+				vbuf->flags = V4L2_BUF_FLAG_PFRAME;
+				break;
+			case 2:
+			case 3:
+				vbuf->flags = V4L2_BUF_FLAG_BFRAME;
+				break;
+			default:
+				vbuf->flags = V4L2_BUF_FLAG_PFRAME;
+				NX_ErrMsg(("not defined frame type!!!\n"));
+				break;
+		}
 		vb2_set_plane_payload(&mb_entry->vb, 0, ctx->strm_size);
 
 		vb2_buffer_done(&mb_entry->vb, VB2_BUF_STATE_DONE);

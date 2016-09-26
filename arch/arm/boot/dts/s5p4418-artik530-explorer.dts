@@ -43,8 +43,10 @@
 		i2c3 = &i2c_gpio3;
 		i2c4 = &i2c_gpio4;
 		i2c7 = &i2c_gpio7;
-		snd_null_card0 = &snd_null_card_0;
-		snd_null_card1 = &snd_null_card_1;
+	};
+
+	cpus {
+		enable-method = "nexell,s5p4418-smp";
 	};
 
 	nx-v4l2 {
@@ -122,12 +124,17 @@
 			snps,reset-active-low;
 			snps,reset-delays-us = <0 10000 30000>;
 
-			phy-handle = <&ethernet_phy>;
+			mdio {
+				#address-cells = <1>;
+				#size-cells = <0>;
 
-			ethernet_phy:ethernet-phy@3 {
-				compatible = "ethernet-phy-ieee802.3-c45";
-				reg = <3>;
-				device_type = "ethernet-phy";
+				ethernet_phy: ethernet-phy@3 {
+					reg = <3>;
+					fixed-link {
+						speed = <1000>;
+						full-duplex;
+					};
+				};
 			};
 		};
 
@@ -155,18 +162,13 @@
 			};
 		};
 
-		spdiftx@c0059000 {
-			pcm-bit = <16>;
-			sample_rate = <48000>;
-			status = "okay";
-		};
-
 		video-codec@c0080000 {
 			status = "okay";
 			sram = <0 0>;
 		};
 
 		i2s_0:i2s@c0055000 {
+			#sound-dai-cells = <1>;
 			master-mode = <1>;
 			mclk-in = <0>;
 			trans-mode = <1>;
@@ -177,6 +179,7 @@
 		};
 
 		i2s_1:i2s@c0056000 {
+			#sound-dai-cells = <1>;
 			master-mode = <0>;
 			mclk-in = <1>;
 			trans-mode = <1>;
@@ -393,17 +396,6 @@
 		#size-cells = <0>;
 	};
 
-
-	spdif_out: spdif-out {
-		compatible = "linux,spdif-dit";
-	};
-
-	spdif-transceiver {
-		compatible = "nexell,spdif-transceiver";
-		sample_rate = <48000>;
-		format = "S16";
-	};
-
 	gpio_keys {
 		compatible = "gpio-keys";
 		#address-cells = <1>;
@@ -419,27 +411,41 @@
 		};
 	};
 
-	snd-null {
+	snd_null: snd_null@10 {
+		#sound-dai-cells = <0>;
 		compatible = "nexell,snd-null";
 		#address-cells = <1>;
 		#size-cells = <0>;
 		reg = <0 0>;
 	};
 
-	snd_null_card_0:snd_null_card@0 {
-		compatible = "nexell,snd-null-card";
-		ch = <0>;
-		sample_rate = <48000>;
-		format = "S16";
-		i2s-controller = <&i2s_0>;
-	};
+	sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "Artik530 raptor Audio";
+		simple-audio-card,mclk-fs = <256>;
+		status = "okay";
 
-	snd_null_card_1:snd_null_card@1 {
-		compatible = "nexell,snd-null-card";
-		ch = <1>;
-		sample_rate = <48000>;
-		format = "S16";
-		i2s-controller = <&i2s_1>;
+		simple-audio-card,dai-link@0 {
+		    format = "i2s";
+		    cpu {
+			sound-dai = <&i2s_0 0>;
+		    };
+
+		    codec {
+			sound-dai = <&snd_null>;
+		    };
+		};
+
+		simple-audio-card,dai-link@1 {
+		    format = "i2s";
+		    cpu {
+			sound-dai = <&i2s_1 0>;
+		    };
+
+		    codec {
+			sound-dai = <&snd_null>;
+		    };
+		};
 	};
 };
 

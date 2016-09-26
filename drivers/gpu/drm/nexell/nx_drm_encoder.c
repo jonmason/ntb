@@ -206,7 +206,7 @@ static void nx_drm_encoder_commit(struct drm_encoder *encoder)
 	nx_drm_dp_encoder_commit(encoder);
 
 	/* display output device */
-	if (ops->dpms)
+	if (ops && ops->dpms)
 		ops->dpms(display->dev, DRM_MODE_DPMS_ON);
 }
 

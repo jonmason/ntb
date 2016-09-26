@@ -26,7 +26,7 @@
 
 #include "dt_idle_states.h"
 
-#define NEXELL_MAX_STATES		2
+#define NEXELL_MAX_STATES		1
 
 static int nexell_enter_idle(struct cpuidle_device *dev,
 			   struct cpuidle_driver *drv, int index)
@@ -40,11 +40,10 @@ static struct cpuidle_driver nexell_idle_driver = {
 	.name = "nexell_idle",
 	.owner = THIS_MODULE,
 	.states = {
-		ARM_CPUIDLE_WFI_STATE,
 		{
 			.enter			= nexell_enter_idle,
-			.exit_latency		= 10,
-			.target_residency	= 10000,
+			.exit_latency		= 1,
+			.target_residency	= 1,
 			.name			= "Nexell Idle",
 			.desc			= "Nexell cpu Idle",
 		},

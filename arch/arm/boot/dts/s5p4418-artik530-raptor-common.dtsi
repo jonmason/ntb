@@ -37,6 +37,11 @@
 	compatible = "samsung,artik530-raptor", "samsung,artik530",
 		   "nexell,s5p4418";
 
+	psci {
+		compatible = "arm,psci-0.2";
+		method = "smc";
+	};
+
 	aliases {
 		i2c1 = &i2c_1;
 		i2c3 = &i2c_gpio3;
@@ -510,6 +515,13 @@
 			linux,code = <KEY_POWER>;
 			gpio-key,wakeup;
 		};
+
+		wakeup {
+			label = "Wakeup";
+			gpios = <&alive_0 1 1>;
+			linux,code = <KEY_WAKEUP>;
+			gpio-key,wakeup;
+		};
 	};
 
 	regulators {
@@ -552,14 +564,14 @@
 				{ PMIC_PDATA_INIT( 6,
 				"nxe2000_ldo2",
 				1000000, 3500000,
-				1800000, 1, 1, 0xF)
+				1800000, 1, 1, 0x2)
 				regulator-always-on;
 				regulator-boot-on;};
 		VCC_LDO2:ldo3
 				{ PMIC_PDATA_INIT( 7,
 				"nxe2000_ldo3",
 				1000000, 3500000,
-				3300000, 1, 1, 0xF)
+				3300000, 1, 1, 0x0)
 				regulator-always-on;
 				regulator-boot-on;};
 		VCC_LDO3:ldo4
