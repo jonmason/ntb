@@ -493,7 +493,7 @@ static int ntc_read_temp(void *dev, int *temp)
 	return 0;
 }
 
-static int ntc_set_emul_temp(void *dev, unsigned long temp)
+static int ntc_set_emul_temp(void *dev, int temp)
 {
 	struct ntc_data *data = dev_get_drvdata(dev);
 
