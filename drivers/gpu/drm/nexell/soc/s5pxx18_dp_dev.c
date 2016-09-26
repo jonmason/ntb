@@ -293,17 +293,22 @@ void nx_soc_dp_cont_power_on(struct dp_control_dev *dpc, bool on)
 	int module = dpc->module;
 	int count = 200;
 	int vbl;
+	bool poweron;
 
-	pr_debug("%s: %s dev.%d power %s\n",
+	poweron = nx_dpc_get_dpc_enable(module) ? true : false;
+
+	pr_debug("%s: %s dev.%d power %s [%s]\n",
 		__func__, dp_panel_type_name(dpc->panel_type),
-		module, on ? "on" : "off");
+		module, on ? "on" : "off", poweron ? "enabled" : "disabled");
 
 	nx_dpc_clear_interrupt_pending_all(module);
 
 	if (on) {
-		nx_dpc_set_reg_flush(module);	/* for HDMI */
-		nx_dpc_set_dpc_enable(module, 1);
-		nx_dpc_set_clock_divisor_enable(module, 1);
+		if (!poweron) {
+			nx_dpc_set_reg_flush(module);	/* for HDMI */
+			nx_dpc_set_dpc_enable(module, 1);
+			nx_dpc_set_clock_divisor_enable(module, 1);
+		}
 	} else {
 		nx_dpc_set_dpc_enable(module, 0);
 		nx_dpc_set_clock_divisor_enable(module, 0);

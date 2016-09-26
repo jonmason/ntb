@@ -201,7 +201,6 @@ static int nx_drm_crtc_mode_set_base(struct drm_crtc *crtc, int x, int y,
 static void nx_drm_crtc_disable(struct drm_crtc *crtc)
 {
 	struct drm_plane *plane;
-	struct drm_mode_config *config = &crtc->dev->mode_config;
 	int ret;
 
 	DRM_DEBUG_KMS("enter\n");
