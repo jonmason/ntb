@@ -510,6 +510,38 @@ static int cpufreq_get_cur_state(struct thermal_cooling_device *cdev,
 	return 0;
 }
 
+#ifdef CONFIG_HOTPLUG_CPU
+static void enable_cpus(void)
+{
+	int cpu, ret;
+
+	for_each_possible_cpu(cpu) {
+		ret = cpu_up(cpu);
+		if (ret)
+			pr_warn("Error taking CPU%d up: %d\n", cpu, ret);
+	}
+
+	pr_info("%s enable nonboot cpus\n", __func__);
+}
+
+static void disable_cpus(void)
+{
+	int cpu, first_cpu, ret;
+
+	first_cpu = cpumask_first(cpu_online_mask);
+
+	for_each_online_cpu(cpu) {
+		if (cpu == first_cpu)
+			continue;
+		ret = cpu_down(cpu);
+		if (ret)
+			pr_warn("Error taking CPU%d down: %d\n", cpu, ret);
+	}
+
+	pr_info("%s disable nonboot cpus\n", __func__);
+}
+#endif
+
 /**
  * cpufreq_set_cur_state - callback function to set the current cooling state.
  * @cdev: thermal cooling device pointer.
@@ -538,6 +570,16 @@ static int cpufreq_set_cur_state(struct thermal_cooling_device *cdev,
 	clip_freq = cpufreq_device->freq_table[state];
 	cpufreq_device->cpufreq_state = state;
 	cpufreq_device->clipped_freq = clip_freq;
+
+#ifdef CONFIG_HOTPLUG_CPU
+	if (cdev->hotplug_cpu) {
+		if (state == cpufreq_device->max_level) {
+			disable_cpus();
+		} else {
+			enable_cpus();
+		}
+	}
+#endif
 
 	cpufreq_update_policy(cpu);
 
