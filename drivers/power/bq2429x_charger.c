@@ -612,6 +612,7 @@ static int bq24296_battery_remove(struct i2c_client *client)
 static const struct i2c_device_id bq24296_id[] = {
 	{ "bq24296", 0 },
 	{ "bq24297", 1 },
+	{ }
 };
 
 MODULE_ALIAS("i2c:bq2429x");
