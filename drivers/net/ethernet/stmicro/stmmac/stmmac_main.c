@@ -3049,6 +3049,8 @@ int stmmac_suspend(struct net_device *ndev)
 
 	spin_lock_irqsave(&priv->lock, flags);
 
+	del_timer(&priv->txtimer);
+
 	/* Stop TX/RX DMA */
 	priv->hw->dma->stop_tx(priv->ioaddr);
 	priv->hw->dma->stop_rx(priv->ioaddr);
