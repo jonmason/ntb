@@ -74,6 +74,9 @@ struct __thermal_zone {
 	int polling_delay;
 	int slope;
 	int offset;
+#ifdef CONFIG_HOTPLUG_CPU
+	int hotplug_cpu;
+#endif
 
 	/* trip data */
 	int ntrips;
@@ -233,6 +236,11 @@ static int of_thermal_bind(struct thermal_zone_device *thermal,
 						tbp->max,
 						tbp->min,
 						tbp->usage);
+
+#ifdef CONFIG_HOTPLUG_CPU
+			cdev->hotplug_cpu = data->hotplug_cpu;
+#endif
+
 			if (ret)
 				return ret;
 		}
@@ -803,6 +811,10 @@ thermal_of_build_thermal_zone(struct device_node *np)
 	/* cooling-maps not provided */
 	if (!child)
 		goto finish;
+
+#ifdef CONFIG_HOTPLUG_CPU
+	tz->hotplug_cpu = of_property_read_bool(np, "disable-nonboot-cpus");
+#endif
 
 	tz->num_tbps = of_get_child_count(child);
 	if (tz->num_tbps == 0)

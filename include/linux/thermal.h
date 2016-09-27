@@ -136,6 +136,9 @@ struct thermal_cooling_device {
 	void *devdata;
 	const struct thermal_cooling_device_ops *ops;
 	bool updated; /* true if the cooling device does not need update */
+#ifdef CONFIG_HOTPLUG_CPU
+	int hotplug_cpu; /* Throttling with disable nonboot cpus */
+#endif
 	struct mutex lock; /* protect thermal_instances list */
 	struct list_head thermal_instances;
 	struct list_head node;
