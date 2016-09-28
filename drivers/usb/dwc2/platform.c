@@ -145,6 +145,8 @@ static const struct dwc2_core_params params_nexell = {
 	.reload_ctl			= 0,
 	.ahbcfg				= 0x3,  /* INCR4 */
 	.uframe_sched			= 0,
+	.external_id_pin_ctl		= -1,
+	.hibernation			= -1,
 };
 
 static int __dwc2_lowlevel_hw_enable(struct dwc2_hsotg *hsotg)
@@ -532,8 +534,11 @@ static int __maybe_unused dwc2_suspend(struct device *dev)
 	struct dwc2_hsotg *dwc2 = dev_get_drvdata(dev);
 	int ret = 0;
 
-	if (dwc2_is_device_mode(dwc2))
-		dwc2_hsotg_suspend(dwc2);
+	if (dwc2_is_device_mode(dwc2)) {
+		ret = dwc2_hsotg_suspend(dwc2);
+		if (ret)
+			return ret;
+	}
 
 	if (dwc2->ll_hw_enabled)
 		ret = __dwc2_lowlevel_hw_disable(dwc2);

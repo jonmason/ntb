@@ -3066,15 +3066,16 @@ static struct hc_driver dwc2_hc_driver = {
 
 	.hub_status_data = _dwc2_hcd_hub_status_data,
 	.hub_control = _dwc2_hcd_hub_control,
+	.clear_tt_buffer_complete = _dwc2_hcd_clear_tt_buffer_complete,
+
 #if defined(CONFIG_PM) && (defined(CONFIG_ARCH_S5P4418) || \
 	defined(CONFIG_ARCH_S5P6818))
 	.bus_suspend = dwc2_hcd_suspend,
 	.bus_resume = dwc2_hcd_resume,
-#endif
-	.clear_tt_buffer_complete = _dwc2_hcd_clear_tt_buffer_complete,
-
+#else
 	.bus_suspend = _dwc2_hcd_suspend,
 	.bus_resume = _dwc2_hcd_resume,
+#endif
 };
 
 /*
