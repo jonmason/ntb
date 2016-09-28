@@ -73,8 +73,7 @@ int nx_bus_add_notifier(void *data)
 {
 	struct nx_bus_notifier_data *noti_data;
 
-	noti_data = (struct nx_bus_notifier_data *)kzalloc(sizeof(*data),
-							   GFP_KERNEL);
+	noti_data = kzalloc(sizeof(struct nx_bus_notifier_data), GFP_KERNEL);
 	if (!noti_data)
 		return -ENOMEM;
 
