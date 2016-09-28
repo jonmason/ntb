@@ -17,6 +17,7 @@
  */
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/slab.h>
 #include <linux/of.h>
 
 #include "s5pxx18_dp_dev.h"
@@ -33,7 +34,7 @@ int nx_dp_device_rgb_register(struct device *dev,
 	struct dp_rgb_dev *out;
 	u32 mpu_lcd = 0;
 
-	out = kzalloc(dev, sizeof(*out), GFP_KERNEL);
+	out = kzalloc(sizeof(*out), GFP_KERNEL);
 	if (!out)
 		return -ENOMEM;
 
