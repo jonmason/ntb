@@ -19,6 +19,8 @@
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/reset.h>
+#include <linux/slab.h>
+#include <linux/of.h>
 
 #include "s5pxx18_dp_dev.h"
 
@@ -244,10 +246,14 @@ int nx_dp_device_lvds_register(struct device *dev,
 			void *resets, int num_resets)
 {
 	struct dp_lvds_dev *out;
+	u32 format;
 
 	out = devm_kzalloc(dev, sizeof(*out), GFP_KERNEL);
 	if (IS_ERR(out))
 		return -ENOMEM;
+
+	if (!of_property_read_u32(np, "format", &format))
+		out->lvds_format = format;
 
 	out->reset_control = (void *)resets;
 	out->num_resets = num_resets;
