@@ -1084,7 +1084,11 @@ wlan_index_to_data_rate(pmlan_adapter pmadapter, t_u8 index, t_u8 tx_rate_info)
 
 	if ((tx_rate_info & 0x3) == MLAN_RATE_FORMAT_VHT) {
 		/* VHT rate */
-		mcs_index = MIN(index & 0xF, 9);
+		mcs_index = index & 0xF;
+
+		if (mcs_index > 9)
+			mcs_index = 9;
+
 		/* 20M: bw=0, 40M: bw=1, 80M: bw=2, 160M: bw=3 */
 		bw = (tx_rate_info & 0xC) >> 2;
 		/* LGI: gi =0, SGI: gi = 1 */

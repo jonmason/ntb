@@ -1615,6 +1615,9 @@ wlan_add_station_entry(mlan_private *priv, t_u8 *mac)
 	    moal_malloc(priv->adapter->pmoal_handle, sizeof(sta_node),
 			MLAN_MEM_DEF, (t_u8 **)&sta_ptr)) {
 		PRINTM(MERROR, "Failed to allocate memory for station node\n");
+		pmadapter->callbacks.moal_spin_unlock(pmadapter->pmoal_handle,
+						      priv->wmm.
+						      ra_list_spinlock);
 		LEAVE();
 		return MNULL;
 	}
@@ -2898,9 +2901,10 @@ wlan_is_ext_capa_support(mlan_private *pmpriv)
 {
 	ENTER();
 
-	/* So far there are only three bits are meaningful */
 	if (ISSUPP_EXTCAP_TDLS(pmpriv->ext_cap)
 	    || ISSUPP_EXTCAP_INTERWORKING(pmpriv->ext_cap)
+	    || ISSUPP_EXTCAP_BSS_TRANSITION(pmpriv->ext_cap)
+	    || ISSUPP_EXTCAP_QOS_MAP(pmpriv->ext_cap)
 	    || ISSUPP_EXTCAP_OPERMODENTF(pmpriv->ext_cap)
 		) {
 		LEAVE();
@@ -4254,6 +4258,45 @@ wlan_misc_ioctl_multi_chan_policy(IN pmlan_adapter pmadapter,
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
 fail:
+	LEAVE();
+	return ret;
+}
+
+/**
+ *  @brief Get/Set DRCS configuration
+ *
+ *  @param pmadapter    A pointer to mlan_adapter structure
+ *  @param pioctl_req   A pointer to ioctl request buffer
+ *
+ *  @return             MLAN_STATUS_SUCCESS
+ */
+mlan_status
+wlan_misc_ioctl_drcs_config(IN pmlan_adapter pmadapter,
+			    IN pmlan_ioctl_req pioctl_req)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_ds_misc_cfg *misc = MNULL;
+	t_u16 cmd_action = 0;
+	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
+
+	ENTER();
+
+	misc = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
+
+	if (pioctl_req->action == MLAN_ACT_SET)
+		cmd_action = HostCmd_ACT_GEN_SET;
+	else
+		cmd_action = HostCmd_ACT_GEN_GET;
+
+	/* Send request to firmware */
+	ret = wlan_prepare_cmd(pmpriv,
+			       HostCmd_CMD_DRCS_CONFIG,
+			       cmd_action,
+			       0, (t_void *)pioctl_req, &misc->param.drcs_cfg);
+
+	if (ret == MLAN_STATUS_SUCCESS)
+		ret = MLAN_STATUS_PENDING;
+
 	LEAVE();
 	return ret;
 }

@@ -124,6 +124,8 @@ extern const struct net_device_ops woal_netdev_ops;
 #endif
 #endif
 
+/** gtk rekey offload mode */
+extern int gtk_rekey_offload;
 /********************************************************
 				Local Functions
 ********************************************************/
@@ -1409,7 +1411,8 @@ woal_cfg80211_set_default_mgmt_key(struct wiphy *wiphy,
  *  @return             0 --success, otherwise fail
  */
 mlan_status
-woal_set_rekey_data(moal_private *priv, mlan_ds_misc_gtk_rekey_data * gtk_rekey)
+woal_set_rekey_data(moal_private *priv, mlan_ds_misc_gtk_rekey_data * gtk_rekey,
+		    t_u8 action)
 {
 	mlan_ioctl_req *req;
 	mlan_ds_misc_cfg *misc_cfg;
@@ -1426,10 +1429,12 @@ woal_set_rekey_data(moal_private *priv, mlan_ds_misc_gtk_rekey_data * gtk_rekey)
 		misc_cfg = (mlan_ds_misc_cfg *)req->pbuf;
 		misc_cfg->sub_command = MLAN_OID_MISC_GTK_REKEY_OFFLOAD;
 		req->req_id = MLAN_IOCTL_MISC_CFG;
-		req->action = MLAN_ACT_SET;
 
-		memcpy(&misc_cfg->param.gtk_rekey, gtk_rekey,
-		       sizeof(mlan_ds_misc_gtk_rekey_data));
+		req->action = action;
+		if (action == MLAN_ACT_SET)
+			memcpy(&misc_cfg->param.gtk_rekey, gtk_rekey,
+			       sizeof(mlan_ds_misc_gtk_rekey_data));
+
 		status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
 		if (MLAN_STATUS_SUCCESS != status)
 			ret = -EFAULT;
@@ -1471,7 +1476,18 @@ woal_cfg80211_set_rekey_data(struct wiphy *wiphy, struct net_device *dev,
 	memcpy(rekey.kck, data->kck, MLAN_KCK_LEN);
 	memcpy(rekey.replay_ctr, data->replay_ctr, MLAN_REPLAY_CTR_LEN);
 
-	if (MLAN_STATUS_SUCCESS != woal_set_rekey_data(priv, &rekey)) {
+	if (gtk_rekey_offload != GTK_REKEY_OFFLOAD_ENABLE) {
+		if (gtk_rekey_offload == GTK_REKEY_OFFLOAD_SUSPEND) {
+			priv->gtk_data_ready = MTRUE;
+			memcpy(&priv->gtk_rekey_data, &rekey,
+			       sizeof(mlan_ds_misc_gtk_rekey_data));
+		}
+		LEAVE();
+		return ret;
+	}
+
+	if (MLAN_STATUS_SUCCESS !=
+	    woal_set_rekey_data(priv, &rekey, MLAN_ACT_SET)) {
 		ret = -EFAULT;
 	}
 

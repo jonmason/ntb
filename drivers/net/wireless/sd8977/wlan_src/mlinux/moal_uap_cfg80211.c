@@ -39,6 +39,7 @@
 #ifdef WIFI_DIRECT_SUPPORT
 extern int GoAgeoutTime;
 #endif
+extern int dfs_offload;
 /********************************************************
 				Local Functions
 ********************************************************/
@@ -380,6 +381,7 @@ woal_set_wmm_ies(const t_u8 *ie, int len, mlan_uap_bss_param *sys_config)
 	IEEEtypes_VendorSpecific_t *pvendor_ie;
 	IEEEtypes_ElementId_e element_id;
 	const t_u8 wmm_oui[4] = { 0x00, 0x50, 0xf2, 0x02 };
+	t_u8 *poui;
 
 	while (bytes_left >= 2) {
 		element_id = (IEEEtypes_ElementId_e)(*((t_u8 *)pcurrent_ptr));
@@ -394,9 +396,8 @@ woal_set_wmm_ies(const t_u8 *ie, int len, mlan_uap_bss_param *sys_config)
 		switch (element_id) {
 		case VENDOR_SPECIFIC_221:
 			pvendor_ie = (IEEEtypes_VendorSpecific_t *)pcurrent_ptr;
-			if (!memcmp
-			    (pvendor_ie->vend_hdr.oui, wmm_oui,
-			     sizeof(wmm_oui))) {
+			poui = pvendor_ie->vend_hdr.oui;
+			if (!memcmp(poui, wmm_oui, sizeof(wmm_oui))) {
 				if (total_ie_len ==
 				    sizeof(IEEEtypes_WmmParameter_t)) {
 					/*
@@ -2161,6 +2162,7 @@ woal_cfg80211_add_beacon(struct wiphy *wiphy,
 {
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	int ret = 0;
+	t_u8 wait_option;
 
 	ENTER();
 
@@ -2248,8 +2250,15 @@ woal_cfg80211_add_beacon(struct wiphy *wiphy,
 #endif
 #endif
 	priv->uap_host_based = MTRUE;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+	memcpy(&priv->chan, &params->chandef, sizeof(struct cfg80211_chan_def));
+#endif
 	/* if the bss is stopped, then start it */
 	if (priv->bss_started == MFALSE) {
+		if (dfs_offload)
+			wait_option = MOAL_NO_WAIT;
+		else
+			wait_option = MOAL_IOCTL_WAIT;
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_uap_bss_ctrl(priv, MOAL_IOCTL_WAIT, UAP_BSS_START)) {
 			priv->uap_host_based = MFALSE;
@@ -2257,9 +2266,6 @@ woal_cfg80211_add_beacon(struct wiphy *wiphy,
 			goto done;
 		}
 	}
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
-	memcpy(&priv->chan, &params->chandef, sizeof(struct cfg80211_chan_def));
-#endif
 	PRINTM(MMSG, "wlan: AP started\n");
 done:
 	LEAVE();
@@ -2384,11 +2390,6 @@ woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 		LEAVE();
 		return -EFAULT;
 	}
-	if (priv->bss_started != MTRUE) {
-		PRINTM(MMSG, "wlan: AP already stopped!");
-		LEAVE();
-		return 0;
-	}
 	priv->uap_host_based = MFALSE;
 	PRINTM(MMSG, "wlan: Stoping AP\n");
 #ifdef STA_SUPPORT
@@ -2396,6 +2397,8 @@ woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 #endif
 	memset(priv->dscp_map, 0xFF, sizeof(priv->dscp_map));
 	woal_deauth_all_station(priv);
+	if (dfs_offload)
+		woal_cancel_cac_block(priv);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
 	memset(&priv->chan, 0, sizeof(struct cfg80211_chan_def));
 	if (priv->phandle->is_cac_timer_set &&
@@ -2581,6 +2584,9 @@ woal_cfg80211_del_station(struct wiphy *wiphy, struct net_device *dev,
 		priv->phandle->cac_bss_index = 0xff;
 	}
 #endif
+	if (dfs_offload)
+		woal_cancel_cac_block(priv);
+
 	if (priv->media_connected == MFALSE) {
 		PRINTM(MINFO, "cfg80211: Media not connected!\n");
 		LEAVE();

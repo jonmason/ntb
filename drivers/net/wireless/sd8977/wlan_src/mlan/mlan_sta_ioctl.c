@@ -3373,6 +3373,8 @@ wlan_sec_ioctl_passphrase(IN pmlan_adapter pmadapter,
 			cmd_action = HostCmd_ACT_GEN_REMOVE;
 		else
 			cmd_action = HostCmd_ACT_GEN_SET;
+	} else if (pioctl_req->action == MLAN_ACT_CLEAR) {
+		cmd_action = HostCmd_ACT_GEN_REMOVE;
 	} else {
 		if (sec->param.passphrase.psk_type == MLAN_PSK_QUERY) {
 			if (sec->param.passphrase.ssid.ssid_len == 0) {
@@ -5441,6 +5443,8 @@ wlan_misc_ioctl_gtk_rekey_offload(IN pmlan_adapter pmadapter,
 	misc_cfg = (mlan_ds_misc_cfg *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_SET)
 		cmd_action = HostCmd_ACT_GEN_SET;
+	else if (pioctl_req->action == MLAN_ACT_CLEAR)
+		cmd_action = HostCmd_ACT_GEN_REMOVE;
 	else
 		cmd_action = HostCmd_ACT_GEN_GET;
 
@@ -5608,6 +5612,9 @@ wlan_misc_cfg_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 	case MLAN_OID_MISC_MULTI_CHAN_POLICY:
 		status = wlan_misc_ioctl_multi_chan_policy(pmadapter,
 							   pioctl_req);
+		break;
+	case MLAN_OID_MISC_DRCS_CFG:
+		status = wlan_misc_ioctl_drcs_config(pmadapter, pioctl_req);
 		break;
 #ifdef RX_PACKET_COALESCE
 	case MLAN_OID_MISC_RX_PACKET_COALESCE:

@@ -1698,7 +1698,8 @@ wlan_ret_11n_delba(mlan_private *priv, HostCmd_DS_COMMAND *resp)
 		mlan_11n_delete_bastream_tbl(priv, tid, pdel_ba->peer_mac_addr,
 					     TYPE_DELBA_SENT,
 					     INITIATOR_BIT(pdel_ba->
-							   del_ba_param_set));
+							   del_ba_param_set),
+					     0);
 
 		ptx_ba_tbl = wlan_11n_get_txbastream_status(priv,
 							    BA_STREAM_SETUP_INPROGRESS);
@@ -1725,7 +1726,7 @@ wlan_ret_11n_delba(mlan_private *priv, HostCmd_DS_COMMAND *resp)
 							     ptx_ba_tbl->tid,
 							     ptx_ba_tbl->ra,
 							     TYPE_DELBA_SENT,
-							     MTRUE);
+							     MTRUE, 0);
 			}
 		}
 	}
@@ -1810,7 +1811,7 @@ wlan_ret_11n_addba_req(mlan_private *priv, HostCmd_DS_COMMAND *resp)
 		}
 		mlan_11n_delete_bastream_tbl(priv, tid,
 					     padd_ba_rsp->peer_mac_addr,
-					     TYPE_DELBA_SENT, MTRUE);
+					     TYPE_DELBA_SENT, MTRUE, 0);
 		if (padd_ba_rsp->add_rsp_result != BA_RESULT_TIMEOUT) {
 #ifdef UAP_SUPPORT
 			if (GET_BSS_ROLE(priv) == MLAN_BSS_ROLE_UAP)
@@ -2441,6 +2442,7 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 	MrvlIETypes_ExtCap_t *pext_cap;
 	t_u32 usr_dot_11n_dev_cap, orig_usr_dot_11n_dev_cap = 0;
 	t_u32 usr_vht_cap_info;
+	t_u8 usr_dot_11ac_bw;
 	int ret_len = 0;
 
 	ENTER();
@@ -2464,6 +2466,10 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 		usr_vht_cap_info = pmpriv->usr_dot_11ac_dev_cap_a;
 	else
 		usr_vht_cap_info = pmpriv->usr_dot_11ac_dev_cap_bg;
+	if (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS)
+		usr_dot_11ac_bw = BW_FOLLOW_VHTCAP;
+	else
+		usr_dot_11ac_bw = pmpriv->usr_dot_11ac_bw;
 	if ((pbss_desc->bss_band & (BAND_B | BAND_G)) &&
 	    ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap) &&
 	    !wlan_check_chan_width_ht40_by_region(pmpriv, pbss_desc)) {
@@ -2537,6 +2543,7 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 		/* support the VHT if the network to be join has the VHT
 		   operation */
 		if (ISSUPP_11ACENABLED(pmadapter->fw_cap_info) &&
+		    (usr_dot_11ac_bw == BW_FOLLOW_VHTCAP) &&
 		    (!(pmpriv->curr_chan_flags & CHAN_FLAGS_NO_80MHZ)) &&
 		    wlan_11ac_bandconfig_allowed(pmpriv, pbss_desc->bss_band) &&
 		    pbss_desc->pvht_oprat &&
@@ -2598,18 +2605,12 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 
 		memcpy(pmadapter,
 		       (t_u8 *)pext_cap + sizeof(MrvlIEtypesHeader_t),
-		       (t_u8 *)pbss_desc->pext_cap + sizeof(IEEEtypes_Header_t),
-		       pbss_desc->pext_cap->ieee_hdr.len);
+		       (t_u8 *)&pmpriv->ext_cap, sizeof(ExtCap_t));
 		if (!pmadapter->ecsa_enable)
 			RESET_EXTCAP_EXT_CHANNEL_SWITCH(pext_cap->ext_cap);
 		else
 			SET_EXTCAP_EXT_CHANNEL_SWITCH(pext_cap->ext_cap);
-		if (!ISSUPP_EXTCAP_TDLS(pmpriv->ext_cap))
-			RESET_EXTCAP_TDLS(pext_cap->ext_cap);
-		if (!ISSUPP_EXTCAP_INTERWORKING(pmpriv->ext_cap))
-			RESET_EXTCAP_INTERWORKING(pext_cap->ext_cap);
-		if (!ISSUPP_EXTCAP_OPERMODENTF(pmpriv->ext_cap))
-			RESET_EXTCAP_OPERMODENTF(pext_cap->ext_cap);
+
 		HEXDUMP("Extended Capabilities IE", (t_u8 *)pext_cap,
 			sizeof(MrvlIETypes_ExtCap_t));
 		*ppbuffer += sizeof(MrvlIETypes_ExtCap_t);
@@ -3000,7 +3001,8 @@ wlan_11n_delete_bastream(mlan_private *priv, t_u8 *del_ba)
 
 	mlan_11n_delete_bastream_tbl(priv, tid, pdel_ba->peer_mac_addr,
 				     TYPE_DELBA_RECEIVE,
-				     INITIATOR_BIT(pdel_ba->del_ba_param_set));
+				     INITIATOR_BIT(pdel_ba->del_ba_param_set),
+				     pdel_ba->reason_code);
 
 	LEAVE();
 }
@@ -3123,9 +3125,9 @@ wlan_11n_bandconfig_allowed(mlan_private *pmpriv, t_u8 bss_band)
 		if (bss_band & BAND_G)
 			return (pmpriv->adapter->adhoc_start_band & BAND_GN);
 		else
-			return (pmpriv->adapter->adhoc_start_band & BAND_GN);
+			return (pmpriv->adapter->adhoc_start_band & BAND_AN);
 	} else {
-		if (bss_band & BAND_A)
+		if (bss_band & BAND_G)
 			return (pmpriv->config_bands & BAND_GN);
 		else
 			return (pmpriv->config_bands & BAND_AN);
@@ -3165,4 +3167,34 @@ wlan_update_11n_cap(mlan_private *pmpriv)
 		pmadapter->hw_dot_11n_dev_cap & DEFAULT_11N_CAP_MASK_BG;
 	pmpriv->usr_dot_11n_dev_cap_a =
 		pmadapter->hw_dot_11n_dev_cap & DEFAULT_11N_CAP_MASK_A;
+}
+
+/**
+ *  @brief This function fills the TDLS HT cap tlv
+ *
+ *  @param priv         A pointer to mlan_private structure
+ *  @param pht_cap      A pointer to MrvlIETypes_HTCap_t structure
+ *  @param bands        Band configuration
+ *
+ *  @return             N/A
+ */
+void
+wlan_fill_tdls_ht_cap_TLV(mlan_private *priv, MrvlIETypes_HTCap_t *pht_cap,
+			  t_u8 bands)
+{
+	mlan_adapter *pmadapter = priv->adapter;
+	MrvlIETypes_HTCap_t ht_cap;
+	int i = 0;
+
+	memset(pmadapter, &ht_cap, 0, sizeof(MrvlIETypes_HTCap_t));
+	wlan_fill_ht_cap_tlv(priv, &ht_cap, bands);
+
+	pht_cap->ht_cap.ht_cap_info &= ht_cap.ht_cap.ht_cap_info;
+	pht_cap->ht_cap.ampdu_param &= ht_cap.ht_cap.ampdu_param;
+	for (i = 0; i < sizeof(pht_cap->ht_cap.supported_mcs_set); i++)
+		pht_cap->ht_cap.supported_mcs_set[i] &=
+			ht_cap.ht_cap.supported_mcs_set[i];
+	pht_cap->ht_cap.ht_ext_cap &= ht_cap.ht_cap.ht_ext_cap;
+	pht_cap->ht_cap.tx_bf_cap &= ht_cap.ht_cap.tx_bf_cap;
+	pht_cap->ht_cap.asel &= ht_cap.ht_cap.asel;
 }

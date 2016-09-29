@@ -1827,12 +1827,14 @@ wlan_cmd_tdls_oper(IN pmlan_private pmpriv,
 			if (HTcap_tlv) {
 				if (pmpriv->host_tdls_cs_support &&
 				    (pmpriv->adapter->fw_bands & BAND_A))
-					wlan_fill_ht_cap_tlv(pmpriv, HTcap_tlv,
-							     BAND_A);
+					wlan_fill_tdls_ht_cap_TLV(pmpriv,
+								  HTcap_tlv,
+								  BAND_A);
 				else
-					wlan_fill_ht_cap_tlv(pmpriv, HTcap_tlv,
-							     pbss_desc->
-							     bss_band);
+					wlan_fill_tdls_ht_cap_TLV(pmpriv,
+								  HTcap_tlv,
+								  pbss_desc->
+								  bss_band);
 				DBG_HEXDUMP(MCMD_D, "FW htcap",
 					    (t_u8 *)HTcap_tlv,
 					    sizeof(MrvlIETypes_HTCap_t));
@@ -1918,10 +1920,10 @@ wlan_cmd_tdls_oper(IN pmlan_private pmpriv,
 						sizeof(MrvlIEtypesHeader_t);
 				}
 				if (VHTcap_tlv) {
-					wlan_fill_vht_cap_tlv(pmpriv,
-							      VHTcap_tlv,
-							      pbss_desc->
-							      bss_band);
+					wlan_fill_tdls_vht_cap_TLV(pmpriv,
+								   VHTcap_tlv,
+								   pbss_desc->
+								   bss_band);
 					DBG_HEXDUMP(MCMD_D, "FW Vhtcap",
 						    (t_u8 *)VHTcap_tlv,
 						    sizeof
@@ -3046,6 +3048,9 @@ wlan_ops_sta_prepare_cmd(IN t_void *priv,
 	case HostCmd_CMD_MULTI_CHAN_POLICY:
 		ret = wlan_cmd_multi_chan_policy(pmpriv, cmd_ptr, cmd_action,
 						 pdata_buf);
+		break;
+	case HostCmd_CMD_DRCS_CONFIG:
+		ret = wlan_cmd_drcs_cfg(pmpriv, cmd_ptr, cmd_action, pdata_buf);
 		break;
 	case HostCMD_CONFIG_LOW_POWER_MODE:
 		ret = wlan_cmd_low_pwr_mode(pmpriv, cmd_ptr, pdata_buf);

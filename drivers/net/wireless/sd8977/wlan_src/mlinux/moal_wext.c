@@ -2122,7 +2122,7 @@ woal_set_priv(struct net_device *dev, struct iw_request_info *info,
 			goto done;
 		}
 		len = sprintf(buf, "OK\n") + 1;
-	} else if (memcmp(buf, WEXT_CSCAN_HEADER, sizeof(WEXT_CSCAN_HEADER)) ==
+	} else if (memcmp(buf, WEXT_CSCAN_HEADER, strlen(WEXT_CSCAN_HEADER)) ==
 		   0) {
 		PRINTM(MIOCTL, "Set Combo Scan\n");
 		if (MLAN_STATUS_SUCCESS !=

@@ -29,6 +29,7 @@
 /********************************************************
 				Global Variables
 ********************************************************/
+extern int dfs_offload;
 /********************************************************
 				Local Functions
 ********************************************************/
@@ -43,6 +44,16 @@
 /** vendor events */
 const struct nl80211_vendor_cmd_info vendor_events[] = {
 	{.vendor_id = MRVL_VENDOR_ID,.subcmd = event_hang,},	/* event_id 0 */
+	{.vendor_id = MRVL_VENDOR_ID,.subcmd = event_dfs_radar_detected,},	/* event_id
+										   0x10004 */
+	{.vendor_id = MRVL_VENDOR_ID,.subcmd = event_dfs_cac_started,},	/* event_id
+									   0x10005 */
+	{.vendor_id = MRVL_VENDOR_ID,.subcmd = event_dfs_cac_finished,},	/* event_id
+										   0x10006 */
+	{.vendor_id = MRVL_VENDOR_ID,.subcmd = event_dfs_cac_aborted,},	/* event_id
+									   0x10007 */
+	{.vendor_id = MRVL_VENDOR_ID,.subcmd = event_dfs_nop_finished,},	/* event_id
+										   0x10008 */
 	/**add vendor event here*/
 };
 
@@ -104,11 +115,12 @@ woal_cfg80211_vendor_event(IN moal_private *priv,
 
 	/**allocate skb*/
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
-	skb = cfg80211_vendor_event_alloc(wiphy, NULL, len,
+	skb = cfg80211_vendor_event_alloc(wiphy, NULL, len, event_id,
+					  GFP_ATOMIC);
 #else
-	skb = cfg80211_vendor_event_alloc(wiphy, len,
+	skb = cfg80211_vendor_event_alloc(wiphy, len, event_id, GFP_ATOMIC);
 #endif
-					  event_id, GFP_ATOMIC);
+
 	if (!skb) {
 		PRINTM(MERROR, "allocate memory fail for vendor event\n");
 		ret = 1;
@@ -123,6 +135,60 @@ woal_cfg80211_vendor_event(IN moal_private *priv,
 	LEAVE();
 	return ret;
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+/**
+ * @brief send dfs vendor event to kernel
+ *
+ * @param priv       A pointer to moal_private
+ * @param event      dfs vendor event
+ * @param chandef    a pointer to struct cfg80211_chan_def
+ *
+ * @return      N/A
+ */
+void
+woal_cfg80211_dfs_vendor_event(moal_private *priv, int event,
+			       struct cfg80211_chan_def *chandef)
+{
+	dfs_event evt;
+	ENTER();
+	if (!chandef) {
+		LEAVE();
+		return;
+	}
+	memset(&evt, 0, sizeof(dfs_event));
+	evt.freq = chandef->chan->center_freq;
+	evt.chan_width = chandef->width;
+	evt.cf1 = chandef->center_freq1;
+	evt.cf2 = chandef->center_freq2;
+	switch (chandef->width) {
+	case NL80211_CHAN_WIDTH_20_NOHT:
+		evt.ht_enabled = 0;
+		break;
+	case NL80211_CHAN_WIDTH_20:
+		evt.ht_enabled = 1;
+		break;
+	case NL80211_CHAN_WIDTH_40:
+		evt.ht_enabled = 1;
+		if (chandef->center_freq1 < chandef->chan->center_freq)
+			evt.chan_offset = -1;
+		else
+			evt.chan_offset = 1;
+		break;
+	case NL80211_CHAN_WIDTH_80:
+	case NL80211_CHAN_WIDTH_80P80:
+	case NL80211_CHAN_WIDTH_160:
+		evt.ht_enabled = 1;
+		break;
+	default:
+		break;
+	}
+	woal_cfg80211_vendor_event(priv, event, (t_u8 *)&evt,
+				   sizeof(dfs_event));
+	LEAVE();
+	return;
+}
+#endif
 
 /**
  * @brief vendor command to set drvdbg
@@ -178,12 +244,53 @@ woal_cfg80211_subcmd_set_drvdbg(struct wiphy *wiphy,
 	return ret;
 }
 
+/**
+ * @brief vendor command to set enable/disable dfs offload
+ *
+ * @param wiphy       A pointer to wiphy struct
+ * @param wdev     A pointer to wireless_dev struct
+ * @param data     a pointer to data
+ * @param  len     data length
+ *
+ * @return      0: success  1: fail
+ */
+static int
+woal_cfg80211_subcmd_set_dfs_offload(struct wiphy *wiphy,
+				     struct wireless_dev *wdev,
+				     const void *data, int data_len)
+{
+	struct sk_buff *skb = NULL;
+	int ret = 1;
+
+	ENTER();
+
+	/** Allocate skb for cmd reply*/
+	skb = cfg80211_vendor_cmd_alloc_reply_skb(wiphy, sizeof(dfs_offload));
+	if (!skb) {
+		PRINTM(MERROR, "allocate memory fail for vendor cmd\n");
+		ret = 1;
+		LEAVE();
+		return ret;
+	}
+	nla_put(skb, MRVL_WLAN_VENDOR_ATTR_DFS, sizeof(t_u32), &dfs_offload);
+	ret = cfg80211_vendor_cmd_reply(skb);
+
+	LEAVE();
+	return ret;
+}
+
 const struct wiphy_vendor_command vendor_commands[] = {
 	{
 	 .info = {.vendor_id = MRVL_VENDOR_ID,.subcmd = sub_cmd_set_drvdbg,},
-	 .flags = WIPHY_VENDOR_CMD_NEED_WDEV |
-	 WIPHY_VENDOR_CMD_NEED_NETDEV | WIPHY_VENDOR_CMD_NEED_RUNNING,
+	 .flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
 	 .doit = woal_cfg80211_subcmd_set_drvdbg,
+	 },
+
+	{
+	 .info = {.vendor_id = MRVL_VENDOR_ID,.subcmd =
+		  sub_cmd_dfs_capability,},
+	 .flags = WIPHY_VENDOR_CMD_NEED_WDEV | WIPHY_VENDOR_CMD_NEED_NETDEV,
+	 .doit = woal_cfg80211_subcmd_set_dfs_offload,
 	 },
 
 };

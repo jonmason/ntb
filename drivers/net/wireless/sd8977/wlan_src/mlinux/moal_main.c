@@ -205,6 +205,8 @@ extern char *reg_alpha2;
 extern int cfg80211_drcs;
 #endif
 
+int drcs_chantime_mode = 0;
+
 /** Auto deep sleep */
 int auto_ds;
 
@@ -315,6 +317,8 @@ int p2p_enh;
 #endif
 #endif
 
+int dfs_offload = 0;
+
 #ifdef ANDROID_KERNEL
 int wakelock_timeout = WAKE_LOCK_TIMEOUT;
 #endif
@@ -374,6 +378,8 @@ int drv_mode = DRV_MODE_STA;
 int drv_mode = DRV_MODE_UAP;
 #endif /* STA_SUPPORT */
 #endif /* STA_SUPPORT & UAP_SUPPORT */
+
+int gtk_rekey_offload = GTK_REKEY_OFFLOAD_ENABLE;
 
 int pmic = 0;
 
@@ -1315,6 +1321,14 @@ woal_init_from_dev_tree(void)
 				PRINTM(MIOCTL, "indrstcfg=%d\n", indrstcfg);
 			}
 		} else if (!strncmp
+			   (prop->name, "drcs_chantime_mode",
+			    strlen("drcs_chantime_mode"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				drcs_chantime_mode = data;
+				PRINTM(MIOCTL, "drcs_chantime_mode=%d\n",
+				       drcs_chantime_mode);
+			}
+		} else if (!strncmp
 			   (prop->name, "fixed_beacon_buffer",
 			    strlen("fixed_beacon_buffer"))) {
 			if (!of_property_read_u32(dt_node, prop->name, &data)) {
@@ -1333,6 +1347,20 @@ woal_init_from_dev_tree(void)
 			if (!of_property_read_u32(dt_node, prop->name, &data)) {
 				inact_tmo = data;
 				PRINTM(MIOCTL, "inact_tmo=%d\n", inact_tmo);
+			}
+		} else if (!strncmp
+			   (prop->name, "dfs_offload", strlen("dfs_offload"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				dfs_offload = data;
+				PRINTM(MIOCTL, "dfs_offload=%d\n", dfs_offload);
+			}
+		} else if (!strncmp
+			   (prop->name, "gtk_rekey_offload",
+			    strlen("gtk_rekey_offload"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				gtk_rekey_offload = data;
+				PRINTM(MIOCTL, "gtk_rekey_offload=%d\n",
+				       gtk_rekey_offload);
 			}
 		}
 	}
@@ -1529,6 +1557,7 @@ woal_init_sw(moal_handle *handle)
 	    handle->card_type == CARD_TYPE_SD8777)
 		device.fw_crc_check = (t_u32)fw_crc_check;
 	device.indrstcfg = (t_u32)indrstcfg;
+	device.drcs_chantime_mode = (t_u32)drcs_chantime_mode;
 #if defined(SDIO_MULTI_PORT_TX_AGGR) || defined(SDIO_MULTI_PORT_RX_AGGR)
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36)
 	device.max_segs =
@@ -2497,7 +2526,6 @@ woal_add_card_dpc(moal_handle *handle)
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	int i;
 	char str_buf[MLAN_MAX_VER_STR_LEN];
-
 	ENTER();
 
 #ifdef CONFIG_PROC_FS
@@ -3337,7 +3365,7 @@ woal_add_interface(moal_handle *handle, t_u8 bss_index, t_u8 bss_type)
 	if (sta_name)
 		snprintf(name, sizeof(name), "%s%%d", sta_name);
 	else
-		sprintf(name, "mlan%%d");
+		sprintf(name, default_mlan_name);
 	if ((bss_type == MLAN_BSS_TYPE_STA) && (dev_alloc_name(dev, name) < 0)) {
 		PRINTM(MERROR, "Could not allocate mlan device name\n");
 		goto error;
@@ -3348,7 +3376,7 @@ woal_add_interface(moal_handle *handle, t_u8 bss_index, t_u8 bss_type)
 	if (uap_name)
 		snprintf(name, sizeof(name), "%s%%d", uap_name);
 	else
-		sprintf(name, "uap%%d");
+		sprintf(name, default_uap_name);
 	if ((bss_type == MLAN_BSS_TYPE_UAP) && (dev_alloc_name(dev, name) < 0)) {
 		PRINTM(MERROR, "Could not allocate uap device name\n");
 		goto error;
@@ -3359,7 +3387,7 @@ woal_add_interface(moal_handle *handle, t_u8 bss_index, t_u8 bss_type)
 	if (wfd_name)
 		snprintf(name, sizeof(name), "%s%%d", wfd_name);
 	else
-		sprintf(name, "wfd%%d");
+		sprintf(name, default_wfd_name);
 	if ((bss_type == MLAN_BSS_TYPE_WIFIDIRECT) &&
 	    (dev_alloc_name(dev, name) < 0)) {
 		PRINTM(MERROR, "Could not allocate wifidirect device name\n");
@@ -3370,7 +3398,7 @@ woal_add_interface(moal_handle *handle, t_u8 bss_index, t_u8 bss_type)
 	if (nan_name)
 		snprintf(name, sizeof(name), "%s%%d", nan_name);
 	else
-		sprintf(name, "nan%%d");
+		sprintf(name, default_nan_name);
 	if ((bss_type == MLAN_BSS_TYPE_NAN) && (dev_alloc_name(dev, name) < 0)) {
 		PRINTM(MERROR, "Could not allocate nan device name\n");
 		goto error;
@@ -5266,6 +5294,9 @@ woal_init_priv(moal_private *priv, t_u8 wait_option)
 	priv->enable_auto_tdls = MFALSE;
 	priv->tdls_check_tx = MFALSE;
 
+	priv->gtk_data_ready = MFALSE;
+	memset(&priv->gtk_rekey_data, 0, sizeof(mlan_ds_misc_gtk_rekey_data));
+
 	woal_request_get_fw_info(priv, wait_option, NULL);
 
 #if defined(WIFI_DIRECT_SUPPORT)
@@ -6110,6 +6141,12 @@ woal_send_disconnect_to_system(moal_private *priv)
 		netif_carrier_off(priv->netdev);
 	woal_flush_tcp_sess_queue(priv);
 
+	if (priv->gtk_data_ready) {
+		priv->gtk_data_ready = MFALSE;
+		memset(&priv->gtk_rekey_data, 0,
+		       sizeof(mlan_ds_misc_gtk_rekey_data));
+	}
+
 	if (priv->bss_type == MLAN_BSS_TYPE_STA)
 		woal_flush_tdls_list(priv);
 #ifdef STA_CFG80211
@@ -6179,7 +6216,7 @@ woal_send_disconnect_to_system(moal_private *priv)
 /**
  *  @brief  This function stores the FW dumps received from events in a file
  *
- *  @param priv     A pointer to moal_private
+ *  @param phandle     A pointer to moal_handle
  *  @param pmevent  A pointer to mlan_event structure
  *
  *  @return         N/A
@@ -6191,7 +6228,7 @@ woal_store_firmware_dump(moal_handle *phandle, mlan_event *pmevent)
 	struct file *pfile_fwdump = NULL;
 	loff_t pos = 0;
 	t_u16 seqnum;
-	t_u32 sec, usec;
+	t_u8 path_name[64];
 
 	ENTER();
 	if (phandle->fwdump_fname)
@@ -6202,6 +6239,17 @@ woal_store_firmware_dump(moal_handle *phandle, mlan_event *pmevent)
 		seqnum = woal_le16_to_cpu(*(t_u16 *)
 					  (pmevent->event_buf + OFFSET_SEQNUM));
 		if (seqnum == 1) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
+	    /** Create dump directort*/
+			woal_create_dump_dir(phandle, path_name,
+					     sizeof(path_name));
+#else
+			memset(path_name, 0, sizeof(path_name));
+			strcpy(path_name, "/data");
+#endif
+			PRINTM(MMSG, "Firmware Dump directory name is %s\n",
+			       path_name);
+			woal_dump_drv_info(phandle, path_name);
 			if (fwdump_fname) {
 				memset(fwdump_fname, 0, 64);
 			} else {
@@ -6211,14 +6259,14 @@ woal_store_firmware_dump(moal_handle *phandle, mlan_event *pmevent)
 					GFP_KERNEL;
 				fwdump_fname = kzalloc(64, flag);
 			}
-			moal_get_system_time(phandle, &sec, &usec);
-			sprintf(fwdump_fname, "%s%u", "/var/log/fwdump_", sec);
+			sprintf(fwdump_fname, "%s/file_fwdump", path_name);
 			pfile_fwdump =
 				filp_open(fwdump_fname,
 					  O_CREAT | O_WRONLY | O_APPEND, 0644);
 			if (IS_ERR(pfile_fwdump)) {
-				sprintf(fwdump_fname, "%s%u", "/data/fwdump_",
-					sec);
+				memset(fwdump_fname, 0, 64);
+				sprintf(fwdump_fname, "%s/%s", "/var",
+					"file_fwdump");
 				pfile_fwdump =
 					filp_open(fwdump_fname,
 						  O_CREAT | O_WRONLY | O_APPEND,
@@ -8092,8 +8140,9 @@ woal_request_country_power_table(moal_private *priv, char *country)
 	} else {
 		strncpy(file_path, "mrvl/", sizeof(file_path));
 	}
-	country_txpwrlimit = strncat(file_path, country_name,
-				     sizeof(file_path) - strlen(file_path));
+	country_txpwrlimit =
+		strncpy(file_path + strlen(file_path), country_name,
+			strlen(country_name));
 
 	if (MLAN_STATUS_SUCCESS !=
 	    woal_set_user_init_data(handle, COUNTRY_POWER_TABLE,
@@ -9334,11 +9383,22 @@ MODULE_PARM_DESC(GoAgeoutTime,
 		 "0: use default ageout time; set Go age out time (TU 100ms)");
 #endif
 
+module_param(gtk_rekey_offload, int, 0);
+MODULE_PARM_DESC(gtk_rekey_offload,
+		 "0: disable gtk_rekey_offload; 1: enable gtk_rekey_offload (default); 2: enable gtk_rekey_offload in suspend mode only;");
+
 module_param(multi_dtim, int, 0);
 MODULE_PARM_DESC(multi_dtim, "DTIM interval");
 
 module_param(inact_tmo, int, 0);
 MODULE_PARM_DESC(inact_tmo, "IEEE ps inactivity timout value");
+
+module_param(dfs_offload, int, 0);
+MODULE_PARM_DESC(dfs_offload, "1: enable dfs offload; 0: disable dfs offload.");
+
+module_param(drcs_chantime_mode, int, 0);
+MODULE_PARM_DESC(drcs_chantime_mode,
+		 "0: use default value;Bit31~Bit24:Channel time for channel index0;Bit23~Bit16:mode for channel index0;Bit15~Bit8:Channel time for channel index1;Bit7~Bit0:mode for channel index1; mode:0--PM1,1--Null2Self.");
 
 MODULE_DESCRIPTION("M-WLAN Driver");
 MODULE_AUTHOR("Marvell International Ltd.");

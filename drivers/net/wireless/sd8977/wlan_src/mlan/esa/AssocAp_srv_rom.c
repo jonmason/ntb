@@ -63,14 +63,14 @@ AssocSrvAp_checkAkm(phostsa_private priv, AkmSuite_t *pAkm, UINT16 allowedAkms)
 	}
 
 	switch (pAkm->akmType) {
-	case IEEEtypes_RSN_AUTH_KEY_SUITE_8021X:
+	case AKM_1X:
 		matchedAkms = (allowedAkms & UAP_HOSTCMD_KEYMGMT_EAP);
 		break;
 
-	case IEEEtypes_RSN_AUTH_KEY_SUITE_PSK:
+	case AKM_PSK:
 		matchedAkms = (allowedAkms & UAP_HOSTCMD_KEYMGMT_PSK);
 		break;
-	case IEEEtypes_AKM_SUITE_PSK_SHA256:
+	case AKM_SHA256_PSK:
 		matchedAkms = (allowedAkms & UAP_HOSTCMD_KEYMGMT_PSK_SHA256);
 		break;
 	default:

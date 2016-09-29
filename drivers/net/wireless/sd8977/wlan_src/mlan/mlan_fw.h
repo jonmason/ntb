@@ -781,6 +781,11 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** LLC/SNAP header len   */
 #define LLC_SNAP_LEN    8
 
+/** bandwidth following HTCAP */
+#define BW_FOLLOW_HTCAP             0
+/** bandwidth following VHTCAP */
+#define BW_FOLLOW_VHTCAP            1
+
 /** HW_SPEC FwCapInfo */
 #define HWSPEC_11ACSGI80_SUPP       MBIT(5)
 #define HWSPEC_11ACRXSTBC_SUPP      MBIT(8)
@@ -1146,6 +1151,10 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 #define TLV_TYPE_MULTI_CHAN_INFO             (PROPRIETARY_TLV_BASE_ID + 0xb7)
 /** TLV ID for multi chan group info */
 #define TLV_TYPE_MULTI_CHAN_GROUP_INFO_TLV_ID (PROPRIETARY_TLV_BASE_ID + 0xb8)
+/** TLV ID for DRCS TimeSlice */
+#define MRVL_DRCS_TIME_SLICE_TLV_ID  (PROPRIETARY_TLV_BASE_ID + 263)
+/** Host Command ID: DRCS config */
+#define HostCmd_CMD_DRCS_CONFIG                     0x024a
 
 #ifdef RX_PACKET_COALESCE
 /** TLV ID for RX pkt coalesce config */
@@ -5473,6 +5482,21 @@ typedef MLAN_PACK_START struct _HostCmd_DS_RX_PKT_COAL_CFG {
 } MLAN_PACK_END HostCmd_DS_RX_PKT_COAL_CFG;
 #endif
 
+typedef MLAN_PACK_START struct _MrvlTypes_DrcsTimeSlice_t {
+	/** Header */
+	MrvlIEtypesHeader_t header;
+	/** Channel Index*/
+	t_u16 chan_idx;
+	/** Channel time (in TU) for chan_idx*/
+	t_u8 chantime;
+	/** Channel swith time (in TU) for chan_idx*/
+	t_u8 switchtime;
+	/** Undoze time (in TU) for chan_idx*/
+	t_u8 undozetime;
+	/** Rx traffic control scheme when channel switch*/
+	/** only valid for GC/STA interface*/
+	t_u8 mode;
+} MLAN_PACK_END MrvlTypes_DrcsTimeSlice_t;
 typedef MLAN_PACK_START struct _HostCmd_DS_MULTI_CHAN_CFG {
 	/** Action */
 	t_u16 action;
@@ -5484,6 +5508,16 @@ typedef MLAN_PACK_START struct _HostCmd_DS_MULTI_CHAN_CFG {
 	t_u8 tlv_buf[0];
 	/* t_u8 *tlv_buf; */
 } MLAN_PACK_END HostCmd_DS_MULTI_CHAN_CFG;
+
+typedef MLAN_PACK_START struct _HostCmd_DS_DRCS_CFG {
+	/** Action */
+	t_u16 action;
+	/** TLV buffer */
+	MrvlTypes_DrcsTimeSlice_t time_slicing;
+	/** TLV buffer */
+	MrvlTypes_DrcsTimeSlice_t drcs_buf[0];
+	/* t_u8 *tlv_buf; */
+} MLAN_PACK_END HostCmd_DS_DRCS_CFG;
 
 typedef MLAN_PACK_START struct _HostCmd_DS_MULTI_CHAN_POLICY {
 	/** Action */
@@ -6080,6 +6114,7 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 		HostCmd_DS_HS_WAKEUP_REASON hs_wakeup_reason;
 		HostCmd_DS_MULTI_CHAN_CFG multi_chan_cfg;
 		HostCmd_DS_MULTI_CHAN_POLICY multi_chan_policy;
+		HostCmd_DS_DRCS_CFG drcs_cfg;
 		HostCmd_CONFIG_LOW_PWR_MODE low_pwr_mode_cfg;
 		HostCmd_DS_TSF tsf;
 		HostCmd_DS_DFS_REPEATER_MODE dfs_repeater;

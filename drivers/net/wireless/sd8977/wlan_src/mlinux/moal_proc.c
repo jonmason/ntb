@@ -36,7 +36,13 @@ Change log:
 #ifdef CONFIG_PROC_FS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
 #define PROC_DIR	NULL
+#ifdef MULTI_INTERFACE
+#define MWLAN_PROC_DIR  "mwlan_sdio/"
+#define MWLAN_PROC  "mwlan_sdio"
+#else
 #define MWLAN_PROC_DIR  "mwlan/"
+#define MWLAN_PROC  "mwlan"
+#endif
 /** Proc top level directory entry */
 struct proc_dir_entry *proc_mwlan;
 int proc_dir_entry_use_count;
@@ -418,7 +424,7 @@ woal_config_write(struct file *f, const char __user * buf, size_t count,
 
 	if (handle->card_info->v15_update) {
 		if (!strncmp(databuf, "fwdump_file=", strlen("fwdump_file="))) {
-			int len = strlen(databuf) - strlen("fwdump_file=");
+			int len = copy_len - strlen("fwdump_file=");
 			gfp_t flag;
 			if (len) {
 				kfree(handle->fwdump_fname);
@@ -563,7 +569,7 @@ woal_proc_init(moal_handle *handle)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 		/* Check if directory already exists */
 		for (pde = pde->subdir; pde; pde = pde->next) {
-			if (pde->namelen && !strcmp("mwlan", pde->name)) {
+			if (pde->namelen && !strcmp(MWLAN_PROC, pde->name)) {
 				/* Directory exists */
 				PRINTM(MWARN,
 				       "proc interface already exists!\n");
@@ -572,7 +578,7 @@ woal_proc_init(moal_handle *handle)
 			}
 		}
 		if (pde == NULL) {
-			handle->proc_mwlan = proc_mkdir("mwlan", PROC_DIR);
+			handle->proc_mwlan = proc_mkdir(MWLAN_PROC, PROC_DIR);
 			if (!handle->proc_mwlan)
 				PRINTM(MERROR,
 				       "Cannot create proc interface!\n");
@@ -583,7 +589,7 @@ woal_proc_init(moal_handle *handle)
 		}
 #else
 		if (!proc_mwlan) {
-			handle->proc_mwlan = proc_mkdir("mwlan", PROC_DIR);
+			handle->proc_mwlan = proc_mkdir(MWLAN_PROC, PROC_DIR);
 			if (!handle->proc_mwlan) {
 				PRINTM(MERROR,
 				       "Cannot create proc interface!\n");
@@ -655,7 +661,7 @@ woal_proc_exit(moal_handle *handle)
 			atomic_dec(&(handle->proc_mwlan->count));
 #endif
 			if (!--proc_dir_entry_use_count) {
-				remove_proc_entry("mwlan", PROC_DIR);
+				remove_proc_entry(MWLAN_PROC, PROC_DIR);
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 26)
 				proc_mwlan = NULL;
 #endif
@@ -716,7 +722,7 @@ woal_create_proc_entry(moal_private *priv)
 			/* Failure. mwlan may not exist. Try to create that
 			   first */
 			priv->phandle->proc_mwlan =
-				proc_mkdir("mwlan", PROC_DIR);
+				proc_mkdir(MWLAN_PROC, PROC_DIR);
 			if (!priv->phandle->proc_mwlan) {
 				/* Failure. Something broken */
 				LEAVE();

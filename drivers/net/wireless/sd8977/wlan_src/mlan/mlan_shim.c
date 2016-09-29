@@ -369,6 +369,7 @@ mlan_register(IN pmlan_device pmdevice, OUT t_void **ppmlan_adapter)
 
 	pmadapter->multiple_dtim = pmdevice->multi_dtim;
 	pmadapter->inact_tmo = pmdevice->inact_tmo;
+	pmadapter->init_para.drcs_chantime_mode = pmdevice->drcs_chantime_mode;
 	if (pmdevice->indication_gpio != 0xff) {
 		pmadapter->ind_gpio = pmdevice->indication_gpio & 0x0f;
 		pmadapter->level = (pmdevice->indication_gpio & 0xf0) >> 4;

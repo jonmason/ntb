@@ -3897,6 +3897,9 @@ wlan_ops_uap_prepare_cmd(IN t_void *priv,
 		ret = wlan_cmd_multi_chan_policy(pmpriv, cmd_ptr, cmd_action,
 						 pdata_buf);
 		break;
+	case HostCmd_CMD_DRCS_CONFIG:
+		ret = wlan_cmd_drcs_cfg(pmpriv, cmd_ptr, cmd_action, pdata_buf);
+		break;
 #ifdef RX_PACKET_COALESCE
 	case HostCmd_CMD_RX_PKT_COALESCE_CFG:
 		ret = wlan_cmd_rx_pkt_coalesce_cfg(pmpriv, cmd_ptr, cmd_action,
@@ -4192,6 +4195,9 @@ wlan_ops_uap_process_cmdresp(IN t_void *priv,
 	case HostCmd_CMD_MULTI_CHAN_POLICY:
 		ret = wlan_ret_multi_chan_policy(pmpriv, resp, pioctl_buf);
 		break;
+	case HostCmd_CMD_DRCS_CONFIG:
+		ret = wlan_ret_drcs_cfg(pmpriv, resp, pioctl_buf);
+		break;
 #ifdef RX_PACKET_COALESCE
 	case HostCmd_CMD_RX_PKT_COALESCE_CFG:
 		ret = wlan_ret_rx_pkt_coalesce_cfg(pmpriv, resp, pioctl_buf);
@@ -4470,6 +4476,10 @@ wlan_ops_uap_process_event(IN t_void *priv)
 				pmadapter->state_rdh.stage = RDH_CHK_INTFS;
 				wlan_11h_radar_detected_handling(pmadapter,
 								 pmpriv);
+				if (pmpriv->uap_host_based)
+					wlan_recv_event(priv,
+							MLAN_EVENT_ID_FW_RADAR_DETECTED,
+							MNULL);
 			} else {
 				PRINTM(MEVENT,
 				       "Ignore Event Radar Detected - handling"

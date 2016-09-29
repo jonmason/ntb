@@ -83,6 +83,7 @@ extern const struct net_device_ops woal_netdev_ops;
 #endif
 extern int cfg80211_wext;
 
+extern int dfs_offload;
 extern int hw_test;
 /********************************************************
 			Local Functions
@@ -6434,6 +6435,93 @@ done:
 	return ret;
 }
 
+/**
+ *  @brief Set/Get drcs time slicing parameters
+ *
+ *  @param priv         A pointer to moal_private structure
+ *  @param respbuf      A pointer to response buffer
+ *  @param respbuflen   Available length of response buffer
+ *
+ *  @return             Number of bytes written, negative for failure.
+ */
+int
+woal_priv_drcs_time_slicing_cfg(moal_private *priv, t_u8 *respbuf,
+				t_u32 respbuflen)
+{
+	mlan_ioctl_req *req = NULL;
+	mlan_ds_misc_cfg *cfg = NULL;
+	mlan_ds_drcs_cfg *drcs_cfg = NULL;
+	t_u8 *data_ptr;
+	int ret = 0;
+	int user_data_len = 0, header_len = 0;
+	int data[8];
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+
+	data_ptr = respbuf + strlen(CMD_MARVELL) + strlen(PRIV_CMD_DRCS_CFG);
+	header_len = strlen(CMD_MARVELL) + strlen(PRIV_CMD_DRCS_CFG);
+	if (strlen(respbuf) == header_len) {
+		/* GET operation */
+		user_data_len = 0;
+	} else {
+		/* SET operation */
+		memset((char *)data, 0, sizeof(data));
+		parse_arguments(data_ptr, data, ARRAY_SIZE(data),
+				&user_data_len);
+	}
+
+	req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	cfg = (mlan_ds_misc_cfg *)req->pbuf;
+	cfg->sub_command = MLAN_OID_MISC_DRCS_CFG;
+	req->req_id = MLAN_IOCTL_MISC_CFG;
+
+	if (user_data_len == 0) {
+		req->action = MLAN_ACT_GET;
+	} else {
+		req->action = MLAN_ACT_SET;
+		drcs_cfg = (mlan_ds_drcs_cfg *) & cfg->param.drcs_cfg[0];
+		drcs_cfg->chantime = (t_u8)data[0];
+		drcs_cfg->switchtime = (t_u8)data[1];
+		drcs_cfg->undozetime = (t_u8)data[2];
+		drcs_cfg->mode = (t_u8)data[3];
+		/* Set the same parameters for two channels */
+		if (user_data_len < ARRAY_SIZE(data))
+			drcs_cfg->chan_idx = 0x03;
+		else {
+			/* Set the different parameters for two channels */
+			drcs_cfg->chan_idx = 0x1;
+			drcs_cfg =
+				(mlan_ds_drcs_cfg *) & cfg->param.drcs_cfg[1];
+			drcs_cfg->chan_idx = 0x2;
+			drcs_cfg->chantime = (t_u8)data[4];
+			drcs_cfg->switchtime = (t_u8)data[5];
+			drcs_cfg->undozetime = (t_u8)data[6];
+			drcs_cfg->mode = (t_u8)data[7];
+		}
+	}
+
+	status = woal_request_ioctl(priv, req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	memcpy(respbuf, (t_u8 *)&cfg->param.drcs_cfg, req->buf_len);
+	ret = req->buf_len;
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(req);
+	LEAVE();
+	return ret;
+}
+
 #ifdef RX_PACKET_COALESCE
 /**
  *  @brief Set/Get RX packet coalesceing setting
@@ -11090,6 +11178,61 @@ done:
 	return ret;
 }
 
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+/**
+ * @brief               Enable/disable DFS offload
+ *
+ * @param priv          Pointer to moal_private structure
+ * @param respbuf       Pointer to response buffer
+ * @param resplen       Response buffer length
+ *
+ * @return              Number of bytes written, negative for failure.
+ */
+static int
+woal_priv_dfs_offload_enable(moal_private *priv, t_u8 *respbuf,
+			     t_u32 respbuflen)
+{
+	struct wiphy *wiphy = NULL;
+	int ret = 0, dfs_offload_en = 0, user_data_len = 0, header_len = 0;
+
+	ENTER();
+
+	if (priv && priv->wdev)
+		wiphy = priv->wdev->wiphy;
+	if (!wiphy) {
+		PRINTM(MERROR, "wiphy is NULL\n");
+		ret = -EFAULT;
+		goto done;
+	}
+	if (woal_is_any_interface_active(priv->phandle)) {
+		PRINTM(MERROR,
+		       "DFS offload enable/disable do not allowed after BSS started!\n");
+		ret = -EFAULT;
+		goto done;
+	}
+	header_len = strlen(CMD_MARVELL) + strlen(PRIV_CMD_DFS_OFFLOAD);
+	parse_arguments(respbuf + header_len, &dfs_offload_en,
+			sizeof(dfs_offload_en) / sizeof(int), &user_data_len);
+	if (user_data_len != 1) {
+		PRINTM(MERROR, "Invalid number of args! %d\n", user_data_len);
+		ret = -EINVAL;
+		goto done;
+	}
+
+	if (dfs_offload_en != 0 && dfs_offload_en != 1) {
+		PRINTM(MERROR, "Invalid args!\n");
+		ret = -EINVAL;
+		goto done;
+	}
+	if (dfs_offload != dfs_offload_en) {
+		dfs_offload = dfs_offload_en;
+		woal_update_radar_chans_dfs_state(wiphy);
+	}
+done:
+	LEAVE();
+	return ret;
+}
+#endif
 /**
  * @brief               Set/Get TDLS CS off channel value
  *
@@ -12348,6 +12491,14 @@ woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 						    priv_cmd.total_len);
 			goto handled;
 		} else if (strnicmp
+			   (buf + strlen(CMD_MARVELL), PRIV_CMD_DRCS_CFG,
+			    strlen(PRIV_CMD_DRCS_CFG)) == 0) {
+			/* DRCS configuration for mc_cfg_ext */
+			len = woal_priv_drcs_time_slicing_cfg(priv, buf,
+							      priv_cmd.
+							      total_len);
+			goto handled;
+		} else if (strnicmp
 			   (buf + strlen(CMD_MARVELL), PRIV_CMD_MULTI_CHAN_CFG,
 			    strlen(PRIV_CMD_MULTI_CHAN_CFG)) == 0) {
 			/* Channel time and buffer weight configuration */
@@ -12768,6 +12919,20 @@ woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			len = woal_priv_get_sensor_temp(priv, buf,
 							priv_cmd.total_len);
 			goto handled;
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+		} else if (strnicmp
+			   (buf + strlen(CMD_MARVELL), PRIV_CMD_DFS_OFFLOAD,
+			    strlen(PRIV_CMD_DFS_OFFLOAD)) == 0) {
+			/* Enable/disable DFS offload */
+			if (IS_STA_OR_UAP_CFG80211(cfg80211_wext))
+				len = woal_priv_dfs_offload_enable(priv, buf,
+								   priv_cmd.
+								   total_len);
+			else
+				len = sprintf(buf,
+					      "CFG80211 is not enabled\n") + 1;
+			goto handled;
+#endif
 #if defined(UAP_SUPPORT)
 		} else if (strnicmp
 			   (buf + strlen(CMD_MARVELL),

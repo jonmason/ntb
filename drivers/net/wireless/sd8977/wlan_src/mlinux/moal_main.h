@@ -167,6 +167,24 @@ Change log:
 #endif
 
 /**
+* interface name
+*/
+#ifdef MULTI_INTERFACE
+#define default_mlan_name    "mlan_sdio%%d"
+#define default_uap_name    "uap_sdio%%d"
+#define default_wfd_name    "wfd_sdio%%d"
+#define default_nan_name    "nan_sdio%%d"
+#define default_mpl_name    "mpl_sdio%d"
+#define mwiphy_name          "mwiphys%d"
+#else
+#define default_mlan_name    "mlan%%d"
+#define default_uap_name    "uap%%d"
+#define default_wfd_name    "wfd%%d"
+#define default_nan_name    "nan%%d"
+#define default_mpl_name    "mpl%d"
+#define mwiphy_name          "mwiphy%d"
+#endif
+/**
  * define write_can_lock() to fix compile issue on ACTIA platform
  */
 #if !defined(write_can_lock) && defined(CONFIG_PREEMPT_RT_FULL)
@@ -1254,6 +1272,8 @@ struct _moal_private {
     /** rx hgm data */
 	hgm_data *hist_data[3];
 	BOOLEAN assoc_with_mac;
+	t_u8 gtk_data_ready;
+	mlan_ds_misc_gtk_rekey_data gtk_rekey_data;
 };
 /** card info */
 typedef struct _card_info {
@@ -1338,6 +1358,10 @@ struct radiotap_header {
 	struct radiotap_body body;
 } __packed;
 
+#define GTK_REKEY_OFFLOAD_DISABLE                    0
+#define GTK_REKEY_OFFLOAD_ENABLE                     1
+#define GTK_REKEY_OFFLOAD_SUSPEND                    2
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
 /** Monitor Band Channel Config */
 typedef struct _netmon_band_chan_cfg {
@@ -1402,14 +1426,14 @@ struct _moal_handle {
 	wait_queue_head_t init_user_conf_wait_q __ATTRIB_ALIGN__;
 	/** Hotplug device */
 	struct device *hotplug_device;
-    /** STATUS variables */
+	/** STATUS variables */
 	MOAL_HARDWARE_STATUS hardware_status;
 	BOOLEAN fw_reload;
 	/** POWER MANAGEMENT AND PnP SUPPORT */
 	BOOLEAN surprise_removed;
 	/** Firmware release number */
 	t_u32 fw_release_number;
-    /** ECSA support */
+	/** ECSA support */
 	t_u8 fw_ecsa_enable;
 	/** Getlog support */
 	t_u8 fw_getlog_enable;
@@ -2502,5 +2526,11 @@ mlan_status woal_set_hotspotcfg(moal_private *priv, t_u8 wait_option,
 mlan_status woal_set_net_monitor(moal_private *priv, t_u8 wait_option,
 				 t_u8 enable, t_u8 filter,
 				 netmon_band_chan_cfg * band_chan_cfg);
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
+mlan_status woal_set_rekey_data(moal_private *priv,
+				mlan_ds_misc_gtk_rekey_data * gtk_rekey,
+				t_u8 action);
 #endif
 #endif /* _MOAL_MAIN_H */

@@ -40,6 +40,7 @@ Change log:
 /********************************************************
 		Global Variables
 ********************************************************/
+extern int dfs_offload;
 /********************************************************
 		Local Functions
 ********************************************************/
@@ -3263,7 +3264,8 @@ woal_uap_ap_cfg_parse_data(mlan_uap_bss_param *ap_cfg, char *buf)
 			}
 			ap_cfg->wpa_cfg.length = strlen(value);
 			memcpy(ap_cfg->wpa_cfg.passphrase, value,
-			       strlen(value));
+			       MIN(sizeof(ap_cfg->wpa_cfg.passphrase),
+				   strlen(value)));
 			set_key = 1;
 		} else if (!strncmp(opt, "CHANNEL", strlen("CHANNEL"))) {
 			if (set_chan) {
@@ -3647,10 +3649,10 @@ woal_uap_bss_ctrl(moal_private *priv, t_u8 wait_option, int data)
 		if (priv->bss_started == MTRUE) {
 			PRINTM(MWARN, "Warning: BSS already started!\n");
 			/* goto done; */
-		} else if (!priv->uap_host_based) {
+		} else if (!priv->uap_host_based || dfs_offload) {
 			woal_do_acs_check(priv);
 			/* about to start bss: issue channel check */
-			woal_11h_channel_check_ioctl(priv, wait_option);
+			woal_11h_channel_check_ioctl(priv, MOAL_IOCTL_WAIT);
 		}
 		bss->sub_command = MLAN_OID_BSS_START;
 		bss->param.host_based = priv->uap_host_based;

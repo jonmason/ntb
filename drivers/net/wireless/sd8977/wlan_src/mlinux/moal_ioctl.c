@@ -33,6 +33,7 @@ Change log:
 
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #include "moal_cfg80211.h"
+#include "moal_cfgvendor.h"
 #endif
 
 /********************************************************
@@ -116,6 +117,13 @@ extern const struct net_device_ops woal_netdev_ops;
 #endif
 extern int cfg80211_wext;
 int disconnect_on_suspend;
+
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+extern int dfs_offload;
+#endif
+
+/** gtk rekey offload mode */
+extern int gtk_rekey_offload;
 
 /********************************************************
 			Local Functions
@@ -614,6 +622,17 @@ woal_request_ioctl(moal_private *priv, mlan_ioctl_req *req, t_u8 wait_option)
 			       "CAC measure period spends longer than scheduled time "
 			       "or meas done event never received\n");
 			status = MLAN_STATUS_FAILURE;
+#ifdef UAP_SUPPORT
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+			if (priv->uap_host_based && dfs_offload)
+				woal_cfg80211_dfs_vendor_event(priv,
+							       event_dfs_cac_aborted,
+							       &priv->chan);
+#endif
+#endif
+#endif
+
 			goto done;
 		}
 
@@ -2469,17 +2488,19 @@ done:
 mlan_status
 woal_cancel_hs(moal_private *priv, t_u8 wait_option)
 {
+	moal_handle *handle = NULL;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
 	mlan_ds_hs_cfg hscfg;
-
+	int i;
 	ENTER();
 
 	if (!priv) {
 		LEAVE();
 		return MLAN_STATUS_FAILURE;
 	}
-
+	handle = priv->phandle;
 	/* Cancel Host Sleep */
+
 	hscfg.conditions = HOST_SLEEP_CFG_CANCEL;
 	hscfg.is_invoke_hostcmd = MTRUE;
 	ret = woal_set_get_hs_params(priv, MLAN_ACT_SET, wait_option, &hscfg);
@@ -2489,6 +2510,19 @@ woal_cancel_hs(moal_private *priv, t_u8 wait_option)
 		/* remove auto arp from FW */
 		woal_set_auto_arp(priv->phandle, MFALSE);
 	}
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
+	if (GTK_REKEY_OFFLOAD_SUSPEND == gtk_rekey_offload) {
+		PRINTM(MIOCTL,
+		       "Cancel Host Sleep... clear gtk rekey offload of FW\n");
+		for (i = 0; i < handle->priv_num; i++) {
+			if (handle->priv[i] && handle->priv[i]->gtk_data_ready) {
+				PRINTM(MCMND, "clear GTK in resume\n");
+				woal_set_rekey_data(handle->priv[i], NULL,
+						    MLAN_ACT_CLEAR);
+			}
+		}
+	}
+#endif
 
 	LEAVE();
 	return ret;
@@ -2592,6 +2626,22 @@ woal_enable_hs(moal_private *priv)
 		/* Set auto arp response configuration to Fw */
 		woal_set_auto_arp(handle, MTRUE);
 	}
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
+	if (GTK_REKEY_OFFLOAD_SUSPEND == gtk_rekey_offload) {
+		PRINTM(MIOCTL,
+		       "Host Sleep enabled... set gtk rekey offload to FW\n");
+		for (i = 0; i < handle->priv_num; i++) {
+			if (handle->priv[i] && handle->priv[i]->gtk_data_ready) {
+				PRINTM(MCMND, "set GTK before suspend\n");
+				woal_set_rekey_data(handle->priv[i],
+						    &handle->priv[i]->
+						    gtk_rekey_data,
+						    MLAN_ACT_SET);
+			}
+		}
+	}
+#endif
+
 	/* Enable Host Sleep */
 	handle->hs_activate_wait_q_woken = MFALSE;
 	memset(&hscfg, 0, sizeof(mlan_ds_hs_cfg));
@@ -3282,6 +3332,16 @@ woal_cancel_cac_block(moal_private *priv)
 			priv->phandle->meas_wait_q_woken = MTRUE;
 			wake_up_interruptible(&priv->phandle->meas_wait_q);
 		}
+#ifdef UAP_SUPPORT
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+		if (priv->uap_host_based && dfs_offload)
+			woal_cfg80211_dfs_vendor_event(priv,
+						       event_dfs_cac_aborted,
+						       &priv->chan);
+#endif
+#endif
+#endif
 	}
 	LEAVE();
 }
@@ -3355,7 +3415,15 @@ woal_11h_channel_check_ioctl(moal_private *priv, t_u8 wait_option)
 	priv->phandle->meas_start_jiffies = jiffies;
 	priv->phandle->cac_timer_jiffies =
 		ds_11hcfg->param.chan_rpt_req.millisec_dwell_time * HZ / 1000;
-
+#ifdef UAP_SUPPORT
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+	if (priv->uap_host_based && dfs_offload)
+		woal_cfg80211_dfs_vendor_event(priv, event_dfs_cac_started,
+					       &priv->chan);
+#endif
+#endif
+#endif
 done:
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);
@@ -3398,6 +3466,7 @@ woal_11h_cancel_chan_report_ioctl(moal_private *priv, t_u8 wait_option)
 		ret = -EFAULT;
 		goto done;
 	}
+
 done:
 	if (status != MLAN_STATUS_PENDING)
 		kfree(req);

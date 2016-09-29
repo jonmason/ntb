@@ -55,6 +55,10 @@ extern int hw_test;
 #ifdef ANDROID_KERNEL
 extern int wakelock_timeout;
 #endif
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+extern int dfs_offload;
+#endif
+
 /********************************************************
 		Local Functions
 ********************************************************/
@@ -84,7 +88,7 @@ moal_malloc(IN t_void *pmoal_handle,
 	if (flag & MLAN_MEM_DMA)
 		mem_flag |= GFP_DMA;
 
-	*ppbuf = kmalloc(size, mem_flag);
+	*ppbuf = kzalloc(size, mem_flag);
 	if (*ppbuf == NULL) {
 		PRINTM(MERROR, "%s: allocate memory (%d bytes) failed!\n",
 		       __func__, (int)size);
@@ -1750,8 +1754,15 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 			}
 		} else {
 			PRINTM(MEVENT, "radar detected during BSS active \n");
-			cfg80211_radar_event(priv->wdev->wiphy, &priv->chan,
-					     GFP_KERNEL);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+			if (dfs_offload)
+				woal_cfg80211_dfs_vendor_event(priv,
+							       event_dfs_radar_detected,
+							       &priv->chan);
+			else
+#endif
+				cfg80211_radar_event(priv->wdev->wiphy,
+						     &priv->chan, GFP_KERNEL);
 		}
 		break;
 #endif
@@ -2283,6 +2294,17 @@ moal_recv_event(IN t_void *pmoal_handle, IN pmlan_event pmevent)
 
 				PRINTM(MMSG, "BSS START Complete!\n");
 			}
+#ifdef UAP_SUPPORT
+#if defined(STA_CFG80211) || defined(UAP_CFG80211)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+			if (priv->uap_host_based && dfs_offload)
+				woal_cfg80211_dfs_vendor_event(priv,
+							       event_dfs_cac_finished,
+							       &priv->chan);
+#endif
+#endif
+#endif
+
 		}
 		break;
 	case MLAN_EVENT_ID_DRV_TDLS_TEARDOWN_REQ:

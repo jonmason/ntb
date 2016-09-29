@@ -207,6 +207,7 @@ Change log:
 #endif
 #define PRIV_CMD_MULTI_CHAN_CFG "mc_cfg"
 #define PRIV_CMD_MULTI_CHAN_POLICY "mc_policy"
+#define PRIV_CMD_DRCS_CFG "mc_cfg_ext"
 #if defined(WIFI_DIRECT_SUPPORT)
 #if defined(UAP_CFG80211)
 #if LINUX_VERSION_CODE >= WIFI_DIRECT_KERNEL_VERSION
@@ -234,6 +235,8 @@ Change log:
 #endif
 
 #define PRIV_CMD_TDLS_IDLE_TIME          "tdls_idle_time"
+
+#define PRIV_CMD_DFS_OFFLOAD            "dfs_offload"
 
 #if defined(SDIO_SUSPEND_RESUME)
 #define PRIV_CMD_AUTO_ARP	"auto_arp"

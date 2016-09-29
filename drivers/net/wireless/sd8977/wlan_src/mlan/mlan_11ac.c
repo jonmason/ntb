@@ -348,6 +348,8 @@ wlan_11ac_ioctl_vhtcfg(IN pmlan_adapter pmadapter,
 					pmpriv->usr_dot_11ac_dev_cap_a =
 						usr_vht_cap_info;
 				}
+				pmpriv->usr_dot_11ac_bw =
+					cfg->param.vht_cfg.bwcfg;
 
 			} else {
 		/** GET operation */
@@ -369,6 +371,8 @@ wlan_11ac_ioctl_vhtcfg(IN pmlan_adapter pmadapter,
 					       "Get: invalid band selection for vht cap info\n");
 					ret = MLAN_STATUS_FAILURE;
 				}
+				cfg->param.vht_cfg.bwcfg =
+					pmpriv->usr_dot_11ac_bw;
 				cfg->param.vht_cfg.vht_rx_mcs =
 					GET_DEVRXMCSMAP(pmpriv->
 							usr_dot_11ac_mcs_support);
@@ -1183,6 +1187,7 @@ wlan_update_11ac_cap(mlan_private *pmpriv)
 	pmpriv->usr_dot_11ac_dev_cap_a =
 		pmadapter->
 		hw_dot_11ac_dev_cap & ~DEFALUT_11AC_CAP_BEAMFORMING_RESET_MASK;
+	pmpriv->usr_dot_11ac_bw = BW_FOLLOW_VHTCAP;
 }
 
 /**
@@ -1202,10 +1207,40 @@ wlan_11ac_bandconfig_allowed(mlan_private *pmpriv, t_u8 bss_band)
 		else
 			return (pmpriv->adapter->adhoc_start_band & BAND_AAC);
 	} else {
-		if (bss_band & BAND_A)
+		if (bss_band & BAND_G)
 			return (pmpriv->config_bands & BAND_GAC);
 		else
 			return (pmpriv->config_bands & BAND_AAC);
 	}
 	return 0;
+}
+
+/**
+ *  @brief This function fills TDLS VHT cap tlv out put format is LE, not CPU
+ *
+ *  @param priv         A pointer to mlan_private structure
+ *  @param pvht_cap      A pointer to MrvlIETypes_HTCap_t structure
+ *  @param bands        Band configuration
+ *
+ *  @return             N/A
+ */
+void
+wlan_fill_tdls_vht_cap_TLV(mlan_private *priv, MrvlIETypes_VHTCap_t *pvht_cap,
+			   t_u8 bands)
+{
+	mlan_adapter *pmadapter = priv->adapter;
+	MrvlIETypes_VHTCap_t vht_cap;
+
+	memset(pmadapter, &vht_cap, 0, sizeof(MrvlIETypes_VHTCap_t));
+	wlan_fill_vht_cap_tlv(priv, &vht_cap, bands);
+
+	pvht_cap->vht_cap.vht_cap_info &= vht_cap.vht_cap.vht_cap_info;
+	pvht_cap->vht_cap.mcs_sets.rx_mcs_map &=
+		vht_cap.vht_cap.mcs_sets.rx_mcs_map;
+	pvht_cap->vht_cap.mcs_sets.rx_max_rate &=
+		vht_cap.vht_cap.mcs_sets.rx_max_rate;
+	pvht_cap->vht_cap.mcs_sets.tx_mcs_map &=
+		vht_cap.vht_cap.mcs_sets.tx_mcs_map;
+	pvht_cap->vht_cap.mcs_sets.tx_max_rate &=
+		vht_cap.vht_cap.mcs_sets.tx_max_rate;
 }

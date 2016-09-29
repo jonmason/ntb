@@ -27,7 +27,7 @@ Change log:
 #define _MLAN_DECL_H_
 
 /** MLAN release version */
-#define MLAN_RELEASE_VERSION		 "C194"
+#define MLAN_RELEASE_VERSION		 "C200"
 
 /** Re-define generic data types for MLAN/MOAL */
 /** Signed char (1-byte) */
@@ -1292,10 +1292,28 @@ typedef struct _mlan_device {
 	t_u16 card_type;
     /** GPIO to indicate wakeup source */
 	t_u8 indication_gpio;
+    /** channel time and mode for DRCS*/
+	t_u32 drcs_chantime_mode;
 } mlan_device, *pmlan_device;
 
 /** MLAN API function prototype */
 #define MLAN_API
+#ifdef MULTI_INTERFACE
+#define mlan_register mlan_sdio_register
+#define mlan_unregister mlan_sdio_unregister
+#define mlan_init_fw mlan_sdio_init_fw
+#define mlan_set_init_param mlan_sdio_set_init_param
+#define mlan_dnld_fw mlan_sdio_dnld_fw
+#define mlan_shutdown_fw mlan_sdio_shutdown_fw
+#define mlan_send_packet mlan_sdio_send_packet
+#define mlan_ioctl mlan_sdio_ioctl
+#define mlan_main_process mlan_sdio_main_process
+#define mlan_rx_process mlan_sdio_rx_process
+#define mlan_select_wmm_queue mlan_sdio_select_wmm_queue
+#define mlan_interrupt mlan_sdio_interrupt
+#define mlan_pm_wakeup_card mlan_sdio_pm_wakeup_card
+#define mlan_is_main_process_running mlan_sdio_is_main_process_running
+#endif
 
 /** Registration */
 MLAN_API mlan_status mlan_register(IN pmlan_device pmdevice,
