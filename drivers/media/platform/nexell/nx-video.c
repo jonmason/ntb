@@ -976,7 +976,8 @@ static int nx_video_s_parm(struct file *file, void *fh,
 	me = file->private_data;
 
 	if (me->type == NX_VIDEO_TYPE_CAPTURE &&
-	    a->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
+	    ((a->type == V4L2_BUF_TYPE_VIDEO_CAPTURE)
+	     || (a->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE))) {
 		struct v4l2_subdev *subdev;
 
 		subdev = get_remote_subdev(me, a->type, NULL);
