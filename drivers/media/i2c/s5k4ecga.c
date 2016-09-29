@@ -2025,6 +2025,9 @@ static int sensor_4ec_stream_on(struct v4l2_subdev *subdev)
 	}
 
 	if (s5k4ec_state->mode == S5K4EC_OPRMODE_IMAGE) {
+		/* Do Single AF */
+		sensor_4ec_auto_focus_start(&s5k4ec_state->subdev);
+
 		/* Do Flash work */
 		cam_dbg("light_level = 0x%08x\n",
 			s5k4ec_state->light_level);
