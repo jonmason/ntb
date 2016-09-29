@@ -479,8 +479,6 @@ int nx_drm_dp_panel_ctrl_parse(struct device_node *np,
 	struct dp_ctrl_info *ctl = &dpc->ctrl;
 
 	parse_read_prop(np, "clk_src_lv0", ctl->clk_src_lv0);
-	parse_read_prop(np, "clk_src_lv0", ctl->clk_src_lv0);
-	parse_read_prop(np, "clk_src_lv0", ctl->clk_src_lv0);
 	parse_read_prop(np, "clk_div_lv0", ctl->clk_div_lv0);
 	parse_read_prop(np, "clk_src_lv1", ctl->clk_src_lv1);
 	parse_read_prop(np, "clk_div_lv1", ctl->clk_div_lv1);
