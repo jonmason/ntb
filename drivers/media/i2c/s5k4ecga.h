@@ -411,6 +411,7 @@ static int sensor_4ec_pre_flash_start(struct v4l2_subdev *subdev);
 static int sensor_4ec_pre_flash_stop(struct v4l2_subdev *subdev);
 static int sensor_4ec_main_flash_start(struct v4l2_subdev *subdev);
 static int sensor_4ec_main_flash_stop(struct v4l2_subdev *subdev);
+static int sensor_4ec_auto_focus_start(struct v4l2_subdev *subdev);
 static int sensor_4ec_auto_focus_proc(struct v4l2_subdev *subdev);
 static int sensor_4ec_get_exif(struct v4l2_subdev *subdev);
 int sensor_4ec_probe(struct i2c_client *client,
