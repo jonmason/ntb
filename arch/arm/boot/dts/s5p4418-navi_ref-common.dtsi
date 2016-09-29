@@ -140,7 +140,8 @@
 			status = "okay";
 		};
 
-		spdiftx@c0059000 {
+		spdif_tx: spdiftx@c0059000 {
+			#sound-dai-cells = <1>;
 			pcm-bit = <16>;
 			sample_rate = <48000>;
 			status = "okay";
@@ -187,6 +188,7 @@
 		};
 
 		i2s_0:i2s@c0055000 {
+			#sound-dai-cells = <1>;
 			master-mode = <1>;
 			mclk-in = <0>;
 			trans-mode = <0>;
@@ -197,6 +199,7 @@
 		};
 
 		i2s_1:i2s@c0056000 {
+			#sound-dai-cells = <1>;
 			master-mode = <1>;
 			mclk-in = <0>;
 			trans-mode = <0>;
@@ -249,8 +252,72 @@
 				nexell,pin-strength = <0>;
 			};
 		};
-
 	};	/*** soc ***/
+
+	vcc_spk: regulator-fix@0 {
+		compatible = "regulator-fixed";
+
+		regulator-name = "SPK Vcc";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-boot-on;
+		regulator-always-on;
+
+		gpio = <&gpio_d 3 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+
+	vdd_a: regulator-fix@1 {
+		compatible = "regulator-fixed";
+
+		regulator-name = "A Vdd";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-boot-on;
+		regulator-always-on;
+
+		gpio = <&gpio_e 17 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+
+	vdd_db: regulator-fix@2 {
+		compatible = "regulator-fixed";
+
+		regulator-name = "DB Vdd";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+		regulator-always-on;
+
+		gpio = <&gpio_e 20 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+
+	vcc_monoamp: regulator-fix@3 {
+		compatible = "regulator-fixed";
+
+		regulator-name = "MONOAMP Vcc";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-boot-on;
+		regulator-always-on;
+
+		gpio = <&gpio_d 31 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+
+	amp2_en: regulator-fix@4 {
+		compatible = "regulator-fixed";
+
+		regulator-name = "AMP2 EN";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-boot-on;
+		regulator-always-on;
+
+		gpio = <&gpio_e 0 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
 
 	i2c_gpio1: i2c@1 {
 		compatible = "i2c-gpio";
@@ -261,6 +328,7 @@
 		#size-cells = <0>;
 
 		rt5640: rt5640@1c {
+			#sound-dai-cells = <0>;
 			compatible = "realtek,rt5640";
 			reg = <0x1c>;
 			realtek,ldo1-en-gpios = <&gpio_c 4 GPIO_ACTIVE_HIGH>;
@@ -270,8 +338,7 @@
 	i2c_gpio2: i2c@2 {
 		compatible = "i2c-gpio";
 		gpios = <&gpio_d 7 0 /* sda */
-		    &gpio_d 6 0 /* scl */
-		    >;
+		    &gpio_d 6 0 /* scl */>;
 		i2c-gpio,delay-us = <100>;
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -297,6 +364,7 @@
 		#size-cells = <0>;
 
 		alc5623: alc5623@1a {
+			#sound-dai-cells = <0>;
 			compatible = "realtek,alc5623";
 			reg = <0x1a>;
 		};
@@ -333,33 +401,56 @@
 		status = "disabled";
 	};
 
-	sound0 {
-		compatible = "nexell,nexell-rt5640";
-		ch = <0>;
-		sample-rate = <48000>;
-		format = "S16";
-		i2s-controller = <&i2s_0>;
-		audio-codec = <&rt5640>;
-	};
+	sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "s5p4418 navi_ref Audio";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,widgets =
+		    "Headphone", "Out Jack",
+		    "Microphone", "In Jack";
+		simple-audio-card,routing =
+		    "Out Jack", "HPOL",
+		    "Out Jack", "HPOR",
+		    "IN2P", "In Jack",
+		    "IN2P", "In Jack";
+		status = "okay";
 
-	sound1 {
-		compatible = "nexell,nexell-alc5623";
-		ch = <1>;
-		sample-rate = <48000>;
-		format = "S16";
-		i2s-controller = <&i2s_1>;
-		audio-codec = <&alc5623>;
-		amp-gpio = <&gpio_e 0 0>;
+		simple-audio-card,dai-link@0 {
+		    format = "i2s";
+		    cpu {
+			sound-dai = <&i2s_0 0>;
+		    };
+
+		    codec {
+			sound-dai = <&rt5640>;
+		    };
+		};
+
+		simple-audio-card,dai-link@1 {
+		    format = "i2s";
+		    cpu {
+			sound-dai = <&i2s_1 0>;
+		    };
+
+		    codec {
+			sound-dai = <&alc5623>;
+		    };
+		};
+
+		simple-audio-card,dai-link@2 {
+		    cpu {
+			sound-dai = <&spdif_tx 0>;
+		    };
+
+		    codec {
+			sound-dai = <&spdif_out>;
+		    };
+		};
 	};
 
 	spdif_out: spdif-out {
+		#sound-dai-cells = <0>;
 		compatible = "linux,spdif-dit";
-	};
-
-	spdif-transceiver {
-		compatible = "nexell,spdif-transceiver";
-		sample_rate = <48000>;
-		format = "S16";
 	};
 
 	gpio_key: gpio_keys {
