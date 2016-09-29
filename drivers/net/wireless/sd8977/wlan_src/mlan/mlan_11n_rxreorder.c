@@ -1042,12 +1042,14 @@ done:
  *  @param peer_mac     MAC address to send delba
  *  @param type         TYPE_DELBA_SENT	or TYPE_DELBA_RECEIVE
  *  @param initiator    MTRUE if we are initiator of ADDBA, MFALSE otherwise
+ *  @param reason_code  delete ba reason
  *
  *  @return             N/A
  */
 void
 mlan_11n_delete_bastream_tbl(mlan_private *priv, int tid,
-			     t_u8 *peer_mac, t_u8 type, int initiator)
+			     t_u8 *peer_mac, t_u8 type, int initiator,
+			     t_u16 reason_code)
 {
 	RxReorderTbl *rx_reor_tbl_ptr;
 	TxBAStreamTbl *ptxtbl;
@@ -1063,7 +1065,8 @@ mlan_11n_delete_bastream_tbl(mlan_private *priv, int tid,
 		cleanup_rx_reorder_tbl = (initiator) ? MFALSE : MTRUE;
 
 	PRINTM(MEVENT, "delete_bastream_tbl: " MACSTR " tid=%d, type=%d"
-	       "initiator=%d\n", MAC2STR(peer_mac), tid, type, initiator);
+	       "initiator=%d reason=%d\n", MAC2STR(peer_mac), tid, type,
+	       initiator, reason_code);
 
 	if (cleanup_rx_reorder_tbl) {
 		rx_reor_tbl_ptr =
@@ -1086,6 +1089,16 @@ mlan_11n_delete_bastream_tbl(mlan_private *priv, int tid,
 		if (ra_list) {
 			ra_list->amsdu_in_ampdu = MFALSE;
 			ra_list->ba_status = BA_STREAM_NOT_SETUP;
+			if (type == TYPE_DELBA_RECEIVE) {
+				if (reason_code == REASON_CODE_STA_TIMEOUT)
+					ra_list->del_ba_count = 0;
+				else
+					ra_list->del_ba_count++;
+				ra_list->packet_count = 0;
+				ra_list->ba_packet_threshold =
+					wlan_get_random_ba_threshold(priv->
+								     adapter);
+			}
 		}
 		wlan_11n_delete_txbastream_tbl_entry(priv, ptxtbl);
 	}

@@ -1867,6 +1867,9 @@ wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		if (misc->sub_command == MLAN_OID_MISC_MULTI_CHAN_POLICY)
 			status = wlan_misc_ioctl_multi_chan_policy(pmadapter,
 								   pioctl_req);
+		if (misc->sub_command == MLAN_OID_MISC_DRCS_CFG)
+			status = wlan_misc_ioctl_drcs_config(pmadapter,
+							     pioctl_req);
 #ifdef RX_PACKET_COALESCE
 		if (misc->sub_command == MLAN_OID_MISC_RX_PACKET_COALESCE)
 			status = wlan_misc_ioctl_rx_pkt_coalesce_config

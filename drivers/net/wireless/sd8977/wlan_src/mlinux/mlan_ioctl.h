@@ -287,6 +287,7 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_GET_TSF = 0x00200045,
 	MLAN_OID_MISC_GET_CHAN_REGION_CFG = 0x00200046,
 	MLAN_OID_MISC_OPER_CLASS_CHECK = 0x00200049,
+	MLAN_OID_MISC_DRCS_CFG = 0x00200050,
 
 };
 
@@ -3891,11 +3892,25 @@ typedef MLAN_PACK_START struct _mlan_ds_multi_chan_cfg {
 	t_u32 channel_time;
     /** Buffer Weight */
 	t_u8 buffer_weight;
-	/** tlv len */
+    /** tlv len */
 	t_u16 tlv_len;
     /** TLV buffer */
 	t_u8 tlv_buf[0];
 } MLAN_PACK_END mlan_ds_multi_chan_cfg;
+
+typedef MLAN_PACK_START struct _mlan_ds_drcs_cfg {
+    /** Channel Index*/
+	t_u16 chan_idx;
+    /** Channel time (in TU) for chan_idx */
+	t_u8 chantime;
+    /** Channel swith time (in TU) for chan_idx */
+	t_u8 switchtime;
+    /** Undoze time (in TU) for chan_idx */
+	t_u8 undozetime;
+    /** Rx traffic control scheme when channel switch*/
+    /** only valid for GC/STA interface*/
+	t_u8 mode;
+} MLAN_PACK_END mlan_ds_drcs_cfg;
 
 /**Action ID for TDLS disable link*/
 #define WLAN_TDLS_DISABLE_LINK           0x00
@@ -4106,6 +4121,8 @@ typedef struct _mlan_ds_misc_cfg {
 		mlan_ds_multi_chan_cfg multi_chan_cfg;
 	/** Multi-channel policy for MLAN_OID_MISC_MULTI_CHAN_POLICY */
 		t_u16 multi_chan_policy;
+	/** channel drcs time slicing config for MLAN_OID_MISC_DRCS_CFG */
+		mlan_ds_drcs_cfg drcs_cfg[2];
 #ifdef WIFI_DIRECT_SUPPORT
 		mlan_ds_wifi_direct_config p2p_config;
 #endif

@@ -640,6 +640,8 @@ typedef struct _txAggr_t {
 	t_u8 amsdu;
 } tx_aggr_t;
 
+/** del ba threshold */
+#define DEL_BA_THRESHOLD    10
 /** BA stream status */
 typedef enum _baStatus_e {
 	BA_STREAM_NOT_SETUP = 0,
@@ -672,6 +674,8 @@ struct _raListTbl {
 	t_u16 max_amsdu;
     /** BA stream status */
 	baStatus_e ba_status;
+    /** del ba count */
+	t_u8 del_ba_count;
     /** amsdu in ampdu flag */
 	t_u8 amsdu_in_ampdu;
 	/** tdls flag */
@@ -1013,6 +1017,8 @@ typedef struct _mlan_private {
 	t_u32 usr_dot_11ac_dev_cap_a;
     /** MIMO abstraction of MCSs supported by device */
 	t_u32 usr_dot_11ac_mcs_support;
+    /** user dot 11ac_BW */
+	t_u8 usr_dot_11ac_bw;
     /**  dropped pkts */
 	t_u32 num_drop_pkts;
 #ifdef UAP_SUPPORT
@@ -1683,6 +1689,7 @@ typedef struct _mlan_init_para {
 	t_u32 dev_cap_mask;
     /** oob independent reset mode */
 	t_u32 indrstcfg;
+	t_u32 drcs_chantime_mode;
 } mlan_init_para, *pmlan_init_para;
 typedef struct _mlan_sdio_card_reg {
 	t_u8 start_rd_port;
@@ -3127,6 +3134,17 @@ mlan_status wlan_cmd_multi_chan_policy(IN pmlan_private pmpriv,
 mlan_status wlan_ret_multi_chan_policy(IN pmlan_private pmpriv,
 				       const IN HostCmd_DS_COMMAND *resp,
 				       OUT mlan_ioctl_req *pioctl_buf);
+
+mlan_status wlan_misc_ioctl_drcs_config(IN pmlan_adapter pmadapter,
+					IN pmlan_ioctl_req pioctl_req);
+
+mlan_status wlan_cmd_drcs_cfg(IN pmlan_private pmpriv,
+			      IN HostCmd_DS_COMMAND *cmd,
+			      IN t_u16 cmd_action, IN t_void *pdata_buf);
+
+mlan_status wlan_ret_drcs_cfg(IN pmlan_private pmpriv,
+			      const IN HostCmd_DS_COMMAND *resp,
+			      OUT mlan_ioctl_req *pioctl_buf);
 
 void wlan_bt_coex_wlan_param_update_event(pmlan_private priv,
 					  pmlan_buffer pevent);

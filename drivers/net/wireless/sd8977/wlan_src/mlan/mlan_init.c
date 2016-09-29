@@ -455,6 +455,7 @@ wlan_init_priv(pmlan_private priv)
 	priv->wmm_qosinfo = 0;
 	priv->saved_wmm_qosinfo = 0;
 	priv->host_tdls_cs_support = MTRUE;
+    /** Disable TDLS UAPSD as FW would block BA setup when TDLS UAPSD enabled, will enable it when FW fix the issue */
 	priv->host_tdls_uapsd_support = MFALSE;
 	priv->tdls_cs_channel = 0;
 	priv->supp_regulatory_class_len = 0;
@@ -465,7 +466,9 @@ wlan_init_priv(pmlan_private priv)
 	priv->pcurr_bcn_buf = MNULL;
 	priv->curr_bcn_size = 0;
 	memset(pmadapter, &priv->ext_cap, 0, sizeof(priv->ext_cap));
+
 	SET_EXTCAP_OPERMODENTF(priv->ext_cap);
+	SET_EXTCAP_TDLS(priv->ext_cap);
 	SET_EXTCAP_QOS_MAP(priv->ext_cap);
 #endif /* STA_SUPPORT */
 

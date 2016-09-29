@@ -33,6 +33,8 @@ extern int cfg80211_wext;
 extern int fw_region;
 #endif
 
+extern int dfs_offload;
+
 /* Supported crypto cipher suits to be advertised to cfg80211 */
 const u32 cfg80211_cipher_suites[] = {
 	WLAN_CIPHER_SUITE_WEP40,
@@ -2368,6 +2370,36 @@ done:
 /********************************************************
 				Global Functions
 ********************************************************/
+/**
+ * @brief Set all radar channel's dfs_state
+ *
+ * @param wiphy           A pointer to wiphy structure
+ *
+ * @return                N/A
+ */
+void
+woal_update_radar_chans_dfs_state(struct wiphy *wiphy)
+{
+	enum ieee80211_band band;
+	struct ieee80211_supported_band *sband;
+	int i;
+	for (band = 0; band < IEEE80211_NUM_BANDS; band++) {
+		sband = wiphy->bands[band];
+		if (!sband)
+			continue;
+		for (i = 0; i < sband->n_channels; i++) {
+			if (sband->channels[i].flags & IEEE80211_CHAN_RADAR) {
+				if (dfs_offload)
+					sband->channels[i].dfs_state =
+						NL80211_DFS_AVAILABLE;
+				else
+					sband->channels[i].dfs_state =
+						NL80211_DFS_USABLE;
+			}
+		}
+	}
+	PRINTM(MCMND, "Set radar dfs_state: dfs_offload=%d\n", dfs_offload);
+}
 
 /**
  * @brief Request the driver to change regulatory domain
@@ -2407,6 +2439,8 @@ woal_cfg80211_reg_notifier(struct wiphy *wiphy,
 
 	PRINTM(MIOCTL, "cfg80211 regulatory domain callback "
 	       "%c%c\n", request->alpha2[0], request->alpha2[1]);
+	if (dfs_offload)
+		woal_update_radar_chans_dfs_state(wiphy);
 	memset(region, 0, sizeof(region));
 	memcpy(region, request->alpha2, sizeof(request->alpha2));
 	region[2] = ' ';
@@ -7329,7 +7363,7 @@ woal_register_cfg80211(moal_private *priv)
 	/* Set phy name */
 	for (index = 0; index < MAX_MLAN_ADAPTER; index++) {
 		if (m_handle[index] == priv->phandle) {
-			dev_set_name(&wiphy->dev, "mwiphy%d", index);
+			dev_set_name(&wiphy->dev, mwiphy_name, index);
 			break;
 		}
 	}

@@ -549,7 +549,7 @@ typedef struct _bt_private {
 #define BT_CMD_ENABLE_WRITE_SCAN	0x1A
 /** Bluetooth command : Enable Device under test mode */
 #define BT_CMD_ENABLE_DEVICE_TESTMODE	0x03
-#ifdef SDIO_SUSPEND_RESUME
+#if defined(SDIO_SUSPEND_RESUME)
 /* FM default event interrupt mask
 		bit[0], RSSI low
 		bit[1], New RDS data

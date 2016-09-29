@@ -209,6 +209,7 @@ wlan_wmm_allocate_ralist_node(pmlan_adapter pmadapter, t_u8 *ra)
 
 	memcpy(pmadapter, ra_list->ra, ra, MLAN_MAC_ADDR_LENGTH);
 
+	ra_list->del_ba_count = 0;
 	ra_list->total_pkts = 0;
 	ra_list->tx_pause = 0;
 	PRINTM(MINFO, "RAList: Allocating buffers for TID %p\n", ra_list);
@@ -1147,7 +1148,8 @@ wlan_dequeue_tx_packet(pmlan_adapter pmadapter)
 		return MLAN_STATUS_SUCCESS;
 	}
 
-	if (!ptr->is_11n_enabled || ptr->ba_status
+	if (!ptr->is_11n_enabled ||
+	    (ptr->ba_status || ptr->del_ba_count >= DEL_BA_THRESHOLD)
 #ifdef STA_SUPPORT
 	    || priv->wps.session_enable
 #endif /* STA_SUPPORT */

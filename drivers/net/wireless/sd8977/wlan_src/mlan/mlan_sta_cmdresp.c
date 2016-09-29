@@ -2916,6 +2916,9 @@ wlan_ops_sta_process_cmdresp(IN t_void *priv,
 	case HostCmd_CMD_MULTI_CHAN_POLICY:
 		ret = wlan_ret_multi_chan_policy(pmpriv, resp, pioctl_buf);
 		break;
+	case HostCmd_CMD_DRCS_CONFIG:
+		ret = wlan_ret_drcs_cfg(pmpriv, resp, pioctl_buf);
+		break;
 	case HostCMD_CONFIG_LOW_POWER_MODE:
 		break;
 	case HostCmd_DFS_REPEATER_MODE:

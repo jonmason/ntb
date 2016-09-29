@@ -93,6 +93,8 @@ CONFIG_MULTI_CHAN_SUPPORT=y
 
 CONFIG_ANDROID_KERNEL=n
 
+CONFIG_MULTI_INTERFACE=n
+
 
 #32bit app over 64bit kernel support
 CONFIG_USERSPACE_32BIT_OVER_KERNEL_64BIT=n
@@ -210,6 +212,10 @@ endif
 
 ifeq ($(CONFIG_ANDROID_KERNEL), y)
 	EXTRA_CFLAGS += -DANDROID_KERNEL
+endif
+
+ifeq ($(CONFIG_MULTI_INTERFACE), y)
+	EXTRA_CFLAGS += -DMULTI_INTERFACE
 endif
 
 ifeq ($(CONFIG_T50), y)
@@ -428,8 +434,13 @@ MLANOBJS += mlan/esa/AssocAp_srv_rom.o \
 			mlan/esa/keyMgmtAp.o
 endif
 
+ifeq ($(CONFIG_MULTI_INTERFACE), n)
 obj-$(CONFIG_MRVL_WLAN_DRIVER) := mlan.o
 mlan-objs := $(MLANOBJS)
+else
+obj-$(CONFIG_MRVL_WLAN_DRIVER) := mlan_sdio.o
+mlan_sdio-objs := $(MLANOBJS)
+endif
 MOALOBJS += mlinux/moal_sdio_mmc.o
 obj-$(CONFIG_MRVL_WLAN_DRIVER) += sd8xxx.o
 sd8xxx-objs := $(MOALOBJS)
@@ -486,7 +497,11 @@ build:		echo default
 		mkdir $(BINDIR); \
 	fi
 
+ifeq ($(CONFIG_MULTI_INTERFACE), n)
 	cp -f mlan.$(MODEXT) $(BINDIR)/mlan$(DBG).$(MODEXT)
+else
+	cp -f mlan_sdio.$(MODEXT) $(BINDIR)/mlan$(DBG).$(MODEXT)
+endif
 	cp -f sd8xxx.$(MODEXT) $(BINDIR)/sd8xxx$(DBG).$(MODEXT)
 	cp -rpf script/sdio_mmc/* $(BINDIR)/
 

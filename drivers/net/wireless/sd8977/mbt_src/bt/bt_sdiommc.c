@@ -573,10 +573,12 @@ sd_verify_fw_download(bt_private *priv, int pollnum)
 		}
 		mdelay(100);
 	}
-	if ((pollnum > 1) && (ret != BT_STATUS_SUCCESS))
+	if ((pollnum > 1) && (ret != BT_STATUS_SUCCESS)) {
 		PRINTM(ERROR,
 		       "Fail to poll firmware status: firmwarestat=0x%x\n",
 		       firmwarestat);
+		bt_dump_sdio_regs(priv);
+	}
 	LEAVE();
 	return ret;
 }
@@ -1586,9 +1588,7 @@ bt_sdio_suspend(struct device *dev)
 		ret = BT_STATUS_SUCCESS;
 	}
 
-#ifdef SDIO_OOB_IRQ
     mrvl_sdio_suspend(func);
-#endif
 
 	LEAVE();
 	return ret;
@@ -2273,6 +2273,13 @@ sdio_get_sdio_device(bt_private *priv)
 	return ret;
 }
 
+#define SD8897_INIT_START_REG  0xDC
+#define SD8897_INIT_END_REG  0xE1
+#define SD8887_INIT_START_REG  0xA0
+#define SD8887_INIT_END_REG  0xA5
+#define SD8977_SD8997_INIT_START_REG 0xF1
+#define SD8977_SD8997_INIT_END_REG 0xF6
+
 /** @brief This function dump the SDIO register
  *
  *  @param priv     A Pointer to the bt_private structure
@@ -2294,6 +2301,20 @@ bt_dump_sdio_regs(bt_private *priv)
 	u8 loop_num = 0;
 	unsigned int *reg_table = NULL;
 	u8 reg_table_size = 0;
+	unsigned int init_reg_start = 0;
+	unsigned int init_reg_end = 0;
+	if (priv->card_type == CARD_TYPE_SD8887) {
+		init_reg_start = SD8887_INIT_START_REG;
+		init_reg_end = SD8887_INIT_END_REG;
+	} else if (priv->card_type == CARD_TYPE_SD8897) {
+		init_reg_start = SD8897_INIT_START_REG;
+		init_reg_end = SD8897_INIT_END_REG;
+	} else if (priv->card_type == CARD_TYPE_SD8977 ||
+		   priv->card_type == CARD_TYPE_SD8997) {
+		init_reg_start = SD8977_SD8997_INIT_START_REG;
+		init_reg_end = SD8977_SD8997_INIT_END_REG;
+	}
+
 	if (priv->card_type == CARD_TYPE_SD8887) {
 		loop_num = 3;
 		reg_table = reg_table_8887;
@@ -2346,6 +2367,24 @@ bt_dump_sdio_regs(bt_private *priv)
 				reg = reg_table[index++];
 			else
 				reg++;
+		}
+		PRINTM(MSG, "%s\n", buf);
+	}
+
+	if (init_reg_start) {
+		memset(buf, 0, sizeof(buf));
+		ptr = buf;
+		ptr += sprintf(ptr, "Init Status Reg (%#x-%#x): ",
+			       init_reg_start, init_reg_end);
+		for (reg = init_reg_start; reg <= init_reg_end;) {
+			data = sdio_readb(card->func, reg, &ret);
+			if (!ret)
+				ptr += sprintf(ptr, "%02x ", data);
+			else {
+				ptr += sprintf(ptr, "ERR");
+				break;
+			}
+			reg++;
 		}
 		PRINTM(MSG, "%s\n", buf);
 	}

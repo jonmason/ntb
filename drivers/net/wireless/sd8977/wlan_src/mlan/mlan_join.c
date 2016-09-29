@@ -577,12 +577,12 @@ wlan_update_rsn_ie(mlan_private *pmpriv, MrvlIEtypes_RsnParamSet_t *ptlv_rsn_ie)
 	   pairwise_cipher_count * PAIRWISE_CIPHER_SUITE_LEN + 2 bytes
 	   akm_suite_count + akm_suite_count * AKM_SUITE_LEN */
 	ptr = (t_u16 *)(ptlv_rsn_ie->rsn_ie + sizeof(t_u16) + 4 * sizeof(t_u8));
-	pairwise_cipher_count = *ptr;
+	pairwise_cipher_count = wlan_le16_to_cpu(*ptr);
 	ptr = (t_u16 *)(ptlv_rsn_ie->rsn_ie + sizeof(t_u16) + 4 * sizeof(t_u8)
 			+ sizeof(t_u16) +
 			pairwise_cipher_count * PAIRWISE_CIPHER_SUITE_LEN);
-	temp_akm_suite_count = *ptr;
-	akm_suite_count = *ptr;
+	temp_akm_suite_count = wlan_le16_to_cpu(*ptr);
+	akm_suite_count = wlan_le16_to_cpu(*ptr);
 	/* Save pointer to akm_suite_count in RSN IE to update it later */
 	akm_suite_count_ptr = ptr;
 	temp = ptlv_rsn_ie->rsn_ie + sizeof(t_u16) + 4 * sizeof(t_u8)
@@ -687,10 +687,10 @@ wlan_ft_akm_is_used(mlan_private *pmpriv, t_u8 *rsn_ie)
 	   PAIRWISE_CIPHER_SUITE_LEN (4) + 2 bytes akm_suite_count +
 	   akm_suite_count * AKM_SUITE_LEN (4) */
 	ptr = (t_u16 *)(rsn_ie + 2 + 2 + 4 * sizeof(t_u8));
-	pairwise_cipher_count = *ptr;
+	pairwise_cipher_count = wlan_le16_to_cpu(*ptr);
 	ptr = (t_u16 *)(rsn_ie + 2 + 2 + 4 * sizeof(t_u8)
 			+ sizeof(t_u16) + pairwise_cipher_count * 4);
-	akm_suite_count = *ptr;
+	akm_suite_count = wlan_le16_to_cpu(*ptr);
 	temp = (t_u8 *)(rsn_ie + 2 + sizeof(t_u16) + 4 * sizeof(t_u8)
 			+ sizeof(t_u16) + pairwise_cipher_count
 			* 4 + sizeof(t_u16));
