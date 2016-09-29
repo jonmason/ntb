@@ -1289,6 +1289,19 @@ static int nx_clipper_s_parm(struct v4l2_subdev *sd,
 	return v4l2_subdev_call(remote, video, s_parm, param);
 }
 
+static int nx_clipper_g_ctrl(struct v4l2_subdev *sd,
+			     struct v4l2_control *ctrl)
+{
+	int ret = 0;
+
+	if (ctrl->id == V4L2_CID_MIN_BUFFERS_FOR_CAPTURE)
+		ctrl->value = 8;
+	else
+		ret = -EINVAL;
+
+	return ret;
+}
+
 /**
  * called by VIDIOC_SUBDEV_S_CROP
  */
@@ -1430,9 +1443,14 @@ static const struct v4l2_subdev_pad_ops nx_clipper_pad_ops = {
 	.set_fmt = nx_clipper_set_fmt,
 };
 
+static const struct v4l2_subdev_core_ops nx_clipper_core_ops = {
+	.g_ctrl = nx_clipper_g_ctrl,
+};
+
 static const struct v4l2_subdev_ops nx_clipper_subdev_ops = {
 	.video = &nx_clipper_video_ops,
 	.pad = &nx_clipper_pad_ops,
+	.core = &nx_clipper_core_ops,
 };
 
 /**
