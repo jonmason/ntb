@@ -206,8 +206,8 @@
 				   "nexell,pl011";
 			reg = <PHYS_BASE_UART0 0x1000>;
 			interrupts = <IRQ_UART0>;
-			clock-names = "uartclk", "apb_pclk";
-			clocks = <&uart0>, <&uart0>;
+			clock-names = "uartclk";
+			clocks = <&uart0>;
 			resets  = <&nexell_reset RESET_ID_UART0>;
 			reset-names = "uart-reset";
 			soc,tieoff = <NX_TIEOFF_UART0_USESMC 0>,
@@ -223,8 +223,8 @@
 				   "nexell,pl011";
 			reg = <PHYS_BASE_UART1 0x1000>;
 			interrupts = <IRQ_UART1>;
-			clock-names = "uartclk", "apb_pclk";
-			clocks = <&uart1>, <&uart1>;
+			clock-names = "uartclk";
+			clocks = <&uart1>;
 			resets  = <&nexell_reset RESET_ID_UART1>;
 			reset-names = "uart-reset";
 			soc,tieoff = <NX_TIEOFF_UART1_USESMC 0>,
@@ -240,8 +240,8 @@
 				   "nexell,pl011";
 			reg = <PHYS_BASE_UART2 0x1000>;
 			interrupts = <IRQ_UART2>;
-			clock-names = "uartclk", "apb_pclk";
-			clocks = <&uart2>, <&uart2>;
+			clock-names = "uartclk";
+			clocks = <&uart2>;
 			resets  = <&nexell_reset RESET_ID_UART2>;
 			reset-names = "uart-reset";
 			soc,tieoff = <NX_TIEOFF_UART2_USESMC 0>,
@@ -257,8 +257,8 @@
 				   "nexell,pl011";
 			reg = <PHYS_BASE_UART3 0x1000>;
 			interrupts = <IRQ_UART3>;
-			clock-names = "uartclk", "apb_pclk";
-			clocks = <&uart3>, <&uart3>;
+			clock-names = "uartclk";
+			clocks = <&uart3>;
 			resets  = <&nexell_reset RESET_ID_UART3>;
 			reset-names = "uart-reset";
 			soc,tieoff = <NX_TIEOFF_UART3_USESMC 0>,
@@ -274,8 +274,8 @@
 				   "nexell,pl011";
 			reg = <PHYS_BASE_UART4 0x1000>;
 			interrupts = <IRQ_UART4>;
-			clock-names = "uartclk", "apb_pclk";
-			clocks = <&uart4>, <&uart4>;
+			clock-names = "uartclk";
+			clocks = <&uart4>;
 			resets  = <&nexell_reset RESET_ID_UART4>;
 			reset-names = "uart-reset";
 			soc,tieoff = <NX_TIEOFF_UART4_USESMC 0>,
@@ -291,8 +291,8 @@
 				   "nexell,pl011";
 			reg = <PHYS_BASE_UART5 0x1000>;
 			interrupts = <IRQ_UART5>;
-			clock-names = "uartclk", "apb_pclk";
-			clocks = <&uart5>, <&uart5>;
+			clock-names = "uartclk";
+			clocks = <&uart5>;
 			resets  = <&nexell_reset RESET_ID_UART5>;
 			reset-names = "uart-reset";
 			soc,tieoff = <NX_TIEOFF_UART5_USESMC 0>,
