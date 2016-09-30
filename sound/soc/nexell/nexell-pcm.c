@@ -601,7 +601,7 @@ struct snd_soc_platform_driver nx_pcm_platform = {
 
 static int nx_pcm_probe(struct platform_device *pdev)
 {
-	int ret = snd_soc_register_platform(&pdev->dev, &nx_pcm_platform);
+	int ret = devm_snd_soc_register_platform(&pdev->dev, &nx_pcm_platform);
 
 	dev_info(&pdev->dev, "snd pcm: %s sound platform '%s'\n",
 	       ret?"fail":"register", pdev->name);
