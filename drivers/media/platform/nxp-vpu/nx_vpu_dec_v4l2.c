@@ -945,7 +945,7 @@ int vpu_dec_parse_vid_cfg(struct nx_vpu_ctx *ctx)
 int vpu_dec_init(struct nx_vpu_ctx *ctx)
 {
 	struct vpu_dec_ctx *dec_ctx = &ctx->codec.dec;
-	struct vpu_dec_reg_frame_arg *frameArg = dec_ctx->frameArg;
+	struct vpu_dec_reg_frame_arg *frameArg;
 	int i, ret = 0;
 
 	FUNC_IN();
@@ -954,6 +954,10 @@ int vpu_dec_init(struct nx_vpu_ctx *ctx)
 		NX_ErrMsg(("Err : vpu is not opend\n"));
 		return -EAGAIN;
 	}
+	frameArg = kzalloc(sizeof(struct vpu_dec_reg_frame_arg),
+			GFP_KERNEL);
+	if (!frameArg)
+		return -ENOMEM;
 
 	frameArg->chromaInterleave = ctx->chromaInterleave;
 
@@ -1279,11 +1283,6 @@ int alloc_decoder_memory(struct nx_vpu_ctx *ctx)
 			goto Error_Exit;
 		}
 	}
-
-	dec_ctx->frameArg = kzalloc(sizeof(struct vpu_dec_reg_frame_arg),
-			GFP_KERNEL);
-	if (!dec_ctx->frameArg)
-		goto Error_Exit;
 
 	return 0;
 
