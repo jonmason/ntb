@@ -662,6 +662,7 @@ static int panel_hdmi_suspend(struct device *dev)
 
 	ctx->plug = false;
 
+	cancel_delayed_work_sync(&ctx->work);
 	drm_helper_hpd_irq_event(ctx->connector->dev);
 
 	return nx_drm_dp_panel_res_suspend(dev, ctx->display);
