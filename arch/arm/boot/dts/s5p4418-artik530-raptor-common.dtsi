@@ -397,7 +397,7 @@
 		gpios = <&gpio_a 5 0 /* sda */
 			&gpio_a 4 0 /* scl */
 			>;
-		i2c-gpio,delay-us = <100>;
+		i2c-gpio,delay-us = <1>;
 		#address-cells = <1>;
 		#size-cells = <0>;
 
