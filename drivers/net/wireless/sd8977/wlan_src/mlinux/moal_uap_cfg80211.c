@@ -3329,6 +3329,9 @@ woal_register_uap_cfg80211(struct net_device *dev, t_u8 bss_type)
 	if (bss_type == MLAN_BSS_TYPE_UAP)
 		wdev->iftype = NL80211_IFTYPE_AP;
 
+	if (wdev->wiphy->wowlan_config)
+		wdev->wiphy->wowlan_config->any = true;
+
 	dev_net_set(dev, wiphy_net(wdev->wiphy));
 	dev->ieee80211_ptr = wdev;
 	SET_NETDEV_DEV(dev, wiphy_dev(wdev->wiphy));
