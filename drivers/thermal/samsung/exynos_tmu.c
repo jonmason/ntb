@@ -890,7 +890,7 @@ static int exynos_get_temp(void *p, int *temp)
 {
 	struct exynos_tmu_data *data = p;
 
-	if (!data || !data->tmu_read)
+	if (!data || !data->tmu_read || !data->temp_error1)
 		return -EINVAL;
 
 	mutex_lock(&data->lock);
