@@ -564,7 +564,7 @@ static int nx_spdif_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_out;
 
-	ret = snd_soc_register_component(&pdev->dev, &nx_spdif_component,
+	ret = devm_snd_soc_register_component(&pdev->dev, &nx_spdif_component,
 					 &spdif_dai_driver, 1);
 	if (ret) {
 		dev_err(&pdev->dev, "fail, %s snd_soc_register_component ...\n",
@@ -572,7 +572,7 @@ static int nx_spdif_probe(struct platform_device *pdev)
 		goto err_out;
 	}
 
-	ret = snd_soc_register_platform(&pdev->dev, &nx_pcm_platform);
+	ret = devm_snd_soc_register_platform(&pdev->dev, &nx_pcm_platform);
 	if (ret) {
 		dev_err(&pdev->dev, "fail, snd_soc_register_platform...\n");
 		goto err_out;
