@@ -28,6 +28,7 @@
 #include <linux/err.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/delay.h>
 
 #include <linux/platform_data/ntc_thermistor.h>
 
@@ -39,6 +40,9 @@
 #include <linux/hwmon.h>
 #include <linux/hwmon-sysfs.h>
 #include <linux/thermal.h>
+
+#define SAMPLE_CNT 5
+#define TEMPGAP	20000
 
 struct ntc_compensation {
 	int		temp_c;
@@ -483,12 +487,26 @@ static int ntc_read_temp(void *dev, int *temp)
 {
 	struct ntc_data *data = dev_get_drvdata(dev);
 	int ohm;
+	int i = 0;
+	static int temp_old;
+	static int temp_error;
 
-	ohm = ntc_thermistor_get_ohm(data);
-	if (ohm < 0)
-		return ohm;
+	for (i = 0; i < SAMPLE_CNT; i++) {
+		ohm = ntc_thermistor_get_ohm(data);
+		if (ohm < 0)
+			continue;
 
-	*temp = get_temp_mc(data, ohm) + data->pdata->compensat_temp;
+		*temp = get_temp_mc(data, ohm) + data->pdata->compensat_temp;
+
+		if ((*temp + TEMPGAP) < temp_old) {
+			temp_error++;
+			msleep(50);
+			continue;
+		} else
+			break;
+	}
+
+	temp_old = *temp;
 
 	return 0;
 }
