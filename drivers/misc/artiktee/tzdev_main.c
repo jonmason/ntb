@@ -1978,7 +1978,7 @@ static int tzcma_init(void)
 	}
 
 	tzcma_dev = tzcma.this_device;
-	arch_setup_dma_ops(tzcma_dev, 0, 0, NULL, DEV_DMA_COHERENT);
+	arch_setup_dma_ops(tzcma_dev, 0, 0, NULL, 0);
 
 	return ret;
 
