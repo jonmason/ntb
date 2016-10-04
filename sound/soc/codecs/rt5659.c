@@ -4885,12 +4885,18 @@ static int rt5659_suspend(struct snd_soc_codec *codec)
 	return 0;
 }
 
+void rt5659_calibrate(struct rt5659_priv *rt5659);
 static int rt5659_resume(struct snd_soc_codec *codec)
 {
 	struct rt5659_priv *rt5659 = snd_soc_codec_get_drvdata(codec);
 
-	msleep(300);
-	schedule_delayed_work(&rt5659->calibrate_work, msecs_to_jiffies(0));
+	while (!rt5659->codec->component.card->instantiated) {
+		pr_debug("%s\n", __func__);
+		usleep_range(10000, 11000);
+	}
+
+	rt5659_calibrate(rt5659);
+
 	return 0;
 }
 #else
