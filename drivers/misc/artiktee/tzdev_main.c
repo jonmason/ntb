@@ -1837,18 +1837,26 @@ extern struct miscdevice tzmem;
 extern struct miscdevice tzrsrc;
 
 #ifdef CONFIG_ARTIK_USE_TZCMA_FOR_ARTIK710_CRYPTO
-static struct device *tzcma_dev;
-struct cma_info{
-	unsigned int phyAddr, virtAddr, size, chan_id;
-	unsigned long long cpuAddr;
-};
-struct dma_chan *in_chan, *out_chan;
-#define TEEC_CMA_MEMORY_ALLOC	0
-#define TEEC_CMA_MEMORY_FREE	1
-#define CMA_PAGE_SIZE	4096 /* 4kbyte*/
-#define LLI_TBL_PAGE	1 /* page is 4kbyte */
+#define TZCMA_MEMORY_ALLOC	0
+#define TZCMA_MEMORY_FREE	1
+#define TZCMA_LLI_TBL_PAGE	1 /* page is 4kbyte */
+#define TZCMA_ALLOC_MAX_COUNT	4
 
-static bool filter(struct dma_chan *chan, void *param)
+static struct device *tzcma_dev;
+struct tzcma_info {
+	int chan_id;
+	size_t size;
+	dma_addr_t phyAddr;
+	unsigned long virtAddr;
+};
+
+static void *tzcma_cpuAddr[TZCMA_ALLOC_MAX_COUNT];
+struct tzcma_info g_tzcmas[TZCMA_ALLOC_MAX_COUNT];
+struct dma_chan *g_tzcma_channels[TZCMA_ALLOC_MAX_COUNT];
+int g_tzcma_alloc_cnt;
+bool g_tzcma_state_opened;
+
+static bool tzcma_filter(struct dma_chan *chan, void *param)
 {
 	if (strcmp(dev_name(chan->device->dev), "c0001000.pl08xdma") == 0
 			&& (strcmp(dma_chan_name(chan), "dma2chan0") == 0
@@ -1864,80 +1872,175 @@ static bool filter(struct dma_chan *chan, void *param)
 	return false;
 }
 
+static int tzcma_get_alloc_idx(void)
+{
+	int i;
+
+	for (i = 0; i < TZCMA_ALLOC_MAX_COUNT; i++) {
+		if (g_tzcmas[i].phyAddr == 0)
+			return i;
+	}
+	return -1;
+}
+
+static int tzcma_get_free_idx(struct tzcma_info mem)
+{
+	int i;
+
+	for (i = 0; i < TZCMA_ALLOC_MAX_COUNT; i++) {
+		if (g_tzcmas[i].phyAddr == mem.phyAddr)
+			return i;
+	}
+	return -1;
+}
+
+static void tzcma_free(int idx)
+{
+	int dma_free_size;
+
+	if (idx < 0 || idx >= TZCMA_ALLOC_MAX_COUNT) {
+		tzlog_print(TZLOG_ERROR,
+				"tzcma_free invaild index\n");
+		return;
+	}
+
+	dma_free_size = round_up(g_tzcmas[idx].size, PAGE_SIZE)
+		+ TZCMA_LLI_TBL_PAGE * PAGE_SIZE;
+	dma_free_writecombine(tzcma_dev, dma_free_size,
+		tzcma_cpuAddr[idx], g_tzcmas[idx].phyAddr);
+	if (g_tzcma_channels[idx] != NULL) {
+		dma_release_channel(g_tzcma_channels[idx]);
+		g_tzcma_channels[idx] = NULL;
+	}
+	memset(&g_tzcmas[idx], 0, sizeof(struct tzcma_info));
+}
+
+static int tzcma_alloc(int idx, size_t size)
+{
+	int ret = 0;
+	int dma_alloc_size;
+	void *cpuAddr;
+	dma_addr_t phyAddr;
+	dma_cap_mask_t mask;
+
+	if (idx < 0 || idx >= TZCMA_ALLOC_MAX_COUNT) {
+		tzlog_print(TZLOG_ERROR,
+				"tzcma_alloc invaild index\n");
+		return -EINVAL;
+	}
+
+	dma_alloc_size = round_up(size, PAGE_SIZE) +
+				TZCMA_LLI_TBL_PAGE * PAGE_SIZE;
+	cpuAddr = dma_alloc_writecombine(tzcma_dev, dma_alloc_size,
+			&phyAddr, GFP_KERNEL | GFP_DMA);
+	if (cpuAddr == NULL) {
+		tzlog_print(TZLOG_ERROR, "dma alloc failed\n");
+		return -ENOMEM;
+	}
+	g_tzcmas[idx].size = size;
+	g_tzcmas[idx].phyAddr = phyAddr;
+	tzcma_cpuAddr[idx] = cpuAddr;
+
+	dma_cap_zero(mask);
+	dma_cap_set(DMA_MEMCPY, mask);
+	g_tzcma_channels[idx] = dma_request_channel(mask, tzcma_filter, NULL);
+	if (g_tzcma_channels[idx] == NULL) {
+		tzlog_print(TZLOG_ERROR, "dma request channel failed\n");
+		tzcma_free(idx);
+		return -ENODEV;
+	}
+	g_tzcmas[idx].chan_id = g_tzcma_channels[idx]->chan_id;
+	return ret;
+}
+
 static int tzcma_open(struct inode *inode, struct file *file)
 {
-	return 0;
+	int i;
+	int ret = 0;
+
+	if (g_tzcma_state_opened) {
+		tzlog_print(TZLOG_ERROR, "tzcma already opened\n");
+		return -EMFILE;
+	}
+
+	g_tzcma_state_opened = true;
+	for (i = 0; i < TZCMA_ALLOC_MAX_COUNT; i++) {
+		memset(&g_tzcmas[i], 0, sizeof(struct tzcma_info));
+		g_tzcma_channels[i] = NULL;
+	}
+	g_tzcma_alloc_cnt = 0;
+	return ret;
+}
+
+static int tzcma_mmap(struct file *file, struct vm_area_struct *vma)
+{
+	int i;
+	int idx = -1;
+	int ret = 0;
+	void *cpu_addr;
+	dma_addr_t dma_addr;
+	size_t size;
+
+	size = vma->vm_end - vma->vm_start;
+
+	for (i = 0; i < TZCMA_ALLOC_MAX_COUNT; i++) {
+		if ((g_tzcmas[i].phyAddr == vma->vm_start)
+			&& (size == round_up(g_tzcmas[i].size, PAGE_SIZE))) {
+			idx = i;
+			break;
+		}
+	}
+	if (idx < 0 || idx >= TZCMA_ALLOC_MAX_COUNT) {
+		tzlog_print(TZLOG_ERROR, "address is not allocated\n");
+		return -ENXIO;
+	}
+
+	cpu_addr = tzcma_cpuAddr[idx];
+	dma_addr = g_tzcmas[idx].phyAddr;
+	ret = dma_mmap_writecombine(tzcma_dev, vma, cpu_addr, dma_addr, size);
+
+	return ret;
 }
 
 static long tzcma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-	int ret = 0, page_cnt;
-	struct cma_info mem, *argp;
-	dma_cap_mask_t mask;
-	dma_addr_t phyAddr;
-	void *cpuAddr;
+	int idx, ret = 0;
+	struct tzcma_info mem, *argp;
 
-	argp = (struct cma_info *)arg;
-	if (copy_from_user(&mem, argp, sizeof(struct cma_info))) {
-		tzlog_print(TZLOG_ERROR, "copy_from_user error\n");
+	argp = (struct tzcma_info *)arg;
+	if (copy_from_user(&mem, argp, sizeof(struct tzcma_info))) {
+		tzlog_print(TZLOG_ERROR,
+			"copy_from_user error\n");
 		return -EFAULT;
 	}
 
 	switch (cmd) {
-	case TEEC_CMA_MEMORY_ALLOC:
-		page_cnt = (mem.size + CMA_PAGE_SIZE - 1)
-				/ CMA_PAGE_SIZE + LLI_TBL_PAGE;
-		cpuAddr = dma_alloc_writecombine(tzcma_dev, page_cnt,
-					&phyAddr, GFP_KERNEL | GFP_DMA);
-
-		if (cpuAddr == NULL) {
-			tzlog_print(TZLOG_ERROR, "dma alloc failed\n");
-			return -EFAULT;
+	case TZCMA_MEMORY_ALLOC:
+		if (g_tzcma_alloc_cnt >= TZCMA_ALLOC_MAX_COUNT) {
+			tzlog_print(TZLOG_ERROR,
+				"can't cma memory allocated\n");
+			return -ENOMEM;
 		}
-		mem.phyAddr = (unsigned int)phyAddr;
-		mem.cpuAddr = (unsigned long long)cpuAddr;
-
-		dma_cap_zero(mask);
-		dma_cap_set(DMA_MEMCPY, mask);
-		if (in_chan == NULL) {
-			in_chan = dma_request_channel(mask, filter, NULL);
-			if (in_chan == NULL) {
+		idx = tzcma_get_alloc_idx();
+		ret = tzcma_alloc(idx, mem.size);
+		if (ret >= 0) {
+			if (copy_to_user(argp, &g_tzcmas[idx],
+					sizeof(struct tzcma_info))) {
 				tzlog_print(TZLOG_ERROR,
-					"in dma request channle failed\n");
+					"copy_to_user error\n");
 				return -EFAULT;
 			}
-			mem.chan_id = in_chan->chan_id;
 		}
-		else {
-			out_chan = dma_request_channel(mask, filter, NULL);
-			if (out_chan == NULL) {
-				tzlog_print(TZLOG_ERROR,
-					"out dma request channle failed\n");
-				return -EFAULT;
-			}
-			mem.chan_id = out_chan->chan_id;
-		}
-
-		if (copy_to_user(argp, &mem, sizeof(struct cma_info))) {
-			tzlog_print(TZLOG_ERROR, "copy_to_user error\n");
-			return -EFAULT;
-		}
+		g_tzcma_alloc_cnt++;
 		break;
-	case TEEC_CMA_MEMORY_FREE:
-		page_cnt = (mem.size + CMA_PAGE_SIZE - 1)
-				/ CMA_PAGE_SIZE + LLI_TBL_PAGE;
-		phyAddr = (dma_addr_t)mem.phyAddr;
-		cpuAddr = (void *)mem.cpuAddr;
-		dma_free_writecombine(tzcma_dev, page_cnt, cpuAddr, phyAddr);
-
-		if (in_chan != NULL) {
-			dma_release_channel(in_chan);
-			in_chan = NULL;
+	case TZCMA_MEMORY_FREE:
+		if (g_tzcma_alloc_cnt < 0) {
+			tzlog_print(TZLOG_ERROR,
+				"no cma memory allocated\n");
+			return -EFAULT;
 		}
-		if (out_chan != NULL) {
-			dma_release_channel(out_chan);
-			out_chan = NULL;
-		}
+		tzcma_free(tzcma_get_free_idx(mem));
+		g_tzcma_alloc_cnt--;
 		break;
 	default:
 		return ret;
@@ -1947,12 +2050,22 @@ static long tzcma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 static int tzcma_release(struct inode *inode, struct file *file)
 {
-	return 0;
+	int i;
+	int ret = 0;
+
+	for (i = 0; i < TZCMA_ALLOC_MAX_COUNT; i++) {
+		if (g_tzcmas[i].phyAddr != 0)
+			tzcma_free(i);
+	}
+	g_tzcma_alloc_cnt = 0;
+	g_tzcma_state_opened = false;
+	return ret;
 }
 
 static const struct file_operations tzcma_fops = {
 	.owner = THIS_MODULE,
 	.open = tzcma_open,
+	.mmap = tzcma_mmap,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl = tzcma_ioctl,
 #endif
@@ -1970,6 +2083,8 @@ static int tzcma_init(void)
 {
 	int ret = -1;
 
+	g_tzcma_state_opened = false;
+
 	ret = misc_register(&tzcma);
 	if (unlikely(ret))
 	{
@@ -1978,6 +2093,13 @@ static int tzcma_init(void)
 	}
 
 	tzcma_dev = tzcma.this_device;
+
+	/*
+	 * if you want using tzdev module,
+	 * It should be modified as follows.
+	 * adding EXPORT_SYMBOL_GPL(arch_setup_dma_ops);
+	 * in linux-artik7/arch/arm64/mm/dma-mapping.c
+	*/
 	arch_setup_dma_ops(tzcma_dev, 0, 0, NULL, 0);
 
 	return ret;
