@@ -46,6 +46,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/dmaengine.h>
 #include <linux/property.h>
+#include <linux/sizes.h>
 #endif
 
 #include "tzdev.h"
@@ -1837,6 +1838,12 @@ extern struct miscdevice tzmem;
 extern struct miscdevice tzrsrc;
 
 #ifdef CONFIG_ARTIK_USE_TZCMA_FOR_ARTIK710_CRYPTO
+#define TZCMA_MEMORY_ALLOC	0
+#define TZCMA_MEMORY_FREE	1
+#define TZCMA_LLI_TBL_PAGE	4
+#define TZCMA_ALLOC_MAX_COUNT	4
+#define TZCMA_MAX_SUPPORT_SIZE	SZ_4M
+
 static struct device *tzcma_dev;
 struct cma_info{
 	unsigned int phyAddr, virtAddr, size, chan_id;
@@ -1862,6 +1869,87 @@ static bool filter(struct dma_chan *chan, void *param)
 			   ))
 		return true;
 	return false;
+}
+
+static int tzcma_get_alloc_idx(void)
+{
+	int i;
+
+	for (i = 0; i < TZCMA_ALLOC_MAX_COUNT; i++) {
+		if (g_tzcmas[i].phyAddr == 0)
+			return i;
+	}
+	return -1;
+}
+
+static int tzcma_get_free_idx(struct tzcma_info mem)
+{
+	int i;
+
+	for (i = 0; i < TZCMA_ALLOC_MAX_COUNT; i++) {
+		if (g_tzcmas[i].phyAddr == mem.phyAddr)
+			return i;
+	}
+	return -1;
+}
+
+static void tzcma_free(int idx)
+{
+	int dma_free_size;
+
+	if (idx < 0 || idx >= TZCMA_ALLOC_MAX_COUNT) {
+		tzlog_print(TZLOG_ERROR,
+				"tzcma_free invaild index\n");
+		return;
+	}
+
+	dma_free_size = round_up(g_tzcmas[idx].size, PAGE_SIZE) +
+				TZCMA_LLI_TBL_PAGE * PAGE_SIZE;
+	dma_free_writecombine(tzcma_dev, dma_free_size,
+		tzcma_cpuAddr[idx], g_tzcmas[idx].phyAddr);
+	if (g_tzcma_channels[idx] != NULL) {
+		dma_release_channel(g_tzcma_channels[idx]);
+		g_tzcma_channels[idx] = NULL;
+	}
+	memset(&g_tzcmas[idx], 0, sizeof(struct tzcma_info));
+}
+
+static int tzcma_alloc(int idx, size_t size)
+{
+	int ret = 0;
+	int dma_alloc_size;
+	void *cpuAddr;
+	dma_addr_t phyAddr;
+	dma_cap_mask_t mask;
+
+	if (idx < 0 || idx >= TZCMA_ALLOC_MAX_COUNT) {
+		tzlog_print(TZLOG_ERROR,
+				"tzcma_alloc invaild index\n");
+		return -EINVAL;
+	}
+
+	dma_alloc_size = round_up(size, PAGE_SIZE) +
+				TZCMA_LLI_TBL_PAGE * PAGE_SIZE;
+	cpuAddr = dma_alloc_writecombine(tzcma_dev, dma_alloc_size,
+			&phyAddr, GFP_KERNEL | GFP_DMA);
+	if (cpuAddr == NULL) {
+		tzlog_print(TZLOG_ERROR, "dma alloc failed\n");
+		return -ENOMEM;
+	}
+	g_tzcmas[idx].size = size;
+	g_tzcmas[idx].phyAddr = phyAddr;
+	tzcma_cpuAddr[idx] = cpuAddr;
+
+	dma_cap_zero(mask);
+	dma_cap_set(DMA_MEMCPY, mask);
+	g_tzcma_channels[idx] = dma_request_channel(mask, tzcma_filter, NULL);
+	if (g_tzcma_channels[idx] == NULL) {
+		tzlog_print(TZLOG_ERROR, "dma request channel failed\n");
+		tzcma_free(idx);
+		return -ENODEV;
+	}
+	g_tzcmas[idx].chan_id = g_tzcma_channels[idx]->chan_id;
+	return ret;
 }
 
 static int tzcma_open(struct inode *inode, struct file *file)
@@ -1894,14 +1982,16 @@ static long tzcma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			tzlog_print(TZLOG_ERROR, "dma alloc failed\n");
 			return -EFAULT;
 		}
-		mem.phyAddr = (unsigned int)phyAddr;
-		mem.cpuAddr = (unsigned long long)cpuAddr;
-
-		dma_cap_zero(mask);
-		dma_cap_set(DMA_MEMCPY, mask);
-		if (in_chan == NULL) {
-			in_chan = dma_request_channel(mask, filter, NULL);
-			if (in_chan == NULL) {
+		if (mem.size > TZCMA_MAX_SUPPORT_SIZE) {
+			tzlog_print(TZLOG_ERROR,
+				"can't support 4MB over size\n");
+			return -EINVAL;
+		}
+		idx = tzcma_get_alloc_idx();
+		ret = tzcma_alloc(idx, mem.size);
+		if (ret >= 0) {
+			if (copy_to_user(argp, &g_tzcmas[idx],
+					sizeof(struct tzcma_info))) {
 				tzlog_print(TZLOG_ERROR,
 					"in dma request channle failed\n");
 				return -EFAULT;
