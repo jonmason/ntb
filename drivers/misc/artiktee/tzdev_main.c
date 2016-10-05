@@ -46,6 +46,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/dmaengine.h>
 #include <linux/property.h>
+#include <linux/sizes.h>
 #endif
 
 #include "tzdev.h"
@@ -1839,8 +1840,9 @@ extern struct miscdevice tzrsrc;
 #ifdef CONFIG_ARTIK_USE_TZCMA_FOR_ARTIK710_CRYPTO
 #define TZCMA_MEMORY_ALLOC	0
 #define TZCMA_MEMORY_FREE	1
-#define TZCMA_LLI_TBL_PAGE	1 /* page is 4kbyte */
+#define TZCMA_LLI_TBL_PAGE	4
 #define TZCMA_ALLOC_MAX_COUNT	4
+#define TZCMA_MAX_SUPPORT_SIZE	SZ_4M
 
 static struct device *tzcma_dev;
 struct tzcma_info {
@@ -1904,8 +1906,8 @@ static void tzcma_free(int idx)
 		return;
 	}
 
-	dma_free_size = round_up(g_tzcmas[idx].size, PAGE_SIZE)
-		+ TZCMA_LLI_TBL_PAGE * PAGE_SIZE;
+	dma_free_size = round_up(g_tzcmas[idx].size, PAGE_SIZE) +
+				TZCMA_LLI_TBL_PAGE * PAGE_SIZE;
 	dma_free_writecombine(tzcma_dev, dma_free_size,
 		tzcma_cpuAddr[idx], g_tzcmas[idx].phyAddr);
 	if (g_tzcma_channels[idx] != NULL) {
@@ -2020,6 +2022,11 @@ static long tzcma_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			tzlog_print(TZLOG_ERROR,
 				"can't cma memory allocated\n");
 			return -ENOMEM;
+		}
+		if (mem.size > TZCMA_MAX_SUPPORT_SIZE) {
+			tzlog_print(TZLOG_ERROR,
+				"can't support 4MB over size\n");
+			return -EINVAL;
 		}
 		idx = tzcma_get_alloc_idx();
 		ret = tzcma_alloc(idx, mem.size);
