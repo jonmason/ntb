@@ -44,7 +44,7 @@ static void nx_soc_dp_lvds_set_base(struct dp_control_dev *dpc,
 			void __iomem **base, int num)
 {
 	BUG_ON(!base);
-	pr_debug("%s: dev mipi\n", __func__);
+	pr_debug("%s: dev lvds\n", __func__);
 
 	nx_lvds_set_base_address(0, base[0]);
 }
@@ -82,6 +82,8 @@ static int nx_soc_dp_lvds_set_prepare(struct dp_control_dev *dpc,
 
 	if (dev)
 		format = dev->lvds_format;
+
+	pr_debug("%s: format: %d\n", __func__, format);
 
 	/*
 	 * select TOP MUX
