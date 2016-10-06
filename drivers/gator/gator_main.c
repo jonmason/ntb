@@ -32,7 +32,6 @@ static unsigned long gator_protocol_version = PROTOCOL_VERSION;
 #endif
 
 #include "gator.h"
-#include "gator_src_md5.h"
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
 #error Kernels prior to 3.4 not supported. DS-5 v5.21 and earlier supported 2.6.32 and later.
@@ -265,9 +264,6 @@ GATOR_EVENTS_LIST
 /******************************************************************************
  * Misc
  ******************************************************************************/
-
-MODULE_PARM_DESC(gator_src_md5, "Gator driver source code md5sum");
-module_param_named(src_md5, gator_src_md5, charp, 0444);
 
 u32 gator_cpuid(void)
 {
