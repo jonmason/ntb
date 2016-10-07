@@ -474,8 +474,6 @@ wlan_init_priv(pmlan_private priv)
 
 	for (i = 0; i < MAX_NUM_TID; i++)
 		priv->addba_reject[i] = ADDBA_RSP_STATUS_ACCEPT;
-	priv->addba_reject[6] = ADDBA_RSP_STATUS_REJECT;
-	priv->addba_reject[7] = ADDBA_RSP_STATUS_REJECT;
 	memcpy(priv->adapter, priv->ibss_addba_reject, priv->addba_reject,
 	       sizeof(priv->addba_reject));
 	priv->max_amsdu = 0;
