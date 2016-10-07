@@ -602,11 +602,6 @@
 
 &dp_drm_lvds {
 	status = "ok";
-	enable-gpios = <&gpio_b 25 GPIO_ACTIVE_HIGH>,
-			<&gpio_b 27 GPIO_ACTIVE_HIGH>,
-			<&gpio_c 11 GPIO_ACTIVE_HIGH>;
-	backlight = <&backlight>;
-	backlight-delay = <300>;
 
 	display-timing {
 		clock-frequency = <50000000>;
