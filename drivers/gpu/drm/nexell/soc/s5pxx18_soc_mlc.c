@@ -1769,20 +1769,28 @@ void nx_mlc_get_position(u32 module_index, u32 layer, int *left, int *top,
 
 	pregister = __g_module_variables[module_index].pregister;
 
-	lr = readl(&pregister->mlcrgblayer[layer].mlcleftright);
-	tb = readl(&pregister->mlcrgblayer[layer].mlctopbottom);
+	if (layer == 0 || layer == 1) {
+		lr = readl(&pregister->mlcrgblayer[layer].mlcleftright);
+		tb = readl(&pregister->mlcrgblayer[layer].mlctopbottom);
+	} else if (layer == 2) {
+		lr = readl(&pregister->mlcrgblayer2.mlcleftright);
+		tb = readl(&pregister->mlcrgblayer2.mlctopbottom);
+	} else if (layer == 3) {
+		lr = readl(&pregister->mlcvideolayer.mlcleftright);
+		tb = readl(&pregister->mlcvideolayer.mlctopbottom);
+	}
 
 	if (left)
-		*(int *)left = ((lr >> 16) & 0xFFUL);
+		*(int *)left = ((lr >> 16) & 0xffful);
 
 	if (top)
-		*(int *)top = ((tb >> 16) & 0xFFUL);
+		*(int *)top = ((tb >> 16) & 0xffful);
 
 	if (right)
-		*(int *)right = ((lr >> 0) & 0xFFUL);
+		*(int *)right = ((lr >> 0) & 0xffful);
 
 	if (bottom)
-		*(int *)bottom = ((tb >> 0) & 0xFFUL);
+		*(int *)bottom = ((tb >> 0) & 0xffful);
 }
 
 void nx_mlc_get_video_layer_address_yuyv(u32 module_index, u32 *address,
@@ -1858,14 +1866,14 @@ void nx_mlc_get_video_position(u32 module_index, int *left, int *top,
 	tb = readl(&pregister->mlcvideolayer.mlctopbottom);
 
 	if (left)
-		*(int *)left = ((lr >> 16) & 0xFFUL);
+		*(int *)left = ((lr >> 16) & 0xffful);
 
 	if (top)
-		*(int *)top = ((tb >> 16) & 0xFFUL);
+		*(int *)top = ((tb >> 16) & 0xffful);
 
 	if (right)
-		*(int *)right = ((lr >> 0) & 0xFFUL);
+		*(int *)right = ((lr >> 0) & 0xffful);
 
 	if (bottom)
-		*(int *)bottom = ((tb >> 0) & 0xFFUL);
+		*(int *)bottom = ((tb >> 0) & 0xffful);
 }
