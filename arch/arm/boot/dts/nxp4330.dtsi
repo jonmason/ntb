@@ -94,6 +94,12 @@
 
 	};
 
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+	};
+
 	scu:0xf0000000 {
 		compatible = "arm,cortex-a9-scu";
 		reg = <0xf0000000 0x100>;
