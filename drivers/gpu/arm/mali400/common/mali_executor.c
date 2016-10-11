@@ -1801,8 +1801,7 @@ static void mali_executor_schedule(void)
 	is_gpu_secure_mode = _mali_osk_gpu_secure_mode_is_enabled();
 
 	if ((MALI_FALSE == gpu_secure_mode_is_needed && MALI_FALSE == is_gpu_secure_mode)
-		||(MALI_TRUE == gpu_secure_mode_is_needed && MALI_TRUE == is_gpu_secure_mode))
-	{
+	    || (MALI_TRUE == gpu_secure_mode_is_needed && MALI_TRUE == is_gpu_secure_mode)) {
 		if (MALI_TRUE == trigger_pm_update) {
 			trigger_pm_update = MALI_FALSE;
 			mali_pm_update_async();

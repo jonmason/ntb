@@ -926,7 +926,7 @@ void mali_group_start_pp_job(struct mali_group *group, struct mali_pp_job *job, 
 
 	/* Reload the mmu page table if needed */
 	if ((MALI_TRUE == mali_pp_job_is_protected_job(job) && MALI_FALSE == gpu_secure_mode_pre_enabled)
-		||(MALI_FALSE == mali_pp_job_is_protected_job(job) && MALI_TRUE == gpu_secure_mode_pre_enabled)) {
+	    || (MALI_FALSE == mali_pp_job_is_protected_job(job) && MALI_TRUE == gpu_secure_mode_pre_enabled)) {
 		mali_group_reset(group);
 		mali_group_activate_page_directory(group, session, MALI_TRUE);
 	} else {
@@ -1304,7 +1304,7 @@ static void mali_group_activate_page_directory(struct mali_group *group, struct 
 
 	MALI_DEBUG_ASSERT_EXECUTOR_LOCK_HELD();
 
-	if (group->session != session ||MALI_TRUE == is_reload) {
+	if (group->session != session || MALI_TRUE == is_reload) {
 		/* Different session than last time, so we need to do some work */
 		MALI_DEBUG_PRINT(5, ("Mali group: Activate session: %08x previous: %08x on group %s\n",
 				     session, group->session,
