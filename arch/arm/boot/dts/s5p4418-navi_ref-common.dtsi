@@ -27,6 +27,11 @@
 		reg = <0x40000000 0x40000000>;
 	};
 
+	psci {
+		compatible = "arm,psci-0.2";
+		method = "smc";
+	};
+
 	aliases {
 		i2c1 = &i2c_gpio1;
 		i2c2 = &i2c_gpio2;
