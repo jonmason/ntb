@@ -80,6 +80,13 @@ static int nx_soc_dp_lvds_set_prepare(struct dp_control_dev *dpc,
 	u32 LOC_D[7] = {ZERO,ZERO,ZERO,ZERO,ZERO,ZERO,ZERO};
 	u32 LOC_E[7] = {ZERO,ZERO,ZERO,ZERO,ZERO,ZERO,ZERO};
 
+#ifdef CHECK_DP_POWRON
+	if (nx_disp_top_clkgen_get_clock_divisor_enable(clkid)) {
+		pr_debug("%s: already enabled ...\n", __func__);
+		return 0;
+	}
+#endif
+
 	if (dev)
 		format = dev->lvds_format;
 
@@ -248,8 +255,8 @@ int nx_dp_device_lvds_register(struct device *dev,
 	struct dp_lvds_dev *out;
 	u32 format;
 
-	out = devm_kzalloc(dev, sizeof(*out), GFP_KERNEL);
-	if (IS_ERR(out))
+	out = kzalloc(sizeof(*out), GFP_KERNEL);
+	if (!out)
 		return -ENOMEM;
 
 	if (!of_property_read_u32(np, "format", &format))

@@ -28,6 +28,8 @@
 #include "s5pxx18_soc_lvds.h"
 #include "s5pxx18_soc_disptop_clk.h"
 
+#define CHECK_DP_POWRON
+
 /*
  * display sync info
  */

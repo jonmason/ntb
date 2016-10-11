@@ -173,6 +173,17 @@ int nx_soc_dp_cont_prepare(struct dp_control_dev *dpc)
 	bool lcd_rgb = dpc->panel_type == dp_panel_type_rgb ?
 			true : false;
 
+#ifdef CHECK_DP_POWRON
+	bool poweron = false;
+
+	poweron = nx_dpc_get_dpc_enable(module) ? true : false;
+	pr_debug("%s: %s dev.%d prepare power [%s]\n",
+		__func__, dp_panel_type_name(dpc->panel_type),
+		module, poweron ? "enabled" : "disabled");
+	if (poweron)
+		return 0;
+#endif
+
 	/* set delay mask */
 	if (delay_mask & DP_SYNC_DELAY_RGB_PVD)
 		rgb_pvd = ctl->d_rgb_pvd;
@@ -292,11 +303,12 @@ void nx_soc_dp_cont_power_on(struct dp_control_dev *dpc, bool on)
 {
 	int module = dpc->module;
 	int count = 200;
+	bool poweron = false;
 	int vbl;
-	bool poweron;
 
+#ifdef CHECK_DP_POWRON
 	poweron = nx_dpc_get_dpc_enable(module) ? true : false;
-
+#endif
 	pr_debug("%s: %s dev.%d power %s [%s]\n",
 		__func__, dp_panel_type_name(dpc->panel_type),
 		module, on ? "on" : "off", poweron ? "enabled" : "disabled");
