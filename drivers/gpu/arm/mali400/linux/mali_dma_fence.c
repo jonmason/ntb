@@ -77,8 +77,6 @@ static void mali_dma_fence_context_work_func(struct work_struct *work_handle)
 
 	dma_fence_context = container_of(work_handle, struct mali_dma_fence_context, work_handle);
 
-	mali_dma_fence_context_cleanup(dma_fence_context);
-
 	dma_fence_context->cb_func(dma_fence_context->pp_job_ptr);
 }
 

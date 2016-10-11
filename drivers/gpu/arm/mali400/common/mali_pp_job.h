@@ -89,6 +89,7 @@ struct mali_pp_job {
 	 */
 	_mali_osk_list_t list;                             /**< Used to link jobs together in the scheduler queue */
 	_mali_osk_list_t session_fb_lookup_list;           /**< Used to link jobs together from the same frame builder in the session */
+
 	u32 sub_jobs_started;                              /**< Total number of sub-jobs started (always started in ascending order) */
 
 	/*

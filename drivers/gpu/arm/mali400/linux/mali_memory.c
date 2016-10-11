@@ -361,7 +361,6 @@ _mali_osk_errcode_t mali_memory_session_begin(struct mali_session_data *session_
 	session_data->cow_lock = _mali_osk_mutex_init(_MALI_OSK_LOCKFLAG_UNORDERED, 0);
 	if (NULL == session_data->cow_lock) {
 		_mali_osk_mutex_term(session_data->memory_lock);
-		_mali_osk_free(session_data);
 		MALI_ERROR(_MALI_OSK_ERR_FAULT);
 	}
 
