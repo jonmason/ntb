@@ -511,7 +511,22 @@ static struct platform_driver nx_vip_driver = {
 	},
 };
 
+#ifdef CONFIG_VIDEO_NEXELL_REARCAM
+static int __init nx_vip_init(void)
+{
+	return platform_driver_register(&nx_vip_driver);
+}
+
+static void __exit nx_vip_exit(void)
+{
+	platform_driver_unregister(&nx_vip_driver);
+}
+
+core_initcall_sync(nx_vip_init);
+__exitcall(nx_vip_exit);
+#else
 module_platform_driver(nx_vip_driver);
+#endif
 
 MODULE_AUTHOR("swpark <swpark@nexell.co.kr>");
 MODULE_DESCRIPTION("Nexell S5Pxx18 series SoC VIP device driver");
