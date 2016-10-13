@@ -110,6 +110,26 @@
 		status = "disabled";
 	};
 
+	nx-devfreq {
+		compatible = "nexell,s5pxx18-devfreq";
+		pll = <0>;
+		status = "disabled";
+	};
+
+	busqos {
+		compatible = "nexell,s5p4418-busqos";
+		reg = <PHYS_BASE_DREX 0x1000>;
+
+		drex_s0_qos_enable = <0>;
+		drex_s1_qos_enable = <1>;
+		drex_s0_qos_thres = <0x1>;
+		drex_s1_qos_thres = <0xf>;
+		drex_s0_qos_tout = <0x100>;
+		drex_s1_qos_tout = <0x0>;
+
+		status = "okay";
+	};
+
 	soc {
 		compatible = "simple-bus";
 		#address-cells = <1>;
@@ -186,8 +206,8 @@
 				   "nexell,pl011";
 			reg = <PHYS_BASE_UART0 0x1000>;
 			interrupts = <IRQ_UART0>;
-			clock-names = "uartclk", "apb_pclk";
-			clocks = <&uart0>, <&uart0>;
+			clock-names = "uartclk";
+			clocks = <&uart0>;
 			resets  = <&nexell_reset RESET_ID_UART0>;
 			reset-names = "uart-reset";
 			soc,tieoff = <NX_TIEOFF_UART0_USESMC 0>,
@@ -203,8 +223,8 @@
 				   "nexell,pl011";
 			reg = <PHYS_BASE_UART1 0x1000>;
 			interrupts = <IRQ_UART1>;
-			clock-names = "uartclk", "apb_pclk";
-			clocks = <&uart1>, <&uart1>;
+			clock-names = "uartclk";
+			clocks = <&uart1>;
 			resets  = <&nexell_reset RESET_ID_UART1>;
 			reset-names = "uart-reset";
 			soc,tieoff = <NX_TIEOFF_UART1_USESMC 0>,
@@ -220,8 +240,8 @@
 				   "nexell,pl011";
 			reg = <PHYS_BASE_UART2 0x1000>;
 			interrupts = <IRQ_UART2>;
-			clock-names = "uartclk", "apb_pclk";
-			clocks = <&uart2>, <&uart2>;
+			clock-names = "uartclk";
+			clocks = <&uart2>;
 			resets  = <&nexell_reset RESET_ID_UART2>;
 			reset-names = "uart-reset";
 			soc,tieoff = <NX_TIEOFF_UART2_USESMC 0>,
@@ -237,8 +257,8 @@
 				   "nexell,pl011";
 			reg = <PHYS_BASE_UART3 0x1000>;
 			interrupts = <IRQ_UART3>;
-			clock-names = "uartclk", "apb_pclk";
-			clocks = <&uart3>, <&uart3>;
+			clock-names = "uartclk";
+			clocks = <&uart3>;
 			resets  = <&nexell_reset RESET_ID_UART3>;
 			reset-names = "uart-reset";
 			soc,tieoff = <NX_TIEOFF_UART3_USESMC 0>,
@@ -254,8 +274,8 @@
 				   "nexell,pl011";
 			reg = <PHYS_BASE_UART4 0x1000>;
 			interrupts = <IRQ_UART4>;
-			clock-names = "uartclk", "apb_pclk";
-			clocks = <&uart4>, <&uart4>;
+			clock-names = "uartclk";
+			clocks = <&uart4>;
 			resets  = <&nexell_reset RESET_ID_UART4>;
 			reset-names = "uart-reset";
 			soc,tieoff = <NX_TIEOFF_UART4_USESMC 0>,
@@ -271,8 +291,8 @@
 				   "nexell,pl011";
 			reg = <PHYS_BASE_UART5 0x1000>;
 			interrupts = <IRQ_UART5>;
-			clock-names = "uartclk", "apb_pclk";
-			clocks = <&uart5>, <&uart5>;
+			clock-names = "uartclk";
+			clocks = <&uart5>;
 			resets  = <&nexell_reset RESET_ID_UART5>;
 			reset-names = "uart-reset";
 			soc,tieoff = <NX_TIEOFF_UART5_USESMC 0>,
@@ -805,6 +825,18 @@
 			};
 		};
 
+		scaler@c0066000 {
+			compatible = "nexell,scaler";
+			reg = <PHYS_BASE_SCALER 0x1000>;
+			interrupts = <IRQ_SCALER>;
+			clock-names = "scaler";
+			clocks = <&scaler>;
+			reset-names = "scaler-reset";
+			resets = <&nexell_reset RESET_ID_SCALER>;
+			status = "disabled";
+		};
+
+
 		dp_drm_tvout: display_drm_tv{
 			compatible = "nexell,s5pxx18-drm-tv";
 			reg = <0xc0101000 0x100>;
@@ -858,6 +890,5 @@
 			status = "okay";
 			sram = <0 0>;
 		};
-
 	}; /*** soc ***/
 };
