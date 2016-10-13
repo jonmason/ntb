@@ -104,23 +104,29 @@ static void nx_drm_gem_object_delete(struct nx_gem_object *nx_obj)
 
 static inline bool __gem_is_cacheable(uint32_t flags)
 {
+	bool cachable = false;
+
 	if (flags == NEXELL_BO_DMA_CACHEABLE ||
 		flags == NEXELL_BO_SYSTEM_CACHEABLE ||
 		flags == NEXELL_BO_SYSTEM_NONCONTIG_CACHEABLE)
-		return true;
+		cachable = true;
 
-	return false;
+	DRM_DEBUG_DRIVER("cachable:%d\n", cachable);
+	return cachable;
 }
 
 static inline bool __gem_is_system(uint32_t flags)
 {
+	bool system = false;
+
 	if (flags == NEXELL_BO_SYSTEM ||
 		flags == NEXELL_BO_SYSTEM_CACHEABLE ||
 		flags == NEXELL_BO_SYSTEM_NONCONTIG ||
 		flags == NEXELL_BO_SYSTEM_NONCONTIG_CACHEABLE)
-		return true;
+		system = true;
 
-	return false;
+	DRM_DEBUG_DRIVER("system:%d\n", system);
+	return system;
 }
 
 static inline bool __gem_is_system_noncontig(uint32_t flags)
@@ -188,8 +194,8 @@ static void *__drm_gem_sys_remap(struct nx_gem_object *nx_obj, size_t size)
 	int npages = PAGE_ALIGN(size) / PAGE_SIZE;
 	struct page **pages = vmalloc(sizeof(struct page *) * npages);
 	struct page **tmp = pages;
-	pgprot_t pgprot;
-	void *vaddr = NULL;
+	pgprot_t prot;
+	void *cpu_addr = NULL;
 	int i, j;
 
 	if (!pages)
@@ -199,9 +205,9 @@ static void *__drm_gem_sys_remap(struct nx_gem_object *nx_obj, size_t size)
 		goto out;
 
 	if (__gem_is_cacheable(nx_obj->flags))
-		pgprot = PAGE_KERNEL;
+		prot = PAGE_KERNEL;
 	else
-		pgprot = pgprot_writecombine(PAGE_KERNEL);
+		prot = pgprot_writecombine(PAGE_KERNEL);
 
 	for_each_sg(sgt->sgl, sg, sgt->nents, i) {
 		int npages_this_entry = PAGE_ALIGN(sg->length) / PAGE_SIZE;
@@ -212,19 +218,17 @@ static void *__drm_gem_sys_remap(struct nx_gem_object *nx_obj, size_t size)
 			*(tmp++) = page++;
 	}
 
-	vaddr = vmap(pages, npages, VM_MAP, pgprot);
+	cpu_addr = vmap(pages, npages, VM_MAP, prot);
 
 out:
 	vfree(pages);
 
-	if (!vaddr)
+	if (!cpu_addr)
 		return ERR_PTR(-ENOMEM);
 
-	DRM_DEBUG_DRIVER("map va:%p, size:%zu\n", vaddr, size);
+	DRM_DEBUG_DRIVER("map va:%p, size:%zu\n", cpu_addr, size);
 
-	memset(vaddr, 0, size);
-
-	return vaddr;
+	return cpu_addr;
 }
 
 static int nx_drm_gem_sys_alloc(struct nx_gem_object *nx_obj,
@@ -840,21 +844,21 @@ struct sg_table *nx_drm_gem_prime_get_sg_table(struct drm_gem_object *obj)
 	struct nx_gem_object *nx_obj;
 	bool noncontig;
 	int nents = 1;
-	int i = 0;
+	int i = 0, n = 0;
 
 	nx_obj = to_nx_gem_obj(obj);
 	sgt = nx_obj->sgt;
 
 	noncontig = __gem_is_system_noncontig(nx_obj->flags);
 
-	DRM_DEBUG_DRIVER("enter sgt:%p %s\n",
-			sgt, noncontig ? "non-contig" : "contig");
+	DRM_DEBUG_DRIVER("enter sgt:%p %s [%s]\n",
+			sgt, noncontig ? "non-contig" : "contig",
+			gem_type_name[nx_obj->flags]);
 
 	/* Non-Contiguous memory */
 	if (noncontig) {
 		INIT_LIST_HEAD(&pages);
 		nents = sgt->nents;
-
 		for_each_sg(sgt->sgl, sg, nents, i) {
 			page = sg_page(sg);
 			list_add_tail(&page->lru, &pages);
@@ -869,17 +873,21 @@ struct sg_table *nx_drm_gem_prime_get_sg_table(struct drm_gem_object *obj)
 	if (unlikely(sg_alloc_table(sgt, nents, GFP_KERNEL)))
 		goto out;
 
-	if (noncontig) {
-		sg = sgt->sgl;
+	sg = sgt->sgl;
 
+	/* set new sgtables */
+	if (noncontig) {
 		list_for_each_entry_safe(page, tmp_page, &pages, lru) {
 			sg_set_page(sg, page,
-					PAGE_SIZE << compound_order(page), 0);
+				PAGE_SIZE << compound_order(page), 0);
 			sg_dma_address(sg) = sg_phys(sg);
+
+			DRM_DEBUG_DRIVER("[%d] sg pa:0x%lx, va:%p, size:%d\n",
+				n++, (unsigned long)page_to_phys(page),
+				page_address(sg_page(sg)), sg_dma_len(sg));
+
 			sg = sg_next(sg);
 			list_del(&page->lru);
-			DRM_DEBUG_DRIVER("[%d] sg pa:0x%lx\n",
-				i++, (unsigned long)page_to_phys(page));
 		}
 	} else {
 		struct drm_device *drm;
@@ -887,11 +895,9 @@ struct sg_table *nx_drm_gem_prime_get_sg_table(struct drm_gem_object *obj)
 
 		drm = nx_obj->base.dev;
 		phys = dma_to_phys(drm->dev, nx_obj->paddr);
-
-		sg_set_page(sgt->sgl,
-			phys_to_page(phys), PAGE_ALIGN(obj->size), 0);
-
-		DRM_DEBUG_DRIVER("sg pa:%pad\n", &nx_obj->paddr);
+		sg_set_page(sg, phys_to_page(phys), PAGE_ALIGN(obj->size), 0);
+		DRM_DEBUG_DRIVER("sg pa:%pad, va:%p size:%d\n",
+			&nx_obj->paddr, nx_obj->vaddr, obj->size);
 	}
 
 	/*

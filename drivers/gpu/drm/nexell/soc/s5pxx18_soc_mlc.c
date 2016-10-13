@@ -1764,7 +1764,7 @@ void nx_mlc_get_rgblayer_address(u32 module_index, u32 layer,
 void nx_mlc_get_position(u32 module_index, u32 layer, int *left, int *top,
 			 int *right, int *bottom)
 {
-	int lr, tb;
+	int lr = 0, tb = 0;
 	register struct nx_mlc_register_set *pregister;
 
 	pregister = __g_module_variables[module_index].pregister;
