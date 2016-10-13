@@ -120,7 +120,12 @@ static int nx_drm_load(struct drm_device *drm, unsigned long flags)
 	if (ret)
 		goto err_mode_config_cleanup;
 
+	/* disable irq turn off  */
+#ifdef CONFIG_VIDEO_NEXELL_REARCAM
+	drm->vblank_disable_allowed = false;
+#else
 	drm->vblank_disable_allowed = true;
+#endif
 
 	/* init kms poll for handling hpd */
 	drm_kms_helper_poll_init(drm);
@@ -220,7 +225,7 @@ static const struct vm_operations_struct nx_drm_gem_vm_ops = {
 
 static struct drm_driver nx_drm_driver = {
 	.driver_features = DRIVER_HAVE_IRQ | DRIVER_MODESET |
-		DRIVER_GEM | DRIVER_PRIME,
+		DRIVER_GEM | DRIVER_PRIME | DRIVER_IRQ_SHARED,
 	.load = nx_drm_load,
 	.unload = nx_drm_unload,
 	.fops = &nx_drm_driver_fops,	/* replace fops */
