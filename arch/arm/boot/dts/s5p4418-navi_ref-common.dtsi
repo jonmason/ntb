@@ -34,7 +34,6 @@
 
 	aliases {
 		i2c1 = &i2c_gpio1;
-		i2c2 = &i2c_gpio2;
 		i2c3 = &i2c_gpio3;
 		i2c5 = &i2c_gpio5;
 		i2c6 = &i2c_gpio6;
@@ -340,26 +339,6 @@
 		};
 	};
 
-	i2c_gpio2: i2c@2 {
-		compatible = "i2c-gpio";
-		gpios = <&gpio_d 7 0 /* sda */
-		    &gpio_d 6 0 /* scl */>;
-		i2c-gpio,delay-us = <100>;
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		tsc2007: tsc2007@48 {
-			compatible = "ti,tsc2007";
-			gpios = <&gpio_d 8 0>;
-			interrupt-parent = <&gpio_d>;
-			interrupts = <8 IRQ_TYPE_EDGE_FALLING>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&toutchpanel_irq>;
-			reg = <0x48>;
-			ti,x-plate-ohms = <180>;
-		};
-	};
-
 	i2c_gpio3: i2c@3 {
 		compatible = "i2c-gpio";
 		gpios = <&gpio_b 16 0 /* sda */
@@ -629,4 +608,22 @@
 &dp_drm_hdmi {
 	ddc-i2c-bus = <&i2c_gpio6>;
 	status = "ok";
+};
+
+&i2c_2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	rate = <400000>;
+
+	tsc2007: tsc2007@48 {
+		compatible = "ti,tsc2007";
+		gpios = <&gpio_d 8 0>;
+		interrupt-parent = <&gpio_d>;
+		interrupts = <8 IRQ_TYPE_EDGE_FALLING>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&toutchpanel_irq>;
+		reg = <0x48>;
+		ti,x-plate-ohms = <180>;
+	};
 };
