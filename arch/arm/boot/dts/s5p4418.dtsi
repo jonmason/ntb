@@ -836,6 +836,30 @@
 			status = "disabled";
 		};
 
+
+		dp_drm_tvout: display_drm_tv{
+			compatible = "nexell,s5pxx18-drm-tv";
+			reg = <0xc0101000 0x100>;
+			resets = <&nexell_reset RESET_ID_DISP_TOP>;
+			reset-names = "rsc-display-top";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+
+			dp-resource {
+				reg_base = <0xc0000000 0x300000>;
+				clk_base = <0xc0109000 4>;
+				resets = <&nexell_reset RESET_ID_HDMI_VIDEO>,
+						<&nexell_reset RESET_ID_HDMI_SPDIF>,
+						<&nexell_reset RESET_ID_HDMI_TMDS>,
+						<&nexell_reset RESET_ID_HDMI>,
+						<&nexell_reset RESET_ID_HDMI_PHY>;
+				reset-names = "rsc-hdmi-video", "rsc-hdmi-spdif",
+						"rsc-hdmi-tmds", "rsc-hdmi", "rsc-hdmi-phy";
+				soc,tieoff = <NX_TIEOFF_DISPLAYTOP0_i_HDMI_PHY_REFCLK_SEL 1>;
+			};
+		};
+
 		gpu@c0070000 {
 			compatible = "arm,mali-400", "arm,mali-utgard";
 			reg = <PHYS_BASE_VR 0x10000>;
@@ -863,7 +887,8 @@
 			reset-names = "vpu-a-reset", "vpu-p-reset",
 				"vpu-c-reset";
 			clocks = <&pclk>, <&bclk>;
-			status = "disabled";
+			status = "okay";
+			sram = <0 0>;
 		};
 	}; /*** soc ***/
 };
