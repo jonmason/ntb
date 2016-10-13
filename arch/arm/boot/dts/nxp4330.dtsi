@@ -727,6 +727,13 @@
 			status = "disabled";
 		};
 
+		rearcam: rear_camera {
+			compatible = "nexell,nx-rearcam";
+			interrupts = <IRQ_VIP0>, <IRQ_VIP1>;
+			interrupts-names = "vip.0", "vip.1";
+			status = "disabled";
+		};
+
 		dp_drm: display_drm {
 			compatible = "nexell,s5pxx18-drm";
 			reg = <0xc0102800 0x100>, <0xc0102c00 0x100>,
