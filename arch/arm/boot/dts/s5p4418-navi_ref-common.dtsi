@@ -562,7 +562,7 @@
 	};
 };
 
-#include "s5pxx18-sensor-reg.dtsi"
+#include "tw9900_rearcam_regset.dtsi"
 &rearcam {
 	rotation = <0>;
 	rear_cam_dev = <&clipper_1>;
