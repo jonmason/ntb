@@ -122,7 +122,6 @@
 			thermal-sensors = <&thermal_ap>;
 			polling-delay-passive = <1000>;
 			polling-delay = <1000>;
-			disable-nonboot-cpus;
 			trips {
 				cpu_alert0: cpu-alert-0 {
 					temperature = <70000>;
