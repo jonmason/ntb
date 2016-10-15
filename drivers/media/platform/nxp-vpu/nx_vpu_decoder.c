@@ -150,7 +150,8 @@ int NX_VpuDecOpen(struct vpu_open_arg *pOpenArg, void *devHandle,
 	pDecInfo->avcErrorConcealMode = 0;
 	pDecInfo->enableMp4Deblock = 0;
 
-	if (pDecInfo->codecStd == CODEC_STD_AVC) {
+	if (pDecInfo->codecStd == CODEC_STD_AVC ||
+		pDecInfo->codecStd == CODEC_STD_MPEG2 ) {
 		pDecInfo->bitStreamMode = BS_MODE_PIC_END;
 		/*pDecInfo->bitStreamMode = BS_MODE_ROLLBACK; */
 	} else if (pDecInfo->codecStd == CODEC_STD_H263 ||
