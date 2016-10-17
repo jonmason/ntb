@@ -862,6 +862,7 @@ static void __init do_initcall_level(int level)
 }
 
 #ifdef CONFIG_INITCALLS_THREAD
+static int init_thread_level;
 static int __init do_initcalls_kth(void *data)
 {
 	int level = *(int *)data;
@@ -883,7 +884,9 @@ static void __init do_initcalls(void)
 	for (level = 0; level < CONFIG_INITCALLS_THREAD_LEVEL; level++)
 		do_initcall_level(level);
 
-	kthread_run(do_initcalls_kth, (void *)&level, "initcalls:thread");
+	init_thread_level = level;
+	kthread_run(do_initcalls_kth,
+		(void *)&init_thread_level, "initcalls:thread");
 #else
 	for (level = 0; level < ARRAY_SIZE(initcall_levels) - 1; level++)
 		do_initcall_level(level);
