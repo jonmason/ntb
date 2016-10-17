@@ -563,12 +563,47 @@ static void nx_vb2_buf_finish(struct vb2_buffer *vb)
 		vb->planes[0].bytesused = vb->planes[0].length;
 }
 
+static int nx_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
+{
+	struct nx_video *me = q->drv_priv;
+	struct v4l2_subdev *sd;
+	u32 pad;
+
+	sd = get_remote_subdev(me,
+			       me->type == NX_VIDEO_TYPE_OUT ?
+			       V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE :
+			       V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE,
+			       &pad);
+
+	if (sd)
+		return v4l2_subdev_call(sd, video, s_stream, 1);
+	else
+		return -EINVAL;
+}
+
+static void nx_vb2_stop_streaming(struct vb2_queue *q)
+{
+	struct nx_video *me = q->drv_priv;
+	struct v4l2_subdev *sd;
+	u32 pad;
+
+	sd = get_remote_subdev(me,
+			       me->type == NX_VIDEO_TYPE_OUT ?
+			       V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE :
+			       V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE,
+			       &pad);
+	if (sd)
+		v4l2_subdev_call(sd, video, s_stream, 0);
+}
+
 static struct vb2_ops nx_vb2_ops = {
 	.queue_setup    = nx_vb2_queue_setup,
 	.buf_init       = nx_vb2_buf_init,
 	.buf_cleanup    = nx_vb2_buf_cleanup,
 	.buf_queue      = nx_vb2_buf_queue,
 	.buf_finish	= nx_vb2_buf_finish,
+	.start_streaming = nx_vb2_start_streaming,
+	.stop_streaming	= nx_vb2_stop_streaming,
 };
 
 static int nx_video_vbq_init(struct nx_video *me, uint32_t type)
@@ -804,7 +839,6 @@ static int nx_video_dqbuf(struct file *file, void *fh,
 
 static int nx_video_streamon(struct file *file, void *fh, enum v4l2_buf_type i)
 {
-	int ret;
 	u32 pad;
 	struct nx_video *me = file->private_data;
 	struct v4l2_subdev *subdev = get_remote_subdev(me, i, &pad);
@@ -816,22 +850,14 @@ static int nx_video_streamon(struct file *file, void *fh, enum v4l2_buf_type i)
 
 	v4l2_set_subdev_hostdata(subdev, me->name);
 
-	if (me->vbq) {
-		ret = vb2_streamon(me->vbq, i);
-		if (ret < 0) {
-			pr_err("[nx video] failed to vb2_streamon() for %s\n",
-			       me->name);
-			return ret;
-		}
-		ret = v4l2_subdev_call(subdev, video, s_stream, 1);
-		return ret;
-	}
+	if (me->vbq)
+		return vb2_streamon(me->vbq, i);
+
 	return -EINVAL;
 }
 
 static int nx_video_streamoff(struct file *file, void *fh, enum v4l2_buf_type i)
 {
-	int ret;
 	u32 pad;
 	struct nx_video *me = file->private_data;
 	struct v4l2_subdev *subdev = get_remote_subdev(me, i, &pad);
@@ -843,15 +869,9 @@ static int nx_video_streamoff(struct file *file, void *fh, enum v4l2_buf_type i)
 
 	v4l2_set_subdev_hostdata(subdev, me->name);
 
-	if (me->vbq) {
-		ret = v4l2_subdev_call(subdev, video, s_stream, 0);
-		if (ret < 0) {
-			pr_err("[nx video] failed to subdev s_stream for %s\n",
-			       me->name);
-			return ret;
-		}
+	if (me->vbq)
 		return vb2_streamoff(me->vbq, i);
-	}
+
 	return -EINVAL;
 }
 
