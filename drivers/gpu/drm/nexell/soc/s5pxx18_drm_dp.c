@@ -730,15 +730,18 @@ void nx_drm_dp_plane_set_color(struct drm_plane *plane,
 {
 	struct nx_drm_plane *nx_plane = to_nx_plane(plane);
 	struct dp_plane_layer *layer = &nx_plane->layer;
-	int i = 0;
+
+	DRM_DEBUG_KMS("crtc.%d type:%d color:0x%x\n",
+		layer->module, type, color);
 
 	if (dp_color_colorkey == type) {
 		struct dp_plane_top *top = layer->plane_top;
 
 		list_for_each_entry(layer, &top->plane_list, list) {
-			if (i == top->primary_plane)
+			DRM_DEBUG_KMS("primary.%d layer.%d [%s]\n",
+				top->primary_plane, layer->num, layer->name);
+			if (layer->num == top->primary_plane)
 				break;
-			i++;
 		}
 		nx_soc_dp_plane_rgb_set_color(layer,
 			dp_color_transp, color, true, true);
