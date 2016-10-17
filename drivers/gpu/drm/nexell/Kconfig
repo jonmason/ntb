@@ -58,3 +58,15 @@ config DRM_NX_TVOUT
 	 This selects support for tv display out.
 	 If you want to enable tv display,
 	 you should selet this option.
+
+config DRM_CHECK_IOCTL_AUTH
+	bool "Check ioctl authentication for modesetting driver"
+	depends on DRM
+	default y
+	help
+	 Choose this option if you need check authentication
+	 for modesetting driver
+
+	  If in doubt, say "Y".
+
+
