@@ -974,17 +974,27 @@ static irqreturn_t nx_clipper_irq_handler(void *data)
 	}
 
 	if (do_process) {
-		bool done;
-
-		done = nx_video_done_buffer(&me->vbuf_obj);
 		if (NX_ATOMIC_READ(&me->state) & STATE_MEM_STOPPING) {
 			nx_vip_stop(me->module, VIP_CLIPPER);
 			complete(&me->stop_done);
-		} else if (done) {
-			update_buffer(me);
 		} else {
-			nx_vip_stop(me->module, VIP_CLIPPER);
-			me->buffer_underrun = true;
+			struct nx_video_buffer *done_buf = NULL;
+			struct nx_video_buffer_object *obj = &me->vbuf_obj;
+
+			if (nx_video_get_buffer_count(obj) > 1)
+				done_buf = nx_video_get_next_buffer(obj, true);
+
+			if (done_buf) {
+				update_buffer(me);
+
+				if (done_buf->cb_buf_done) {
+					done_buf->consumer_index++;
+					done_buf->cb_buf_done(done_buf);
+				}
+			} else {
+				nx_vip_stop(me->module, VIP_CLIPPER);
+				me->buffer_underrun = true;
+			}
 		}
 	}
 
