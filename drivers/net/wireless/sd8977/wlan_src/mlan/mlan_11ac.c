@@ -574,9 +574,32 @@ wlan_convert_mcsmap_to_maxrate(mlan_private *priv, t_u8 bands, t_u16 mcs_map)
 	t_u8 max_mcs;
 	t_u16 max_rate = 0;
 	t_u32 usr_vht_cap_info = 0;
+	t_u32 usr_dot_11n_dev_cap;
 
 	/* tables of the MCS map to the highest data rate (in Mbps) supported
 	   for long GI */
+	t_u16 max_rate_lgi_20MHZ[8][3] = {
+		{0x41, 0x4E, 0x0},	/* NSS = 1 */
+		{0x82, 0x9C, 0x0},	/* NSS = 2 */
+		{0xC3, 0xEA, 0x104},	/* NSS = 3 */
+		{0x104, 0x138, 0x0},	/* NSS = 4 */
+		{0x145, 0x186, 0x0},	/* NSS = 5 */
+		{0x186, 0x1D4, 0x208},	/* NSS = 6 */
+		{0x1C7, 0x222, 0x0},	/* NSS = 7 */
+		{0x208, 0x270, 0x0}	/* NSS = 8 */
+	};
+
+	t_u16 max_rate_lgi_40MHZ[8][3] = {
+		{0x87, 0xA2, 0xB4},	/* NSS = 1 */
+		{0x10E, 0x144, 0x168},	/* NSS = 2 */
+		{0x195, 0x1E6, 0x21C},	/* NSS = 3 */
+		{0x21C, 0x288, 0x2D0},	/* NSS = 4 */
+		{0x2A3, 0x32A, 0x384},	/* NSS = 5 */
+		{0x32A, 0x3CC, 0x438},	/* NSS = 6 */
+		{0x3B1, 0x46E, 0x4EC},	/* NSS = 7 */
+		{0x438, 0x510, 0x5A0}	/* NSS = 8 */
+	};
+
 	t_u16 max_rate_lgi_80MHZ[8][3] = {
 		{0x124, 0x15F, 0x186},	/* NSS = 1 */
 		{0x249, 0x2BE, 0x30C},	/* NSS = 2 */
@@ -598,10 +621,13 @@ wlan_convert_mcsmap_to_maxrate(mlan_private *priv, t_u8 bands, t_u16 mcs_map)
 		{0x1248, 0x15F0, 0x1860}	/* NSS = 8 */
 	};
 
-	if (bands & BAND_AAC)
+	if (bands & BAND_AAC) {
 		usr_vht_cap_info = priv->usr_dot_11ac_dev_cap_a;
-	else
+		usr_dot_11n_dev_cap = priv->usr_dot_11n_dev_cap_a;
+	} else {
 		usr_vht_cap_info = priv->usr_dot_11ac_dev_cap_bg;
+		usr_dot_11n_dev_cap = priv->usr_dot_11n_dev_cap_bg;
+	}
 
 	/* find the max NSS supported */
 	nss = 0;
@@ -624,12 +650,25 @@ wlan_convert_mcsmap_to_maxrate(mlan_private *priv, t_u8 bands, t_u16 mcs_map)
 			max_rate = max_rate_lgi_160MHZ[nss][max_mcs - 1];
 
 	} else {
-		max_rate = max_rate_lgi_80MHZ[nss][max_mcs];
-		if (max_mcs >= 1 && max_rate == 0)
-			/* MCS9 is not supported in NSS3 */
-			max_rate = max_rate_lgi_80MHZ[nss][max_mcs - 1];
+		if (priv->usr_dot_11ac_bw == BW_FOLLOW_VHTCAP) {
+			max_rate = max_rate_lgi_80MHZ[nss][max_mcs];
+			if (max_mcs >= 1 && max_rate == 0)
+				/* MCS9 is not supported in NSS3 */
+				max_rate = max_rate_lgi_80MHZ[nss][max_mcs - 1];
+		} else {
+			if (ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap)) {
+				max_rate = max_rate_lgi_40MHZ[nss][max_mcs];
+			} else {
+				max_rate = max_rate_lgi_20MHZ[nss][max_mcs];
+				/* MCS9 is not supported in NSS1/2/4/5/7/8 */
+				if (max_rate == 0)
+					max_rate =
+						max_rate_lgi_20MHZ[nss][max_mcs
+									- 1];
+			}
+		}
 	}
-
+	PRINTM(MCMND, "max_rate=%dM\n", max_rate);
 	return max_rate;
 }
 
@@ -639,12 +678,13 @@ wlan_convert_mcsmap_to_maxrate(mlan_private *priv, t_u8 bands, t_u16 mcs_map)
  *  @param priv         A pointer to mlan_private structure
  *  @param pvht_cap      A pointer to MrvlIETypes_HTCap_t structure
  *  @param bands        Band configuration
- *
+ *  @param flag         TREU--pvht_cap has the setting for resp
+ *                      MFALSE -- pvht_cap is clean
  *  @return             N/A
  */
 void
 wlan_fill_vht_cap_tlv(mlan_private *priv,
-		      MrvlIETypes_VHTCap_t *pvht_cap, t_u8 bands)
+		      MrvlIETypes_VHTCap_t *pvht_cap, t_u8 bands, t_u8 flag)
 {
 	t_u16 mcs_map_user = 0;
 	t_u16 mcs_map_resp = 0;
@@ -662,8 +702,11 @@ wlan_fill_vht_cap_tlv(mlan_private *priv,
 
 	/* Fill VHT MCS Set */
 	/* rx MCS Set, find the minimum of the user rx mcs and ap rx mcs */
-	mcs_map_user = GET_DEVRXMCSMAP(priv->usr_dot_11ac_mcs_support);
-	mcs_map_resp = wlan_le16_to_cpu(pvht_cap->vht_cap.mcs_sets.rx_mcs_map);
+	mcs_map_resp = mcs_map_user =
+		GET_DEVRXMCSMAP(priv->usr_dot_11ac_mcs_support);
+	if (flag)
+		mcs_map_resp =
+			wlan_le16_to_cpu(pvht_cap->vht_cap.mcs_sets.rx_mcs_map);
 	mcs_map_result = 0;
 	for (nss = 1; nss <= 8; nss++) {
 		mcs_user = GET_VHTNSSMCS(mcs_map_user, nss);
@@ -686,8 +729,11 @@ wlan_fill_vht_cap_tlv(mlan_private *priv,
 		wlan_cpu_to_le16(pvht_cap->vht_cap.mcs_sets.rx_max_rate);
 
 	/* tx MCS Set find the minimum of the user tx mcs and ap tx mcs */
-	mcs_map_user = GET_DEVTXMCSMAP(priv->usr_dot_11ac_mcs_support);
-	mcs_map_resp = wlan_le16_to_cpu(pvht_cap->vht_cap.mcs_sets.tx_mcs_map);
+	mcs_map_resp = mcs_map_user =
+		GET_DEVTXMCSMAP(priv->usr_dot_11ac_mcs_support);
+	if (flag)
+		mcs_map_resp =
+			wlan_le16_to_cpu(pvht_cap->vht_cap.mcs_sets.tx_mcs_map);
 	mcs_map_result = 0;
 	for (nss = 1; nss <= 8; nss++) {
 		mcs_user = GET_VHTNSSMCS(mcs_map_user, nss);
@@ -951,7 +997,8 @@ wlan_cmd_append_11ac_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 		       (t_u8 *)pbss_desc->pvht_cap + sizeof(IEEEtypes_Header_t),
 		       pvht_cap->header.len);
 
-		wlan_fill_vht_cap_tlv(pmpriv, pvht_cap, pbss_desc->bss_band);
+		wlan_fill_vht_cap_tlv(pmpriv, pvht_cap, pbss_desc->bss_band,
+				      MTRUE);
 
 		HEXDUMP("VHT_CAPABILITIES IE", (t_u8 *)pvht_cap,
 			sizeof(MrvlIETypes_VHTCap_t));
@@ -1204,12 +1251,12 @@ wlan_11ac_bandconfig_allowed(mlan_private *pmpriv, t_u8 bss_band)
 	if (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS) {
 		if (bss_band & BAND_G)
 			return (pmpriv->adapter->adhoc_start_band & BAND_GAC);
-		else
+		else if (bss_band & BAND_A)
 			return (pmpriv->adapter->adhoc_start_band & BAND_AAC);
 	} else {
 		if (bss_band & BAND_G)
 			return (pmpriv->config_bands & BAND_GAC);
-		else
+		else if (bss_band & BAND_A)
 			return (pmpriv->config_bands & BAND_AAC);
 	}
 	return 0;
@@ -1232,7 +1279,7 @@ wlan_fill_tdls_vht_cap_TLV(mlan_private *priv, MrvlIETypes_VHTCap_t *pvht_cap,
 	MrvlIETypes_VHTCap_t vht_cap;
 
 	memset(pmadapter, &vht_cap, 0, sizeof(MrvlIETypes_VHTCap_t));
-	wlan_fill_vht_cap_tlv(priv, &vht_cap, bands);
+	wlan_fill_vht_cap_tlv(priv, &vht_cap, bands, MFALSE);
 
 	pvht_cap->vht_cap.vht_cap_info &= vht_cap.vht_cap.vht_cap_info;
 	pvht_cap->vht_cap.mcs_sets.rx_mcs_map &=
