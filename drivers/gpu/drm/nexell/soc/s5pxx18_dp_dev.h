@@ -356,6 +356,8 @@ void nx_soc_dp_plane_video_set_address_3p(struct dp_plane_layer *layer,
 			bool adjust);
 void nx_soc_dp_plane_video_set_enable(struct dp_plane_layer *layer,
 			bool on, bool adjust);
+void nx_soc_dp_plane_video_set_priority(struct dp_plane_layer *layer,
+			int priority);
 
 #ifdef CONFIG_DRM_NX_RGB
 int nx_dp_device_rgb_register(struct device *dev,
