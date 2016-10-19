@@ -2190,6 +2190,7 @@ struct ethtool_ops cfgp2p_ethtool_ops = {
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24) */
 
 #if defined(WL_ENABLE_P2P_IF) || defined(WL_NEWCFG_PRIVCMD_SUPPORT)
+static struct device_type wlan_type = {.name = "wlan", };
 s32
 wl_cfgp2p_register_ndev(struct bcm_cfg80211 *cfg)
 {
@@ -2261,6 +2262,7 @@ wl_cfgp2p_register_ndev(struct bcm_cfg80211 *cfg)
 	wdev->netdev = net;
 #endif /* WL_NEWCFG_PRIVCMD_SUPPORT */
 
+	SET_NETDEV_DEVTYPE(net, &wlan_type);
 	ret = register_netdev(net);
 	if (ret) {
 		CFGP2P_ERR((" register_netdevice failed (%d)\n", ret));
