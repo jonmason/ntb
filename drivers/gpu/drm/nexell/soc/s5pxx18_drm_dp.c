@@ -752,6 +752,14 @@ void nx_drm_dp_plane_set_color(struct drm_plane *plane,
 	}
 }
 
+void nx_drm_dp_plane_set_priority(struct drm_plane *plane, int priority)
+{
+	struct nx_drm_plane *nx_plane = to_nx_plane(plane);
+	struct dp_plane_layer *layer = &nx_plane->layer;
+
+	nx_soc_dp_plane_video_set_priority(layer, priority);
+}
+
 int nx_drm_dp_plane_mode_set(struct drm_crtc *crtc,
 			struct drm_plane *plane,
 			struct drm_framebuffer *fb,

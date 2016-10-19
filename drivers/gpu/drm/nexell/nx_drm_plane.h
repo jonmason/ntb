@@ -38,11 +38,17 @@ union color_property {
 	};
 };
 
+struct video_property {
+	struct drm_property *priority;
+	int value;
+};
+
 struct nx_drm_plane {
 	struct drm_plane plane;
 	struct dp_plane_layer layer;
 	bool enabled;
 	union color_property color;
+	struct video_property video;
 	bool is_yuv_plane;
 };
 

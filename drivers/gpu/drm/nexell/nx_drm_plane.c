@@ -130,6 +130,11 @@ static int nx_drm_plane_set_property(struct drm_plane *plane,
 		}
 	}
 
+	if (property == nx_plane->video.priority) {
+		nx_plane->video.value = val;
+		nx_drm_dp_plane_set_priority(plane, val);
+	}
+
 	return 0;
 }
 
@@ -141,10 +146,12 @@ static struct drm_plane_funcs nx_plane_funcs = {
 };
 
 static void	nx_drm_plane_create_proeprties(struct drm_device *drm,
-			struct drm_plane *plane)
+			struct drm_crtc *crtc, struct drm_plane *plane)
 {
 	struct nx_drm_plane *nx_plane = to_nx_plane(plane);
 	union color_property *color = &nx_plane->color;
+	struct video_property *video = &nx_plane->video;
+	struct dp_plane_top *top;
 
 	if (nx_plane->is_yuv_plane) {
 		/* YUV color for video plane */
@@ -167,6 +174,14 @@ static void	nx_drm_plane_create_proeprties(struct drm_device *drm,
 		drm_object_attach_property(&plane->base,
 				   color->rgb.alphablend, color->alphablend);
 	}
+
+	video->priority = drm_property_create_range(
+					drm, 0, "video-priority", 0, 2);
+
+	top = &to_nx_crtc(crtc)->top;
+	video->value = top->video_prior;
+	drm_object_attach_property(&plane->base,
+				   video->priority, video->value);
 }
 
 struct drm_plane *nx_drm_plane_init(struct drm_device *drm,
@@ -204,7 +219,7 @@ struct drm_plane *nx_drm_plane_init(struct drm_device *drm,
 		return ERR_PTR(err);
 	}
 
-	nx_drm_plane_create_proeprties(drm, plane);
+	nx_drm_plane_create_proeprties(drm, crtc, plane);
 
 	DRM_DEBUG_KMS("done plane id:%d\n", plane->base.id);
 

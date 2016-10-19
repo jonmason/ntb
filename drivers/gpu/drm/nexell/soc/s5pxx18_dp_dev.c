@@ -857,4 +857,35 @@ void nx_soc_dp_plane_video_set_enable(struct dp_plane_layer *layer,
 	}
 }
 
+void nx_soc_dp_plane_video_set_priority(struct dp_plane_layer *layer,
+			int priority)
+{
+	struct dp_plane_top *top = layer->plane_top;
+	int module = layer->module;
 
+	switch (priority) {
+	case 0:
+		priority = nx_mlc_priority_videofirst;
+		break;	/* PRIORITY-video>0>1>2 */
+	case 1:
+		priority = nx_mlc_priority_videosecond;
+		break;	/* PRIORITY-0>video>1>2 */
+	case 2:
+		priority = nx_mlc_priority_videothird;
+		break;	/* PRIORITY-0>1>video>2 */
+	case 3:
+		priority = nx_mlc_priority_videofourth;
+		break;	/* PRIORITY-0>1>2>video */
+	default:
+		pr_err(
+			"fail : not support video priority num(0~3),(%d)\n",
+		    priority);
+		return;
+	}
+	top->video_prior = priority;
+
+	pr_debug("%s: crtc.%d, priority:%d\n", __func__, module, priority);
+
+	nx_mlc_set_layer_priority(module, priority);
+	nx_mlc_set_top_dirty_flag(module);
+}
