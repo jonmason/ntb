@@ -2049,7 +2049,7 @@ static void _set_mlc_video(struct nx_rearcam *me)
 	nx_mlc_set_format_yuv(module, nx_mlc_yuvfmt_420);
 	nx_mlc_set_video_layer_scale(module, src_width, src_height, dst_width,
 		dst_height, hf, hf, vf, vf);
-	nx_mlc_set_position(module, MLC_LAYER_VIDEO, 8, 0, dst_width-1,
+	nx_mlc_set_position(module, MLC_LAYER_VIDEO, 0, 0, dst_width-1,
 		dst_height-1);
 	nx_mlc_set_layer_priority(module, 1);
 	nx_mlc_set_dirty_flag(module, MLC_LAYER_VIDEO);
