@@ -47,6 +47,8 @@
 #include "../../../../gpu/drm/nexell/soc/s5pxx18_dp_dev.h"
 #include "../../../../gpu/drm/nexell/soc/s5pxx18_soc_mlc.h"
 #include "../../../../gpu/drm/nexell/soc/s5pxx18_soc_dpc.h"
+#include "../../../../gpu/drm/nexell/soc/s5pxx18_soc_lvds.h"
+
 #include "../../../../pinctrl/nexell/s5pxx18-gpio.h"
 
 #include "nx-rearcam-vendor.h"
@@ -72,6 +74,8 @@
 
 #define MAX_BUFFER_COUNT	13
 #define MININUM_INQUEUE_COUNT	2
+
+#define __io_address(a) (void *)(uintptr_t)(a)
 
 #define parse_read_prop(n, s, v) { \
 	u32 _v; \
@@ -437,8 +441,11 @@ struct nx_rearcam {
 	/* reg-names, reg parsing */
 	void __iomem **base_addr;
 
-	/* resourcr */
+	/* resource */
 	struct nx_rearcam_res res;
+
+	/* display device */
+	unsigned int lvds_format;
 
 	/* dpc */
 	spinlock_t display_lock;
@@ -503,6 +510,8 @@ static irqreturn_t _dpc_irq_handler(int, void *);
 static int nx_rearcam_remove(struct platform_device *pdev);
 static void _init_hw_vip(struct nx_rearcam *me);
 static void _dpc_set_display(struct nx_rearcam *);
+static void _set_enable_lvds(struct nx_rearcam *);
+static void _set_disable_lvds(struct nx_rearcam *);
 
 static struct device_node *_of_get_node_by_property(struct device *dev,
 		struct device_node *np, char *prop_name)
@@ -993,6 +1002,8 @@ static int nx_dpc_parse_dt(struct device *dev, struct nx_rearcam *me)
 		dev_err(dev, "failed to get display control node\n");
 		return -EINVAL;
 	}
+
+	parse_read_prop(p_np, "format", me->lvds_format);
 
 	parse_read_prop(np, "clk_src_lv0", ctl->clk_src_lv0);
 	parse_read_prop(np, "clk_div_lv0", ctl->clk_div_lv0);
@@ -1510,6 +1521,8 @@ static int nx_reset_apply(struct reset_control *reset_ctrl)
 	if (reset)
 		reset_control_assert(reset_ctrl);
 
+	mdelay(1);
+
 	reset_control_deassert(reset_ctrl);
 
 	return 0;
@@ -1537,7 +1550,7 @@ static int nx_reset_parse_dt(struct device *dev, struct nx_rearcam *me)
 	pr_debug("%s - size : %d, dual_display : %s, display_top : %s\n",
 			__func__, size, strings[0], strings[1]);
 
-	/* mlc, dpc */
+	/* mlc, dpc reset */
 	me->reset_dual_display = of_reset_control_get(child_display_node,
 		strings[0]);
 	/* display top */
@@ -1863,14 +1876,6 @@ static int _all_buffer_to_empty_queue(struct nx_rearcam *me)
 static void _set_display_top(struct nx_rearcam *me)
 {
 	int i;
-	int clkid = 3;
-	struct dp_ctrl_info *ctrl = &me->dp_ctl;
-
-	for (i = 0; i < me->res.num_dev_resets; i++)
-		nx_reset_apply(me->res.dev_resets[i]);
-
-	for (i = 0; i < me->res.num_dev_resets; i++)
-		reset_control_deassert(me->res.dev_resets[i]);
 
 	for (i = 0; i < me->res.num_dev_clks; i++) {
 		nx_disp_top_clkgen_set_base_address(me->res.dev_clk_ids[i],
@@ -1878,13 +1883,6 @@ static void _set_display_top(struct nx_rearcam *me)
 		nx_disp_top_clkgen_set_clock_pclk_mode(me->res.dev_clk_ids[i],
 			nx_pclkmode_always);
 	}
-
-	nx_disp_top_clkgen_set_clock_divisor_enable(clkid, 0);
-	nx_disp_top_clkgen_set_clock_source(clkid, 0, ctrl->clk_src_lv0);
-	nx_disp_top_clkgen_set_clock_divisor(clkid, 0, ctrl->clk_div_lv0);
-	nx_disp_top_clkgen_set_clock_source(clkid, 1, ctrl->clk_src_lv1);
-	nx_disp_top_clkgen_set_clock_divisor(clkid, 1, ctrl->clk_div_lv1);
-	nx_disp_top_clkgen_set_clock_divisor_enable(clkid, 1);
 }
 
 static void _vip_hw_set_addr(int module, struct nx_rearcam *me,
@@ -2122,7 +2120,7 @@ static void _mlc_rgb_overlay_draw(struct nx_rearcam *me)
 					rgb_buf->virt_rgb);
 }
 
-static void set_enable_mlc(struct nx_rearcam *me)
+static void _set_enable_mlc(struct nx_rearcam *me)
 {
 	int module = me->mlc_module;
 	struct dp_sync_info *sync = &me->dp_sync;
@@ -2167,7 +2165,7 @@ static void _set_mlc(struct nx_rearcam *me)
 	_set_mlc_video(me);
 	_set_mlc_overlay(me);
 	_mlc_rgb_overlay_draw(me);
-	set_enable_mlc(me);
+	_set_enable_mlc(me);
 }
 
 static bool _is_enable_mlc(struct nx_rearcam *me)
@@ -2588,10 +2586,236 @@ static irqreturn_t _vip_irq_handler(int irq, void *devdata)
 
 static void _reset_hw_display(struct nx_rearcam *me)
 {
-	/* mlc, dpc reset */
 	/* display top reset */
 	nx_reset_apply(me->reset_display_top);
-	nx_reset_apply(me->res.reset);
+	/* dual display reset */
+	nx_reset_apply(me->reset_dual_display);
+	/* display top reset */
+}
+
+static void lvds_phy_reset(struct nx_rearcam *me)
+{
+	int count;
+	int i;
+	bool reset;
+
+	count = me->res.num_dev_resets;
+
+	for (i = 0; i < count; i++) {
+		reset = reset_control_status(me->res.dev_resets[i]);
+		if (reset)
+			reset_control_assert(me->res.dev_resets[i]);
+	}
+
+	mdelay(1);
+
+	for (i = 0; i < count; i++)
+		reset_control_deassert(me->res.dev_resets[i]);
+}
+
+static void _set_enable_lvds(struct nx_rearcam *me)
+{
+	int clkid = dp_clock_lvds;
+	int module = me->dpc_module;
+
+	nx_disp_top_clkgen_set_clock_divisor_enable(clkid, 1);
+	nx_disp_top_set_lvdsmux(1, module);
+}
+
+static void _set_disable_lvds(struct nx_rearcam *me)
+{
+	int clkid = dp_clock_lvds;
+
+	nx_disp_top_clkgen_set_clock_divisor_enable(clkid, 0);
+}
+
+static int lvds_setup(struct nx_rearcam *me)
+{
+	unsigned int val;
+	int clkid = dp_clock_lvds;
+	enum dp_lvds_format format = dp_lvds_format_jeida;
+	struct dp_ctrl_info *ctrl = &me->dp_ctl;
+
+	/*
+	 *-------- predefined type.
+	 * only change iTA to iTE in VESA mode
+	 * wire [34:0] loc_VideoIn =
+	 * {4'hf, 4'h0, i_VDEN, i_VSYNC, i_HSYNC, i_VD[23:0] };
+	 */
+	u32 VSYNC = 25;
+	u32 HSYNC = 24;
+	u32 VDEN  = 26; /* bit position */
+	u32 ONE   = 34;
+	u32 ZERO  = 27;
+
+	/*==================================================== */
+	/*  current not use location mode */
+	/* =================================================== */
+	u32 LOC_A[7] = {ONE, ONE, ONE, ONE, ONE, ONE, ONE};
+	u32 LOC_B[7] = {ONE, ONE, ONE, ONE, ONE, ONE, ONE};
+	u32 LOC_C[7] = {VDEN, VSYNC, HSYNC, ONE,  HSYNC,  VSYNC,  VDEN};
+	u32 LOC_D[7] = {ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO};
+	u32 LOC_E[7] = {ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO};
+
+	format = me->lvds_format;
+	/*
+	 * select TOP MUX
+	 */
+	nx_disp_top_clkgen_set_clock_divisor_enable(clkid, 0);
+	nx_disp_top_clkgen_set_clock_source(clkid, 0, ctrl->clk_src_lv0);
+	nx_disp_top_clkgen_set_clock_divisor(clkid, 0, ctrl->clk_div_lv0);
+	nx_disp_top_clkgen_set_clock_source(clkid, 1, ctrl->clk_src_lv1);
+	nx_disp_top_clkgen_set_clock_divisor(clkid, 1, ctrl->clk_div_lv1);
+
+	/*
+	 * LVDS Control Pin Setting
+	 */
+	val =	(0<<30)		/* CPU_I_VBLK_FLAG_SEL */
+			|	(0<<29)  /* CPU_I_BVLK_FLAG */
+			|	(1<<28)  /* SKINI_BST  */
+			|	(1<<27)  /* DLYS_BST  */
+			|	(0<<26)  /* I_AUTO_SEL */
+			|	(format<<19)  /* JEiDA data packing */
+			|	(0x1B<<13)  /* I_LOCK_PPM_SET, PPM setting */
+						/* for PLL lock */
+			|	(0x638<<1)  /* I_DESKEW_CNT_SEL, period */
+						/* of de-skew region */
+			;
+	nx_lvds_set_lvdsctrl0(0, val);
+
+	val =	(0<<28) /* I_ATE_MODE, function mode */
+			|	(0<<27) /* I_TEST_CON_MODE, DA */
+						/* (test ctrl mode) */
+			|	(0<<24) /* I_TX4010X_DUMMY */
+			|	(0<<15) /* SKCCK 0 */
+			|	(0<<12) /* SKC4 (TX output skew control pin */
+						/* at ODD ch4) */
+			|	(0<<9)  /* SKC3 (TX output skew control pin */
+						/* at ODD ch3) */
+			|	(0<<6)  /* SKC2 (TX output skew control pin */
+						/* at ODD ch2) */
+			|	(0<<3)  /* SKC1 (TX output skew control pin */
+						/* at ODD ch1) */
+			|	(0<<0)  /* SKC0 (TX output skew control pin */
+						/* at ODD ch0) */
+				;
+	nx_lvds_set_lvdsctrl1(0, val);
+
+	val =	(0<<15) /* CK_POL_SEL, Input clock, bypass */
+			|	(0<<14) /* VSEL, VCO Freq. range. */
+					/* 0: Low(40MHz~90MHz), */
+					/* 1:High(90MHz~160MHz) */
+			|	(0x1<<12) /* S (Post-scaler) */
+			|	(0xA<<6) /* M (Main divider) */
+			|	(0xA<<0) /* P (Pre-divider) */
+			;
+	nx_lvds_set_lvdsctrl2(0, val);
+
+	val =	(0x03<<6) /* SK_BIAS, Bias current ctrl pin */
+			|	(0<<5) /* SKEWINI, skew selection pin, */
+					/* 0 : bypass, */
+					/* 1 : skew enable */
+			|	(0<<4) /* SKEW_EN_H, skew block power down, */
+					/* 0 : power down, */
+					/* 1 : operating */
+			|	(1<<3) /* CNTB_TDLY, delay control pin */
+			|	(0<<2) /* SEL_DATABF, input clock 1/2 */
+					/* division control pin */
+			|	(0x3<<0) /* SKEW_REG_CUR, regulator bias */
+						/* current selection */
+						/* in in SKEW block */
+			;
+	nx_lvds_set_lvdsctrl3(0, val);
+
+	val =	(0<<28) /* FLT_CNT, filter control pin for PLL */
+			|	(0<<27) /* VOD_ONLY_CNT, the pre-emphasis's */
+					/* pre-diriver control pin (VOD only) */
+			|	(0<<26) /* CNNCT_MODE_SEL, connectivity mode */
+					/* selection, */
+					/* 0:TX operating, */
+					/* 1:con check */
+			|	(0<<24) /* CNNCT_CNT, connectivity ctrl pin, */
+					/* 0:tx operating, */
+					/* 1: con check */
+			|	(0<<23) /* VOD_HIGH_S, VOD control pin, */
+					/* 1 : Vod only */
+			|	(0<<22) /* SRC_TRH, source termination */
+					/* resistor select pin */
+			|	(0x20/*0x3F*/<<14) /*	CNT_VOD_H, */
+						/* TX driver output */
+						/* differential volatge */
+						/* level control pin */
+			|	(0x01<<6) /*	CNT_PEN_H, TX driver */
+					/* pre-emphasis level control */
+			|	(0x4<<3) /* FC_CODE, vos control pin */
+			|	(0<<2)	/* OUTCON, TX Driver state */
+					/* selectioin pin, */
+					/*	0:Hi-z,	*/
+					/* 1:Low */
+			|	(0<<1)	/* LOCK_CNT, Lock signal selection */
+					/* pin, enable */
+			|	(0<<0)	/* AUTO_DSK_SEL, auto deskew	*/
+					/* selection pin, normal	*/
+			;
+	nx_lvds_set_lvdsctrl4(0, val);
+
+	val =	(0<<24)	/* I_BIST_RESETB */
+			|	(0<<23)	/* I_BIST_EN */
+			|	(0<<21)	/* I_BIST_PAT_SEL */
+			|	(0<<14) /* I_BIST_USER_PATTERN */
+			|	(0<<13)	/* I_BIST_FORCE_ERROR */
+			|	(0<<7)	/* I_BIST_SKEW_CTRL */
+			|	(0<<5)	/* I_BIST_CLK_INV */
+			|	(0<<3)	/* I_BIST_DATA_INV */
+			|	(0<<0)	/* I_BIST_CH_SEL */
+			;
+	nx_lvds_set_lvdstmode0(0, val);
+
+	/* user do not need to modify this codes. */
+	val = (LOC_A[4] << 24) | (LOC_A[3] << 18) | (LOC_A[2] << 12)
+		| (LOC_A[1] << 6) | (LOC_A[0] << 0);
+	nx_lvds_set_lvdsloc0(0, val);
+
+	val = (LOC_B[2] << 24) | (LOC_B[1] << 18) | (LOC_B[0] << 12)
+		| (LOC_A[6] << 6) | (LOC_A[5] << 0);
+	nx_lvds_set_lvdsloc1(0, val);
+
+	val = (LOC_C[0] << 24) | (LOC_B[6] << 18) | (LOC_B[5] << 12)
+		| (LOC_B[4] << 6) | (LOC_B[3] << 0);
+	nx_lvds_set_lvdsloc2(0, val);
+
+	val = (LOC_C[5] << 24) | (LOC_C[4] << 18) | (LOC_C[3] << 12)
+		| (LOC_C[2] << 6) | (LOC_C[1] << 0);
+	nx_lvds_set_lvdsloc3(0, val);
+
+	val = (LOC_D[3] << 24) | (LOC_D[2] << 18) | (LOC_D[1] << 12)
+		| (LOC_D[0] << 6) | (LOC_C[6] << 0);
+	nx_lvds_set_lvdsloc4(0, val);
+
+	val = (LOC_E[1] << 24) | (LOC_E[0] << 18) | (LOC_D[6] << 12)
+		| (LOC_D[5] << 6) | (LOC_D[4] << 0);
+	nx_lvds_set_lvdsloc5(0, val);
+
+	val = (LOC_E[6] << 24) | (LOC_E[5] << 18) | (LOC_E[4] << 12)
+		| (LOC_E[3] <<  6) | (LOC_E[2] <<  0);
+	nx_lvds_set_lvdsloc6(0, val);
+
+	nx_lvds_set_lvdslocmask0(0, 0xffffffff);
+	nx_lvds_set_lvdslocmask1(0, 0xffffffff);
+
+	nx_lvds_set_lvdslocpol0(0, (0 << 19) | (0 << 18));
+
+	lvds_phy_reset(me);
+
+	return 0;
+}
+
+static void _init_hw_lvds(struct nx_rearcam *me)
+{
+	nx_lvds_set_base_address(0, me->res.dev_bases[0]);
+
+	lvds_setup(me);
+	_set_enable_lvds(me);
 }
 
 static void _init_hw_display_top(struct nx_rearcam *me)
@@ -2668,11 +2892,11 @@ static void _init_hw_dpc(struct nx_rearcam *me)
 	int err;
 
 	nx_dpc_set_base_address(module, *(me->base_addr + 0));
+	nx_dpc_set_clock_pclk_mode(module, nx_pclkmode_always);
 
 	if (_is_enable_dpc(me) == false)
 		_set_dpc(me);
 
-	nx_dpc_set_clock_pclk_mode(module, nx_pclkmode_always);
 
 	me->wq_display = create_singlethread_workqueue("wq_display");
 	if (!me->wq_display) {
@@ -3430,11 +3654,8 @@ static int init_me(struct nx_rearcam *me)
 	_init_buffer(me);
 
 	_reset_hw_display(me);
-
 	_init_hw_display_top(me);
-
-
-	nx_reset_apply(me->reset_dual_display);
+	_init_hw_lvds(me);
 
 	_init_hw_mlc(me);
 	_init_hw_dpc(me);
@@ -3574,7 +3795,6 @@ static int nx_rearcam_probe(struct platform_device *pdev)
 		dev_err(dev, "failed to parse dt\n");
 		goto ERROR;
 	}
-
 	init_me(me);
 
 	ret = _camera_sensor_run(me);
@@ -3601,7 +3821,6 @@ static int nx_rearcam_probe(struct platform_device *pdev)
 			return -ENOMEM;
 		}
 	}
-
 
 	/* reargear gpio enable */
 	enable_irq(me->irq_event);
