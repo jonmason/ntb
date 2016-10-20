@@ -27,12 +27,17 @@
 		reg = <0x40000000 0x40000000>;
 	};
 
+	psci {
+		compatible = "arm,psci-0.2";
+		method = "smc";
+	};
+
 	aliases {
 		i2c1 = &i2c_gpio1;
-		i2c2 = &i2c_gpio2;
 		i2c3 = &i2c_gpio3;
 		i2c5 = &i2c_gpio5;
 		i2c6 = &i2c_gpio6;
+		i2c7 = &i2c_gpio7;
 	};
 
 	nx-v4l2 {
@@ -43,7 +48,8 @@
 		#include "s5p4418-pinctrl.dtsi"
 		clocks {
 			uart3:uart@c00ab000 { clock-frequency = <147500000>; };
-			vip0:vip@c00c1000 { src-force = <4>; };
+			vip0:vip@c00c1000 { clock-frequency = <300000000>; };
+			vip1:vip@c00c2000 { src-force = <5>; };
 		};
 
 		serial0:serial@c00a1000 {
@@ -138,7 +144,8 @@
 			status = "okay";
 		};
 
-		spdiftx@c0059000 {
+		spdif_tx: spdiftx@c0059000 {
+			#sound-dai-cells = <1>;
 			pcm-bit = <16>;
 			sample_rate = <48000>;
 			status = "okay";
@@ -176,10 +183,16 @@
 		};
 
 		pwm:pwm@c0018000 {
+			clock-names = "timers", "pwm-tclk0", "pwm-tclk1";
+			clocks =  <&pclk>, <&pwm0>, <&pwm1>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pwm0_pin &pwm1_pin>;
+			samsung,pwm-outputs = <0>, <1>;
 			status = "okay";
 		};
 
 		i2s_0:i2s@c0055000 {
+			#sound-dai-cells = <1>;
 			master-mode = <1>;
 			mclk-in = <0>;
 			trans-mode = <0>;
@@ -190,6 +203,7 @@
 		};
 
 		i2s_1:i2s@c0056000 {
+			#sound-dai-cells = <1>;
 			master-mode = <1>;
 			mclk-in = <0>;
 			trans-mode = <0>;
@@ -221,13 +235,6 @@
 				nexell,pin-strength = <0>;
 			};
 
-			key_volup:key_volup {
-				nexell,pins = "alive-3";
-				nexell,pin-function = <0>;
-				nexell,pin-pull = <1>;
-				nexell,pin-strength = <0>;
-			};
-
 			key_homepage:key_homepage {
 				nexell,pins = "alive-4";
 				nexell,pin-function = <0>;
@@ -244,33 +251,7 @@
 		};
 	};	/*** soc ***/
 
-	vcc_lcdgate: regulator-fix@0 {
-		compatible = "regulator-fixed";
-
-		regulator-name = "LCD Gate Vcc";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-		regulator-boot-on;
-		regulator-always-on;
-
-		gpio = <&gpio_b 25 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-	};
-
-	vcc_lcd: regulator-fix@1 {
-		compatible = "regulator-fixed";
-
-		regulator-name = "LCD Vcc";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-		regulator-boot-on;
-		regulator-always-on;
-
-		gpio = <&gpio_c 11 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-	};
-
-	vcc_spk: regulator-fix@2 {
+	vcc_spk: regulator-fix@0 {
 		compatible = "regulator-fixed";
 
 		regulator-name = "SPK Vcc";
@@ -283,7 +264,7 @@
 		enable-active-high;
 	};
 
-	vdd_a: regulator-fix@3 {
+	vdd_a: regulator-fix@1 {
 		compatible = "regulator-fixed";
 
 		regulator-name = "A Vdd";
@@ -296,7 +277,7 @@
 		enable-active-high;
 	};
 
-	vdd_db: regulator-fix@4 {
+	vdd_db: regulator-fix@2 {
 		compatible = "regulator-fixed";
 
 		regulator-name = "DB Vdd";
@@ -309,7 +290,7 @@
 		enable-active-high;
 	};
 
-	vcc_monoamp: regulator-fix@5 {
+	vcc_monoamp: regulator-fix@3 {
 		compatible = "regulator-fixed";
 
 		regulator-name = "MONOAMP Vcc";
@@ -318,7 +299,20 @@
 		regulator-boot-on;
 		regulator-always-on;
 
-		gpio = <&gpio_d 24 GPIO_ACTIVE_HIGH>;
+		gpio = <&gpio_d 31 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+
+	amp2_en: regulator-fix@4 {
+		compatible = "regulator-fixed";
+
+		regulator-name = "AMP2 EN";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-boot-on;
+		regulator-always-on;
+
+		gpio = <&gpio_e 0 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
 	};
 
@@ -331,29 +325,10 @@
 		#size-cells = <0>;
 
 		rt5640: rt5640@1c {
+			#sound-dai-cells = <0>;
 			compatible = "realtek,rt5640";
 			reg = <0x1c>;
 			realtek,ldo1-en-gpios = <&gpio_c 4 GPIO_ACTIVE_HIGH>;
-		};
-	};
-
-	i2c_gpio2: i2c@2 {
-		compatible = "i2c-gpio";
-		gpios = <&gpio_d 7 0 /* sda */
-		    &gpio_d 6 0 /* scl */>;
-		i2c-gpio,delay-us = <100>;
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		tsc2007: tsc2007@48 {
-			compatible = "ti,tsc2007";
-			gpios = <&gpio_d 8 0>;
-			interrupt-parent = <&gpio_d>;
-			interrupts = <8 IRQ_TYPE_EDGE_FALLING>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&toutchpanel_irq>;
-			reg = <0x48>;
-			ti,x-plate-ohms = <180>;
 		};
 	};
 
@@ -366,6 +341,7 @@
 		#size-cells = <0>;
 
 		alc5623: alc5623@1a {
+			#sound-dai-cells = <0>;
 			compatible = "realtek,alc5623";
 			reg = <0x1a>;
 		};
@@ -390,41 +366,68 @@
 
 	i2c_gpio6: i2c@6 {
 		compatible = "i2c-gpio";
-		gpios = <&gpio_d 23 0 /* sda */
-		    &gpio_d 22 0 /* scl */
+		gpios = <&gpio_d 30 0 /* sda */
+		    &gpio_d 29 0 /* scl */
 		    >;
 		i2c-gpio,delay-us = <100>;
 		#address-cells = <1>;
 		#size-cells = <0>;
 	};
 
-	sound0 {
-		compatible = "nexell,nexell-rt5640";
-		ch = <0>;
-		sample-rate = <48000>;
-		format = "S16";
-		i2s-controller = <&i2s_0>;
-		audio-codec = <&rt5640>;
+	i2c_gpio7: i2c@7 {
+		status = "disabled";
 	};
 
-	sound1 {
-		compatible = "nexell,nexell-alc5623";
-		ch = <1>;
-		sample-rate = <48000>;
-		format = "S16";
-		i2s-controller = <&i2s_1>;
-		audio-codec = <&alc5623>;
-		amp-gpio = <&gpio_d 25 0>;
+	sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "s5p4418 navi_ref Audio";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,widgets =
+		    "Headphone", "Out Jack",
+		    "Microphone", "In Jack";
+		simple-audio-card,routing =
+		    "Out Jack", "HPOL",
+		    "Out Jack", "HPOR",
+		    "IN2P", "In Jack",
+		    "IN2P", "In Jack";
+		status = "okay";
+
+		simple-audio-card,dai-link@0 {
+		    format = "i2s";
+		    cpu {
+			sound-dai = <&i2s_0 0>;
+		    };
+
+		    codec {
+			sound-dai = <&rt5640>;
+		    };
+		};
+
+		simple-audio-card,dai-link@1 {
+		    format = "i2s";
+		    cpu {
+			sound-dai = <&i2s_1 0>;
+		    };
+
+		    codec {
+			sound-dai = <&alc5623>;
+		    };
+		};
+
+		simple-audio-card,dai-link@2 {
+		    cpu {
+			sound-dai = <&spdif_tx 0>;
+		    };
+
+		    codec {
+			sound-dai = <&spdif_out>;
+		    };
+		};
 	};
 
 	spdif_out: spdif-out {
+		#sound-dai-cells = <0>;
 		compatible = "linux,spdif-dit";
-	};
-
-	spdif-transceiver {
-		compatible = "nexell,spdif-transceiver";
-		sample_rate = <48000>;
-		format = "S16";
 	};
 
 	gpio_key: gpio_keys {
@@ -433,7 +436,7 @@
 		#size-cells = <0>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&key_power &key_back &key_voldown
-		    &key_volup &key_homepage>;
+		    &key_homepage>;
 
 		power {
 			label = "Power";
@@ -454,17 +457,27 @@
 			linux,code = <KEY_VOLUMEDOWN>;
 		};
 
-		volup {
-			label = "VolUp";
-			gpios = <&alive_0 3 0>;
-			linux,code = <KEY_VOLUMEUP>;
-		};
-
 		homepage {
 			label = "Homepage";
 			gpios = <&alive_0 4 0>;
 			linux,code = <KEY_HOMEPAGE>;
 		};
+	};
+
+	backlight: pwm-backlight {
+		compatible = "pwm-backlight";
+		pwms = <&pwm 0 20000 1>;
+		pwm-names = "pwm-backlight";
+
+		brightness-levels = <30 31 32 33 34 35 36 37 38 39
+				     40 41 42 43 44 45 46 47 48 49
+				     50 51 52 53 54 55 56 57 58 59
+				     60 61 62 63 64 65 66 67 68 69
+				     70 71 72 73 74 75 76 77 78 79
+				     80 81 82 83 84 85 86 87 88 89
+				     90>;
+		default-brightness-level = <45>;
+		status = "okay";
 	};
 };
 
@@ -472,13 +485,56 @@
 	status = "okay";
 };
 
+&vip_1 {
+	status = "okay";
+};
+
+&mipi_csi {
+	data_lane = <2>;
+	pllval = <750>;
+	hssettle = <7>;
+	status = "okay";
+};
+
 &clipper_0 {
+	interface_type = <NX_CAPTURE_INTERFACE_MIPI_CSI>;
+	gpios = <&gpio_b 23 0>;
+	data_order = <NX_VIN_CBY0CRY1>;
+	port = <1>;
+	external_sync = <1>;
+	interlace = <0>;
+	status = "okay";
+
+	sensor {
+		type = <NX_CAPTURE_SENSOR_I2C>;
+		i2c_name = "tw9992";
+		i2c_adapter = <3>;
+		addr = <0x3d>;
+	};
+
+	power {
+		enable_seq = <
+		NX_ACTION_START NX_ACTION_TYPE_GPIO 0 1 1 0 10 1 10 NX_ACTION_END
+		>;
+
+		disable_seq = <
+		NX_ACTION_START NX_ACTION_TYPE_GPIO 0 0 1 NX_ACTION_END
+		>;
+	};
+};
+
+/*
+ * mmc2 gpio conflicts with clipper1 so,
+ * s5p4418_avn_ref board can't use tw9900 port for rearcam
+ */
+#if 0
+&clipper_1 {
 	interface_type = <NX_CAPTURE_INTERFACE_PARALLEL>;
 	pinctrl-names = "default";
-	pinctrl-0 = <&vid0_data_clk &vid0_sync>;
+	pinctrl-0 = <&vid2_data_clk>;
 	gpios = <&gpio_c 9 0 &gpio_e 16 0 &gpio_e 12 0>;
 	data_order = <NX_VIN_CBY0CRY1>;
-	port = <0>;
+	port = <1>;
 	external_sync = <0>;
 	interlace = <1>;
 	status = "okay";
@@ -499,6 +555,40 @@
 	};
 };
 
+#include "tw9900_rearcam_regset.dtsi"
+&rearcam {
+	rotation = <0>;
+	rear_cam_dev = <&clipper_1>;
+	sensor_reg = <&sensor_tw9900>;
+	display = <&dp_drm>;
+	dp_drm_dev = <&dp_drm_lvds>;
+	width = <704>;
+	height = <480>;
+	status = "okay";
+
+	gpio {
+		event-gpio = <&alive_0 3 0>;
+		active_high = <0>;
+		detect_delay = <0>;
+	};
+
+	deinterlace {
+		use = <0>;
+		divide_frame = <0>;
+		is_odd_first = <1>;
+	};
+
+	mlc {
+		module = <0>;
+		format = <0x06530000>;
+	};
+
+	dpc {
+		module = <0>;
+	};
+};
+#endif
+
 &dp_drm {
 	status = "okay";
 	ports {
@@ -506,21 +596,19 @@
 			reg = <0>;
 			back_color = < 0x0 >;
 			color_key = < 0x0 >;
-			plane-names = "video", "primary", "rgb";
+			plane-names = "rgb", "video", "primary";
 		};
 		port@1 {
 			reg = <1>;
 			back_color = < 0x0 >;
 			color_key = < 0x0 >;
-			plane-names = "video", "primary";
+			plane-names = "primary", "video";
 		};
 	};
 };
 
 &dp_drm_lvds {
 	status = "ok";
-
-	enable-gpios = <&gpio_e 13 GPIO_ACTIVE_LOW>;
 
 	display-timing {
 		clock-frequency = <50000000>;
@@ -531,11 +619,9 @@
 		hsync-len = <20>;
 		vfront-porch = <12>;
 		vback-porch = <20>;
-		vsync-len = <3>;
-	};
-
+		vsync-len = <3>; }; 
 	dp_control {
-		clk_src_lv0 = <0>;
+		clk_src_lv0 = <3>;
 		clk_div_lv0 = <16>;
 		clk_src_lv1 = <7>;
 		clk_div_lv1 = <1>;
@@ -546,4 +632,22 @@
 &dp_drm_hdmi {
 	ddc-i2c-bus = <&i2c_gpio6>;
 	status = "ok";
+};
+
+&i2c_2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	rate = <400000>;
+
+	tsc2007: tsc2007@48 {
+		compatible = "ti,tsc2007";
+		gpios = <&gpio_d 8 0>;
+		interrupt-parent = <&gpio_d>;
+		interrupts = <8 IRQ_TYPE_EDGE_FALLING>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&toutchpanel_irq>;
+		reg = <0x48>;
+		ti,x-plate-ohms = <180>;
+	};
 };
