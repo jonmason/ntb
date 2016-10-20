@@ -94,6 +94,12 @@
 
 	};
 
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+	};
+
 	scu:0xf0000000 {
 		compatible = "arm,cortex-a9-scu";
 		reg = <0xf0000000 0x100>;
@@ -421,7 +427,7 @@
 			status = "disabled";
 		};
 
-		spdiftx@c0059000 {
+		spdif_tx: spdiftx@c0059000 {
 			compatible = "nexell,nexell-spdif-tx";
 			reg = <PHYS_BASE_SPDIF_TX 0x1000>;
 			interrupts = <IRQ_SPDIFTX>;
@@ -724,6 +730,13 @@
 		clipper_1:clipper1@c0064000 {
 			compatible = "nexell,nx-clipper";
 			module = <1>;
+			status = "disabled";
+		};
+
+		rearcam: rear_camera {
+			compatible = "nexell,nx-rearcam";
+			interrupts = <IRQ_VIP0>, <IRQ_VIP1>;
+			interrupts-names = "vip.0", "vip.1";
 			status = "disabled";
 		};
 
