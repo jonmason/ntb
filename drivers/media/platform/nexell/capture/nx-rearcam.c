@@ -399,6 +399,7 @@ struct nx_rearcam {
 	struct nx_clipper_info clipper_info;
 	struct dp_ctrl_info dp_ctl;
 	struct dp_sync_info dp_sync;
+	int dp_drm_port_video_prior[2];
 
 	struct delayed_work work;
 	struct mutex decide_work_lock;
@@ -1494,6 +1495,8 @@ static int nx_display_parse_dt(struct device *dev, struct device_node *np,
 {
 	const char *strings[10];
 	int i, n, size = 0;
+	struct device_node *np_ports, *port;
+	u32 port_id = 0;
 
 	size = of_property_read_string_array(np,
 		"reg-names", strings, ARRAY_SIZE(strings));
@@ -1510,6 +1513,30 @@ static int nx_display_parse_dt(struct device *dev, struct device_node *np,
 			__func__, size, strings[i]);
 		*(me->base_addr + i) = of_iomap(np, i);
 	}
+
+	/*	ports	*/
+	np_ports = of_find_node_by_name(np, "ports");
+	if (!np_ports)
+		return 0;
+
+	for_each_child_of_node(np_ports, port) {
+		port_id = 0;
+
+		of_property_read_u32(port, "reg", &port_id);
+		size = of_property_read_string_array(port,
+			"plane-names", strings, ARRAY_SIZE(strings));
+		if (size > ARRAY_SIZE(strings))
+			return -EINVAL;
+
+		for (i = 0; size > i; i++) {
+			pr_debug("plane_name : [%d] %s\n", i, strings[i]);
+			if (strcmp(strings[i], "video") == 0)
+				me->dp_drm_port_video_prior[port_id] = i;
+		}
+	}
+
+	pr_debug("%s : port_0 : %d, port_1 : %d\n", __func__,
+	me->dp_drm_port_video_prior[0], me->dp_drm_port_video_prior[1]);
 
 	return 0;
 }
@@ -2120,6 +2147,16 @@ static void _mlc_rgb_overlay_draw(struct nx_rearcam *me)
 					rgb_buf->virt_rgb);
 }
 
+static void _set_mlc_layer_priority(struct nx_rearcam *me)
+{
+	struct plane_top_format format = {
+		.module = me->mlc_module,
+		.video_priority = 1,
+		.mask = DP_PLANE_FORMAT_VIDEO_PRIORITY,
+	};
+	nx_soc_dp_plane_top_prev_format(&format);
+}
+
 static void _set_enable_mlc(struct nx_rearcam *me)
 {
 	int module = me->mlc_module;
@@ -2390,6 +2427,8 @@ static void _cleanup_me(struct nx_rearcam *me)
 static void _turn_on(struct nx_rearcam *me)
 {
 	struct device *dev = &me->pdev->dev;
+
+	_set_mlc_layer_priority(me);
 
 	if (_is_enable_mlc(me) == false)
 		_set_mlc(me);
@@ -3716,6 +3755,10 @@ static ssize_t _stop_rearcam(struct kobject *kobj,
 		schedule_timeout_interruptible(HZ/5);
 	}
 	nx_rearcam_remove(me->pdev);
+
+	nx_mlc_set_layer_priority(me->mlc_module,
+		me->dp_drm_port_video_prior[me->mlc_module]);
+	nx_mlc_set_dirty_flag(me->mlc_module, MLC_LAYER_VIDEO);
 
 	pr_debug("end of nx_rearcam_remove()\n");
 
