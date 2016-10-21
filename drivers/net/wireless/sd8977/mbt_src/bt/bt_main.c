@@ -1841,7 +1841,7 @@ bt_load_cal_data(bt_private *priv, u8 *config_data, u8 *mac)
 	pcmd->data[3] = 0x1C;
 	/* swip cal-data byte */
 	for (i = 4; i < 32; i++)
-		pcmd->data[i] = *(config_data + ((i / 4) * 8 - 1 - i));
+		pcmd->data[i] = config_data + ((i / 4) * 8 - 1 - i);
 	if (mac != NULL) {
 		pcmd->data[2] = 0x01;	/* skip checksum */
 		for (i = 24; i < 30; i++)

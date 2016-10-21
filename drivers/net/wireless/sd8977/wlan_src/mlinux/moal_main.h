@@ -175,7 +175,6 @@ Change log:
 #define default_wfd_name    "wfd_sdio%%d"
 #define default_nan_name    "nan_sdio%%d"
 #define default_mpl_name    "mpl_sdio%d"
-#define default_11p_name    "ocb_sdio%d"
 #define mwiphy_name          "mwiphys%d"
 #else
 #define default_mlan_name    "mlan%%d"
@@ -183,7 +182,6 @@ Change log:
 #define default_wfd_name    "wfd%%d"
 #define default_nan_name    "nan%%d"
 #define default_mpl_name    "mpl%d"
-#define default_11p_name    "ocb%d"
 #define mwiphy_name          "mwiphy%d"
 #endif
 /**

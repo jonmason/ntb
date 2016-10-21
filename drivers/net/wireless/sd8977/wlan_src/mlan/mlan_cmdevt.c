@@ -1712,7 +1712,6 @@ wlan_process_cmdresp(mlan_adapter *pmadapter)
 			|| pmpriv_next->bss_virtual))
 			i++;
 		if (!pmpriv_next || i >= pmadapter->priv_num) {
-
 #if defined(STA_SUPPORT)
 			if (pmadapter->pwarm_reset_ioctl_req) {
 				/* warm reset complete */

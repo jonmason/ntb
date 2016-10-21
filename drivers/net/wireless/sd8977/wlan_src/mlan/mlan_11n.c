@@ -2550,11 +2550,6 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 		    pbss_desc->pvht_oprat->chan_width == VHT_OPER_CHWD_80MHZ) {
 			pchan_list->chan_scan_param[0].radio_type |=
 				CHAN_BW_80MHZ << 2;
-			SET_SECONDARYCHAN(pchan_list->chan_scan_param[0].
-					  radio_type,
-					  GET_SECONDARYCHAN(pbss_desc->
-							    pht_info->ht_info.
-							    field2));
 			pbss_desc->curr_bandwidth = BW_80MHZ;
 		} else if (ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap) &&
 			   ISALLOWED_CHANWIDTH40(pbss_desc->pht_info->ht_info.
@@ -3129,12 +3124,12 @@ wlan_11n_bandconfig_allowed(mlan_private *pmpriv, t_u8 bss_band)
 	if (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS) {
 		if (bss_band & BAND_G)
 			return (pmpriv->adapter->adhoc_start_band & BAND_GN);
-		else if (bss_band & BAND_A)
+		else
 			return (pmpriv->adapter->adhoc_start_band & BAND_AN);
 	} else {
 		if (bss_band & BAND_G)
 			return (pmpriv->config_bands & BAND_GN);
-		else if (bss_band & BAND_A)
+		else
 			return (pmpriv->config_bands & BAND_AN);
 	}
 	return 0;

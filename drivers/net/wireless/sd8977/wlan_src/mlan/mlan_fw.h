@@ -1836,8 +1836,8 @@ typedef MLAN_PACK_START struct _TxPD {
 	t_u8 reserved1[2];
     /** Trasnit Pkt Token Id*/
 	t_u8 tx_token_id;
-    /** reserved */
-	t_u8 reserved2[2];
+    /** reserverd */
+	t_u8 reserved[2];
 } MLAN_PACK_END TxPD, *PTxPD;
 
 /** RxPD Descriptor */

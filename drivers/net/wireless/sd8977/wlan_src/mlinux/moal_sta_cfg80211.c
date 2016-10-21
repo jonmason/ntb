@@ -363,22 +363,6 @@ typedef struct _region_code_t {
 	t_u8 region[COUNTRY_CODE_LEN];
 } region_code_t;
 
-static const struct ieee80211_regdomain mrvl_regdom = {
-	.n_reg_rules = 4,
-	.alpha2 = "99",
-	.reg_rules = {
-		      /* IEEE 802.11b/g, channels 1..11 */
-		      REG_RULE(2412 - 10, 2472 + 10, 40, 6, 20, 0),
-		      /* If any */
-		      /* IEEE 802.11 channel 14 - Only JP enables this and for
-		         802.11b only */
-		      REG_RULE(2484 - 10, 2484 + 10, 20, 6, 20, 0),
-		      /* IEEE 802.11a, channel 36..64 */
-		      REG_RULE(5150 - 10, 5350 + 10, 40, 6, 20, 0),
-		      /* IEEE 802.11a, channel 100..165 */
-		      REG_RULE(5470 - 10, 5850 + 10, 40, 6, 20, 0),}
-};
-
 /********************************************************
 				Local Variables
 ********************************************************/
@@ -1834,9 +1818,7 @@ woal_cfg80211_assoc(moal_private *priv, void *sme, t_u8 wait_option)
 				       ssid_len, WLAN_CAPABILITY_ESS,
 				       WLAN_CAPABILITY_ESS);
 		if (bss) {
-			if (!reg_alpha2 ||
-			    strncmp(reg_alpha2, "99", strlen("99")))
-				woal_process_country_ie(priv, bss);
+			woal_process_country_ie(priv, bss);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 			cfg80211_put_bss(priv->wdev->wiphy, bss);
 #else
@@ -7029,6 +7011,7 @@ woal_register_sta_cfg80211(struct net_device *dev, t_u8 bss_type)
 #endif
 	if (bss_type == MLAN_BSS_TYPE_NAN)
 		wdev->iftype = NL80211_IFTYPE_STATION;
+
 	dev_net_set(dev, wiphy_net(wdev->wiphy));
 	dev->ieee80211_ptr = wdev;
 	SET_NETDEV_DEV(dev, wiphy_dev(wdev->wiphy));
@@ -7400,16 +7383,6 @@ woal_register_cfg80211(moal_private *priv)
 		}
 	}
 #endif
-	if (reg_alpha2 && !strncmp(reg_alpha2, "99", strlen("99"))) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-		wiphy->regulatory_flags |= REGULATORY_CUSTOM_REG |
-			REGULATORY_DISABLE_BEACON_HINTS |
-			REGULATORY_COUNTRY_IE_IGNORE;
-#else
-		wiphy->flags |= WIPHY_FLAGS_CUSTOM_REGULATORY;
-#endif
-		wiphy_apply_custom_regulatory(wiphy, &mrvl_regdom);
-	}
 
 	if (wiphy_register(wiphy) < 0) {
 		PRINTM(MERROR, "Wiphy device registration failed!\n");
@@ -7425,11 +7398,9 @@ woal_register_cfg80211(moal_private *priv)
 #endif
 	wiphy->interface_modes &= ~(MBIT(NL80211_IFTYPE_MONITOR));
 
-	if ((!reg_alpha2 || strncmp(reg_alpha2, "99", strlen("99")))
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
-	    && !priv->phandle->regd
+	if (!priv->phandle->regd) {
 #endif
-		) {
 	/** we will try driver parameter first */
 		if (reg_alpha2 && woal_is_valid_alpha2(reg_alpha2)) {
 			PRINTM(MIOCTL, "Notify reg_alpha2 %c%c\n",
@@ -7450,7 +7421,9 @@ woal_register_cfg80211(moal_private *priv)
 				       "hw region code=%d not supported\n",
 				       fw_info.region_code);
 		}
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	}
+#endif
 	priv->phandle->wiphy = wiphy;
 	woal_cfg80211_init_wiphy(priv, MOAL_CMD_WAIT);
 

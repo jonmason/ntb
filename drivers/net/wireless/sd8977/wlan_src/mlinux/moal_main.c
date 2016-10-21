@@ -1085,7 +1085,6 @@ woal_update_drv_tbl(moal_handle *handle, int drv_mode_local)
 			i++;
 		}
 	}
-
 #if defined(WIFI_DIRECT_SUPPORT)
 #if defined(STA_CFG80211) && defined(UAP_CFG80211)
     /** append virtual interface at the end of table */
@@ -3079,6 +3078,7 @@ woal_fill_mlan_buffer(moal_private *priv,
 	struct timeval tstamp;
 	struct ethhdr *eth;
 	t_u8 tid;
+
 	ENTER();
 	/*
 	 * skb->priority values from 256->263 are magic values to
@@ -3113,12 +3113,12 @@ woal_fill_mlan_buffer(moal_private *priv,
 			tid = 0;
 			PRINTM(MDATA, "ARP packet %04x\n", eth->h_proto);
 			break;
+			break;
 		default:
 			tid = 0;
 			break;
 		}
 	}
-
 	skb->priority = tid;
 
 	/* Record the current time the packet was queued; used to determine the
@@ -4923,6 +4923,7 @@ woal_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	t_u32 index = 0;
 #endif
 	ENTER();
+
 	PRINTM(MDATA, "%lu : %s (bss=%d): Data <= kernel\n",
 	       jiffies, dev->name, priv->bss_index);
 
@@ -5272,7 +5273,6 @@ woal_init_priv(moal_private *priv, t_u8 wait_option)
 #endif
 	}
 #endif
-
 	priv->media_connected = MFALSE;
 
 	memset(priv->dscp_map, 0xFF, sizeof(priv->dscp_map));

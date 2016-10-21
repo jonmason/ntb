@@ -846,7 +846,7 @@ woal_debug_read(struct seq_file *sfp, void *data)
 		else if (d[i].size == 2)
 			val = *((t_u16 *)d[i].addr);
 		else if (d[i].size == 4)
-			val = *((t_u32 *)d[i].addr);
+			val = *((t_ptr *)d[i].addr);
 		else {
 			unsigned int j;
 			seq_printf(sfp, "%s=", d[i].name);
@@ -1061,7 +1061,7 @@ woal_debug_write(struct file *f, const char __user * buf, size_t count,
 			else if (d[i].size == 2)
 				*((t_u16 *)d[i].addr) = (t_u16)r;
 			else if (d[i].size == 4)
-				*((t_u32 *)d[i].addr) = (t_u32)r;
+				*((t_ptr *)d[i].addr) = (t_ptr)r;
 			break;
 		} while (MTRUE);
 	}
