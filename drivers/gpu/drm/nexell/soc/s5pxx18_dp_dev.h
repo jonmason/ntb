@@ -304,6 +304,19 @@ struct dp_plane_layer {
 	} color;
 };
 
+#define DP_PLANE_FORMAT_SCREEN_SIZE		(1<<0)
+#define DP_PLANE_FORMAT_VIDEO_PRIORITY	(1<<1)
+#define DP_PLANE_FORMAT_BACK_COLOR		(1<<2)
+
+struct plane_top_format {
+	int module;
+	int video_priority;
+	int width;
+	int height;
+	unsigned int bgcolor;
+	unsigned int mask;
+};
+
 const char *dp_panel_type_name(enum dp_panel_type panel);
 
 void nx_soc_dp_cont_dpc_base(int module, void __iomem *base);
@@ -324,6 +337,7 @@ void nx_soc_dp_plane_top_set_format(struct dp_plane_top *top,
 			int width, int height);
 void nx_soc_dp_plane_top_set_bg_color(struct dp_plane_top *top);
 int nx_soc_dp_plane_top_set_enable(struct dp_plane_top *top, bool on);
+void nx_soc_dp_plane_top_prev_format(struct plane_top_format *format);
 
 int nx_soc_dp_plane_rgb_set_format(struct dp_plane_layer *layer,
 			unsigned int format, int pixelbyte, bool adjust);

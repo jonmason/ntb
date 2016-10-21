@@ -34,6 +34,8 @@
 
 #define	LAYER_VIDEO_FMT_MASK	0xffffff
 
+static struct plane_top_format top_format[2];
+
 /* 12345'678'[8] -> 12345 [5], 123456'78'[8] -> 123456[6] */
 static inline u_short R8G8B8toR5G6B5(unsigned int RGB)
 {
@@ -366,13 +368,46 @@ void nx_soc_dp_plane_top_prepare(struct dp_plane_top *top)
 	nx_mlc_set_clock_bclk_mode(module, nx_bclkmode_always);
 }
 
+void nx_soc_dp_plane_top_prev_format(struct plane_top_format *format)
+{
+	struct plane_top_format *topform;
+	int module = format->module;
+
+	if (module > (ARRAY_SIZE(top_format) - 1)) {
+		pr_err("fail : not support top module %d (0,1)\n", module);
+		return;
+	}
+
+	topform = &top_format[module];
+	topform->mask = format->mask;
+
+	if (format->mask & DP_PLANE_FORMAT_SCREEN_SIZE) {
+		nx_mlc_set_screen_size(module, format->width, format->height);
+		topform->width = format->width;
+		topform->height = format->height;
+	}
+
+	if (format->mask & DP_PLANE_FORMAT_VIDEO_PRIORITY) {
+		nx_mlc_set_layer_priority(module, format->video_priority);
+		topform->video_priority = format->video_priority;
+	}
+
+	if (format->mask & DP_PLANE_FORMAT_BACK_COLOR) {
+		nx_mlc_set_background(module, format->bgcolor & 0x00FFFFFF);
+		topform->bgcolor = format->bgcolor;
+	}
+}
+
 void nx_soc_dp_plane_top_set_format(struct dp_plane_top *top,
 			int width, int height)
 {
+	struct plane_top_format *topform;
 	int module = top->module;
 	enum nx_mlc_priority priority;
 	int prior = top->video_prior;
 	unsigned int bgcolor = top->back_color;
+
+	topform = &top_format[module];
 
 	switch (prior) {
 	case 0:
@@ -400,9 +435,15 @@ void nx_soc_dp_plane_top_set_format(struct dp_plane_top *top,
 	pr_debug("%s: crtc.%d, %d by %d, prior %d, bg 0x%x\n",
 		__func__, module, top->width, top->height, prior, bgcolor);
 
-	nx_mlc_set_screen_size(module, top->width, top->height);
-	nx_mlc_set_background(module, bgcolor & 0x00FFFFFF);
-	nx_mlc_set_layer_priority(module, priority);
+	if (!(topform->mask & DP_PLANE_FORMAT_SCREEN_SIZE))
+		nx_mlc_set_screen_size(module, top->width, top->height);
+
+	if (!(topform->mask & DP_PLANE_FORMAT_VIDEO_PRIORITY))
+		nx_mlc_set_layer_priority(module, priority);
+
+	if (!(topform->mask & DP_PLANE_FORMAT_BACK_COLOR))
+		nx_mlc_set_background(module, bgcolor & 0x00FFFFFF);
+
 	nx_mlc_set_top_dirty_flag(module);
 }
 
