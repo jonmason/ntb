@@ -117,6 +117,28 @@ config ARCH_S5P6818
 	help
 	  This enables support for the NEXELL S5P6818 Architecture
 
+config REDUCE_BOOT_TIME
+        bool "Enable Reduce Boot-Time"
+	depends on ARCH_S5P6818
+
+config INITCALLS_THREAD
+	bool "Execute kernel device initcalls with thread"
+	depends on ARCH_S5P6818 && REDUCE_BOOT_TIME
+
+config INITCALLS_THREAD_LEVEL
+       int "kernel initcalls thread level"
+       default 6
+       depends on INITCALLS_THREAD
+
+config MMC_INIT_LEVEL_UP
+       bool "MMC and related devices init level up"
+       depends on ARCH_S5P6818 && REDUCE_BOOT_TIME
+       select EXT4_FS_INIT_LEVEL_UP
+
+config EXT4_FS_INIT_LEVEL_UP
+       depends on MMC_INIT_LEVEL_UP
+       bool
+
 config ARCH_THUNDER
 	bool "Cavium Inc. Thunder SoC Family"
 	help
