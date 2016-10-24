@@ -420,6 +420,10 @@ struct nx_rearcam {
 	u32 width;
 	u32 height;
 
+	/* sensor init worker */
+	struct work_struct work_sensor_init;
+	struct workqueue_struct *wq_sensor_init;
+
 	/* display worker */
 	struct work_struct work_display;
 	struct workqueue_struct *wq_display;
@@ -2936,7 +2940,6 @@ static void _init_hw_dpc(struct nx_rearcam *me)
 	if (_is_enable_dpc(me) == false)
 		_set_dpc(me);
 
-
 	me->wq_display = create_singlethread_workqueue("wq_display");
 	if (!me->wq_display) {
 		dev_err(dev, "create work queue error!\n");
@@ -2950,6 +2953,17 @@ static void _init_hw_dpc(struct nx_rearcam *me)
 	if (err) {
 		dev_err(dev, "failed to devm_request_irq for dpc %d\n",
 			module);
+		return;
+	}
+}
+
+static void _init_hw_sensor(struct nx_rearcam *me)
+{
+	struct device *dev = &me->pdev->dev;
+
+	me->wq_sensor_init = create_singlethread_workqueue("wq_sensor_init");
+	if (!me->wq_sensor_init) {
+		dev_err(dev, "create sensor init work queue error!\n");
 		return;
 	}
 }
@@ -3202,6 +3216,18 @@ static int _camera_sensor_run(struct nx_rearcam *me)
 	}
 
 	return 0;
+}
+
+static void _sensor_init_worker(struct work_struct *work)
+{
+	struct nx_rearcam *me = container_of(work, struct nx_rearcam,
+				work_sensor_init);
+	struct device *dev = &me->pdev->dev;
+	int ret = 0;
+
+	ret = _camera_sensor_run(me);
+	if (ret < 0)
+		dev_err(dev, "failed sensor initialzation!\n");
 }
 
 static void _display_worker(struct work_struct *work)
@@ -3498,6 +3524,7 @@ static void _init_context(struct nx_rearcam *me)
 
 	INIT_DELAYED_WORK(&me->work, _work_handler_reargear);
 	INIT_WORK(&me->work_display, _display_worker);
+	INIT_WORK(&me->work_sensor_init, _sensor_init_worker);
 
 	me->rot_src = NULL;
 	me->rot_dst = NULL;
@@ -3700,6 +3727,7 @@ static int init_me(struct nx_rearcam *me)
 	_init_hw_dpc(me);
 	_init_hw_vip(me);
 	_init_hw_gpio(me);
+	_init_hw_sensor(me);
 
 	return 0;
 }
@@ -3840,9 +3868,8 @@ static int nx_rearcam_probe(struct platform_device *pdev)
 	}
 	init_me(me);
 
-	ret = _camera_sensor_run(me);
-	if (ret < 0)
-		goto ERROR;
+	/* sensor init */
+	queue_work(me->wq_sensor_init, &me->work_sensor_init);
 
 	/* TODO : MIPI Routine */
 	platform_set_drvdata(pdev, me);
