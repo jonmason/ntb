@@ -1823,6 +1823,8 @@ wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 				IS_FW_SUPPORT_SUPPLICANT(pmadapter) ? 0x01 :
 				0x00;
 			pget_info->param.fw_info.antinfo = pmadapter->antinfo;
+			pget_info->param.fw_info.max_p2p_conn =
+				pmadapter->max_p2p_conn;
 		}
 		break;
 	case MLAN_IOCTL_MISC_CFG:
@@ -1960,6 +1962,9 @@ wlan_ops_uap_ioctl(t_void *adapter, pmlan_ioctl_req pioctl_req)
 		if (cfg11h->sub_command == MLAN_OID_11H_CHAN_REPORT_REQUEST)
 			status = wlan_11h_ioctl_dfs_cancel_chan_report(pmpriv,
 								       pioctl_req);
+		if (cfg11h->sub_command == MLAN_OID_11H_CHAN_SWITCH_COUNT)
+			status = wlan_11h_ioctl_chan_switch_count(pmadapter,
+								  pioctl_req);
 		break;
 	case MLAN_IOCTL_RADIO_CFG:
 		radiocfg = (mlan_ds_radio_cfg *)pioctl_req->pbuf;

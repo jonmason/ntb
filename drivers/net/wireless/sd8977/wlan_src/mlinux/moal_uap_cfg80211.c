@@ -39,7 +39,9 @@
 #ifdef WIFI_DIRECT_SUPPORT
 extern int GoAgeoutTime;
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 extern int dfs_offload;
+#endif
 /********************************************************
 				Local Functions
 ********************************************************/
@@ -2162,7 +2164,9 @@ woal_cfg80211_add_beacon(struct wiphy *wiphy,
 {
 	moal_private *priv = (moal_private *)woal_get_netdev_priv(dev);
 	int ret = 0;
-	t_u8 wait_option;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+	t_u8 wait_option = MOAL_IOCTL_WAIT;
+#endif
 
 	ENTER();
 
@@ -2255,10 +2259,10 @@ woal_cfg80211_add_beacon(struct wiphy *wiphy,
 #endif
 	/* if the bss is stopped, then start it */
 	if (priv->bss_started == MFALSE) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 		if (dfs_offload)
 			wait_option = MOAL_NO_WAIT;
-		else
-			wait_option = MOAL_IOCTL_WAIT;
+#endif
 		if (MLAN_STATUS_SUCCESS !=
 		    woal_uap_bss_ctrl(priv, MOAL_IOCTL_WAIT, UAP_BSS_START)) {
 			priv->uap_host_based = MFALSE;
@@ -2397,8 +2401,10 @@ woal_cfg80211_del_beacon(struct wiphy *wiphy, struct net_device *dev)
 #endif
 	memset(priv->dscp_map, 0xFF, sizeof(priv->dscp_map));
 	woal_deauth_all_station(priv);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	if (dfs_offload)
 		woal_cancel_cac_block(priv);
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
 	memset(&priv->chan, 0, sizeof(struct cfg80211_chan_def));
 	if (priv->phandle->is_cac_timer_set &&
@@ -2584,8 +2590,10 @@ woal_cfg80211_del_station(struct wiphy *wiphy, struct net_device *dev,
 		priv->phandle->cac_bss_index = 0xff;
 	}
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 	if (dfs_offload)
 		woal_cancel_cac_block(priv);
+#endif
 
 	if (priv->media_connected == MFALSE) {
 		PRINTM(MINFO, "cfg80211: Media not connected!\n");
@@ -2784,16 +2792,7 @@ woal_cfg80211_set_mac_acl(struct wiphy *wiphy, struct net_device *dev,
 
 	PRINTM(MIOCTL, "Set mac acl, entries=%d, policy=%d\n",
 	       params->n_acl_entries, params->acl_policy);
-	/* Initialize the uap bss values which are uploaded from firmware */
-	if (MLAN_STATUS_SUCCESS != woal_set_get_sys_config(priv,
-							   MLAN_ACT_GET,
-							   MOAL_IOCTL_WAIT,
-							   &sys_config)) {
-		PRINTM(MERROR, "Error getting AP confiruration\n");
-		ret = -EFAULT;
-		goto done;
-	}
-	memset(&sys_config.filter, 0, sizeof(mac_filter));
+	memset(&sys_config, 0, sizeof(mlan_uap_bss_param));
 	if (params->n_acl_entries <= MAX_MAC_FILTER_NUM)
 		sys_config.filter.mac_count = params->n_acl_entries;
 	else
@@ -2814,7 +2813,7 @@ woal_cfg80211_set_mac_acl(struct wiphy *wiphy, struct net_device *dev,
 							   MOAL_IOCTL_WAIT,
 							   &sys_config))
 		ret = 0;
-done:
+
 	if (bss_started)
 		woal_uap_bss_ctrl(priv, MOAL_IOCTL_WAIT, UAP_BSS_START);
 	LEAVE();

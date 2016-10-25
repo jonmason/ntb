@@ -463,7 +463,7 @@ supplicantParseWpaIe(phostsa_private priv, IEEEtypes_WPAElement_t *pIe,
 		pMcstCipher->wep104 = 1;
 	}
 
-	count = pTemp->PwsKeyCnt;
+	count = wlan_le16_to_cpu(pTemp->PwsKeyCnt);
 
 	while (count) {
 		/* record the AP's unicast cipher */
@@ -485,7 +485,7 @@ supplicantParseWpaIe(phostsa_private priv, IEEEtypes_WPAElement_t *pIe,
 		}
 	}
 
-	count = pTemp->AuthKeyCnt;
+	count = wlan_le16_to_cpu(pTemp->AuthKeyCnt);
 
 	while (count) {
 		if (akmCount) {
@@ -584,6 +584,7 @@ supplicantParseRsnIe(phostsa_private priv, IEEEtypes_RSNElement_t *pRsnIe,
 	IEEEtypes_RSNCapability_t *pRsnCap;
 
 	UINT16 *pPMKIDCnt;
+	UINT16 PMKIDCnt;
 
 	UINT8 *pGrpMgmtCipher;
 #if 0
@@ -616,7 +617,7 @@ supplicantParseRsnIe(phostsa_private priv, IEEEtypes_RSNElement_t *pRsnIe,
 	supplicantParseMcstCipher(priv, pMcstCipherOut, pGrpKeyCipher);
 
 	/* Parse the pairwise key cipher list */
-	memcpy(util_fns, &pwsKeyCnt, pIeData, sizeof(pwsKeyCnt));
+	pwsKeyCnt = wlan_le16_to_cpu(*(UINT16 *)pIeData);
 	pIeData += sizeof(pRsnIe->PwsKeyCnt);
 
 	pPwsKeyCipherList = pIeData;
@@ -625,7 +626,7 @@ supplicantParseRsnIe(phostsa_private priv, IEEEtypes_RSNElement_t *pRsnIe,
 				  pPwsKeyCipherList);
 
 	/* Parse and return the AKM list */
-	memcpy(util_fns, &authKeyCnt, pIeData, sizeof(authKeyCnt));
+	authKeyCnt = wlan_le16_to_cpu(*(UINT16 *)pIeData);
 	pIeData += sizeof(pRsnIe->AuthKeyCnt);
 
 	pAuthKeyList = pIeData;
@@ -655,13 +656,14 @@ supplicantParseRsnIe(phostsa_private priv, IEEEtypes_RSNElement_t *pRsnIe,
 	/* Check if the PMKID count is included */
 	if (pIeData < pIeEnd) {
 		pPMKIDCnt = (UINT16 *)pIeData;
+		PMKIDCnt = wlan_le16_to_cpu(*pPMKIDCnt);
 		pIeData += sizeof(pRsnIe->PMKIDCnt);
 
 		/* Check if the PMKID List is included */
 		if (pIeData < pIeEnd) {
 			/* pPMKIDList = pIeData; <-- Currently not used in
 			   parsing */
-			pIeData += *pPMKIDCnt * sizeof(pRsnIe->PMKIDList);
+			pIeData += PMKIDCnt * sizeof(pRsnIe->PMKIDList);
 		}
 	}
 

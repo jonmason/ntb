@@ -1233,7 +1233,10 @@ wlan_11h_prepare_custom_ie_chansw(IN mlan_adapter *pmadapter,
 		sizeof(IEEEtypes_ChanSwitchAnn_t) - sizeof(IEEEtypes_Header_t);
 	pchansw_ie->chan_switch_mode = 1;	/* STA should not transmit */
 	pchansw_ie->new_channel_num = pmadapter->state_rdh.new_channel;
-	pchansw_ie->chan_switch_count = 5;	/* simplification */
+
+	pchansw_ie->chan_switch_count = pmadapter->dfs_cs_count;
+	PRINTM(MCMD_D, "Channel switch count = %d\n",
+	       pchansw_ie->chan_switch_count);
 
 	for (index = 0; index < pmadapter->state_rdh.priv_list_count; index++) {
 		pmpriv = pmadapter->state_rdh.priv_list[index];
@@ -1320,6 +1323,30 @@ wlan_11h_prepare_custom_ie_chansw(IN mlan_adapter *pmadapter,
 }
 
 #ifdef UAP_SUPPORT
+/** Bits 2,3 of band config define the band width */
+#define UAP_BAND_WIDTH_MASK 0x0C
+
+/**
+ *  @brief Check if start channel 165 is allowed to operate in
+ *  previous uAP channel's band config
+ *
+ *  @param start_chn     Random Start channel choosen after radar detection
+ *  @param uap_band_cfg  Private driver uAP band configuration information structure
+ *
+ *  @return MFALSE if the channel is not allowed in given band
+ */
+static t_bool
+wlan_11h_is_band_valid(t_u8 start_chn, t_u8 uap_band_cfg)
+{
+
+	/* if band width is not 20MHZ (either 40 or 80MHz) return MFALSE, 165
+	   is not allowed in bands other than 20MHZ */
+	if (start_chn == 165 && (uap_band_cfg & UAP_BAND_WIDTH_MASK)) {
+		return MFALSE;
+	}
+	return MTRUE;
+}
+
 /**
  *  @brief Retrieve a randomly selected starting channel if needed for 11h
  *
@@ -1387,23 +1414,44 @@ wlan_11h_get_uap_start_channel(mlan_private *priv, t_u8 uap_band_cfg)
 					 * in the table between 0 and the number
 					 * of channels in the table (NumCFP).
 					 */
-					do {
+					rand_entry =
+						wlan_11h_get_random_num(adapter)
+						% chn_tbl->num_cfp;
+					start_chn =
+						(t_u8)chn_tbl->pcfp[rand_entry].
+						channel;
+					/* Loop until a non-dfs channel is
+					   found with compatible band bounded
+					   by chn_tbl->num_cfp entries in the
+					   channel table */
+					while ((wlan_11h_is_channel_under_nop
+						(adapter, start_chn) ||
+						((adapter->state_rdh.stage ==
+						  RDH_GET_INFO_CHANNEL) &&
+						 wlan_11h_radar_detect_required
+						 (priv, start_chn)) ||
+						!(wlan_11h_is_band_valid
+						  (start_chn, uap_band_cfg))) &&
+					       (++rand_tries <
+						chn_tbl->num_cfp)) {
+						rand_entry++;
 						rand_entry =
-							wlan_11h_get_random_num
-							(adapter) %
+							rand_entry %
 							chn_tbl->num_cfp;
 						start_chn =
 							(t_u8)chn_tbl->
 							pcfp[rand_entry].
 							channel;
-					} while ((wlan_11h_is_channel_under_nop
-						  (adapter, start_chn) ||
-						  ((adapter->state_rdh.stage ==
-						    RDH_GET_INFO_CHANNEL) &&
-						   wlan_11h_radar_detect_required
-						   (priv, start_chn)))
-						 && (++rand_tries <
-						     MAX_RANDOM_CHANNEL_RETRIES));
+						PRINTM(MINFO,
+						       "start chan=%d rand_entry=%d\n",
+						       start_chn, rand_entry);
+					}
+
+					if (rand_tries == chn_tbl->num_cfp) {
+						PRINTM(MERROR,
+						       "Failed to get UAP start channel\n");
+						start_chn = 0;
+					}
 				}
 			}
 		}
@@ -1838,6 +1886,10 @@ wlan_11h_init(mlan_adapter *adapter)
 	pstate_rdh->max_bcn_dtim_ms = 0;
 	memset(adapter, pstate_rdh->priv_list, 0,
 	       sizeof(pstate_rdh->priv_list));
+
+	/* Initialize dfs channel switch count */
+#define DFS_CS_COUNT 5
+	adapter->dfs_cs_count = DFS_CS_COUNT;
 
 #ifdef DFS_TESTING_SUPPORT
 	/* Initialize DFS testing struct */
@@ -2795,6 +2847,38 @@ wlan_11h_ioctl_dfs_testing(pmlan_adapter pmadapter, pmlan_ioctl_req pioctl_req)
 #endif /* DFS_TESTING_SUPPORT */
 
 /**
+ *  @brief 802.11h DFS Channel Switch Count Configuration
+ *
+ *  @param pmadapter    Pointer to mlan_adapter
+ *  @param pioctl_req   Pointer to mlan_ioctl_req
+ *
+ *  @return MLAN_STATUS_SUCCESS or MLAN_STATUS_FAILURE
+ */
+mlan_status
+wlan_11h_ioctl_chan_switch_count(pmlan_adapter pmadapter,
+				 pmlan_ioctl_req pioctl_req)
+{
+	mlan_ds_11h_cfg *ds_11hcfg = MNULL;
+	t_s32 ret = MLAN_STATUS_FAILURE;
+
+	ENTER();
+
+	if (pioctl_req) {
+		ds_11hcfg = (mlan_ds_11h_cfg *)pioctl_req->pbuf;
+
+		if (pioctl_req->action == MLAN_ACT_GET) {
+			ds_11hcfg->param.cs_count = pmadapter->dfs_cs_count;
+		} else {
+			pmadapter->dfs_cs_count = ds_11hcfg->param.cs_count;
+		}
+		ret = MLAN_STATUS_SUCCESS;
+	}
+
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief 802.11h DFS cancel chan report
  *
  *  @param priv         Pointer to mlan_private
@@ -3320,28 +3404,37 @@ wlan_11h_radar_detected_handling(mlan_adapter *pmadapter, mlan_private *pmpriv)
 					   pstate_rdh->curr_channel);
 
 		/* choose new channel (!= curr channel) and move on */
-		i = 0;
-		do {
 #ifdef UAP_SUPPORT
-			if (GET_BSS_ROLE(pmpriv) == MLAN_BSS_ROLE_UAP)
-				pstate_rdh->new_channel =
-					wlan_11h_get_uap_start_channel(pmpriv,
-								       pmpriv->
-								       uap_state_chan_cb.
-								       band_config);
-			else
+		if (GET_BSS_ROLE(pmpriv) == MLAN_BSS_ROLE_UAP)
+			pstate_rdh->new_channel =
+				wlan_11h_get_uap_start_channel(pmpriv,
+							       pmpriv->
+							       uap_state_chan_cb.
+							       band_config);
+		else
 #endif
-				pstate_rdh->new_channel =
-					wlan_11h_get_adhoc_start_channel
-					(pmpriv);
-		} while ((pstate_rdh->new_channel == pstate_rdh->curr_channel) && (++i < MAX_RANDOM_CHANNEL_RETRIES));	/* avoid
-															   deadloop
-															 */
-		if (i >= MAX_RANDOM_CHANNEL_RETRIES)	/* report error */
-			PRINTM(MERROR,
-			       "%s():  ERROR - could not choose new_chan"
-			       " (!= curr_chan) !!\n", __func__);
+			pstate_rdh->new_channel =
+				wlan_11h_get_adhoc_start_channel(pmpriv);
 
+		if (!pstate_rdh->new_channel || (pstate_rdh->new_channel == pstate_rdh->curr_channel)) {	/* report
+														   error
+														 */
+			PRINTM(MERROR,
+			       "%s():  ERROR - Failed to choose new_chan"
+			       " (!= curr_chan) !!\n", __func__);
+#ifdef UAP_SUPPORT
+			if (GET_BSS_ROLE(pmpriv) == MLAN_BSS_ROLE_UAP) {
+				ret = wlan_prepare_cmd(pmpriv,
+						       HOST_CMD_APCMD_BSS_STOP,
+						       HostCmd_ACT_GEN_SET, 0,
+						       MNULL, MNULL);
+				PRINTM(MERROR,
+				       "STOP UAP and exit radar handling...\n");
+				pstate_rdh->stage = RDH_OFF;
+				break;	/* leads to exit case */
+			}
+#endif
+		}
 #ifdef DFS_TESTING_SUPPORT
 		if (!pmadapter->dfs_test_params.no_channel_change_on_radar &&
 		    pmadapter->dfs_test_params.fixed_new_channel_on_radar) {

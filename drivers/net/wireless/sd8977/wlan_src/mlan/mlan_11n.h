@@ -131,10 +131,6 @@ t_u8 wlan_get_second_channel_offset(int chan);
 
 void wlan_update_11n_cap(mlan_private *pmpriv);
 
-/** fill the TDLS HT cap tlv*/
-void wlan_fill_tdls_ht_cap_TLV(mlan_private *priv, MrvlIETypes_HTCap_t *pht_cap,
-			       t_u8 bands);
-
 /** clean up txbastream_tbl */
 void wlan_11n_cleanup_txbastream_tbl(mlan_private *priv, t_u8 *ra);
 /**

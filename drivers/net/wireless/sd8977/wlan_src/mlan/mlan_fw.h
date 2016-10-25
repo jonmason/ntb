@@ -427,6 +427,9 @@ typedef enum _WLAN_802_11_WEP_STATUS {
 /** TLV type: wake up source */
 #define TLV_TYPE_HS_WAKEUP_SOURCE_GPIO     (PROPRIETARY_TLV_BASE_ID + 0x105)	/* 0x0205
 										 */
+/** TLV type: management filter  */
+#define TLV_TYPE_MGMT_FRAME_WAKEUP     (PROPRIETARY_TLV_BASE_ID + 0x116)	/* 0x0216
+										 */
 
 /** TLV type : TDLS IDLE TIMEOUT */
 #define TLV_TYPE_TDLS_IDLE_TIMEOUT   (PROPRIETARY_TLV_BASE_ID + 0xC2)	/* 0x01C2
@@ -1632,6 +1635,8 @@ typedef enum _ENH_PS_MODES {
 
 #define EVENT_NLIST_REPORT     0x00000079
 
+#define EVENT_EXCEED_MAX_P2P_CONN     0x00000089
+
 #define EVENT_FW_DUMP_INFO      0x00000073
 /** Event ID mask */
 #define EVENT_ID_MASK                   0xffff
@@ -1836,8 +1841,8 @@ typedef MLAN_PACK_START struct _TxPD {
 	t_u8 reserved1[2];
     /** Trasnit Pkt Token Id*/
 	t_u8 tx_token_id;
-    /** reserverd */
-	t_u8 reserved[2];
+    /** reserved */
+	t_u8 reserved2[2];
 } MLAN_PACK_END TxPD, *PTxPD;
 
 /** RxPD Descriptor */
@@ -3562,6 +3567,31 @@ typedef MLAN_PACK_START struct _HostCmd_DS_COALESCE_CONFIG {
 	struct coalesce_receive_filt_rule rule[0];
 } MLAN_PACK_END HostCmd_DS_COALESCE_CONFIG;
 
+/** TLV type : FW support max connection TLV */
+#define TLV_TYPE_MAX_CONN      (PROPRIETARY_TLV_BASE_ID + 0x117)	/* 0x0217
+									 */
+/** MrvlIEtypes_Max_Conn_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_Max_Conn_t {
+    /** Header */
+	MrvlIEtypesHeader_t header;
+    /** FW support max P2P connection */
+	t_u8 max_p2p_conn;
+    /** FW support max STA connection */
+	t_u8 max_sta_conn;
+} MLAN_PACK_END MrvlIEtypes_Max_Conn_t;
+
+/** exceed max p2p connection event */
+typedef MLAN_PACK_START struct _event_exceed_max_p2p_conn {
+    /** Event ID */
+	t_u16 event_id;
+    /** BSS index number for multiple BSS support */
+	t_u8 bss_index;
+    /** BSS type */
+	t_u8 bss_type;
+    /** When exceed max, the mac address who request p2p connect */
+	t_u8 peer_mac_addr[MLAN_MAC_ADDR_LENGTH];
+} MLAN_PACK_END event_exceed_max_p2p_conn;
+
 #ifdef STA_SUPPORT
 
 /**
@@ -4832,6 +4862,60 @@ typedef MLAN_PACK_START struct _MrvlIEtypes_WakeupSourceGPIO_t {
 	t_u8 level;
 } MLAN_PACK_END MrvlIEtypes_WakeupSourceGPIO_t;
 
+#define EVENT_MANAGEMENT_FRAME_WAKEUP 136
+typedef MLAN_PACK_START struct _mgmt_frame_filter {
+    /** action - bitmap
+     ** On matching rx'd pkt and filter during NON_HOSTSLEEP mode:
+     **   Action[1]=0  Discard
+     **   Action[1]=1  Allow
+     ** Note that default action on non-match is "Allow".
+     **
+     ** On matching rx'd pkt and filter during HOSTSLEEP mode:
+     **   Action[1:0]=00  Discard and Not Wake host
+     **   Action[1:0]=01  Discard and Wake host
+     **   Action[1:0]=10  Invalid
+     ** Note that default action on non-match is "Discard and Not Wake host".
+     **/
+	t_u8 action;
+    /** Frame type(p2p...)
+     ** type=0: invalid
+     ** type=1: p2p
+     ** type=0xff: management frames(assoc req/rsp, probe req/rsp,...)
+     ** type=others: reserved
+     **/
+	t_u8 type;
+    /** Frame mask according to each type
+     ** When type=1 for p2p, frame-mask have following define:
+     **    Bit      Frame
+     **     0       GO Negotiation Request
+     **     1       GO Negotiation Response
+     **     2       GO Negotiation Confirmation
+     **     3       P2P Invitation Request
+     **     4       P2P Invitation Response
+     **     5       Device Discoverability Request
+     **     6       Device Discoverability Response
+     **     7       Provision Discovery Request
+     **     8       Provision Discovery Response
+     **     9       Notice of Absence
+     **     10      P2P Presence Request
+     **     11      P2P Presence Response
+     **     12      GO Discoverability Request
+     **     13-31   Reserved
+     **
+     ** When type=others, frame-mask is reserved.
+     **/
+	t_u32 frame_mask;
+} MLAN_PACK_END mgmt_frame_filter;
+
+#define MAX_MGMT_FRAME_FILTER 2
+/** MrvlIEtypes_MgmtFrameFilter_t */
+typedef MLAN_PACK_START struct _MrvlIEtypes_MgmtFrameFilter_t {
+    /** Header */
+	MrvlIEtypesHeader_t header;
+    /** management frame filters */
+	mgmt_frame_filter filter[MAX_MGMT_FRAME_FILTER];
+} MLAN_PACK_END MrvlIEtypes_MgmtFrameFilter_t;
+
 /** HostCmd_DS_INACTIVITY_TIMEOUT_EXT */
 typedef MLAN_PACK_START struct _HostCmd_DS_INACTIVITY_TIMEOUT_EXT {
     /** ACT_GET/ACT_SET */
@@ -5967,6 +6051,7 @@ typedef struct MLAN_PACK_START _HostCmd_DS_COMMAND {
 
 	/** RF antenna */
 		HostCmd_DS_802_11_RF_ANTENNA antenna;
+
 	/** Enhanced power save command */
 		HostCmd_DS_802_11_PS_MODE_ENH psmode_enh;
 		HostCmd_DS_802_11_HS_CFG_ENH opt_hs_cfg;

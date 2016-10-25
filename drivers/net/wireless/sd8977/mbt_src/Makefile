@@ -18,6 +18,7 @@ YMD=		`date +%Y%m%d%H%M`
 # 1: PRINTM(MSG,...), PRINTM(FATAL,...), PRINTM(WARN,...) and PRINTM(INFO,...)
 # 2: All PRINTM()
 CONFIG_DEBUG=1
+CONFIG_BT_MULTI_INTERFACE=n
 
 # SDIO suspend/resume
 CONFIG_SDIO_SUSPEND_RESUME=y
@@ -77,6 +78,10 @@ ifeq ($(CONFIG_DEBUG),2)
 	DBG=	-dbg
 endif
 
+ifeq ($(CONFIG_BT_MULTI_INTERFACE),y)
+	EXTRA_CFLAGS += -DBT_MULTI_INTERFACE
+endif
+
 ifeq ($(CONFIG_SDIO_SUSPEND_RESUME),y)
 	EXTRA_CFLAGS += -DSDIO_SUSPEND_RESUME
 endif
@@ -99,8 +104,13 @@ BTOBJS = bt/bt_main.o bt/bt_sdiommc.o bt/bt_proc.o bt/mbt_char.o
 
 BTOBJS += bt/bt_init.o
 
+ifeq ($(CONFIG_BT_MULTI_INTERFACE), y)
+obj-$(CONFIG_MRVL_BT_DRIVER) := bt8xxx_sdio.o
+bt8xxx_sdio-objs := $(BTOBJS)
+else
 obj-$(CONFIG_MRVL_BT_DRIVER) := bt8xxx.o
 bt8xxx-objs := $(BTOBJS)
+endif
 
 
 

@@ -587,7 +587,6 @@ mon_process:
 								 sizeof
 								 (radiotap_info)));
 	}
-
 	ret = pmadapter->callbacks.moal_recv_packet(pmadapter->pmoal_handle,
 						    pmbuf);
 	if (ret == MLAN_STATUS_FAILURE) {

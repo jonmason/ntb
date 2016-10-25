@@ -148,6 +148,9 @@ extern mlan_status
 
 wlan_11h_ioctl_dfs_cancel_chan_report(mlan_private *priv,
 				      pmlan_ioctl_req pioctl_req);
+extern
+mlan_status wlan_11h_ioctl_chan_switch_count(pmlan_adapter pmadapter,
+					     pmlan_ioctl_req pioctl_req);
 
 /** Check if channel is under a NOP duration (should not be used) */
 extern t_bool wlan_11h_is_channel_under_nop(mlan_adapter *pmadapter,

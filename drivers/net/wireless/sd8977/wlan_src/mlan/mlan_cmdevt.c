@@ -1712,6 +1712,7 @@ wlan_process_cmdresp(mlan_adapter *pmadapter)
 			|| pmpriv_next->bss_virtual))
 			i++;
 		if (!pmpriv_next || i >= pmadapter->priv_num) {
+
 #if defined(STA_SUPPORT)
 			if (pmadapter->pwarm_reset_ioctl_req) {
 				/* warm reset complete */
@@ -4109,6 +4110,8 @@ wlan_ret_get_hw_spec(IN pmlan_private pmpriv,
 	t_u16 api_id = 0;
 	MrvlIEtypesHeader_t *tlv = MNULL;
 	pmlan_ioctl_req pioctl_req = (mlan_ioctl_req *)pioctl_buf;
+	MrvlIEtypes_Max_Conn_t *tlv_max_conn = MNULL;
+
 	ENTER();
 
 	pmadapter->fw_cap_info = wlan_le32_to_cpu(hw_spec->fw_cap_info);
@@ -4332,6 +4335,15 @@ wlan_ret_get_hw_spec(IN pmlan_private pmpriv,
 			default:
 				break;
 			}
+			break;
+		case TLV_TYPE_MAX_CONN:
+			tlv_max_conn = (MrvlIEtypes_Max_Conn_t *) tlv;
+			pmadapter->max_p2p_conn = tlv_max_conn->max_p2p_conn;
+			PRINTM(MMSG, "max_p2p_conn = %d\n",
+			       pmadapter->max_p2p_conn);
+			pmadapter->max_sta_conn = tlv_max_conn->max_sta_conn;
+			PRINTM(MMSG, "max_sta_conn = %d\n",
+			       pmadapter->max_sta_conn);
 			break;
 		default:
 			break;

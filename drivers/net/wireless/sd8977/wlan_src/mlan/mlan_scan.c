@@ -1242,7 +1242,8 @@ wlan_scan_setup_scan_config(IN mlan_private *pmpriv,
 		memset(pmadapter, pvht_cap, 0, sizeof(MrvlIETypes_VHTCap_t));
 		pvht_cap->header.type = wlan_cpu_to_le16(VHT_CAPABILITY);
 		pvht_cap->header.len = sizeof(VHT_capa_t);
-		wlan_fill_vht_cap_tlv(pmpriv, pvht_cap, pmpriv->config_bands);
+		wlan_fill_vht_cap_tlv(pmpriv, pvht_cap, pmpriv->config_bands,
+				      MFALSE);
 		HEXDUMP("SCAN: VHT_CAPABILITIES IE", (t_u8 *)pvht_cap,
 			sizeof(MrvlIETypes_VHTCap_t));
 		ptlv_pos += sizeof(MrvlIETypes_VHTCap_t);

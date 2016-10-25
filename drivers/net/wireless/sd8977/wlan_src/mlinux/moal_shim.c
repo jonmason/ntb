@@ -55,8 +55,10 @@ extern int hw_test;
 #ifdef ANDROID_KERNEL
 extern int wakelock_timeout;
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 extern int dfs_offload;
+#endif
 #endif
 
 /********************************************************

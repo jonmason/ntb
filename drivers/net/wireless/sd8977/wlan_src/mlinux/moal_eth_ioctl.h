@@ -108,6 +108,7 @@ Change log:
 #endif
 #define PRIV_CMD_HSCFG          "hscfg"
 #define PRIV_CMD_HSSETPARA      "hssetpara"
+#define PRIV_CMD_MGMT_FILTER    "mgmtfilter"
 #define PRIV_CMD_SCANCFG        "scancfg"
 #define PRIV_CMD_SET_BSS_MODE   "setbssmode"
 #ifdef STA_SUPPORT
@@ -236,7 +237,9 @@ Change log:
 
 #define PRIV_CMD_TDLS_IDLE_TIME          "tdls_idle_time"
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 #define PRIV_CMD_DFS_OFFLOAD            "dfs_offload"
+#endif
 
 #if defined(SDIO_SUSPEND_RESUME)
 #define PRIV_CMD_AUTO_ARP	"auto_arp"

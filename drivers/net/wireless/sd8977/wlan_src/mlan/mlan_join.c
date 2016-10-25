@@ -1810,7 +1810,8 @@ wlan_cmd_802_11_ad_hoc_start(IN mlan_private *pmpriv,
 						 tx_max_rate);
 
 			wlan_fill_vht_cap_tlv(pmpriv, pvht_cap,
-					      pmadapter->adhoc_start_band);
+					      pmadapter->adhoc_start_band,
+					      MTRUE);
 			HEXDUMP("VHT_CAPABILITIES IE", (t_u8 *)pvht_cap,
 				sizeof(MrvlIETypes_VHTCap_t));
 			pos += sizeof(MrvlIETypes_VHTCap_t);

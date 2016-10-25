@@ -1286,6 +1286,9 @@ wlan_ops_sta_process_event(IN t_void *priv)
 		}
 		break;
 
+	case EVENT_MANAGEMENT_FRAME_WAKEUP:
+		PRINTM(MEVENT, "EVENT: EVENT_MANAGEMENT_FRAME_WAKEUP HOST\n");
+		break;
 	default:
 		PRINTM(MEVENT, "EVENT: unknown event id: %#x\n", eventcause);
 		wlan_recv_event(pmpriv, MLAN_EVENT_ID_FW_UNKNOWN, MNULL);

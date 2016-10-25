@@ -155,6 +155,7 @@ enum _mlan_ioctl_req_id {
 #endif /* UAP_SUPPORT */
 	MLAN_OID_PM_INFO = 0x0009000A,
 	MLAN_OID_PM_HS_WAKEUP_REASON = 0x0009000B,
+	MLAN_OID_PM_MGMT_FILTER = 0x0009000C,
 
 	/* WMM Configuration Group */
 	MLAN_IOCTL_WMM_CFG = 0x000A0000,
@@ -215,6 +216,7 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_11H_DFS_TESTING = 0x00110003,
 #endif
 	MLAN_OID_11H_CHAN_REPORT_REQUEST = 0x00110004,
+	MLAN_OID_11H_CHAN_SWITCH_COUNT = 0x00110005,
 
 	/* 802.11n Configuration Group RANDYTODO for value assign */
 	MLAN_IOCTL_11AC_CFG = 0x00120000,
@@ -288,6 +290,8 @@ enum _mlan_ioctl_req_id {
 	MLAN_OID_MISC_GET_CHAN_REGION_CFG = 0x00200046,
 	MLAN_OID_MISC_OPER_CLASS_CHECK = 0x00200049,
 	MLAN_OID_MISC_DRCS_CFG = 0x00200050,
+
+	MLAN_OID_MISC_CWMODE_CTRL = 0x00200051,
 
 };
 
@@ -1614,6 +1618,8 @@ typedef struct _mlan_fw_info {
 	t_u8 fw_supplicant_support;
     /** ant info */
 	t_u8 antinfo;
+    /** FW support max P2P connection */
+	t_u8 max_p2p_conn;
 } mlan_fw_info, *pmlan_fw_info;
 
 /** Version string buffer length */
@@ -2607,6 +2613,50 @@ typedef struct _mlan_ds_hs_cfg {
 	t_u32 level;
 } mlan_ds_hs_cfg, *pmlan_ds_hs_cfg;
 
+#define MAX_MGMT_FRAME_FILTER 2
+typedef struct _mlan_mgmt_frame_wakeup {
+    /** action - bitmap
+     ** On matching rx'd pkt and filter during NON_HOSTSLEEP mode:
+     **   Action[1]=0  Discard
+     **   Action[1]=1  Allow
+     ** Note that default action on non-match is "Allow".
+     **
+     ** On matching rx'd pkt and filter during HOSTSLEEP mode:
+     **   Action[1:0]=00  Discard and Not Wake host
+     **   Action[1:0]=01  Discard and Wake host
+     **   Action[1:0]=10  Invalid
+     ** Note that default action on non-match is "Discard and Not Wake host".
+     **/
+	t_u32 action;
+    /** Frame type(p2p, tdls...)
+     ** type=0: invalid
+     ** type=1: p2p
+     ** type=others: reserved
+     **/
+	t_u32 type;
+    /** Frame mask according to each type
+     ** When type=1 for p2p, frame-mask have following define:
+     **    Bit      Frame
+     **     0       GO Negotiation Request
+     **     1       GO Negotiation Response
+     **     2       GO Negotiation Confirmation
+     **     3       P2P Invitation Request
+     **     4       P2P Invitation Response
+     **     5       Device Discoverability Request
+     **     6       Device Discoverability Response
+     **     7       Provision Discovery Request
+     **     8       Provision Discovery Response
+     **     9       Notice of Absence
+     **     10      P2P Presence Request
+     **     11      P2P Presence Response
+     **     12      GO Discoverability Request
+     **     13-31   Reserved
+     **
+     ** When type=others, frame-mask is reserved.
+     **/
+	t_u32 frame_mask;
+} mlan_mgmt_frame_wakeup, *pmlan_mgmt_frame_wakeup;
+
 /** Enable deep sleep mode */
 #define DEEP_SLEEP_ON  1
 /** Disable deep sleep mode */
@@ -2809,6 +2859,8 @@ typedef struct _mlan_ds_pm_cfg {
 		mlan_ds_ps_info ps_info;
 	/** hs wakeup reason for MLAN_OID_PM_HS_WAKEUP_REASON */
 		mlan_ds_hs_wakeup_reason wakeup_reason;
+	/** config manamgement frame for hs wakeup */
+		mlan_mgmt_frame_wakeup mgmt_filter[MAX_MGMT_FRAME_FILTER];
 	} param;
 } mlan_ds_pm_cfg, *pmlan_ds_pm_cfg;
 
@@ -3525,6 +3577,7 @@ typedef struct _mlan_ds_11h_cfg {
 		mlan_ds_11h_dfs_testing dfs_testing;
 #endif
 		mlan_ds_11h_chan_rep_req chan_rpt_req;
+		t_s8 cs_count;
 	} param;
 } mlan_ds_11h_cfg, *pmlan_ds_11h_cfg;
 

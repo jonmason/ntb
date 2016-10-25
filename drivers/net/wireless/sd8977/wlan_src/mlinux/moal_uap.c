@@ -40,7 +40,9 @@ Change log:
 /********************************************************
 		Global Variables
 ********************************************************/
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 extern int dfs_offload;
+#endif
 /********************************************************
 		Local Functions
 ********************************************************/
@@ -865,6 +867,81 @@ done:
 	return ret;
 }
 #endif
+
+/**
+ *  @brief configure channel switch count
+ *
+ *  @param dev      A pointer to net_device structure
+ *  @param req      A pointer to ifreq structure
+ *  @return         0 --success, otherwise fail
+ */
+static int
+woal_uap_chan_switch_count_cfg(struct net_device *dev, struct ifreq *req)
+{
+	moal_private *priv = (moal_private *)netdev_priv(dev);
+	mlan_ioctl_req *ioctl_req = NULL;
+	mlan_ds_11h_cfg *cfg11h = NULL;
+	cscount_cfg_t param;
+	int ret = 0;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+
+	ENTER();
+	memset(&param, 0, sizeof(param));
+
+	/* Sanity check */
+	if (req->ifr_data == NULL) {
+		PRINTM(MERROR, "%s corrupt data\n", __func__);
+		ret = -EFAULT;
+		goto done;
+	}
+
+	/* Copy from user */
+	if (copy_from_user(&param, req->ifr_data, sizeof(param))) {
+		PRINTM(MERROR, "Copy from user failed\n");
+		ret = -EFAULT;
+		goto done;
+	}
+	DBG_HEXDUMP(MCMD_D, "cscount_cfg_t", (t_u8 *)&param, sizeof(param));
+
+	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_11h_cfg));
+	if (ioctl_req == NULL) {
+		LEAVE();
+		return -ENOMEM;
+	}
+	cfg11h = (mlan_ds_11h_cfg *)ioctl_req->pbuf;
+	ioctl_req->req_id = MLAN_IOCTL_11H_CFG;
+	cfg11h->sub_command = MLAN_OID_11H_CHAN_SWITCH_COUNT;
+
+	if (!param.action) {
+		/* Get mib value from MLAN */
+		ioctl_req->action = MLAN_ACT_GET;
+	} else {
+		/* Set mib value to MLAN */
+		ioctl_req->action = MLAN_ACT_SET;
+		cfg11h->param.cs_count = param.cs_count;
+	}
+	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+	if (!param.action) {	/* GET */
+		param.cs_count = cfg11h->param.cs_count;
+	}
+	/* Copy to user */
+	if (copy_to_user(req->ifr_data, &param, sizeof(param))) {
+		PRINTM(MERROR, "Copy to user failed!\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(ioctl_req);
+	LEAVE();
+	return ret;
+}
 
 /**
  *  @brief Configure TX beamforming support
@@ -1979,6 +2056,9 @@ woal_uap_ioctl(struct net_device *dev, struct ifreq *req)
 		ret = woal_uap_dfs_testing(dev, req);
 		break;
 #endif
+	case UAP_CHAN_SWITCH_COUNT_CFG:
+		ret = woal_uap_chan_switch_count_cfg(dev, req);
+		break;
 	case UAP_DOMAIN_INFO:
 		ret = woal_uap_domain_info(dev, req);
 		break;
@@ -3649,7 +3729,11 @@ woal_uap_bss_ctrl(moal_private *priv, t_u8 wait_option, int data)
 		if (priv->bss_started == MTRUE) {
 			PRINTM(MWARN, "Warning: BSS already started!\n");
 			/* goto done; */
-		} else if (!priv->uap_host_based || dfs_offload) {
+		} else if (!priv->uap_host_based
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+			   || dfs_offload
+#endif
+			) {
 			woal_do_acs_check(priv);
 			/* about to start bss: issue channel check */
 			woal_11h_channel_check_ioctl(priv, MOAL_IOCTL_WAIT);

@@ -2039,6 +2039,8 @@ typedef struct _mlan_adapter {
 	wlan_dfs_device_state_t state_dfs;
     /** FSM variable for RDH support */
 	wlan_radar_det_hndlg_state_t state_rdh;
+    /** variable to configure dfs channel switch count */
+	t_s8 dfs_cs_count;
 #ifdef DFS_TESTING_SUPPORT
     /** User configured settings for DFS testing */
 	wlan_dfs_testing_settings_t dfs_test_params;
@@ -2218,6 +2220,8 @@ typedef struct _mlan_adapter {
 	t_u32 ind_gpio;
     /** Level on ind_gpio pin for indication normal wakeup source */
 	t_u32 level;
+    /** management frame wakeup filter config */
+	mlan_mgmt_frame_wakeup mgmt_filter[MAX_MGMT_FRAME_FILTER];
 
     /** Bypass TX queue pkt count  */
 	t_u16 bypass_pkt_count;
@@ -2249,6 +2253,8 @@ typedef struct _mlan_adapter {
 	/** fw rx block size */
 	t_u16 sdio_rx_block_size;
 	t_u8 chanrpt_param_bandcfg;
+	t_u8 max_p2p_conn;
+	t_u8 max_sta_conn;
 } mlan_adapter, *pmlan_adapter;
 
 /** Check if stream 2X2 enabled */

@@ -694,7 +694,11 @@ int
 bt_root_proc_init(void)
 {
 	PRINTM(INFO, "BT: Create Proc Interface\n");
+#ifdef BT_MULTI_INTERFACE
+	proc_mbt = proc_mkdir("mbt_s", PROC_DIR);
+#else
 	proc_mbt = proc_mkdir("mbt", PROC_DIR);
+#endif
 	if (!proc_mbt) {
 		PRINTM(ERROR, "BT: Cannot create proc interface\n");
 		return BT_STATUS_FAILURE;
@@ -711,7 +715,11 @@ bt_root_proc_init(void)
 int
 bt_root_proc_remove(void)
 {
+#ifdef BT_MULTI_INTERFACE
+	remove_proc_entry("mbt_s", PROC_DIR);
+#else
 	remove_proc_entry("mbt", PROC_DIR);
+#endif
 	proc_mbt = NULL;
 	return BT_STATUS_SUCCESS;
 }

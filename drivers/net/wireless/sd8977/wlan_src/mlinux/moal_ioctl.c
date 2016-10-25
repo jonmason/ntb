@@ -33,7 +33,9 @@ Change log:
 
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 #include "moal_cfg80211.h"
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 #include "moal_cfgvendor.h"
+#endif
 #endif
 
 /********************************************************
@@ -118,8 +120,10 @@ extern const struct net_device_ops woal_netdev_ops;
 extern int cfg80211_wext;
 int disconnect_on_suspend;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 extern int dfs_offload;
+#endif
 #endif
 
 /** gtk rekey offload mode */
@@ -480,12 +484,18 @@ woal_cac_period_block_cmd(moal_private *priv, pmlan_ioctl_req req)
 		break;
 	case MLAN_IOCTL_BSS:
 		if (sub_command == MLAN_OID_BSS_STOP ||
-#ifdef UAP_SUPPORT
-		    sub_command == MLAN_OID_UAP_BSS_CONFIG ||
-#endif
 		    sub_command == MLAN_OID_BSS_CHANNEL
 		    /* sub_command == MLAN_OID_BSS_ROLE */ )
 			ret = MTRUE;
+#ifdef UAP_SUPPORT
+		else if (sub_command == MLAN_OID_UAP_BSS_CONFIG) {
+			mlan_ds_bss *bss = (mlan_ds_bss *)req->pbuf;
+			if (bss->param.bss_config.channel)
+				ret = MTRUE;
+			else
+				ret = MFALSE;
+		}
+#endif
 		break;
 	case MLAN_IOCTL_RADIO_CFG:
 		if (sub_command == MLAN_OID_BAND_CFG)

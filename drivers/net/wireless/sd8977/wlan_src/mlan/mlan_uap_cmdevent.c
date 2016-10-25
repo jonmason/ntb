@@ -4260,6 +4260,7 @@ wlan_ops_uap_process_event(IN t_void *priv)
 	t_u8 channel = 0;
 	MrvlIEtypes_channel_band_t *pchan_info = MNULL;
 	chan_band_info *pchan_band_info = MNULL;
+	event_exceed_max_p2p_conn *event_excd_p2p = MNULL;
 
 	ENTER();
 
@@ -4601,6 +4602,15 @@ wlan_ops_uap_process_event(IN t_void *priv)
 	case EVENT_BT_COEX_WLAN_PARA_CHANGE:
 		PRINTM(MEVENT, "EVENT: BT coex wlan param update\n");
 		wlan_bt_coex_wlan_param_update_event(pmpriv, pmbuf);
+		break;
+	case EVENT_EXCEED_MAX_P2P_CONN:
+		event_excd_p2p =
+			(event_exceed_max_p2p_conn *) (pmbuf->pbuf +
+						       pmbuf->data_offset);
+		PRINTM(MEVENT, "EVENT: EXCEED MAX P2P CONNECTION\n");
+		PRINTM(MEVENT, "REQUEST P2P MAC: " MACSTR "\n",
+		       MAC2STR(event_excd_p2p->peer_mac_addr));
+		pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;
 		break;
 	default:
 		pevent->event_id = MLAN_EVENT_ID_DRV_PASSTHRU;

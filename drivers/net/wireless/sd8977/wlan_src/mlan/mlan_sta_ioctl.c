@@ -457,6 +457,7 @@ wlan_get_info_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		pget_info->param.fw_info.fw_supplicant_support =
 			IS_FW_SUPPORT_SUPPLICANT(pmadapter) ? 0x01 : 0x00;
 		pget_info->param.fw_info.antinfo = pmadapter->antinfo;
+		pget_info->param.fw_info.max_p2p_conn = pmadapter->max_p2p_conn;
 		break;
 	case MLAN_OID_GET_BSS_INFO:
 		status = wlan_get_info_bss_info(pmadapter, pioctl_req);
@@ -766,29 +767,27 @@ wlan_bss_ioctl_mac_address(IN pmlan_adapter pmadapter,
 {
 	mlan_private *pmpriv = pmadapter->priv[pioctl_req->bss_index];
 	mlan_ds_bss *bss = MNULL;
+	t_u16 cmd_action;
 	mlan_status ret = MLAN_STATUS_SUCCESS;
+
 	ENTER();
+
 	bss = (mlan_ds_bss *)pioctl_req->pbuf;
 	if (pioctl_req->action == MLAN_ACT_GET) {
-		pioctl_req->data_read_written =
-			MLAN_MAC_ADDR_LENGTH + MLAN_SUB_COMMAND_SIZE;
-		memcpy(pmadapter, &bss->param.mac_addr, pmpriv->curr_addr,
+		cmd_action = HostCmd_ACT_GEN_GET;
+	} else {
+		cmd_action = HostCmd_ACT_GEN_SET;
+		memcpy(pmadapter, pmpriv->curr_addr, &bss->param.mac_addr,
 		       MLAN_MAC_ADDR_LENGTH);
-		ret = MLAN_STATUS_SUCCESS;
-		goto exit;
 	}
-
-	memcpy(pmadapter, pmpriv->curr_addr, &bss->param.mac_addr,
-	       MLAN_MAC_ADDR_LENGTH);
 
 	/* Send request to firmware */
 	ret = wlan_prepare_cmd(pmpriv,
 			       HostCmd_CMD_802_11_MAC_ADDRESS,
-			       HostCmd_ACT_GEN_SET,
-			       0, (t_void *)pioctl_req, MNULL);
+			       cmd_action, 0, (t_void *)pioctl_req, MNULL);
 	if (ret == MLAN_STATUS_SUCCESS)
 		ret = MLAN_STATUS_PENDING;
-exit:
+
 	LEAVE();
 	return ret;
 }
@@ -2418,6 +2417,40 @@ wlan_set_get_sleep_params(IN pmlan_adapter pmadapter,
 }
 
 /**
+ *  @brief config management frame wakeup filter
+ *
+ *  @param pmadapter	A pointer to mlan_adapter structure
+ *  @param pioctl_req	A pointer to ioctl request buffer
+ *
+ *  @return		        MLAN_STATUS_PENDING --success, otherwise fail
+ */
+static mlan_status
+wlan_config_mgmt_filter(IN pmlan_adapter pmadapter,
+			IN pmlan_ioctl_req pioctl_req)
+{
+	mlan_status ret = MLAN_STATUS_SUCCESS;
+	mlan_ds_pm_cfg *pm_cfg = MNULL;
+	int i = 0;
+
+	ENTER();
+
+	memset(pmadapter, pmadapter->mgmt_filter, 0,
+	       sizeof(mlan_mgmt_frame_wakeup) * MAX_MGMT_FRAME_FILTER);
+	pm_cfg = (mlan_ds_pm_cfg *)pioctl_req->pbuf;
+	if (pioctl_req->action == MLAN_ACT_SET) {
+		for (i = 0; i < MAX_MGMT_FRAME_FILTER; i++)
+			if (!pm_cfg->param.mgmt_filter[i].type)
+				break;
+		memcpy(pmadapter, (t_u8 *)pmadapter->mgmt_filter,
+		       (t_u8 *)pm_cfg->param.mgmt_filter,
+		       (i + 1) * sizeof(mlan_mgmt_frame_wakeup));
+	} else if (pioctl_req->action == MLAN_ACT_GET)
+		PRINTM(MERROR, "Get not support\n");
+	LEAVE();
+	return ret;
+}
+
+/**
  *  @brief Power save command handler
  *
  *  @param pmadapter	A pointer to mlan_adapter structure
@@ -2523,6 +2556,9 @@ wlan_pm_ioctl(IN pmlan_adapter pmadapter, IN pmlan_ioctl_req pioctl_req)
 		break;
 	case MLAN_OID_PM_HS_WAKEUP_REASON:
 		status = wlan_get_hs_wakeup_reason(pmadapter, pioctl_req);
+		break;
+	case MLAN_OID_PM_MGMT_FILTER:
+		status = wlan_config_mgmt_filter(pmadapter, pioctl_req);
 		break;
 	default:
 		pioctl_req->status_code = MLAN_ERROR_IOCTL_INVALID;

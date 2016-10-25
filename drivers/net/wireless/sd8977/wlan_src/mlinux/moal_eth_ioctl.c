@@ -83,7 +83,9 @@ extern const struct net_device_ops woal_netdev_ops;
 #endif
 extern int cfg80211_wext;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 extern int dfs_offload;
+#endif
 extern int hw_test;
 /********************************************************
 			Local Functions
@@ -3663,6 +3665,78 @@ done:
 }
 
 #endif
+
+/**
+ *  @brief management frame filter wakeup config
+ *
+ *  @param priv             A pointer to moal_private structure
+ *  @param respbuf          A pointer to response buffer
+ *  @param respbuflen       Available length of response buffer
+ *
+ *  @return             0 --success, otherwise fail
+ */
+int
+woal_priv_mgmt_filter(moal_private *priv, t_u8 *respbuf, t_u32 respbuflen)
+{
+	mlan_ioctl_req *ioctl_req = NULL;
+	mlan_ds_pm_cfg *pm_cfg = NULL;
+	mlan_status status = MLAN_STATUS_SUCCESS;
+	int header_len = 0, data_len = 0;
+	int ret = 0;
+	t_u16 action;
+	t_u8 *argument;
+
+	ENTER();
+
+	if (!priv || !priv->phandle) {
+		PRINTM(MERROR, "priv or handle is null\n");
+		ret = -EFAULT;
+		goto done;
+	}
+
+	ioctl_req = woal_alloc_mlan_ioctl_req(sizeof(mlan_ds_misc_cfg));
+	if (ioctl_req == NULL) {
+		ret = -ENOMEM;
+		goto done;
+	}
+
+	pm_cfg = (mlan_ds_pm_cfg *)ioctl_req->pbuf;
+	pm_cfg->sub_command = MLAN_OID_PM_MGMT_FILTER;
+	ioctl_req->req_id = MLAN_IOCTL_PM_CFG;
+
+	header_len = strlen(PRIV_CMD_MGMT_FILTER) + strlen(CMD_MARVELL);
+
+	if (strlen(respbuf) == header_len) {
+		/* GET operation */
+		action = MLAN_ACT_GET;
+	} else {
+		/* SET operation */
+		argument = (t_u8 *)(respbuf + header_len);
+		data_len = respbuflen - header_len;
+		if (data_len >
+		    MAX_MGMT_FRAME_FILTER * sizeof(mlan_mgmt_frame_wakeup)) {
+			PRINTM(MERROR, "%d: Invalid arguments\n", __LINE__);
+			ret = -EINVAL;
+			goto done;
+		}
+		memcpy((t_u8 *)pm_cfg->param.mgmt_filter, argument, data_len);
+		action = MLAN_ACT_SET;
+	}
+
+	ioctl_req->action = action;
+	status = woal_request_ioctl(priv, ioctl_req, MOAL_IOCTL_WAIT);
+	if (status != MLAN_STATUS_SUCCESS) {
+		ret = -EFAULT;
+		goto done;
+	}
+
+done:
+	if (status != MLAN_STATUS_PENDING)
+		kfree(ioctl_req);
+
+	LEAVE();
+	return ret;
+}
 
 /**
  *  @brief Set/Get Host Sleep configuration
@@ -11178,6 +11252,7 @@ done:
 	return ret;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 /**
  * @brief               Enable/disable DFS offload
@@ -11233,6 +11308,8 @@ done:
 	return ret;
 }
 #endif
+#endif
+
 /**
  * @brief               Set/Get TDLS CS off channel value
  *
@@ -12252,6 +12329,13 @@ woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 						  priv_cmd.total_len);
 			goto handled;
 		} else if (strnicmp
+			   (buf + strlen(CMD_MARVELL), PRIV_CMD_MGMT_FILTER,
+			    strlen(PRIV_CMD_MGMT_FILTER)) == 0) {
+			/* Management frame filter wakeup */
+			len = woal_priv_mgmt_filter(priv, buf,
+						    priv_cmd.total_len);
+			goto handled;
+		} else if (strnicmp
 			   (buf + strlen(CMD_MARVELL), PRIV_CMD_SCANCFG,
 			    strlen(PRIV_CMD_SCANCFG)) == 0) {
 			/* Scan configuration */
@@ -12919,6 +13003,7 @@ woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 			len = woal_priv_get_sensor_temp(priv, buf,
 							priv_cmd.total_len);
 			goto handled;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 #if defined(STA_CFG80211) || defined(UAP_CFG80211)
 		} else if (strnicmp
 			   (buf + strlen(CMD_MARVELL), PRIV_CMD_DFS_OFFLOAD,
@@ -12932,6 +13017,7 @@ woal_android_priv_cmd(struct net_device *dev, struct ifreq *req)
 				len = sprintf(buf,
 					      "CFG80211 is not enabled\n") + 1;
 			goto handled;
+#endif
 #endif
 #if defined(UAP_SUPPORT)
 		} else if (strnicmp

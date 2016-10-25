@@ -2550,6 +2550,11 @@ wlan_cmd_append_11n_tlv(IN mlan_private *pmpriv,
 		    pbss_desc->pvht_oprat->chan_width == VHT_OPER_CHWD_80MHZ) {
 			pchan_list->chan_scan_param[0].radio_type |=
 				CHAN_BW_80MHZ << 2;
+			SET_SECONDARYCHAN(pchan_list->chan_scan_param[0].
+					  radio_type,
+					  GET_SECONDARYCHAN(pbss_desc->
+							    pht_info->ht_info.
+							    field2));
 			pbss_desc->curr_bandwidth = BW_80MHZ;
 		} else if (ISSUPP_CHANWIDTH40(usr_dot_11n_dev_cap) &&
 			   ISALLOWED_CHANWIDTH40(pbss_desc->pht_info->ht_info.
@@ -3124,12 +3129,12 @@ wlan_11n_bandconfig_allowed(mlan_private *pmpriv, t_u8 bss_band)
 	if (pmpriv->bss_mode == MLAN_BSS_MODE_IBSS) {
 		if (bss_band & BAND_G)
 			return (pmpriv->adapter->adhoc_start_band & BAND_GN);
-		else
+		else if (bss_band & BAND_A)
 			return (pmpriv->adapter->adhoc_start_band & BAND_AN);
 	} else {
 		if (bss_band & BAND_G)
 			return (pmpriv->config_bands & BAND_GN);
-		else
+		else if (bss_band & BAND_A)
 			return (pmpriv->config_bands & BAND_AN);
 	}
 	return 0;
@@ -3167,34 +3172,4 @@ wlan_update_11n_cap(mlan_private *pmpriv)
 		pmadapter->hw_dot_11n_dev_cap & DEFAULT_11N_CAP_MASK_BG;
 	pmpriv->usr_dot_11n_dev_cap_a =
 		pmadapter->hw_dot_11n_dev_cap & DEFAULT_11N_CAP_MASK_A;
-}
-
-/**
- *  @brief This function fills the TDLS HT cap tlv
- *
- *  @param priv         A pointer to mlan_private structure
- *  @param pht_cap      A pointer to MrvlIETypes_HTCap_t structure
- *  @param bands        Band configuration
- *
- *  @return             N/A
- */
-void
-wlan_fill_tdls_ht_cap_TLV(mlan_private *priv, MrvlIETypes_HTCap_t *pht_cap,
-			  t_u8 bands)
-{
-	mlan_adapter *pmadapter = priv->adapter;
-	MrvlIETypes_HTCap_t ht_cap;
-	int i = 0;
-
-	memset(pmadapter, &ht_cap, 0, sizeof(MrvlIETypes_HTCap_t));
-	wlan_fill_ht_cap_tlv(priv, &ht_cap, bands);
-
-	pht_cap->ht_cap.ht_cap_info &= ht_cap.ht_cap.ht_cap_info;
-	pht_cap->ht_cap.ampdu_param &= ht_cap.ht_cap.ampdu_param;
-	for (i = 0; i < sizeof(pht_cap->ht_cap.supported_mcs_set); i++)
-		pht_cap->ht_cap.supported_mcs_set[i] &=
-			ht_cap.ht_cap.supported_mcs_set[i];
-	pht_cap->ht_cap.ht_ext_cap &= ht_cap.ht_cap.ht_ext_cap;
-	pht_cap->ht_cap.tx_bf_cap &= ht_cap.ht_cap.tx_bf_cap;
-	pht_cap->ht_cap.asel &= ht_cap.ht_cap.asel;
 }

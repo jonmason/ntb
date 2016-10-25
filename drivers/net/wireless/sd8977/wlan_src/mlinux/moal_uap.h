@@ -85,6 +85,8 @@ Change log:
 
 #define UAP_OPERATION_CTRL       22
 
+#define UAP_CHAN_SWITCH_COUNT_CFG     23
+
 /** Private command ID to Power Mode */
 #define	UAP_POWER_MODE			(SIOCDEVPRIVATE + 3)
 
@@ -459,6 +461,16 @@ typedef struct _dfs_testing_param {
 	t_u8 fixed_new_chan;
 } dfs_testing_para;
 #endif
+
+/** Channel switch count config */
+typedef struct _cscount_cfg_t {
+    /** subcmd */
+	t_u32 subcmd;
+    /** Set/Get */
+	t_u32 action;
+    /** user channel switch count */
+	t_u8 cs_count;
+} cscount_cfg_t;
 
 /** domain_info parameters */
 typedef struct _domain_info_param {

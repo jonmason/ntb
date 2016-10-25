@@ -30,15 +30,13 @@ void wlan_show_dot11acmcssupport(pmlan_adapter pmadapter, t_u32 support);
 t_u16 wlan_convert_mcsmap_to_maxrate(mlan_private *priv, t_u8 bands,
 				     t_u16 mcs_map);
 void wlan_fill_vht_cap_tlv(mlan_private *priv, MrvlIETypes_VHTCap_t *pvht_cap,
-			   t_u8 bands);
+			   t_u8 bands, t_u8 flag);
 void wlan_fill_vht_cap_ie(mlan_private *priv, IEEEtypes_VHTCap_t *pvht_cap,
 			  t_u8 bands);
 void wlan_fill_tdls_vht_oprat_ie(mlan_private *priv,
 				 IEEEtypes_VHTOprat_t *vht_oprat,
 				 sta_node *sta_ptr);
 t_u8 wlan_is_ap_in_11ac_mode(mlan_private *priv);
-void wlan_fill_tdls_vht_cap_TLV(mlan_private *priv,
-				MrvlIETypes_VHTCap_t *pvht_cap, t_u8 bands);
 int wlan_cmd_append_11ac_tlv(mlan_private *pmpriv, BSSDescriptor_t *pbss_desc,
 			     t_u8 **ppbuffer);
 mlan_status wlan_11ac_cfg_ioctl(pmlan_adapter pmadapter,

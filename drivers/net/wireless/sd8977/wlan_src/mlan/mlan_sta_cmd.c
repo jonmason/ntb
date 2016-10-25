@@ -478,6 +478,7 @@ wlan_cmd_802_11_hs_cfg(IN pmlan_private pmpriv,
 	MrvlIEtypes_HsWakeHoldoff_t *holdoff_tlv = MNULL;
 	MrvlIEtypes_PsParamsInHs_t *psparam_tlv = MNULL;
 	MrvlIEtypes_WakeupSourceGPIO_t *gpio_tlv = MNULL;
+	MrvlIEtypes_MgmtFrameFilter_t *mgmt_filter_tlv = MNULL;
 
 	ENTER();
 
@@ -570,6 +571,38 @@ wlan_cmd_802_11_hs_cfg(IN pmlan_private pmpriv,
 			gpio_tlv->ind_gpio = (t_u8)pmadapter->ind_gpio;
 			gpio_tlv->level = (t_u8)pmadapter->level;
 			tlv += sizeof(MrvlIEtypes_WakeupSourceGPIO_t);
+		}
+		if (pmadapter->mgmt_filter[0].type) {
+			int i = 0;
+			mgmt_frame_filter mgmt_filter[MAX_MGMT_FRAME_FILTER];
+			memset(pmadapter, mgmt_filter, 0,
+			       MAX_MGMT_FRAME_FILTER *
+			       sizeof(mgmt_frame_filter));
+			mgmt_filter_tlv = (MrvlIEtypes_MgmtFrameFilter_t *) tlv;
+			mgmt_filter_tlv->header.type =
+				wlan_cpu_to_le16(TLV_TYPE_MGMT_FRAME_WAKEUP);
+			tlv += sizeof(MrvlIEtypesHeader_t);
+			while (i < MAX_MGMT_FRAME_FILTER &&
+			       pmadapter->mgmt_filter[i].type) {
+				mgmt_filter[i].action =
+					(t_u8)pmadapter->mgmt_filter[i].action;
+				mgmt_filter[i].type =
+					(t_u8)pmadapter->mgmt_filter[i].type;
+				mgmt_filter[i].frame_mask =
+					wlan_cpu_to_le32(pmadapter->
+							 mgmt_filter[i].
+							 frame_mask);
+				i++;
+			}
+			memcpy(pmadapter, (t_u8 *)mgmt_filter_tlv->filter,
+			       (t_u8 *)mgmt_filter,
+			       i * sizeof(mgmt_frame_filter));
+			tlv += i * sizeof(mgmt_frame_filter);
+			mgmt_filter_tlv->header.len =
+				wlan_cpu_to_le16(i * sizeof(mgmt_frame_filter));
+			cmd->size +=
+				i * sizeof(mgmt_frame_filter) +
+				sizeof(MrvlIEtypesHeader_t);
 		}
 
 		cmd->size = wlan_cpu_to_le16(cmd->size);
@@ -1827,14 +1860,12 @@ wlan_cmd_tdls_oper(IN pmlan_private pmpriv,
 			if (HTcap_tlv) {
 				if (pmpriv->host_tdls_cs_support &&
 				    (pmpriv->adapter->fw_bands & BAND_A))
-					wlan_fill_tdls_ht_cap_TLV(pmpriv,
-								  HTcap_tlv,
-								  BAND_A);
+					wlan_fill_ht_cap_tlv(pmpriv, HTcap_tlv,
+							     BAND_A);
 				else
-					wlan_fill_tdls_ht_cap_TLV(pmpriv,
-								  HTcap_tlv,
-								  pbss_desc->
-								  bss_band);
+					wlan_fill_ht_cap_tlv(pmpriv, HTcap_tlv,
+							     pbss_desc->
+							     bss_band);
 				DBG_HEXDUMP(MCMD_D, "FW htcap",
 					    (t_u8 *)HTcap_tlv,
 					    sizeof(MrvlIETypes_HTCap_t));
@@ -1920,10 +1951,10 @@ wlan_cmd_tdls_oper(IN pmlan_private pmpriv,
 						sizeof(MrvlIEtypesHeader_t);
 				}
 				if (VHTcap_tlv) {
-					wlan_fill_tdls_vht_cap_TLV(pmpriv,
-								   VHTcap_tlv,
-								   pbss_desc->
-								   bss_band);
+					wlan_fill_vht_cap_tlv(pmpriv,
+							      VHTcap_tlv,
+							      pbss_desc->
+							      bss_band, MTRUE);
 					DBG_HEXDUMP(MCMD_D, "FW Vhtcap",
 						    (t_u8 *)VHTcap_tlv,
 						    sizeof
