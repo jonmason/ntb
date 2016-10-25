@@ -434,7 +434,7 @@ static irqreturn_t nx_i2c_irq_handler(int irqno, void *dev_id)
 	par->irq_count++;
 
 	if (!par->running) {
-		dev_err(par->dev, "** I2C.%d IRQ NO RUN **\n", par->hw.port);
+		dev_dbg(par->dev, "** I2C.%d IRQ NO RUN **\n", par->hw.port);
 		spin_unlock_irqrestore(&par->lock, flags);
 		return IRQ_HANDLED;
 	}
