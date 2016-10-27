@@ -453,6 +453,7 @@ u16 woal_select_queue(struct net_device *dev, struct sk_buff *skb);
 #endif
 
 void woal_sdio_reg_dbg(moal_handle *phandle);
+extern int sd8x_pwr_recovery(void);
 
 mlan_debug_info info;
 
@@ -489,6 +490,10 @@ woal_hang_work_queue(struct work_struct *work)
 		}
 	}
 	reset_handle = NULL;
+
+	PRINTM(MERROR, "Request Recovery to SD8X-RFKILL\n");
+	sd8x_pwr_recovery();
+
 	LEAVE();
 }
 

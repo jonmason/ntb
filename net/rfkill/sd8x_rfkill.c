@@ -40,6 +40,7 @@
 #include <linux/version.h>
 #include "../../drivers/mmc/host/dw_mmc.h"
 #include "sd8x_rfkill.h"
+#include <linux/delay.h>
 #define SD8X_DEV_NAME "sd8x-rfkill"
 
 /*
@@ -65,6 +66,7 @@ static struct work_struct wlan_wk;
 #define WIFI_BT_OFF	0x0007
 
 static unsigned int sd8x_pwr_state = 0;
+static struct sd8x_rfkill_platform_data *saved_pdata = NULL;
 
 
 static void wlan_edge_wakeup(struct work_struct *work)
@@ -378,6 +380,20 @@ static int sd8x_pwr_off(struct sd8x_rfkill_platform_data *pdata)
 	return ret;
 }
 
+int sd8x_pwr_recovery(void)
+{
+	if(saved_pdata == NULL) {
+		pr_err("sd8x_rfkill: recovery not ready!\n");
+		return -1;
+	}
+
+	pr_warning("sd8x_rfkill: Recovery triggered!\n");
+	sd8x_pwr_off(saved_pdata);
+	msleep(1000);
+	sd8x_pwr_on(saved_pdata);
+
+	return 0;
+}
 
 static ssize_t sd8x_pwr_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -401,6 +417,8 @@ static ssize_t sd8x_pwr_store(struct device *dev,
 	int pwr_ctrl;
 	unsigned int prev_pwr_state = sd8x_pwr_state;
 	struct sd8x_rfkill_platform_data *pdata = dev->platform_data;
+
+	saved_pdata = pdata;
 
 	mutex_lock(&sd8x_pwr_mutex);
 
@@ -657,6 +675,8 @@ static void __exit sd8x_rfkill_exit(void)
 
 module_init(sd8x_rfkill_init);
 module_exit(sd8x_rfkill_exit);
+
+EXPORT_SYMBOL(sd8x_pwr_recovery);
 
 MODULE_ALIAS("platform:sd8x_rfkill");
 MODULE_DESCRIPTION("sd8x_rfkill");

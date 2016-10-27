@@ -841,7 +841,7 @@ wlan_dnld_cmd_to_fw(IN mlan_private *pmpriv, IN cmd_ctrl_node *pcmd_node)
 	/* Setup the timer after transmit command */
 	pcb->moal_start_timer(pmadapter->pmoal_handle,
 			      pmadapter->pmlan_cmd_timer, MFALSE,
-			      MRVDRV_TIMER_10S * 2);
+			      MRVDRV_TIMER_10S);
 
 	pmadapter->cmd_timer_is_set = MTRUE;
 
