@@ -139,6 +139,19 @@ config EXT4_FS_INIT_LEVEL_UP
        depends on MMC_INIT_LEVEL_UP
        bool
 
+config ARCH_NXP5540
+	bool "NEXELL NXP5540"
+	select ARCH_REQUIRE_GPIOLIB
+	select ARCH_HAS_RESET_CONTROLLER
+	select CLKSRC_NXP_TIMER
+	select RESET_CONTROLLER
+	select PINCTRL
+	select ARM64_ERRATUM_845719
+	select HAVE_S3C2410_I2C if I2C
+	select HAVE_S3C2410_WATCHDOG if WATCHDOG
+	help
+	  This enables support for the NEXELL NXP5540 Architecture
+
 config ARCH_THUNDER
 	bool "Cavium Inc. Thunder SoC Family"
 	help
