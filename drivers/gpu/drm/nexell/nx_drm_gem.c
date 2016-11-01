@@ -19,6 +19,7 @@
 #include <drm/drm_vma_manager.h>
 #include <linux/dma-buf.h>
 #include <linux/shmem_fs.h>
+#include <linux/reservation.h>
 #include <drm/nexell_drm.h>
 
 #include "nx_drm_gem.h"
@@ -1112,3 +1113,56 @@ int nx_drm_gem_get_ioctl(struct drm_device *drm, void *data,
 
 	return 0;
 }
+
+/*
+ * gem fence
+ */
+int nx_drm_gem_wait_fence(struct drm_gem_object *obj)
+{
+#ifdef CONFIG_MALI_DMA_BUF_FENCE
+	struct dma_buf *dmabuf;
+	struct reservation_object_list *fobj;
+	struct reservation_object *resv;
+	struct fence *fence;
+	struct nx_gem_object *nx_obj;
+	long timeout = 100 * HZ;
+	bool interruptible = true;
+	int i;
+
+	if (!obj || !obj->dma_buf)
+		return 0;
+
+	nx_obj = to_nx_gem_obj(obj);
+	dmabuf = obj->dma_buf;
+	resv = dmabuf->resv;
+	fobj = reservation_object_get_list(resv);
+	fence = reservation_object_get_excl(resv);
+
+	if (fence) {
+		if (!fence_is_signaled(fence))
+			timeout = fence_wait_timeout(fence,
+						interruptible, timeout);
+	}
+
+	for (i = 0; fobj && timeout > 0 && i < fobj->shared_count; ++i) {
+		fence = rcu_dereference_protected(fobj->shared[i],
+					reservation_object_held(resv));
+		if (!fence_is_signaled(fence))
+			timeout = fence_wait_timeout(fence,
+					interruptible, timeout);
+	}
+
+	DRM_DEBUG_KMS("fence:%p, dma pa:%pad, va:%p\n",
+		fence, &nx_obj->paddr, nx_obj->vaddr);
+
+	if (timeout < 0)
+		return timeout;
+
+	if (timeout == 0)
+		return -EBUSY;
+
+	reservation_object_add_excl_fence(resv, NULL);
+#endif
+	return 0;
+}
+

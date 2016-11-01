@@ -20,6 +20,7 @@
 #include <uapi/drm/drm_fourcc.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
+#include <linux/dma-buf.h>
 
 #include "../nx_drm_drv.h"
 #include "../nx_drm_crtc.h"
@@ -807,6 +808,29 @@ int nx_drm_dp_plane_mode_set(struct drm_crtc *crtc,
 	return 0;
 }
 
+int nx_drm_dp_plane_wait_sync(struct drm_plane *plane,
+			struct drm_framebuffer *fb, bool sync)
+{
+	struct drm_gem_object *obj;
+	struct dp_plane_layer *layer;
+	int plane_num = 0;
+	long ts;
+	int ret;
+
+	obj = to_gem_obj(nx_drm_fb_get_gem_obj(fb, plane_num));
+	layer = &to_nx_plane(plane)->layer;
+	ts = ktime_to_ms(ktime_get());
+
+	ret = nx_drm_gem_wait_fence(obj);
+
+	ts = ktime_to_ms(ktime_get()) - ts;
+
+	DRM_DEBUG_KMS("crtc.%d plane.%d (%s) : wait:%3ldms, ret:%d\n",
+		layer->module, layer->num, layer->name, ts, ret);
+
+	return ret;
+}
+
 int nx_drm_dp_plane_update(struct drm_plane *plane,
 			struct drm_framebuffer *fb,
 			int crtc_x, int crtc_y,
@@ -814,17 +838,18 @@ int nx_drm_dp_plane_update(struct drm_plane *plane,
 			uint32_t src_x, uint32_t src_y,
 			uint32_t src_w, uint32_t src_h, int align)
 {
-	struct nx_drm_plane *nx_plane = to_nx_plane(plane);
-	struct dp_plane_layer *layer = &nx_plane->layer;
+	struct nx_drm_plane *nx_plane;
+	struct dp_plane_layer *layer;
 	struct nx_gem_object *nx_obj[4];
 	dma_addr_t paddrs[4];
 	unsigned int pitches[4], offsets[4];
 	enum dp_plane_type type;
 	int num_planes = 0;
 	unsigned int format;
-	int i = 0;
-	int ret;
+	int ret, i = 0;
 
+	nx_plane = to_nx_plane(plane);
+	layer = &nx_plane->layer;
 	type = layer->type;
 	num_planes = drm_format_num_planes(fb->pixel_format);
 
@@ -855,8 +880,11 @@ int nx_drm_dp_plane_update(struct drm_plane *plane,
 				src_x, src_y, src_w, src_h,
 				crtc_x, crtc_y, crtc_w, crtc_h, true);
 
-		nx_soc_dp_plane_rgb_set_address(layer,
+		ret = nx_drm_dp_plane_wait_sync(plane, fb, false);
+		if (!ret)
+			nx_soc_dp_plane_rgb_set_address(layer,
 				paddrs[0], pixel, crtc_w * pixel, align, true);
+
 		nx_soc_dp_plane_rgb_set_enable(layer, true, true);
 
 	/* update video plane */

@@ -39,6 +39,11 @@ static inline struct nx_gem_object *to_nx_gem_obj(struct drm_gem_object *obj)
 	return container_of(obj, struct nx_gem_object, base);
 }
 
+static inline struct drm_gem_object *to_gem_obj(struct nx_gem_object *nx_obj)
+{
+	return &nx_obj->base;
+}
+
 /*
  * struct nx_gem_object elements
  */
@@ -90,5 +95,10 @@ int nx_drm_gem_sync_ioctl(struct drm_device *drm, void *data,
 			struct drm_file *file_priv);
 int nx_drm_gem_get_ioctl(struct drm_device *drm, void *data,
 			struct drm_file *file_priv);
+
+/*
+ * gem fence
+ */
+int nx_drm_gem_wait_fence(struct drm_gem_object *obj);
 
 #endif
