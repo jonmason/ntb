@@ -140,3 +140,13 @@ config MALI_QUIET
 	  This forces the Mali driver to never print any messages.
 
 	  If unsure, say N.
+
+config MALI_DMA_BUF_FENCE
+	bool "Make DMA BUF Fence"
+	depends on MALI400
+	default n
+	---help---
+	  Choose this option if you want to use fences and reservations for
+	  synchronization of shared dma-buf access between different drivers.
+
+	  If unsure, say N.
