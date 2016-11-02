@@ -112,38 +112,6 @@
 			};
 		};
 
-		dw_mmc_0:dw_mmc@c0062000 {
-			num-slots = <1>;
-			bus-width = <4>;
-			cap-mmc-highspeed;
-			broken-cd;
-			non-removable;
-			clock-frequency = <100000000>;
-			card-detect-delay = <200>;
-			disable-wp;
-			status = "okay";
-			nexell,drive_dly = <0x0>;
-			nexell,drive_shift = <0x02>;
-			nexell,sample_dly = <0x00>;
-			nexell,sample_shift = <0x01>;
-		};
-
-		dw_mmc_1:dw_mmc@c0068000 {
-			num-slots = <1>;
-			bus-width = <4>;
-			cap-sd-highspeed;
-			clock-frequency = <100000000>;
-			card-detect-delay = <200>;
-			disable-wp;
-			cd-gpios = <&gpio_e 31 0>;
-			cd-inverted;
-			nexell,drive_dly = <0x0>;
-			nexell,drive_shift = <0x02>;
-			nexell,sample_dly = <0x00>;
-			nexell,sample_shift = <0x01>;
-			status = "okay";
-		};
-
 		spdif_tx: spdiftx@c0059000 {
 			#sound-dai-cells = <1>;
 			pcm-bit = <16>;
@@ -646,4 +614,36 @@
 		reg = <0x48>;
 		ti,x-plate-ohms = <180>;
 	};
+};
+
+&dw_mmc_0 {
+	num-slots = <1>;
+	bus-width = <4>;
+	cap-mmc-highspeed;
+	broken-cd;
+	non-removable;
+	clock-frequency = <100000000>;
+	card-detect-delay = <200>;
+	disable-wp;
+	nexell,drive_dly = <0x0>;
+	nexell,drive_shift = <0x02>;
+	nexell,sample_dly = <0x00>;
+	nexell,sample_shift = <0x01>;
+	status = "okay";
+};
+
+&dw_mmc_1 {
+	num-slots = <1>;
+	bus-width = <4>;
+	cap-sd-highspeed;
+	clock-frequency = <100000000>;
+	card-detect-delay = <200>;
+	disable-wp;
+	cd-gpios = <&gpio_e 31 0>;
+	cd-inverted;
+	nexell,drive_dly = <0x0>;
+	nexell,drive_shift = <0x02>;
+	nexell,sample_dly = <0x00>;
+	nexell,sample_shift = <0x01>;
+	status = "okay";
 };
