@@ -97,8 +97,8 @@ struct nexell_adc_info {
 	void __iomem *adc_base;
 	ulong clk_rate;
 	ulong sample_rate;
-	ulong max_sampele_rate;
-	ulong min_sampele_rate;
+	ulong max_sample_rate;
+	ulong min_sample_rate;
 	int value;
 	int prescale;
 	spinlock_t lock;
@@ -422,8 +422,8 @@ static int nexell_adc_setup(struct nexell_adc_info *adc,
 	}
 
 	adc->sample_rate = sample_rate;
-	adc->max_sampele_rate = ADC_MAX_SAMPLE_RATE;
-	adc->min_sampele_rate = min_rate;
+	adc->max_sample_rate = ADC_MAX_SAMPLE_RATE;
+	adc->min_sample_rate = min_rate;
 	adc->prescale = prescale;
 
 	setup_adc_con(adc);
@@ -432,7 +432,7 @@ static int nexell_adc_setup(struct nexell_adc_info *adc,
 	dev_info(&pdev->dev, "CHs %d, %ld(%ld ~ %ld) sample rate, scale=%d(bit %d)\n",
 		num_ch,
 		adc->sample_rate,
-		adc->max_sampele_rate, adc->min_sampele_rate,
+		adc->max_sample_rate, adc->min_sample_rate,
 		prescale, ADC_MAX_SAMPLE_BITS);
 
 	return 0;
