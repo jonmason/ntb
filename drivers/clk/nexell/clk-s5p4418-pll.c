@@ -162,10 +162,14 @@ static struct pll_pms pll2_3_pms[] = {
 #define PLL_P_BITPOS 18
 
 static void *ref_clk_base;
+static spinlock_t pll_lock = __SPIN_LOCK_UNLOCKED(pll_lock);
 
 static void pll_set_rate(int PLL, int P, int M, int S)
 {
 	struct reg_clkpwr *reg = ref_clk_base;
+	unsigned long flags;
+
+	spin_lock_irqsave(&pll_lock, flags);
 
 	/*
 	 * 1. change PLL0 clock to Oscillator Clock
@@ -211,6 +215,7 @@ static void pll_set_rate(int PLL, int P, int M, int S)
 
 	while (readl(&reg->CLKMODEREG0) & (1 << 31))
 		;/* wait for change update pll */
+	spin_unlock_irqrestore(&pll_lock, flags);
 }
 
 static unsigned long pll_round_rate(int pllno, unsigned long rate, int *p,
