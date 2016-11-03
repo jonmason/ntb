@@ -81,19 +81,6 @@ static void nx_clipper_qos_cpu_online_update(int val)
 	else
 		pm_qos_update_request(&nx_clipper_qos_cpu_online, val);
 }
-
-#ifdef CONFIG_ARCH_S5P4418
-static struct pm_qos_request nx_clipper_cpu_qos;
-
-static void nx_clipper_cpu_qos_update(int val)
-{
-	if (!pm_qos_request_active(&nx_clipper_cpu_qos))
-		pm_qos_add_request(&nx_clipper_cpu_qos,
-			PM_QOS_CPU_FREQ_MIN, val);
-	else
-		pm_qos_update_request(&nx_clipper_cpu_qos, val);
-}
-#endif
 #endif
 
 enum {
@@ -1170,9 +1157,6 @@ static int nx_clipper_s_stream(struct v4l2_subdev *sd, int enable)
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
 			nx_clipper_qos_update(NX_BUS_CLK_VIP_KHZ);
 			nx_clipper_qos_cpu_online_update(1);
-#ifdef CONFIG_ARCH_S5P4418
-			nx_clipper_cpu_qos_update(NX_CPU_CLK_VIP_KHZ);
-#endif
 #endif
 
 			set_vip(me);
@@ -1246,9 +1230,6 @@ static int nx_clipper_s_stream(struct v4l2_subdev *sd, int enable)
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
 			nx_clipper_qos_update(NX_BUS_CLK_IDLE_KHZ);
 			nx_clipper_qos_cpu_online_update(-1);
-#ifdef CONFIG_ARCH_S5P4418
-			nx_clipper_cpu_qos_update(-1);
-#endif
 #endif
 
 #ifndef CONFIG_VIDEO_NEXELL_CLIPPER

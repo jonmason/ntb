@@ -54,7 +54,6 @@ void nx_pll_set_rate(int PLL, int P, int M, int S);
 
 #if defined(CONFIG_ARCH_S5P4418)
 #define NX_CPU_CLK_AUDIO_KHZ	800000
-#define NX_CPU_CLK_VIP_KHZ	800000
 #endif
 
 void nx_bus_qos_update(int val);
