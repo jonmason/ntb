@@ -52,6 +52,14 @@
 			vip1:vip@c00c2000 { src-force = <5>; };
 		};
 
+		l2:l2-cache-controller@cf000000 {
+			arm,prefetch-offset = <7>;
+			prefetch-data = <1>;
+			prefetch-instr = <1>;
+			arm,tag-latency = <3 4 3>;
+			arm,data-latency = <3 4 3>;
+		};
+
 		serial0:serial@c00a1000 {
 			dmas = <&pl08xdma0 2>, <&pl08xdma0 3>;
 			dma-names = "tx", "rx";
