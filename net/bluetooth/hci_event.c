@@ -3582,7 +3582,11 @@ static void hci_pscan_rep_mode_evt(struct hci_dev *hdev, struct sk_buff *skb)
 
 	ie = hci_inquiry_cache_lookup(hdev, &ev->bdaddr);
 	if (ie) {
+#ifdef CONFIG_MARVELL_DRIVERS
+		ie->data.pscan_rep_mode = 0x2;
+#else
 		ie->data.pscan_rep_mode = ev->pscan_rep_mode;
+#endif
 		ie->timestamp = jiffies;
 	}
 
