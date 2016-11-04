@@ -154,14 +154,6 @@
 	};
 };
 
-&l2 {
-	arm,prefetch-offset = <7>;
-	prefetch-data = <1>;
-	prefetch-instr = <1>;
-	arm,tag-latency = <2 3 2>;
-	arm,data-latency = <2 3 2>;
-};
-
 &dw_mmc_1 {
 	status = "okay";
 	num-slots = <1>;
