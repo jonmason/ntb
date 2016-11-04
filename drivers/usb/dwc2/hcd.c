@@ -79,7 +79,7 @@ static void dwc2_enable_common_interrupts(struct dwc2_hsotg *hsotg)
 	/* Enable the interrupts in the GINTMSK */
 	intmsk = GINTSTS_MODEMIS | GINTSTS_OTGINT;
 
-	if (hsotg->params.dma_enable <= 0)
+	if (hsotg->params.host_dma <= 0)
 		intmsk |= GINTSTS_RXFLVL;
 	if (hsotg->params.external_id_pin_ctl <= 0)
 		intmsk |= GINTSTS_CONIDSTSCHNG;
@@ -285,11 +285,11 @@ static int dwc2_gahbcfg_init(struct dwc2_hsotg *hsotg)
 		break;
 	}
 
-	dev_dbg(hsotg->dev, "dma_enable:%d dma_desc_enable:%d\n",
-		hsotg->params.dma_enable,
+	dev_dbg(hsotg->dev, "host_dma:%d dma_desc_enable:%d\n",
+		hsotg->params.host_dma,
 		hsotg->params.dma_desc_enable);
 
-	if (hsotg->params.dma_enable > 0) {
+	if (hsotg->params.host_dma > 0) {
 		if (hsotg->params.dma_desc_enable > 0)
 			dev_dbg(hsotg->dev, "Using Descriptor DMA mode\n");
 		else
@@ -299,7 +299,7 @@ static int dwc2_gahbcfg_init(struct dwc2_hsotg *hsotg)
 		hsotg->params.dma_desc_enable = 0;
 	}
 
-	if (hsotg->params.dma_enable > 0)
+	if (hsotg->params.host_dma > 0)
 		ahbcfg |= GAHBCFG_DMA_EN;
 
 	dwc2_writel(ahbcfg, hsotg->regs + GAHBCFG);
@@ -774,7 +774,7 @@ static void dwc2_hc_enable_ints(struct dwc2_hsotg *hsotg,
 {
 	u32 intmsk;
 
-	if (hsotg->params.dma_enable > 0) {
+	if (hsotg->params.host_dma > 0) {
 		if (dbg_hc(chan))
 			dev_vdbg(hsotg->dev, "DMA enabled\n");
 		dwc2_hc_enable_dma_ints(hsotg, chan);
@@ -1004,7 +1004,7 @@ void dwc2_hc_halt(struct dwc2_hsotg *hsotg, struct dwc2_host_chan *chan,
 	}
 	hcchar |= HCCHAR_CHDIS;
 
-	if (hsotg->params.dma_enable <= 0) {
+	if (hsotg->params.host_dma <= 0) {
 		if (dbg_hc(chan))
 			dev_vdbg(hsotg->dev, "DMA not enabled\n");
 		hcchar |= HCCHAR_CHENA;
@@ -1350,7 +1350,7 @@ static void dwc2_hc_start_transfer(struct dwc2_hsotg *hsotg,
 		dev_vdbg(hsotg->dev, "%s()\n", __func__);
 
 	if (chan->do_ping) {
-		if (hsotg->params.dma_enable <= 0) {
+		if (hsotg->params.host_dma <= 0) {
 			if (dbg_hc(chan))
 				dev_vdbg(hsotg->dev, "ping, no DMA\n");
 			dwc2_hc_do_ping(hsotg, chan);
@@ -1478,7 +1478,7 @@ static void dwc2_hc_start_transfer(struct dwc2_hsotg *hsotg,
 			 TSIZ_SC_MC_PID_SHIFT);
 	}
 
-	if (hsotg->params.dma_enable > 0) {
+	if (hsotg->params.host_dma > 0) {
 		dwc2_writel((u32)chan->xfer_dma,
 			    hsotg->regs + HCDMA(chan->hc_num));
 		if (dbg_hc(chan))
@@ -1521,7 +1521,7 @@ static void dwc2_hc_start_transfer(struct dwc2_hsotg *hsotg,
 	chan->xfer_started = 1;
 	chan->requests++;
 
-	if (hsotg->params.dma_enable <= 0 &&
+	if (hsotg->params.host_dma <= 0 &&
 	    !chan->ep_is_in && chan->xfer_len > 0)
 		/* Load OUT packet into the appropriate Tx FIFO */
 		dwc2_hc_write_packet(hsotg, chan);
@@ -1804,7 +1804,7 @@ static void dwc2_hcd_cleanup_channels(struct dwc2_hsotg *hsotg)
 	u32 hcchar;
 	int i;
 
-	if (hsotg->params.dma_enable <= 0) {
+	if (hsotg->params.host_dma <= 0) {
 		/* Flush out any channel requests in slave mode */
 		for (i = 0; i < num_channels; i++) {
 			channel = hsotg->hc_ptr_array[i];
@@ -2475,7 +2475,7 @@ static void dwc2_hc_init_xfer(struct dwc2_hsotg *hsotg,
 			chan->do_ping = 0;
 			chan->ep_is_in = 0;
 			chan->data_pid_start = DWC2_HC_PID_SETUP;
-			if (hsotg->params.dma_enable > 0)
+			if (hsotg->params.host_dma > 0)
 				chan->xfer_dma = urb->setup_dma;
 			else
 				chan->xfer_buf = urb->setup_packet;
@@ -2502,7 +2502,7 @@ static void dwc2_hc_init_xfer(struct dwc2_hsotg *hsotg,
 				chan->do_ping = 0;
 			chan->data_pid_start = DWC2_HC_PID_DATA1;
 			chan->xfer_len = 0;
-			if (hsotg->params.dma_enable > 0)
+			if (hsotg->params.host_dma > 0)
 				chan->xfer_dma = hsotg->status_buf_dma;
 			else
 				chan->xfer_buf = hsotg->status_buf;
@@ -2526,7 +2526,7 @@ static void dwc2_hc_init_xfer(struct dwc2_hsotg *hsotg,
 		frame_desc = &urb->iso_descs[qtd->isoc_frame_index];
 		frame_desc->status = 0;
 
-		if (hsotg->params.dma_enable > 0) {
+		if (hsotg->params.host_dma > 0) {
 			chan->xfer_dma = urb->dma;
 			chan->xfer_dma += frame_desc->offset +
 					qtd->isoc_split_offset;
@@ -2708,7 +2708,7 @@ static int dwc2_assign_and_init_hc(struct dwc2_hsotg *hsotg, struct dwc2_qh *qh)
 		!dwc2_hcd_is_pipe_in(&urb->pipe_info))
 		urb->actual_length = urb->length;
 
-	if (hsotg->params.dma_enable > 0)
+	if (hsotg->params.host_dma > 0)
 		chan->xfer_dma = urb->dma + urb->actual_length;
 	else
 		chan->xfer_buf = (u8 *)urb->buf + urb->actual_length;
@@ -2880,7 +2880,7 @@ static int dwc2_queue_transaction(struct dwc2_hsotg *hsotg,
 		list_move_tail(&chan->split_order_list_entry,
 			       &hsotg->split_order);
 
-	if (hsotg->params.dma_enable > 0) {
+	if (hsotg->params.host_dma > 0) {
 		if (hsotg->params.dma_desc_enable > 0) {
 			if (!chan->xfer_started ||
 			    chan->ep_type == USB_ENDPOINT_XFER_ISOC) {
@@ -2990,7 +2990,7 @@ static void dwc2_process_periodic_channels(struct dwc2_hsotg *hsotg)
 		 * The flag prevents any halts to get into the request queue in
 		 * the middle of multiple high-bandwidth packets getting queued.
 		 */
-		if (hsotg->params.dma_enable <= 0 &&
+		if (hsotg->params.host_dma <= 0 &&
 				qh->channel->multi_count > 1)
 			hsotg->queuing_high_bandwidth = 1;
 
@@ -3009,7 +3009,7 @@ static void dwc2_process_periodic_channels(struct dwc2_hsotg *hsotg)
 		 * controller automatically handles multiple packets for
 		 * high-bandwidth transfers.
 		 */
-		if (hsotg->params.dma_enable > 0 || status == 0 ||
+		if (hsotg->params.host_dma > 0 || status == 0 ||
 		    qh->channel->requests == qh->channel->multi_count) {
 			qh_ptr = qh_ptr->next;
 			/*
@@ -3026,7 +3026,7 @@ static void dwc2_process_periodic_channels(struct dwc2_hsotg *hsotg)
 
 exit:
 	if (no_queue_space || no_fifo_space ||
-	    (hsotg->params.dma_enable <= 0 &&
+	    (hsotg->params.host_dma <= 0 &&
 	     !list_empty(&hsotg->periodic_sched_assigned))) {
 		/*
 		 * May need to queue more transactions as the request
@@ -3106,7 +3106,7 @@ static void dwc2_process_non_periodic_channels(struct dwc2_hsotg *hsotg)
 		tx_status = dwc2_readl(hsotg->regs + GNPTXSTS);
 		qspcavail = (tx_status & TXSTS_QSPCAVAIL_MASK) >>
 			    TXSTS_QSPCAVAIL_SHIFT;
-		if (hsotg->params.dma_enable <= 0 && qspcavail == 0) {
+		if (hsotg->params.host_dma <= 0 && qspcavail == 0) {
 			no_queue_space = 1;
 			break;
 		}
@@ -3139,7 +3139,7 @@ next:
 					hsotg->non_periodic_qh_ptr->next;
 	} while (hsotg->non_periodic_qh_ptr != orig_qh_ptr);
 
-	if (hsotg->params.dma_enable <= 0) {
+	if (hsotg->params.host_dma <= 0) {
 		tx_status = dwc2_readl(hsotg->regs + GNPTXSTS);
 		qspcavail = (tx_status & TXSTS_QSPCAVAIL_MASK) >>
 			    TXSTS_QSPCAVAIL_SHIFT;
@@ -5116,7 +5116,7 @@ static void dwc2_hcd_free(struct dwc2_hsotg *hsotg)
 		}
 	}
 
-	if (hsotg->params.dma_enable > 0) {
+	if (hsotg->params.host_dma > 0) {
 		if (hsotg->status_buf) {
 			dma_free_coherent(hsotg->dev, DWC2_HCD_STATUS_BUF_SIZE,
 					  hsotg->status_buf,
@@ -5196,16 +5196,16 @@ int dwc2_hcd_init(struct dwc2_hsotg *hsotg, int irq)
 	hsotg->last_frame_num = HFNUM_MAX_FRNUM;
 
 	/* Check if the bus driver or platform code has setup a dma_mask */
-	if (hsotg->params.dma_enable > 0 &&
+	if (hsotg->params.host_dma > 0 &&
 	    hsotg->dev->dma_mask == NULL) {
 		dev_warn(hsotg->dev,
 			 "dma_mask not set, disabling DMA\n");
-		hsotg->params.dma_enable = 0;
+		hsotg->params.host_dma = 0;
 		hsotg->params.dma_desc_enable = 0;
 	}
 
 	/* Set device flags indicating whether the HCD supports DMA */
-	if (hsotg->params.dma_enable > 0) {
+	if (hsotg->params.host_dma > 0) {
 		if (dma_set_mask(hsotg->dev, DMA_BIT_MASK(32)) < 0)
 			dev_warn(hsotg->dev, "can't set DMA mask\n");
 		if (dma_set_coherent_mask(hsotg->dev, DMA_BIT_MASK(32)) < 0)
@@ -5216,7 +5216,7 @@ int dwc2_hcd_init(struct dwc2_hsotg *hsotg, int irq)
 	if (!hcd)
 		goto error1;
 
-	if (hsotg->params.dma_enable <= 0)
+	if (hsotg->params.host_dma <= 0)
 		hcd->self.uses_dma = 0;
 
 	hcd->has_tt = 1;
@@ -5288,7 +5288,7 @@ int dwc2_hcd_init(struct dwc2_hsotg *hsotg, int irq)
 	 * done after usb_add_hcd since that function allocates the DMA buffer
 	 * pool.
 	 */
-	if (hsotg->params.dma_enable > 0)
+	if (hsotg->params.host_dma > 0)
 		hsotg->status_buf = dma_alloc_coherent(hsotg->dev,
 					DWC2_HCD_STATUS_BUF_SIZE,
 					&hsotg->status_buf_dma, GFP_KERNEL);
