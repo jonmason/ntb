@@ -299,7 +299,7 @@ void dwc2_release_channel_ddma(struct dwc2_hsotg *hsotg,
 
 	if (dwc2_qh_is_non_per(qh)) {
 		spin_lock_irqsave(&hsotg->channel_lock, flags);
-		if (hsotg->core_params->uframe_sched > 0)
+		if (hsotg->params.uframe_sched > 0)
 			hsotg->available_host_channels++;
 		else
 			hsotg->non_periodic_channels--;
@@ -410,7 +410,7 @@ void dwc2_hcd_qh_free_ddma(struct dwc2_hsotg *hsotg, struct dwc2_qh *qh)
 
 	if ((qh->ep_type == USB_ENDPOINT_XFER_ISOC ||
 	     qh->ep_type == USB_ENDPOINT_XFER_INT) &&
-	    (hsotg->core_params->uframe_sched > 0 ||
+	    (hsotg->params.uframe_sched > 0 ||
 	     !hsotg->periodic_channels) && hsotg->frame_list) {
 		dwc2_per_sched_disable(hsotg);
 		dwc2_frame_list_free(hsotg);
