@@ -2784,11 +2784,9 @@ woal_cfg80211_set_mac_acl(struct wiphy *wiphy, struct net_device *dev,
 
 	PRINTM(MIOCTL, "Set mac acl, entries=%d, policy=%d\n",
 	       params->n_acl_entries, params->acl_policy);
-	/* Initialize the uap bss values which are uploaded from firmware */
+    /* Initialize the uap bss values which are uploaded from firmware */
 	if (MLAN_STATUS_SUCCESS != woal_set_get_sys_config(priv,
-							   MLAN_ACT_GET,
-							   MOAL_IOCTL_WAIT,
-							   &sys_config)) {
+		MLAN_ACT_GET, MOAL_IOCTL_WAIT, &sys_config)) {
 		PRINTM(MERROR, "Error getting AP confiruration\n");
 		ret = -EFAULT;
 		goto done;
