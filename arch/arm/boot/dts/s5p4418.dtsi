@@ -219,8 +219,6 @@
 				   "nexell,pl011";
 			reg = <PHYS_BASE_UART0 0x1000>;
 			interrupts = <IRQ_UART0>;
-			dmas = <&pl08xdma0 2 0>, <&pl08xdma0 3 0>;
-			dma-names = "tx", "rx";
 			clock-names = "uartclk";
 			clocks = <&uart0>;
 			resets  = <&nexell_reset RESET_ID_UART0>;
@@ -238,8 +236,6 @@
 				   "nexell,pl011";
 			reg = <PHYS_BASE_UART1 0x1000>;
 			interrupts = <IRQ_UART1>;
-			dmas = <&pl08xdma0 0 0>, <&pl08xdma0 1 0>;
-			dma-names = "tx", "rx";
 			clock-names = "uartclk";
 			clocks = <&uart1>;
 			resets  = <&nexell_reset RESET_ID_UART1>;
@@ -257,8 +253,6 @@
 				   "nexell,pl011";
 			reg = <PHYS_BASE_UART2 0x1000>;
 			interrupts = <IRQ_UART2>;
-			dmas = <&pl08xdma0 4 0>, <&pl08xdma0 5 0>;
-			dma-names = "tx", "rx";
 			clock-names = "uartclk";
 			clocks = <&uart2>;
 			resets  = <&nexell_reset RESET_ID_UART2>;
