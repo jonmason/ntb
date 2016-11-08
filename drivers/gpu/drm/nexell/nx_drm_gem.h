@@ -26,12 +26,15 @@
  */
 struct nx_gem_object {
 	struct drm_gem_object base;
-	dma_addr_t paddr;
-	void *vaddr;
+	dma_addr_t dma_addr;
+	void *cpu_addr;
 	size_t size;
 	uint32_t flags;
 	struct sg_table *sgt;		 /* for system memory */
 	struct sg_table *import_sgt; /* for prime import */
+	struct mutex lock;
+	struct page **pages;
+	struct list_head vmas;
 };
 
 static inline struct nx_gem_object *to_nx_gem_obj(struct drm_gem_object *obj)
@@ -71,20 +74,8 @@ struct drm_gem_object *nx_drm_gem_prime_import_sg_table(
 			struct dma_buf_attachment *attach,
 			struct sg_table *sgt);
 
-void *nx_drm_gem_prime_vmap(struct drm_gem_object *obj);
-void nx_drm_gem_prime_vunmap(struct drm_gem_object *obj, void *vaddr);
-int nx_drm_gem_prime_mmap(struct drm_gem_object *obj,
-			struct vm_area_struct *vma);
-/*
- * struct file_operations elements
- */
-int nx_drm_gem_mmap(struct file *filp, struct vm_area_struct *vma);
-
-/*
- * struct vm_operations_struct elements
- */
-int nx_drm_gem_fault(struct vm_area_struct *vma, struct vm_fault *vmf);
-
+/* struct file_operations elements */
+int nx_drm_gem_fops_mmap(struct file *filp, struct vm_area_struct *vma);
 
 /*
  * struct drm_ioctl_desc

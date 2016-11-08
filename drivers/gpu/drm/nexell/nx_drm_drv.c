@@ -174,7 +174,7 @@ static struct drm_ioctl_desc nx_drm_ioctls[] = {
 			DRM_UNLOCKED),
 };
 
-static const struct file_operations nx_drm_driver_fops = {
+static const struct file_operations nx_drm_fops = {
 	.owner = THIS_MODULE,
 	.open = drm_open,
 	.release = drm_release,
@@ -185,7 +185,7 @@ static const struct file_operations nx_drm_driver_fops = {
 	.poll = drm_poll,
 	.read = drm_read,
 	.llseek = no_llseek,
-	.mmap = nx_drm_gem_mmap,
+	.mmap = nx_drm_gem_fops_mmap,
 };
 
 static void nx_drm_lastclose(struct drm_device *drm)
@@ -221,18 +221,12 @@ static void nx_drm_postclose(struct drm_device *drm, struct drm_file *file)
 	}
 }
 
-static const struct vm_operations_struct nx_drm_gem_vm_ops = {
-	.fault = nx_drm_gem_fault,
-	.open = drm_gem_vm_open,
-	.close = drm_gem_vm_close,
-};
-
 static struct drm_driver nx_drm_driver = {
 	.driver_features = DRIVER_HAVE_IRQ | DRIVER_MODESET |
 		DRIVER_GEM | DRIVER_PRIME | DRIVER_IRQ_SHARED,
 	.load = nx_drm_load,
 	.unload = nx_drm_unload,
-	.fops = &nx_drm_driver_fops,	/* replace fops */
+	.fops = &nx_drm_fops,	/* replace fops */
 	.lastclose = nx_drm_lastclose,
 	.postclose = nx_drm_postclose,
 	.set_busid = drm_platform_set_busid,
@@ -245,16 +239,12 @@ static struct drm_driver nx_drm_driver = {
 	.prime_fd_to_handle = drm_gem_prime_fd_to_handle,
 
 	.gem_free_object = nx_drm_gem_free_object,
-	.gem_vm_ops = &nx_drm_gem_vm_ops,
 
 	.gem_prime_export = nx_drm_gem_prime_export,
 	.gem_prime_import = drm_gem_prime_import,
 	.gem_prime_get_sg_table = nx_drm_gem_prime_get_sg_table,
 
 	.gem_prime_import_sg_table = nx_drm_gem_prime_import_sg_table,
-	.gem_prime_vmap = nx_drm_gem_prime_vmap,
-	.gem_prime_vunmap = nx_drm_gem_prime_vunmap,
-	.gem_prime_mmap = nx_drm_gem_prime_mmap,
 
 	.dumb_create = nx_drm_gem_dumb_create,
 	.dumb_map_offset = nx_drm_gem_dumb_map_offset,
