@@ -659,7 +659,7 @@ void nx_drm_dp_crtc_commit(struct drm_crtc *crtc)
 	struct nx_drm_plane *nx_plane = to_nx_plane(crtc->primary);
 	struct dp_plane_top *top = &nx_crtc->top;
 	struct dp_plane_layer *layer = &nx_plane->layer;
-	dma_addr_t paddr;
+	dma_addr_t dma_addr;
 
 	int module = top->module;
 	int num = layer->num;
@@ -669,18 +669,19 @@ void nx_drm_dp_crtc_commit(struct drm_crtc *crtc)
 	int hstride = width * pixel;
 
 	nx_obj = nx_drm_fb_get_gem_obj(fb, 0);
-	paddr = nx_obj->paddr;
+	dma_addr = nx_obj->dma_addr;
 
 	DRM_DEBUG_KMS("crtc.%d plane.%d (%s) :\n",
 			module, num, nx_plane->layer.name);
 	DRM_DEBUG_KMS("crtc[%d x %d] addr:0x%x\n",
-			width, height, (unsigned int)paddr);
+			width, height, (unsigned int)dma_addr);
 
 	/* set video color key */
 	nx_soc_dp_plane_rgb_set_color(layer,
 		dp_color_transp, top->color_key, true, false);
 
-	nx_soc_dp_plane_rgb_set_address(layer, paddr, pixel, hstride, 0, true);
+	nx_soc_dp_plane_rgb_set_address(layer,
+			dma_addr, pixel, hstride, 0, true);
 	nx_soc_dp_plane_rgb_set_enable(layer, true, true);
 }
 
@@ -806,17 +807,18 @@ int nx_drm_dp_plane_update(struct drm_plane *plane,
 			uint32_t src_x, uint32_t src_y,
 			uint32_t src_w, uint32_t src_h, int align)
 {
-	struct nx_drm_plane *nx_plane = to_nx_plane(plane);
-	struct dp_plane_layer *layer = &nx_plane->layer;
+	struct nx_drm_plane *nx_plane;
+	struct dp_plane_layer *layer;
 	struct nx_gem_object *nx_obj[4];
-	dma_addr_t paddrs[4];
+	dma_addr_t dma_addrs[4];
 	unsigned int pitches[4], offsets[4];
 	enum dp_plane_type type;
 	int num_planes = 0;
 	unsigned int format;
-	int i = 0;
-	int ret;
+	int ret, i = 0;
 
+	nx_plane = to_nx_plane(plane);
+	layer = &nx_plane->layer;
 	type = layer->type;
 	num_planes = drm_format_num_planes(fb->pixel_format);
 
@@ -828,7 +830,7 @@ int nx_drm_dp_plane_update(struct drm_plane *plane,
 
 	for (i = 0; num_planes > i; i++) {
 		nx_obj[i] = nx_drm_fb_get_gem_obj(fb, i);
-		paddrs[i] = nx_obj[i]->paddr;
+		dma_addrs[i] = nx_obj[i]->dma_addr;
 		offsets[i] = fb->offsets[i];
 		pitches[i] = fb->pitches[i];
 	}
@@ -848,7 +850,8 @@ int nx_drm_dp_plane_update(struct drm_plane *plane,
 				crtc_x, crtc_y, crtc_w, crtc_h, true);
 
 		nx_soc_dp_plane_rgb_set_address(layer,
-				paddrs[0], pixel, crtc_w * pixel, align, true);
+				dma_addrs[0],
+				pixel, crtc_w * pixel, align, true);
 		nx_soc_dp_plane_rgb_set_enable(layer, true, true);
 
 	/* update video plane */
@@ -868,16 +871,16 @@ int nx_drm_dp_plane_update(struct drm_plane *plane,
 
 		switch (num_planes) {
 		case 1:
-			lua = paddrs[0], lus = pitches[0];
+			lua = dma_addrs[0], lus = pitches[0];
 			nx_soc_dp_plane_video_set_address_1p(layer,
 				lua, lus, true);
 			break;
 
 		case 2:
 		case 3:
-			lua = paddrs[0];
-			cba = offsets[1] ? lua + offsets[1] : paddrs[1];
-			cra = offsets[2] ? lua + offsets[2] : paddrs[2];
+			lua = dma_addrs[0];
+			cba = offsets[1] ? lua + offsets[1] : dma_addrs[1];
+			cra = offsets[2] ? lua + offsets[2] : dma_addrs[2];
 			lus = pitches[0], cbs = pitches[1], crs = pitches[2];
 
 			nx_soc_dp_plane_video_set_address_3p(layer, lua, lus,
