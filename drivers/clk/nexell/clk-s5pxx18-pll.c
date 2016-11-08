@@ -26,7 +26,7 @@
 #include <linux/of_address.h>
 #include <asm/tlbflush.h>
 #include "clk-s5pxx18.h"
-#include "clk-s5p4418-pll.h"
+#include "clk-s5pxx18-pll.h"
 
 #define PLL_LOCKING_TIME 100
 
@@ -45,19 +45,100 @@ struct clk_core {
 	struct pll_pms pms;
 };
 
+#ifdef CONFIG_ARCH_S5P4418
 /* PLL 0,1 */
 static struct pll_pms pll0_1_pms[] = {
 	[0] = {
-		.rate = 1600000, .P = 3, .M = 400, .S = 1,
+		.rate = 1200000, .P = 3, .M = 300, .S = 1,
 	},
 	[1] = {
-		.rate = 1500000, .P = 3, .M = 375, .S = 1,
+		.rate = 1100000, .P = 3, .M = 275, .S = 1,
 	},
 	[2] = {
-		.rate = 1400000, .P = 3, .M = 350, .S = 1,
+		.rate = 1000000, .P = 3, .M = 250, .S = 1,
 	},
 	[3] = {
-		.rate = 1300000, .P = 3, .M = 325, .S = 1,
+		.rate = 900000, .P = 3, .M = 225, .S = 1,
+	},
+	[4] = {
+		.rate = 800000, .P = 3, .M = 200, .S = 1,
+	},
+	[5] = {
+		.rate = 700000, .P = 3, .M = 175, .S = 1,
+	},
+	[6] = {
+		.rate = 600000, .P = 2, .M = 200, .S = 2,
+	},
+	[7] = {
+		.rate = 500000, .P = 3, .M = 250, .S = 2,
+	},
+	[8] = {
+		.rate = 400000, .P = 3, .M = 200, .S = 2,
+	},
+	[9] = {
+		.rate = 300000, .P = 2, .M = 200, .S = 3,
+	},
+	[10] = {
+		.rate = 200000, .P = 3, .M = 200, .S = 3,
+	},
+	[11] = {
+		.rate = 100000, .P = 3, .M = 200, .S = 4,
+	},
+};
+
+/* PLL 2,3 */
+static struct pll_pms pll2_3_pms[] = {
+	[0] = {
+		.rate = 1200000, .P = 3, .M = 300, .S = 1,
+	},
+	[1] = {
+		.rate = 1100000, .P = 3, .M = 275, .S = 1,
+	},
+	[2] = {
+		.rate = 1000000, .P = 3, .M = 250, .S = 1,
+	},
+	[3] = {
+		.rate = 900000, .P = 3, .M = 225, .S = 1,
+	},
+	[4] = {
+		.rate = 800000, .P = 3, .M = 200, .S = 1,
+	},
+	[5] = {
+		.rate = 700000, .P = 3, .M = 175, .S = 1,
+	},
+	[6] = {
+		.rate = 600000, .P = 3, .M = 150, .S = 1,
+	},
+	[7] = {
+		.rate = 500000, .P = 3, .M = 250, .S = 2,
+	},
+	[8] = {
+		.rate = 400000, .P = 3, .M = 200, .S = 2,
+	},
+	[9] = {
+		.rate = 300000, .P = 3, .M = 150, .S = 2,
+	},
+	[10] = {
+		.rate = 200000, .P = 3, .M = 200, .S = 3,
+	},
+	[11] = {
+		.rate = 100000, .P = 3, .M = 200, .S = 4,
+	},
+};
+#else	/* S5P6818 */
+/* PLL 0,1 */
+static struct pll_pms pll0_1_pms[] = {
+	[0] = {
+		.rate = 1600000, .P = 6, .M = 400, .S = 0,
+	},
+	[1] = {
+		.rate = 1500000, .P = 6, .M = 375, .S = 0,
+	},
+	[2] = {
+		.rate = 1400000, .P = 6, .M = 350, .S = 0,
+	},
+	[3] = {
+		.rate = 1300000, .P = 6, .M = 325, .S = 0,
 	},
 	[4] = {
 		.rate = 1200000, .P = 3, .M = 300, .S = 1,
@@ -100,10 +181,10 @@ static struct pll_pms pll0_1_pms[] = {
 /* PLL 2,3 */
 static struct pll_pms pll2_3_pms[] = {
 	[0] = {
-		.rate = 1400000, .P = 3, .M = 350, .S = 1,
+		.rate = 1600000, .P = 3, .M = 400, .S = 1,
 	},
 	[1] = {
-		.rate = 1300000, .P = 3, .M = 325, .S = 1,
+		.rate = 1500000, .P = 3, .M = 375, .S = 1,
 	},
 	[2] = {
 		.rate = 1400000, .P = 3, .M = 350, .S = 1,
@@ -148,6 +229,7 @@ static struct pll_pms pll2_3_pms[] = {
 		.rate = 100000, .P = 3, .M = 200, .S = 4,
 	},
 };
+#endif
 
 #define PLL0_1_SIZE ARRAY_SIZE(pll0_1_pms)
 #define PLL2_3_SIZE ARRAY_SIZE(pll2_3_pms)
@@ -164,7 +246,7 @@ static struct pll_pms pll2_3_pms[] = {
 static void *ref_clk_base;
 static spinlock_t pll_lock = __SPIN_LOCK_UNLOCKED(pll_lock);
 
-static void pll_set_rate(int PLL, int P, int M, int S)
+void nx_pll_set_rate(int PLL, int P, int M, int S)
 {
 	struct reg_clkpwr *reg = ref_clk_base;
 	unsigned long flags;
@@ -215,8 +297,10 @@ static void pll_set_rate(int PLL, int P, int M, int S)
 
 	while (readl(&reg->CLKMODEREG0) & (1 << 31))
 		;/* wait for change update pll */
+
 	spin_unlock_irqrestore(&pll_lock, flags);
 }
+EXPORT_SYMBOL(nx_pll_set_rate);
 
 static unsigned long pll_round_rate(int pllno, unsigned long rate, int *p,
 				    int *m, int *s)
@@ -563,7 +647,7 @@ static int clk_pll_set_rate(struct clk_hw *hw, unsigned long drate,
 
 	pr_debug("%s: name %s id %d (%lu, %lu) <%d,%d,%d>\n", __func__,
 		 clk_data->name, id, drate, rate, pms->P, pms->M, pms->S);
-	pll_set_rate(id, pms->P, pms->M, pms->S);
+	nx_pll_set_rate(id, pms->P, pms->M, pms->S);
 
 	/* clear P,M,S */
 	pms->P = 0, pms->M = 0, pms->S = 0;
@@ -725,4 +809,4 @@ static void __init clk_pll_of_setup(struct device_node *node)
 		ref_clk_base);
 }
 
-CLK_OF_DECLARE(s5pxx18, "nexell,s5p4418,pll", clk_pll_of_setup);
+CLK_OF_DECLARE(s5pxx18, "nexell,s5pxx18,pll", clk_pll_of_setup);
