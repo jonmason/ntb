@@ -100,7 +100,7 @@
 	};
 
 	refclk:oscillator {
-		compatible = "nexell,s5p4418,pll";
+		compatible = "nexell,s5pxx18,pll";
 		reg = <0xc0010000 0x1000>;
 		ref-freuecny = <24000000>;
 	};
