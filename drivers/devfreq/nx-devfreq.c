@@ -203,25 +203,6 @@ static int get_pll_data(u32 pll, unsigned long rate, u32 *pll_data,
 	return -EINVAL;
 }
 
-#if defined(CONFIG_ARCH_S5P4418)
-asmlinkage int __invoke_nexell_fn_smc(u32, u32, u32, u32);
-#endif
-
-static int change_bus_freq(u32 pll_data)
-{
-#if defined(CONFIG_ARCH_S5P6818)
-	uint32_t pll_num = pll_data & 0x00000003;
-	uint32_t s       = (pll_data & 0x000000fc) >> 2;
-	uint32_t m       = (pll_data & 0x00ffff00) >> 8;
-	uint32_t p       = (pll_data & 0xff000000) >> 24;
-
-	nx_pll_set_rate(pll_num, p, m, s);
-	return 0;
-#else
-	return __invoke_nexell_fn_smc(0x82000009, pll_data, 0, 0);
-#endif
-}
-
 /* profile */
 static int nx_devfreq_target(struct device *dev, unsigned long *freq, u32 flags)
 {
@@ -260,7 +241,7 @@ static int nx_devfreq_target(struct device *dev, unsigned long *freq, u32 flags)
 	if (is_up)
 		regulator_set_voltage(nx_devfreq->regulator, voltage, voltage);
 
-	err = change_bus_freq(pll_data);
+	err = nx_change_bus_freq(pll_data);
 	if (err) {
 		dev_err(dev, "failed to change bus clock for %lu KHz\n", *freq);
 		return err;

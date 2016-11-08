@@ -246,7 +246,7 @@ static struct pll_pms pll2_3_pms[] = {
 static void *ref_clk_base;
 static spinlock_t pll_lock = __SPIN_LOCK_UNLOCKED(pll_lock);
 
-void nx_pll_set_rate(int PLL, int P, int M, int S)
+static void nx_pll_set_rate(int PLL, int P, int M, int S)
 {
 	struct reg_clkpwr *reg = ref_clk_base;
 	unsigned long flags;
@@ -300,7 +300,33 @@ void nx_pll_set_rate(int PLL, int P, int M, int S)
 
 	spin_unlock_irqrestore(&pll_lock, flags);
 }
-EXPORT_SYMBOL(nx_pll_set_rate);
+
+#if defined(CONFIG_ARCH_S5P4418)
+asmlinkage int __invoke_nexell_fn_smc(u32, u32, u32, u32);
+#endif
+
+int nx_change_bus_freq(u32 pll_data)
+{
+#if defined(CONFIG_ARCH_S5P6818)
+	uint32_t pll_num = pll_data & 0x00000003;
+	uint32_t s       = (pll_data & 0x000000fc) >> 2;
+	uint32_t m       = (pll_data & 0x00ffff00) >> 8;
+	uint32_t p       = (pll_data & 0xff000000) >> 24;
+
+	nx_pll_set_rate(pll_num, p, m, s);
+	return 0;
+#else
+	unsigned long flags;
+	int ret;
+
+	spin_lock_irqsave(&pll_lock, flags);
+	ret = __invoke_nexell_fn_smc(0x82000009, pll_data, 0, 0);
+	spin_unlock_irqrestore(&pll_lock, flags);
+
+	return ret;
+#endif
+}
+EXPORT_SYMBOL(nx_change_bus_freq);
 
 static unsigned long pll_round_rate(int pllno, unsigned long rate, int *p,
 				    int *m, int *s)

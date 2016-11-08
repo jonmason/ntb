@@ -30,7 +30,7 @@ struct nxp_cpufreq_plat_data {
 	int max_freq;
 };
 
-void nx_pll_set_rate(int PLL, int P, int M, int S);
+int nx_change_bus_freq(u32 pll_data);
 
 /* BUS CLOCK */
 #define NX_BUS_CLK_HIGH_KHZ     400000
