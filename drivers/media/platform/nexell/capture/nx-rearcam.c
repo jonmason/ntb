@@ -415,6 +415,7 @@ struct nx_rearcam {
 	char irq_name_vip[30];
 
 	int irq_dpc;
+	int is_enable_dpc_irq;
 	char irq_name_dpc[30];
 
 	u32 width;
@@ -517,6 +518,8 @@ static void _init_hw_vip(struct nx_rearcam *me);
 static void _dpc_set_display(struct nx_rearcam *);
 static void _set_enable_lvds(struct nx_rearcam *);
 static void _set_disable_lvds(struct nx_rearcam *);
+static void _enable_dpc_irq(struct nx_rearcam *);
+static void _disable_dpc_irq(struct nx_rearcam *);
 
 static struct device_node *_of_get_node_by_property(struct device *dev,
 		struct device_node *np, char *prop_name)
@@ -1614,7 +1617,7 @@ static int nx_interrupt_parse_dt(struct device *dev, struct nx_rearcam *me)
 	of_property_read_u32_array(child_display_node,
 		"interrupts", int_num, size);
 
-	me->irq_dpc = int_num[module];
+	me->irq_dpc = int_num[module] + 16;
 
 	return 0;
 }
@@ -2458,6 +2461,7 @@ static void _turn_on(struct nx_rearcam *me)
 
 	_reset_values(me);
 	_all_buffer_to_empty_queue(me);
+	_enable_dpc_irq(me);
 	_set_vip_interrupt(me, true);
 	_vip_run(me);
 }
@@ -2470,6 +2474,7 @@ static void _turn_off(struct nx_rearcam *me)
 	_set_vip_interrupt(me, false);
 
 	_cleanup_me(me);
+	_disable_dpc_irq(me);
 	_reset_queue(me);
 
 	me->is_display_on = false;
@@ -2927,6 +2932,21 @@ static void _init_hw_mlc(struct nx_rearcam *me)
 		_set_mlc_video(me);
 }
 
+static void _enable_dpc_irq(struct nx_rearcam *me)
+{
+	if (!me->is_enable_dpc_irq) {
+		enable_irq(me->irq_dpc);
+		me->is_enable_dpc_irq = true;
+	}
+}
+
+static void _disable_dpc_irq(struct nx_rearcam *me)
+{
+	if (me->is_enable_dpc_irq) {
+		disable_irq(me->irq_dpc);
+		me->is_enable_dpc_irq = false;
+	}
+}
 
 static void _init_hw_dpc(struct nx_rearcam *me)
 {
@@ -2946,7 +2966,6 @@ static void _init_hw_dpc(struct nx_rearcam *me)
 		return;
 	}
 
-	me->irq_dpc += 16;
 	sprintf(me->irq_name_dpc, "nx-rearcam-dpc%d", module);
 	err = devm_request_irq(dev, me->irq_dpc, &_dpc_irq_handler,
 		IRQF_SHARED, me->irq_name_dpc, me);
@@ -2955,6 +2974,9 @@ static void _init_hw_dpc(struct nx_rearcam *me)
 			module);
 		return;
 	}
+	disable_irq_nosync(me->irq_dpc);
+
+	me->is_enable_dpc_irq = false;
 }
 
 static void _init_hw_sensor(struct nx_rearcam *me)
