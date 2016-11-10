@@ -125,20 +125,23 @@ struct clock_ratio {
 	unsigned int sample_rate;
 	unsigned int ratio_256;
 	unsigned int ratio_384;
+	unsigned int dfs_pll_256;
+	unsigned int dfs_pll_384;
 };
 
 static struct clock_ratio clk_ratio[] = {
-	{   8000,  2048000,  3072000 },
-	{  11025,  2822400,  4233600 },
-	{  16000,  4096000,  6144000 },
-	{  22050,  5644800,  8467200 },
-	{  32000,  8192000, 12288000 },
-	{  44100, 11289600, 16934400 },
-	{  48000, 12288000, 18432000 },
-	{  64000, 16384000, 24576000 },
-	{  88200, 22579200, 33868800 },
-	{  96000, 24576000, 36864000 },
-	{ 192000, 49152000, 73728000 },
+	{   8000,  2048000,  3072000, 614400000, 614400000 },
+	{  11025,  2822400,  4233600, 677376000, 677376000 },
+	{  16000,  4096000,  6144000, 614400000, 614400000 },
+	{  22050,  5644800,  8467200, 677376000, 677376000 },
+	{  32000,  8192000, 12288000, 638976000, 614400000 },
+	{  44100, 11289600, 16934400, 677376000, 677376000 },
+	{  48000, 12288000, 18432000, 614400000, 589824000 },
+	{  64000, 16384000, 24576000, 589824000, 638976000 },
+	{  88200, 22579200, 33868800, 677376000, 677376000 },
+	{  96000, 24576000, 36864000, 638976000, 589824000 },
+	{ 176400, 45158400, 67737600, 632217600, 677376000 },
+	{ 192000, 49152000, 73728000, 589824000, 589824000 },
 };
 
 /*
@@ -169,6 +172,11 @@ struct nx_i2s_snd_param {
 	/* Register */
 	void __iomem *base_addr;
 	struct i2s_register i2s;
+	struct device *dev;
+	unsigned long mclk_freq;
+	bool dfs;
+	struct clk *dfs_clk;
+	unsigned long dfs_freq;
 
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
 	struct work_struct qos_work;
@@ -284,14 +292,14 @@ static int i2s_start(struct snd_soc_dai *dai, int stream)
 	void __iomem *base = par->base_addr;
 	unsigned int FIC = 0;
 
-	dev_dbg(dai->dev, "%s %d\n", __func__, par->channel);
+	dev_dbg(par->dev, "%s %d\n", __func__, par->channel);
 
 	SND_I2S_LOCK(&par->lock, par->flags);
 
 	if (!par->pre_supply_mclk) {
 		if (par->ext_is_en)
 			par->set_ext_mclk(true, par->channel);
-		supply_master_clock(dai->dev, par);
+		supply_master_clock(par->dev, par);
 	}
 
 	if (SNDRV_PCM_STREAM_PLAYBACK == stream) {
@@ -338,7 +346,7 @@ static void i2s_stop(struct snd_soc_dai *dai, int stream)
 	struct i2s_register *i2s = &par->i2s;
 	void __iomem *base = par->base_addr;
 
-	dev_dbg(dai->dev, "%s %d\n", __func__, par->channel);
+	dev_dbg(par->dev, "%s %d\n", __func__, par->channel);
 
 	SND_I2S_LOCK(&par->lock, par->flags);
 
@@ -369,7 +377,7 @@ static void i2s_stop(struct snd_soc_dai *dai, int stream)
 	/* I2S Inactive */
 	if (!(par->status & SNDDEV_STATUS_RUNNING) &&
 		!par->pre_supply_mclk) {
-		cutoff_master_clock(dai->dev, par);
+		cutoff_master_clock(par->dev, par);
 		if (par->ext_is_en)
 			par->set_ext_mclk(false, par->channel);
 	}
@@ -386,7 +394,7 @@ static int nx_i2s_check_param(struct nx_i2s_snd_param *par, struct device *dev)
 	struct nx_pcm_dma_param *dmap_play = &par->play;
 	struct nx_pcm_dma_param *dmap_capt = &par->capt;
 	void __iomem *base = par->base_addr;
-	unsigned long request = 0, rate_hz = 0;
+	unsigned long request = 0, rate_hz = 0, dfs_pll = 0;
 	int i = 0;
 
 	int LRP, IMS, BLC = BLC_16BIT, BFS = 0, RFS = RATIO_256;
@@ -410,15 +418,6 @@ static int nx_i2s_check_param(struct nx_i2s_snd_param *par, struct device *dev)
 		return -EINVAL;
 	}
 
-	if (!par->master_mode) {
-		/* 384 RATIO */
-		RFS = RATIO_384, request = clk_ratio[i].ratio_384;
-		/* 256 RATIO */
-		if (BFS_32BIT == BFS)
-			RFS = RATIO_256, request = clk_ratio[i].ratio_256;
-		goto done;
-	}
-
 	for (i = 0; ARRAY_SIZE(clk_ratio) > i; i++) {
 		if (par->sample_rate == clk_ratio[i].sample_rate)
 			break;
@@ -430,6 +429,15 @@ static int nx_i2s_check_param(struct nx_i2s_snd_param *par, struct device *dev)
 		return -EINVAL;
 	}
 
+	if (!par->master_mode) {
+		/* 384 RATIO */
+		RFS = RATIO_384, request = clk_ratio[i].ratio_384;
+		/* 256 RATIO */
+		if (BFS_32BIT == BFS)
+			RFS = RATIO_256, request = clk_ratio[i].ratio_256;
+		goto done;
+	}
+
 	if (par->ext_is_en) {
 		if (BFS_48BIT == BFS)
 			request = clk_ratio[i].ratio_384;
@@ -438,20 +446,37 @@ static int nx_i2s_check_param(struct nx_i2s_snd_param *par, struct device *dev)
 	    par->set_ext_mclk(request, par->channel);
 	}
 
-	/* 384 RATIO */
-	RFS = RATIO_384, request = clk_ratio[i].ratio_384;
-	set_sample_rate_clock(dev, par->clk, request, &rate_hz);
+	if (par->dfs && par->dfs_clk) {
+		if (BFS_48BIT == BFS) {
+			RFS = RATIO_384, request = clk_ratio[i].ratio_384;
+			dfs_pll = clk_ratio[i].dfs_pll_384;
+		} else {
+			RFS = RATIO_256, request = clk_ratio[i].ratio_256;
+			dfs_pll = clk_ratio[i].dfs_pll_256;
+		}
 
+		if (par->dfs_freq != dfs_pll) {
+			clk_set_rate(par->dfs_clk, dfs_pll);
+			par->dfs_freq = dfs_pll;
+		}
 
-	/* 256 RATIO */
-	if (rate_hz != request && BFS_32BIT == BFS) {
-		unsigned int rate = rate_hz;
-
-		RFS = RATIO_256, request = clk_ratio[i].ratio_256;
 		set_sample_rate_clock(dev, par->clk, request, &rate_hz);
-		if (abs(request - rate_hz) >
-			abs(request - rate)) {
-			rate_hz = rate, RFS = RATIO_384;
+	} else {
+		/* 384 RATIO */
+		RFS = RATIO_384, request = clk_ratio[i].ratio_384;
+		set_sample_rate_clock(dev, par->clk, request, &rate_hz);
+
+
+		/* 256 RATIO */
+		if (rate_hz != request && BFS_32BIT == BFS) {
+			unsigned int rate = rate_hz;
+
+			RFS = RATIO_256, request = clk_ratio[i].ratio_256;
+			set_sample_rate_clock(dev, par->clk, request, &rate_hz);
+			if (abs(request - rate_hz) >
+				abs(request - rate)) {
+				rate_hz = rate, RFS = RATIO_384;
+			}
 		}
 	}
 
@@ -496,16 +521,20 @@ done:
 	dev_dbg(dev, "snd i2s: BLC=%d, IMS=%d, LRP=%d", BLC, IMS, LRP);
 	dev_dbg(dev, "SDF=%d, RFS=%d, BFS=%d\n", SDF, RFS, BFS);
 
-	/* i2s support format */
-	if (RFS == RATIO_256 || BFS != BFS_48BIT) {
-		dai->playback.formats &= ~(SNDRV_PCM_FMTBIT_S24_LE |
-					   SNDRV_PCM_FMTBIT_U24_LE);
-		dai->capture.formats  &= ~(SNDRV_PCM_FMTBIT_S24_LE |
-					   SNDRV_PCM_FMTBIT_U24_LE);
+	if (!par->dfs) {
+		/* i2s support format */
+		if (RFS == RATIO_256 || BFS != BFS_48BIT) {
+			dai->playback.formats &= ~(SNDRV_PCM_FMTBIT_S24_LE |
+						   SNDRV_PCM_FMTBIT_U24_LE);
+			dai->capture.formats  &= ~(SNDRV_PCM_FMTBIT_S24_LE |
+						   SNDRV_PCM_FMTBIT_U24_LE);
+		}
 	}
 
 	return 0;
 }
+
+#define MAX_CLK_NAME_LENGTH 15
 
 static int nx_i2s_set_plat_param(struct nx_i2s_snd_param *par, void *data)
 {
@@ -515,6 +544,8 @@ static int nx_i2s_set_plat_param(struct nx_i2s_snd_param *par, void *data)
 	int i = 0, ret = 0;
 	unsigned int id = 0;
 	static struct snd_soc_dai_driver *dai = &i2s_dai_driver;
+	char clkname[MAX_CLK_NAME_LENGTH];
+	int dfs_pllno;
 
 	id = of_alias_get_id(pdev->dev.of_node, "i2s");
 
@@ -530,15 +561,22 @@ static int nx_i2s_set_plat_param(struct nx_i2s_snd_param *par, void *data)
 			     &par->trans_mode);
 	of_property_read_u32(pdev->dev.of_node, "frame-bit",
 			     &par->frame_bit);
+	of_property_read_u32(pdev->dev.of_node, "dfs-pll",
+			     &dfs_pllno);
+
+	par->dfs = of_property_read_bool(pdev->dev.of_node, "dfs");
+
 	if (!par->frame_bit)
 		par->frame_bit = DEF_FRAME_BIT;
 
-	if (par->frame_bit == 32) {
-		dai->playback.formats = SNDRV_PCM_FMTBIT_S16_LE;
-		dai->capture.formats = SNDRV_PCM_FMTBIT_S16_LE;
-	} else {
-		dai->playback.formats = SNDRV_PCM_FMTBIT_S24_LE;
-		dai->capture.formats = SNDRV_PCM_FMTBIT_S24_LE;
+	if (par->frame_bit && !par->dfs) {
+		if (par->frame_bit == 32) {
+			dai->playback.formats = SNDRV_PCM_FMTBIT_S16_LE;
+			dai->capture.formats = SNDRV_PCM_FMTBIT_S16_LE;
+		} else {
+			dai->playback.formats = SNDRV_PCM_FMTBIT_S24_LE;
+			dai->capture.formats = SNDRV_PCM_FMTBIT_S24_LE;
+		}
 	}
 
 	of_property_read_u32(pdev->dev.of_node, "sample-rate",
@@ -546,10 +584,12 @@ static int nx_i2s_set_plat_param(struct nx_i2s_snd_param *par, void *data)
 	if (!par->sample_rate)
 		par->sample_rate = DEF_SAMPLE_RATE;
 
-	dai->playback.rates =
-		snd_pcm_rate_to_rate_bit(par->sample_rate);
-	dai->capture.rates =
-		snd_pcm_rate_to_rate_bit(par->sample_rate);
+	if (par->sample_rate && !par->dfs) {
+		dai->playback.rates =
+			snd_pcm_rate_to_rate_bit(par->sample_rate);
+		dai->capture.rates =
+			snd_pcm_rate_to_rate_bit(par->sample_rate);
+	}
 
 	of_property_read_u32(pdev->dev.of_node, "pre-supply-mclk",
 			     &par->pre_supply_mclk);
@@ -572,11 +612,19 @@ static int nx_i2s_set_plat_param(struct nx_i2s_snd_param *par, void *data)
 			dma->bus_width_byte*8);
 	}
 
-	par->clk = clk_get(&pdev->dev, NULL);
+	sprintf(clkname, "i2s%d", par->channel);
+	par->clk = devm_clk_get(&pdev->dev, clkname);
 	if (IS_ERR(par->clk)) {
 		ret = PTR_ERR(par->clk);
 		return ret;
 	}
+
+	if (par->dfs && dfs_pllno) {
+		sprintf(clkname, "sys-pll%d", dfs_pllno);
+		par->dfs_clk = devm_clk_get(&pdev->dev, clkname);
+	}
+
+	par->dev = &pdev->dev;
 
 	return nx_i2s_check_param(par, &pdev->dev);
 }
@@ -618,8 +666,10 @@ static void nx_i2s_release(struct snd_soc_dai *dai)
 
 	writel(i2s->CON, (base+I2S_CON_OFFSET));
 
-	cutoff_master_clock(dai->dev, par);
+	cutoff_master_clock(par->dev, par);
 	clk_put(par->clk);
+	if (par->dfs && par->dfs_clk)
+		clk_put(par->dfs_clk);
 
 	par->status = SNDDEV_STATUS_CLEAR;
 
@@ -659,9 +709,10 @@ static void nx_i2s_shutdown(struct snd_pcm_substream *substream,
 static int nx_i2s_trigger(struct snd_pcm_substream *substream,
 				int cmd, struct snd_soc_dai *dai)
 {
+	struct nx_i2s_snd_param *par = snd_soc_dai_get_drvdata(dai);
 	int stream = substream->stream;
 
-	dev_dbg(dai->dev, "%s: %s cmd=%d\n", __func__, STREAM_STR(stream), cmd);
+	dev_dbg(par->dev, "%s: %s cmd=%d\n", __func__, STREAM_STR(stream), cmd);
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_RESUME:
@@ -681,6 +732,57 @@ static int nx_i2s_trigger(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+static int nx_i2s_set_dai_fmt(struct snd_soc_dai *dai, unsigned int fmt)
+{
+	struct nx_i2s_snd_param *par = snd_soc_dai_get_drvdata(dai);
+
+	dev_dbg(par->dev, "%s\n", __func__);
+
+	switch (fmt & SND_SOC_DAIFMT_MASTER_MASK) {
+	case SND_SOC_DAIFMT_CBS_CFS:
+		dev_dbg(par->dev, "SND_SOC_DAIFMT_CBS_CFS\n");
+		break;
+	case SND_SOC_DAIFMT_CBM_CFS:
+		dev_dbg(par->dev, "SND_SOC_DAIFMT_CBM_CFS\n");
+		break;
+	default:
+		dev_dbg(par->dev, "SND_SOC_DAIFMT_MASTER_MASK Error\n");
+		break;
+	}
+
+	switch (fmt & SND_SOC_DAIFMT_FORMAT_MASK) {
+	case SND_SOC_DAIFMT_I2S:
+		dev_dbg(par->dev, "SND_SOC_DAIFMT_I2S\n");
+		break;
+	case SND_SOC_DAIFMT_LEFT_J:
+		dev_dbg(par->dev, "SND_SOC_DAIFMT_LEFT_J\n");
+		break;
+	case SND_SOC_DAIFMT_DSP_A:
+		dev_dbg(par->dev, "SND_SOC_DAIFMT_DSP_A\n");
+		break;
+	case SND_SOC_DAIFMT_DSP_B:
+		dev_dbg(par->dev, "SND_SOC_DAIFMT_DSP_B\n");
+		break;
+	default:
+		dev_dbg(par->dev, "SND_SOC_DAIFMT_FORMAT_MASK Error\n");
+		return -EINVAL;
+	}
+
+	switch (fmt & SND_SOC_DAIFMT_INV_MASK) {
+	case SND_SOC_DAIFMT_NB_NF:
+		dev_dbg(par->dev, "SND_SOC_DAIFMT_NB_NF\n");
+		break;
+	case SND_SOC_DAIFMT_IB_NF:
+		dev_dbg(par->dev, "SND_SOC_DAIFMT_IB_NF\n");
+		break;
+	default:
+		dev_dbg(par->dev, "SND_SOC_DAIFMT_INV_MASK Error\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int nx_i2s_hw_params(struct snd_pcm_substream *substream,
 			    struct snd_pcm_hw_params *params,
 			    struct snd_soc_dai *dai)
@@ -693,37 +795,66 @@ static int nx_i2s_hw_params(struct snd_pcm_substream *substream,
 	int BLC = (i2s->CSR >> CSR_BLC_POS) & 0x3;
 	int ret = 0;
 
+	dev_dbg(par->dev, "nx_i2s_hw_params, %d\n", format);
+
 	switch (format) {
 	case SNDRV_PCM_FORMAT_S8:
-		dev_dbg(dai->dev, "i2s: change sample bits S08\n");
+	case SNDRV_PCM_FORMAT_U8:
+		dev_dbg(par->dev, "i2s: change sample bits S08\n");
 		if (BLC != BLC_8BIT) {
 			i2s->CSR &= ~(0x3 << CSR_BLC_POS);
 			i2s->CSR |=  (BLC_8BIT << CSR_BLC_POS);
 		}
+		if (par->dfs) {
+			i2s->CSR &= ~(0x3 << CSR_BFS_POS);
+			i2s->CSR |=  (BFS_16BIT << CSR_BFS_POS);
+		}
 		break;
 	case SNDRV_PCM_FORMAT_S16_LE:
-		dev_dbg(dai->dev, "i2s: change i2s sample bits %s -> S16\n",
+		dev_dbg(par->dev, "i2s: change i2s sample bits %s -> S16\n",
 			 BLC == BLC_16BIT ? "S16":"S24");
 		if (BLC != BLC_16BIT) {
 			i2s->CSR &= ~(0x3 << CSR_BLC_POS);
 			i2s->CSR |=  (BLC_16BIT << CSR_BLC_POS);
 		}
+		if (par->dfs) {
+			i2s->CSR &= ~(0x3 << CSR_BFS_POS);
+			i2s->CSR |=  (BFS_32BIT << CSR_BFS_POS);
+			par->frame_bit = 32;
+		}
 		break;
 	case SNDRV_PCM_FORMAT_S24_LE:
-		dev_dbg(dai->dev, "i2s: change i2s sample bits %s -> S24\n",
+		dev_dbg(par->dev, "i2s: change i2s sample bits %s -> S24\n",
 			 BLC == BLC_16BIT ? "S16":"S24");
-		if (RFS == RATIO_256 || BFS != BFS_48BIT) {
-			dev_err(dai->dev, "Fail, i2s RFS 256/BFS 32 not support");
-			dev_err(dai->dev, "24 sample bits\n");
-			return -EINVAL;
+		if (!par->dfs) {
+			if (RFS == RATIO_256 || BFS != BFS_48BIT) {
+				dev_err(par->dev, "Fail, i2s RFS 256/BFS 32 not support");
+				dev_err(par->dev, "24 sample bits\n");
+				return -EINVAL;
+			}
 		}
 		if (BLC != BLC_24BIT) {
+			dev_dbg(par->dev, "i2s: BLC != BLC_24BIT\n");
 			i2s->CSR &= ~(0x3 << CSR_BLC_POS);
 			i2s->CSR |=  (BLC_24BIT << CSR_BLC_POS);
+		} else
+			pr_debug("i2s: BLC == BLC_24BIT\n");
+		if (par->dfs) {
+			i2s->CSR &= ~(0x3 << CSR_BFS_POS);
+			i2s->CSR |=  (BFS_48BIT << CSR_BFS_POS);
+			par->frame_bit = 48;
 		}
 		break;
 	default:
+		dev_dbg(par->dev, "i2s: default %d\n", format);
 		return -EINVAL;
+	}
+
+	if (par->dfs) {
+		par->sample_rate =
+			par->mclk_freq/(par->frame_bit == 48 ? 384 : 256);
+
+		nx_i2s_check_param(par, par->dev);
 	}
 
 	return ret;
@@ -732,6 +863,13 @@ static int nx_i2s_hw_params(struct snd_pcm_substream *substream,
 static int nx_i2s_set_sysclk(struct snd_soc_dai *dai,
 				   int clk_id, unsigned int freq, int dir)
 {
+	struct nx_i2s_snd_param *par = snd_soc_dai_get_drvdata(dai);
+
+	dev_dbg(par->dev, "%s, clk_id %d, sample_rate = %u, dir = %d\n",
+		 __func__, clk_id, freq, dir);
+
+	par->mclk_freq = freq;
+
 	return 0;
 }
 
@@ -741,6 +879,7 @@ static struct snd_soc_dai_ops nx_i2s_ops = {
 	.trigger	= nx_i2s_trigger,
 	.hw_params	= nx_i2s_hw_params,
 	.set_sysclk	= nx_i2s_set_sysclk,
+	.set_fmt	= nx_i2s_set_dai_fmt,
 };
 
 /*
@@ -750,7 +889,7 @@ static int nx_i2s_dai_suspend(struct snd_soc_dai *dai)
 {
 	struct nx_i2s_snd_param *par = snd_soc_dai_get_drvdata(dai);
 
-	dev_dbg(dai->dev, "%s\n", __func__);
+	dev_dbg(par->dev, "%s\n", __func__);
 
 	if (par->in_clkgen)
 		clk_disable_unprepare(par->clk);
@@ -764,9 +903,9 @@ static int nx_i2s_dai_resume(struct snd_soc_dai *dai)
 	void __iomem *base = par->base_addr;
 	unsigned int FIC = 0;
 
-	dev_dbg(dai->dev, "%s\n", __func__);
+	dev_dbg(par->dev, "%s\n", __func__);
 
-	i2s_reset(dai->dev);
+	i2s_reset(par->dev);
 
 	if (par->pre_supply_mclk && par->ext_is_en)
 		par->set_ext_mclk(true, par->channel);
@@ -812,7 +951,7 @@ static struct snd_soc_dai_driver i2s_dai_driver = {
 		.formats		= SND_SOC_I2S_FORMATS,
 		.rates			= SND_SOC_I2S_RATES,
 		.rate_min		= 0,
-		.rate_max		= 1562500,
+		.rate_max		= 192000,
 		},
 	.capture	= {
 		.stream_name = "Capture",
@@ -821,7 +960,7 @@ static struct snd_soc_dai_driver i2s_dai_driver = {
 		.formats		= SND_SOC_I2S_FORMATS,
 		.rates			= SND_SOC_I2S_RATES,
 		.rate_min		= 0,
-		.rate_max		= 1562500,
+		.rate_max		= 192000,
 		},
 	.ops = &nx_i2s_ops,
 	.symmetric_rates = 1,
