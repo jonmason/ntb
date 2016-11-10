@@ -35,6 +35,7 @@ struct nx_video_format {
 	u32   num_planes;
 	u32   num_sw_planes;
 	bool  is_separated;
+	u32   field;
 };
 
 struct nx_video_frame {
