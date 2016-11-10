@@ -62,21 +62,21 @@
 
 		};
 
-		cpu@1 {
+		cpu1: cpu@1 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a9";
 			reg = <0xa01>;
 			cpu-idle-states =<&CPU_SLEEP>;
 		};
 
-		cpu@2 {
+		cpu2: cpu@2 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a9";
 			reg = <0xa02>;
 			cpu-idle-states =<&CPU_SLEEP>;
 		};
 
-		cpu@3 {
+		cpu3: cpu@3 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a9";
 			reg = <0xa03>;
@@ -174,6 +174,19 @@
 			clkevent = <1>;
 			clocks =  <&timer0>, <&timer1>, <&pclk>;
 			clock-names = "timer0", "timer1", "pclk";
+		};
+
+		pmu {
+			compatible = "arm,cortex-a9-pmu";
+			interrupt-parent = <&gic>;
+			interrupts = <0 IRQ_GIC_SPI_PMU0 0>,
+				     <0 IRQ_GIC_SPI_PMU1 0>,
+				     <0 IRQ_GIC_SPI_PMU2 0>,
+				     <0 IRQ_GIC_SPI_PMU3 0>;
+			interrupt-affinity = <&cpu0>,
+					     <&cpu1>,
+					     <&cpu2>,
+					     <&cpu3>;
 		};
 
 		twdtimer:timer@f0000600 {
