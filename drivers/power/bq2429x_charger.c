@@ -560,8 +560,6 @@ static int bq24296_battery_probe(struct i2c_client *client,
 	di->workqueue = create_singlethread_workqueue("bq24296_irq");
 	INIT_WORK(&di->irq_work, irq_work_func);
 	mutex_init(&di->var_lock);
-	INIT_DELAYED_WORK(&di->usb_detect_work, usb_detect_work_func);
-	schedule_delayed_work(&di->usb_detect_work, 0);
 
 	/* usb_detect_work is valid when we support usb changing and dc_det_pin */
 	if (gpio_is_valid(bq24296_pdata->dc_det_pin)) {
