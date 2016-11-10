@@ -3836,11 +3836,32 @@ static ssize_t _status_rearcam(struct kobject *kobj,
 	return sprintf(buf, "%d", ret);
 }
 
+static ssize_t _show_stride(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct device *dev = container_of(kobj->parent, struct device, kobj);
+	struct nx_rearcam *me = (struct nx_rearcam *)dev_get_drvdata(dev);
+	u32 lu_stride = 0;
+	u32 cb_stride = 0;
+	u32 cr_stride = 0;
+
+	lu_stride = _stride_cal(me, Y);
+	cb_stride = _stride_cal(me, CB);
+	cr_stride = _stride_cal(me, CR);
+
+	return sprintf(buf, "y stride : %d, cb stride : %d, cr stride : %d",
+		lu_stride, cb_stride, cr_stride);
+}
+
 static struct kobj_attribute rearcam_attr = __ATTR(stop, 0644,
 					_status_rearcam, _stop_rearcam);
 
+static struct kobj_attribute rearcam_stride_attr = __ATTR(stride, 0644,
+					_show_stride, NULL);
+
 static struct attribute *attrs[] = {
 	&rearcam_attr.attr,
+	&rearcam_stride_attr.attr,
 	NULL,
 };
 
