@@ -1,0 +1,28 @@
+/ {
+	soc {
+		clocks {
+			vip0:vip@c00c1000 {
+				clk-input = <(CLK_INPUT_VIP0 & ~I_PLL3)>;
+			};
+
+			vip1:vip@c00c2000 {
+				clk-input = <(CLK_INPUT_VIP1 & ~I_PLL3)>;
+			};
+
+			gmac:gmac@c00c8000 {
+				clk-input  = <(CLK_INPUT_GMAC & ~I_PLL3)>;
+				clk-input1  = <(CLK_INPUT_GMAC_IN1 & ~I_PLL3)>;
+			};
+
+			usbhost:usbhost@c006b000 {
+				clk-input  = <(CLK_INPUT_EHCI & ~I_PLL3)>;
+				clk-input1  = <(CLK_INPUT_EHCI_IN1 & ~I_PLL3)>;
+			};
+
+			otg:otg@6c00b000 {
+				clk-input  = <(CLK_INPUT_OTG & ~I_PLL3)>;
+				clk-input1  = <(CLK_INPUT_OTG_IN1 & ~I_PLL3)>;
+			};
+		};
+	};
+};
