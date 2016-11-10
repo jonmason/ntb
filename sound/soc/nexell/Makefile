@@ -17,6 +17,7 @@ obj-$(CONFIG_SND_CODEC_NULL)			+= nexell-snd-null.o
 obj-$(CONFIG_SND_CODEC_RT5640)			+= nexell-snd-rt5640.o
 obj-$(CONFIG_SND_CODEC_ALC5623)			+= nexell-snd-alc5623.o
 obj-$(CONFIG_SND_SPDIF_TRANSCEIVER)		+= nexell-snd-spdif-transceiver.o
+obj-$(CONFIG_SND_NX_SIMPLE_CARD)		+= nexell-snd-soc-simple-card.o
 
 nexell-snd-es8316-objs 				:= nexell-es8316.o
 nexell-snd-alc5658-objs 			:= nexell-alc5658.o
@@ -24,3 +25,4 @@ nexell-snd-null-objs				:= nexell-null.o
 nexell-snd-rt5640-objs				:= nexell-rt5640.o
 nexell-snd-alc5623-objs 			:= nexell-alc5623.o
 nexell-snd-spdif-transceiver-objs 		:= nexell-spdif-transceiver.o
+nexell-snd-soc-simple-card-objs			:= nexell-simple-card.o

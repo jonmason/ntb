@@ -64,3 +64,8 @@ config SND_CODEC_ALC5623
 	tristate "ALC5623 I2S audio codec."
 	depends on SND_NX_I2S
 	select SND_SOC_ALC5623
+
+config SND_NX_SIMPLE_CARD
+	tristate "Nexell Simple sound card support"
+	help
+	  This option enables nexell simple sound card support
