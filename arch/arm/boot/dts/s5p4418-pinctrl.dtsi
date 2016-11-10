@@ -406,19 +406,49 @@ pinctrl@C0010000 {
 	};
 
 	i2s0_bus:i2s0 {
-		nexell,pins = "gpiod-9", "gpiod-10", "gpiod-11",
-				"gpiod-12", "gpiod-13";
-		nexell,pin-function = <1>;
-		nexell,pin-pull = <0>;
-		nexell,pin-strength = <0>;
+		i2s0_mclk: i2s0-mclk {
+			nexell,pins = "gpiod-13";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <0>;
+			nexell,pin-strength = <3>;
+		};
+
+		i2s0_bclk: i2s0-bclk {
+			nexell,pins = "gpiod-10";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <0>;
+			nexell,pin-strength = <3>;
+		};
+
+		i2s0_other: i2s0-other {
+			nexell,pins = "gpiod-9", "gpiod-11", "gpiod-12";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <0>;
+			nexell,pin-strength = <0>;
+		};
 	};
 
 	i2s1_bus:i2s1 {
-		nexell,pins = "gpioa-28", "gpioa-30", "gpiob-0",
-				"gpiob-6", "gpiob-9";
-		nexell,pin-function = <3>;
-		nexell,pin-pull = <0>;
-		nexell,pin-strength = <0>;
+		i2s1_mclk: i2s1-mclk {
+			nexell,pins = "gpioa-28";
+			nexell,pin-function = <3>;
+			nexell,pin-pull = <0>;
+			nexell,pin-strength = <3>;
+		};
+
+		i2s1_bclk: i2s1-bclk {
+			nexell,pins = "gpioa-30";
+			nexell,pin-function = <3>;
+			nexell,pin-pull = <0>;
+			nexell,pin-strength = <3>;
+		};
+
+		i2s1_other: i2s1-other {
+			nexell,pins = "gpiob-0", "gpiob-6", "gpiob-9";
+			nexell,pin-function = <3>;
+			nexell,pin-pull = <0>;
+			nexell,pin-strength = <0>;
+		};
 	};
 
 	i2s2_bus:i2s2 {
@@ -426,12 +456,18 @@ pinctrl@C0010000 {
 			nexell,pins = "gpioa-28";
 			nexell,pin-function = <2>;
 			nexell,pin-pull = <0>;
-			nexell,pin-strength = <0>;
+			nexell,pin-strength = <3>;
+		};
+
+		i2s2_bclk: i2s2-bclk {
+			nexell,pins = "gpiob-2";
+			nexell,pin-function = <3>;
+			nexell,pin-pull = <0>;
+			nexell,pin-strength = <3>;
 		};
 
 		i2s2_other: i2s2-other {
-			nexell,pins = "gpiob-2", "gpiob-4",
-					"gpiob-8", "gpiob-10";
+			nexell,pins = "gpiob-4", "gpiob-8", "gpiob-10";
 			nexell,pin-function = <3>;
 			nexell,pin-pull = <0>;
 			nexell,pin-strength = <0>;
