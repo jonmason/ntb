@@ -18,8 +18,23 @@
 
 /dts-v1/;
 #include "s5p4418-navi_ref-common.dtsi"
+#include "s5p4418-audio-dfs-pll3.dtsi"
 / {
 	soc {
+		clocks {
+			i2s0:i2s@c00b2000 {
+				clk-input = <I_PLL3>;
+			};
+
+			i2s1:i2s@c00b3000 {
+				clk-input = <I_PLL3>;
+			};
+
+			i2s2:i2s@c00b4000 {
+				clk-input = <I_EXTCLK1>;
+			};
+		};
+
 		pinctrl@C0010000 {
 			i2s2_bus:i2s2 {
 				/delete-node/ i2s2-mclk;
@@ -27,11 +42,13 @@
 		};
 
 		i2s_0:i2s@c0055000 {
-			sample-rate = <16000>;
+			dfs;
+			dfs-pll = <3>;
 		};
 
 		i2s_1:i2s@c0056000 {
-			sample-rate = <16000>;
+			dfs;
+			dfs-pll = <3>;
 		};
 
 		i2s_2:i2s@c0057000 {
@@ -42,6 +59,7 @@
 			frame-bit = <32>;
 			sample-rate = <16000>;
 			pre-supply-mclk = <0>;
+			dfs;
 			status = "okay";
 		};
 	};
@@ -55,7 +73,17 @@
 	};
 
 	sound {
+		compatible = "nexell,simple-audio-card";
 		simple-audio-card,name = "s5p4418 navi_ref rev01 Audio";
+		/delete-property/ simple-audio-card,mclk-fs;
+
+		simple-audio-card,dai-link@0 {
+			mclk-fs = <256>;
+		};
+
+		simple-audio-card,dai-link@1 {
+			mclk-fs = <256>;
+		};
 
 		simple-audio-card,dai-link@2 {
 			format = "i2s";
@@ -69,6 +97,7 @@
 		};
 
 		simple-audio-card,dai-link@3 {
+			mclk-fs = <256>;
 			cpu {
 				sound-dai = <&spdif_tx 0>;
 			};
@@ -205,7 +234,7 @@
 				ldo10	{ PMIC_PDATA_INIT(14,
 					"nxe2000_ldo10",
 					1000000, 3500000,
-					1200000, 1, 1, 0x0)
+					1000000, 1, 1, 0x0)
 					regulator-always-on;
 					regulator-boot-on;};
 			VCC_RTC0:
