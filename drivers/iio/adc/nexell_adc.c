@@ -165,6 +165,7 @@ static int setup_adc_con(struct nexell_adc_info *adc)
 	return 0;
 }
 
+/* you must irq re-enable after sampling */
 static void nexell_adc_v1_ch_start(void __iomem *reg, int ch)
 {
 	unsigned int adcon = 0;
@@ -176,6 +177,7 @@ static void nexell_adc_v1_ch_start(void __iomem *reg, int ch)
 	adcon  = readl(ADC_V1_CON(reg));
 
 	adcon |= ADC_V1_CON_ADEN;	/* start */
+	local_irq_disable();
 	writel(adcon, ADC_V1_CON(reg));
 }
 
@@ -196,6 +198,7 @@ static int nexell_adc_v1_read_polling(struct nexell_adc_info *adc, int ch)
 		}
 		wait--;
 	}
+	local_irq_enable();
 	if (wait == 0)
 		return -ETIMEDOUT;
 
