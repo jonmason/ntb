@@ -65,10 +65,13 @@
 #define MLC_LAYER_VIDEO	3
 #endif
 
-#define YUV_STRIDE_ALIGN_FACTOR		64
-#define YUV_VSTRIDE_ALIGN_FACTOR	16
+#define YUV_STRIDE_ALIGN_FACTOR			128
+#define YUV_VSTRIDE_ALIGN_FACTOR		16
 
-#define YUV_STRIDE(w)	ALIGN(w, YUV_STRIDE_ALIGN_FACTOR)
+#define YUV_Y_STRIDE(w)		ALIGN(w, YUV_STRIDE_ALIGN_FACTOR)
+#define YUV_CB_STRIDE(w)	ALIGN(w, YUV_STRIDE_ALIGN_FACTOR / 2)
+#define YUV_CR_STRIDE(w)	ALIGN(w, YUV_STRIDE_ALIGN_FACTOR / 2)
+
 #define YUV_YSTIRDE(w)	(ALIGN(w/2, YUV_STRIDE_ALIGN_FACTOR) * 2)
 #define YUV_VSTRIDE(h)	ALIGN(h, YUV_VSTRIDE_ALIGN_FACTOR)
 
@@ -1786,13 +1789,13 @@ static int _stride_cal(struct nx_rearcam *me, enum FRAME_KIND type)
 
 	switch (type) {
 	case Y:
-		stride = YUV_STRIDE(width);
+		stride = YUV_Y_STRIDE(width);
 		break;
 	case CB:
-		stride = YUV_STRIDE(width/2);
+		stride = YUV_CB_STRIDE(width/2);
 		break;
 	case CR:
-		stride = YUV_STRIDE(width/2);
+		stride = YUV_CR_STRIDE(width/2);
 		break;
 
 	}
@@ -3109,9 +3112,9 @@ static int _alloc_video_rot_memory(struct nx_rearcam *me,
 	int width = me->rot_width_rate_y_size;
 	int height = me->width;
 
-	lu_stride = YUV_STRIDE(width);
-	cb_stride = YUV_STRIDE(width/2);
-	cr_stride = YUV_STRIDE(width/2);
+	lu_stride = _stride_cal(me, Y);
+	cb_stride = _stride_cal(me, CB);
+	cr_stride = _stride_cal(me, CR);
 
 	size = lu_stride * height +
 		cb_stride * (height / 2) +
