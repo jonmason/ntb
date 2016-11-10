@@ -399,9 +399,9 @@ static int nx_drm_fb_helper_probe(struct drm_fb_helper *fb_helper,
 	offset = info->var.xoffset * bytes_per_pixel;
 	offset += info->var.yoffset * fb->pitches[0];
 
-	drm->mode_config.fb_base = (resource_size_t)nx_obj->paddr;
-	info->screen_base = nx_obj->vaddr + offset;
-	info->fix.smem_start = (unsigned long)(nx_obj->paddr + offset);
+	drm->mode_config.fb_base = (resource_size_t)nx_obj->dma_addr;
+	info->screen_base = nx_obj->cpu_addr + offset;
+	info->fix.smem_start = (unsigned long)(nx_obj->dma_addr + offset);
 	info->screen_size = size;
 	info->fix.smem_len = size;
 

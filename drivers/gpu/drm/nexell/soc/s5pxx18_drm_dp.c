@@ -884,7 +884,8 @@ int nx_drm_dp_plane_update(struct drm_plane *plane,
 		ret = nx_drm_dp_plane_wait_sync(plane, fb, false);
 		if (!ret)
 			nx_soc_dp_plane_rgb_set_address(layer,
-				paddrs[0], pixel, crtc_w * pixel, align, true);
+				dma_addrs[0], pixel, crtc_w * pixel, align,
+				true);
 
 		nx_soc_dp_plane_rgb_set_enable(layer, true, true);
 
