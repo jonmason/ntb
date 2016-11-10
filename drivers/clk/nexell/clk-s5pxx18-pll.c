@@ -35,6 +35,7 @@ struct pll_pms {
 	int P;
 	int M;
 	int S;
+	int K;
 };
 
 struct clk_core {
@@ -49,184 +50,217 @@ struct clk_core {
 /* PLL 0,1 */
 static struct pll_pms pll0_1_pms[] = {
 	[0] = {
-		.rate = 1200000, .P = 3, .M = 300, .S = 1,
+		.rate = 1600000, .P = 3, .M = 400, .S = 1, .K = 0
 	},
 	[1] = {
-		.rate = 1100000, .P = 3, .M = 275, .S = 1,
+		.rate = 1500000, .P = 3, .M = 375, .S = 1, .K = 0
 	},
 	[2] = {
-		.rate = 1000000, .P = 3, .M = 250, .S = 1,
+		.rate = 1400000, .P = 3, .M = 350, .S = 1, .K = 0
 	},
 	[3] = {
-		.rate = 900000, .P = 3, .M = 225, .S = 1,
+		.rate = 1300000, .P = 3, .M = 325, .S = 1, .K = 0
 	},
 	[4] = {
-		.rate = 800000, .P = 3, .M = 200, .S = 1,
+		.rate = 1200000, .P = 3, .M = 300, .S = 1, .K = 0
 	},
 	[5] = {
-		.rate = 700000, .P = 3, .M = 175, .S = 1,
+		.rate = 1100000, .P = 3, .M = 275, .S = 1, .K = 0
 	},
 	[6] = {
-		.rate = 600000, .P = 2, .M = 200, .S = 2,
+		.rate = 1000000, .P = 3, .M = 250, .S = 1, .K = 0
 	},
 	[7] = {
-		.rate = 500000, .P = 3, .M = 250, .S = 2,
+		.rate = 900000, .P = 3, .M = 225, .S = 1, .K = 0
 	},
 	[8] = {
-		.rate = 400000, .P = 3, .M = 200, .S = 2,
+		.rate = 800000, .P = 3, .M = 200, .S = 1, .K = 0
 	},
 	[9] = {
-		.rate = 300000, .P = 2, .M = 200, .S = 3,
+		.rate = 700000, .P = 3, .M = 175, .S = 1, .K = 0
 	},
 	[10] = {
-		.rate = 200000, .P = 3, .M = 200, .S = 3,
+		.rate = 600000, .P = 2, .M = 200, .S = 2, .K = 0
 	},
 	[11] = {
-		.rate = 100000, .P = 3, .M = 200, .S = 4,
+		.rate = 500000, .P = 3, .M = 250, .S = 2, .K = 0
+	},
+	[12] = {
+		.rate = 400000, .P = 3, .M = 200, .S = 2, .K = 0
+	},
+	[13] = {
+		.rate = 300000, .P = 2, .M = 200, .S = 3, .K = 0
+	},
+	[14] = {
+		.rate = 200000, .P = 3, .M = 200, .S = 3, .K = 0
+	},
+	[15] = {
+		.rate = 100000, .P = 3, .M = 200, .S = 4, .K = 0
 	},
 };
 
 /* PLL 2,3 */
 static struct pll_pms pll2_3_pms[] = {
 	[0] = {
-		.rate = 1200000, .P = 3, .M = 300, .S = 1,
+		.rate = 1400000, .P = 3, .M = 350, .S = 1, .K = 0
 	},
 	[1] = {
-		.rate = 1100000, .P = 3, .M = 275, .S = 1,
+		.rate = 1300000, .P = 3, .M = 325, .S = 1, .K = 0
 	},
 	[2] = {
-		.rate = 1000000, .P = 3, .M = 250, .S = 1,
+		.rate = 1200000, .P = 3, .M = 300, .S = 1, .K = 0
 	},
 	[3] = {
-		.rate = 900000, .P = 3, .M = 225, .S = 1,
+		.rate = 1100000, .P = 3, .M = 275, .S = 1, .K = 0
 	},
 	[4] = {
-		.rate = 800000, .P = 3, .M = 200, .S = 1,
+		.rate = 1000000, .P = 3, .M = 250, .S = 1, .K = 0
 	},
 	[5] = {
-		.rate = 700000, .P = 3, .M = 175, .S = 1,
+		.rate = 900000, .P = 3, .M = 225, .S = 1, .K = 0
 	},
 	[6] = {
-		.rate = 600000, .P = 3, .M = 150, .S = 1,
+		.rate = 800000, .P = 3, .M = 200, .S = 1, .K = 0
 	},
 	[7] = {
-		.rate = 500000, .P = 3, .M = 250, .S = 2,
+		.rate = 700000, .P = 3, .M = 175, .S = 1, .K = 0
 	},
 	[8] = {
-		.rate = 400000, .P = 3, .M = 200, .S = 2,
+		.rate = 677376, .P = 3, .M = 169, .S = 1, .K = 22544
 	},
 	[9] = {
-		.rate = 300000, .P = 3, .M = 150, .S = 2,
+		.rate = 638976, .P = 2, .M = 106, .S = 1, .K = 32506
 	},
 	[10] = {
-		.rate = 200000, .P = 3, .M = 200, .S = 3,
+		.rate = 632217, .P = 3, .M = 158, .S = 1, .K = 3565
 	},
 	[11] = {
-		.rate = 100000, .P = 3, .M = 200, .S = 4,
+		.rate = 614400, .P = 2, .M = 102, .S = 1, .K = 26214
+	},
+	[12] = {
+		.rate = 600000, .P = 3, .M = 150, .S = 1, .K = 0
+	},
+	[13] = {
+		.rate = 589824, .P = 3, .M = 147, .S = 1, .K = 29884
+	},
+	[14] = {
+		.rate = 500000, .P = 3, .M = 250, .S = 2, .K = 0
+	},
+	[15] = {
+		.rate = 400000, .P = 3, .M = 200, .S = 2, .K = 0
+	},
+	[16] = {
+		.rate = 300000, .P = 3, .M = 150, .S = 2, .K = 0
+	},
+	[17] = {
+		.rate = 200000, .P = 3, .M = 200, .S = 3, .K = 0
+	},
+	[18] = {
+		.rate = 100000, .P = 3, .M = 200, .S = 4, .K = 0
 	},
 };
 #else	/* S5P6818 */
 /* PLL 0,1 */
 static struct pll_pms pll0_1_pms[] = {
 	[0] = {
-		.rate = 1600000, .P = 6, .M = 400, .S = 0,
+		.rate = 1600000, .P = 6, .M = 400, .S = 0, .K = 0
 	},
 	[1] = {
-		.rate = 1500000, .P = 6, .M = 375, .S = 0,
+		.rate = 1500000, .P = 6, .M = 375, .S = 0, .K = 0
 	},
 	[2] = {
-		.rate = 1400000, .P = 6, .M = 350, .S = 0,
+		.rate = 1400000, .P = 6, .M = 350, .S = 0, .K = 0
 	},
 	[3] = {
-		.rate = 1300000, .P = 6, .M = 325, .S = 0,
+		.rate = 1300000, .P = 6, .M = 325, .S = 0, .K = 0
 	},
 	[4] = {
-		.rate = 1200000, .P = 3, .M = 300, .S = 1,
+		.rate = 1200000, .P = 3, .M = 300, .S = 1, .K = 0
 	},
 	[5] = {
-		.rate = 1100000, .P = 3, .M = 275, .S = 1,
+		.rate = 1100000, .P = 3, .M = 275, .S = 1, .K = 0
 	},
 	[6] = {
-		.rate = 1000000, .P = 3, .M = 250, .S = 1,
+		.rate = 1000000, .P = 3, .M = 250, .S = 1, .K = 0
 	},
 	[7] = {
-		.rate = 900000, .P = 3, .M = 225, .S = 1,
+		.rate = 900000, .P = 3, .M = 225, .S = 1, .K = 0
 	},
 	[8] = {
-		.rate = 800000, .P = 3, .M = 200, .S = 1,
+		.rate = 800000, .P = 3, .M = 200, .S = 1, .K = 0
 	},
 	[9] = {
-		.rate = 700000, .P = 3, .M = 175, .S = 1,
+		.rate = 700000, .P = 3, .M = 175, .S = 1, .K = 0
 	},
 	[10] = {
-		.rate = 600000, .P = 2, .M = 200, .S = 2,
+		.rate = 600000, .P = 2, .M = 200, .S = 2, .K = 0
 	},
 	[11] = {
-		.rate = 500000, .P = 3, .M = 250, .S = 2,
+		.rate = 500000, .P = 3, .M = 250, .S = 2, .K = 0
 	},
 	[12] = {
-		.rate = 400000, .P = 3, .M = 200, .S = 2,
+		.rate = 400000, .P = 3, .M = 200, .S = 2, .K = 0
 	},
 	[13] = {
-		.rate = 300000, .P = 2, .M = 200, .S = 3,
+		.rate = 300000, .P = 2, .M = 200, .S = 3, .K = 0
 	},
 	[14] = {
-		.rate = 200000, .P = 3, .M = 200, .S = 3,
+		.rate = 200000, .P = 3, .M = 200, .S = 3, .K = 0
 	},
 	[15] = {
-		.rate = 100000, .P = 3, .M = 200, .S = 4,
+		.rate = 100000, .P = 3, .M = 200, .S = 4, .K = 0
 	},
 };
 
 /* PLL 2,3 */
 static struct pll_pms pll2_3_pms[] = {
 	[0] = {
-		.rate = 1600000, .P = 3, .M = 400, .S = 1,
+		.rate = 1600000, .P = 3, .M = 400, .S = 1, .K = 0
 	},
 	[1] = {
-		.rate = 1500000, .P = 3, .M = 375, .S = 1,
+		.rate = 1500000, .P = 3, .M = 375, .S = 1, .K = 0
 	},
 	[2] = {
-		.rate = 1400000, .P = 3, .M = 350, .S = 1,
+		.rate = 1400000, .P = 3, .M = 350, .S = 1, .K = 0
 	},
 	[3] = {
-		.rate = 1300000, .P = 3, .M = 325, .S = 1,
+		.rate = 1300000, .P = 3, .M = 325, .S = 1, .K = 0
 	},
 	[4] = {
-		.rate = 1200000, .P = 3, .M = 300, .S = 1,
+		.rate = 1200000, .P = 3, .M = 300, .S = 1, .K = 0
 	},
 	[5] = {
-		.rate = 1100000, .P = 3, .M = 275, .S = 1,
+		.rate = 1100000, .P = 3, .M = 275, .S = 1, .K = 0
 	},
 	[6] = {
-		.rate = 1000000, .P = 3, .M = 250, .S = 1,
+		.rate = 1000000, .P = 3, .M = 250, .S = 1, .K = 0
 	},
 	[7] = {
-		.rate = 900000, .P = 3, .M = 225, .S = 1,
+		.rate = 900000, .P = 3, .M = 225, .S = 1, .K = 0
 	},
 	[8] = {
-		.rate = 800000, .P = 3, .M = 200, .S = 1,
+		.rate = 800000, .P = 3, .M = 200, .S = 1, .K = 0
 	},
 	[9] = {
-		.rate = 700000, .P = 3, .M = 175, .S = 1,
+		.rate = 700000, .P = 3, .M = 175, .S = 1, .K = 0
 	},
 	[10] = {
-		.rate = 600000, .P = 3, .M = 150, .S = 1,
+		.rate = 600000, .P = 3, .M = 150, .S = 1, .K = 0
 	},
 	[11] = {
-		.rate = 500000, .P = 3, .M = 250, .S = 2,
+		.rate = 500000, .P = 3, .M = 250, .S = 2, .K = 0
 	},
 	[12] = {
-		.rate = 400000, .P = 3, .M = 200, .S = 2,
+		.rate = 400000, .P = 3, .M = 200, .S = 2, .K = 0
 	},
 	[13] = {
-		.rate = 300000, .P = 3, .M = 150, .S = 2,
+		.rate = 300000, .P = 3, .M = 150, .S = 2, .K = 0
 	},
 	[14] = {
-		.rate = 200000, .P = 3, .M = 200, .S = 3,
+		.rate = 200000, .P = 3, .M = 200, .S = 3, .K = 0
 	},
 	[15] = {
-		.rate = 100000, .P = 3, .M = 200, .S = 4,
+		.rate = 100000, .P = 3, .M = 200, .S = 4, .K = 0
 	},
 };
 #endif
@@ -238,15 +272,17 @@ static struct pll_pms pll2_3_pms[] = {
 #define PMS_P(p, i) ((&p[i])->P)
 #define PMS_M(p, i) ((&p[i])->M)
 #define PMS_S(p, i) ((&p[i])->S)
+#define PMS_K(p, i) ((&p[i])->K)
 
 #define PLL_S_BITPOS 0
 #define PLL_M_BITPOS 8
 #define PLL_P_BITPOS 18
+#define PLL_K_BITPOS 16
 
 static void *ref_clk_base;
 static spinlock_t pll_lock = __SPIN_LOCK_UNLOCKED(pll_lock);
 
-static void nx_pll_set_rate(int PLL, int P, int M, int S)
+static void nx_pll_set_rate(int PLL, int P, int M, int S, int K)
 {
 	struct reg_clkpwr *reg = ref_clk_base;
 	unsigned long flags;
@@ -271,6 +307,10 @@ static void nx_pll_set_rate(int PLL, int P, int M, int S)
 		  (S << PLL_S_BITPOS) |
 		  (M << PLL_M_BITPOS) |
 		  (P << PLL_P_BITPOS)));
+
+	if (PLL > 1)
+		reg->PLLSETREG_SSCG[PLL] = (K << PLL_K_BITPOS) | (2<<0);
+
 	reg->CLKMODEREG0 = (1 << PLL); /* update pll */
 
 	while (readl(&reg->CLKMODEREG0) & (1 << 31))
@@ -312,8 +352,9 @@ int nx_change_bus_freq(u32 pll_data)
 	uint32_t s       = (pll_data & 0x000000fc) >> 2;
 	uint32_t m       = (pll_data & 0x00ffff00) >> 8;
 	uint32_t p       = (pll_data & 0xff000000) >> 24;
+	uint32_t k	 = 0;
 
-	nx_pll_set_rate(pll_num, p, m, s);
+	nx_pll_set_rate(pll_num, p, m, s, k);
 	return 0;
 #else
 	unsigned long flags;
@@ -329,7 +370,7 @@ int nx_change_bus_freq(u32 pll_data)
 EXPORT_SYMBOL(nx_change_bus_freq);
 
 static unsigned long pll_round_rate(int pllno, unsigned long rate, int *p,
-				    int *m, int *s)
+				    int *m, int *s, int *k)
 {
 	struct pll_pms *pms;
 	int len, idx = 0, n = 0, l = 0;
@@ -389,10 +430,11 @@ static unsigned long pll_round_rate(int pllno, unsigned long rate, int *p,
 		*m = PMS_M(pms, l);
 	if (s)
 		*s = PMS_S(pms, l);
+	if (k)
+		*k = PMS_K(pms, l);
 
-	pr_debug("(real %ld Khz, P=%d ,M=%3d, S=%d)\n", PMS_RATE(pms, l),
-		 PMS_P(pms, l), PMS_M(pms, l), PMS_S(pms, l));
-
+	pr_debug("(real %ld Khz, P=%d ,M=%3d, S=%d K=%d)\n", PMS_RATE(pms, l),
+		 PMS_P(pms, l), PMS_M(pms, l), PMS_S(pms, l), PMS_K(pms, l));
 	return (PMS_RATE(pms, l) * 1000);
 }
 
@@ -652,8 +694,8 @@ static long clk_pll_round_rate(struct clk_hw *hw, unsigned long drate,
 	long rate = 0;
 
 	/* clear P,M,S */
-	pms->P = 0, pms->M = 0, pms->S = 0;
-	rate = pll_round_rate(id, drate, &pms->P, &pms->M, &pms->S);
+	pms->P = 0, pms->M = 0, pms->S = 0, pms->K = 0;
+	rate = pll_round_rate(id, drate, &pms->P, &pms->M, &pms->S, &pms->K);
 
 	pr_debug("%s: name %s id %d (%lu, %lu) <%d,%d,%d>\n", __func__,
 		 clk_data->name, id, drate, rate, pms->P, pms->M, pms->S);
@@ -669,11 +711,13 @@ static int clk_pll_set_rate(struct clk_hw *hw, unsigned long drate,
 	long rate = drate;
 
 	if (!pms->P && !pms->M && !pms->S)
-		rate = pll_round_rate(id, drate, &pms->P, &pms->M, &pms->S);
+		rate = pll_round_rate(id, drate, &pms->P, &pms->M, &pms->S,
+				&pms->K);
 
-	pr_debug("%s: name %s id %d (%lu, %lu) <%d,%d,%d>\n", __func__,
-		 clk_data->name, id, drate, rate, pms->P, pms->M, pms->S);
-	nx_pll_set_rate(id, pms->P, pms->M, pms->S);
+	pr_debug("%s: name %s id %d (%lu, %lu) <%d,%d,%d,%d>\n", __func__,
+		 clk_data->name, id, drate, rate,
+		 pms->P, pms->M, pms->S, pms->K);
+	nx_pll_set_rate(id, pms->P, pms->M, pms->S, pms->K);
 
 	/* clear P,M,S */
 	pms->P = 0, pms->M = 0, pms->S = 0;
