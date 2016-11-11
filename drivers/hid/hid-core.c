@@ -1538,6 +1538,17 @@ EXPORT_SYMBOL_GPL(hid_input_report);
 static bool hid_match_one_id(struct hid_device *hdev,
 		const struct hid_device_id *id)
 {
+#if defined(CONFIG_HID_IUI)
+	if ((id->bus == HID_BUS_ANY || id->bus == hdev->bus) &&
+		(id->group == HID_GROUP_ANY || id->group == hdev->group) &&
+		(id->vendor == HID_ANY_ID || id->vendor == hdev->vendor) &&
+		(id->product == HID_ANY_ID ||
+		 id->product == (0xff00 & hdev->product))) {
+		hid_info(hdev, "IUI HID DEVICE DETECT => %x %x\n",
+			 hdev->vendor, hdev->product);
+		return 1;
+	}
+#endif
 	return (id->bus == HID_BUS_ANY || id->bus == hdev->bus) &&
 		(id->group == HID_GROUP_ANY || id->group == hdev->group) &&
 		(id->vendor == HID_ANY_ID || id->vendor == hdev->vendor) &&
