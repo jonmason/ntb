@@ -20,6 +20,11 @@
 
 #include "soc/s5pxx18_drm_dp.h"
 
+struct nx_cluster_crtc {
+	struct videomode vm[CLISTER_LCD_MAX];
+	enum dp_cluster_dir cluster_dir;
+};
+
 struct nx_drm_crtc {
 	struct drm_crtc crtc;
 	struct drm_display_mode	current_mode;
@@ -33,6 +38,7 @@ struct nx_drm_crtc {
 	int num_resets;
 	bool post_closed;
 	bool suspended;
+	struct nx_cluster_crtc *cluster;
 };
 
 #define to_nx_crtc(x)	\

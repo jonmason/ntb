@@ -191,6 +191,9 @@ struct drm_connector *nx_drm_connector_create_and_attach(
 		enc_type = DRM_MODE_ENCODER_TVDAC;
 		interlace_allowed = true;
 		break;
+	case dp_panel_type_cluster_lcd:
+		con_type = DRM_MODE_CONNECTOR_VGA;
+		enc_type = DRM_MODE_ENCODER_DSI;
 	case dp_panel_type_vidi:
 		con_type = DRM_MODE_CONNECTOR_VIRTUAL;
 		enc_type = DRM_MODE_ENCODER_VIRTUAL;

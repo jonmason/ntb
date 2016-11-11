@@ -1,0 +1,56 @@
+Device-Tree bindings for Nexell DRM generic Cluster-LCD output driver
+
+Required properties for display soc panel driver:
+ - compatible: value should be "nexell,s5pxx18-drm-cluster-lcd.
+ - cluster-hactive: cluster lcd horizontal active pixel
+ - cluster-vactive: cluster lcd vertical active pixel
+ - cluster-reference: cluster lcd sync reference node number to get
+    backporch, frontporch, sync width, ....
+ - width-mm: physical panel width [mm]
+ - height-mm: physical panel height [mm]
+
+
+  - lvds: sub node to config lvds panel refer to "lvds_panel.txt".
+  - rgb : sub node to config rgb panel refer to "rgb_panel.txt".
+
+Example:
+
+SOC specific portion:
+
+/ {
+	...
+	soc {
+		dp_drm_cluster_lcd: display_drm_cluster_lcd {
+    			compatible = "nexell,s5pxx18-drm-cluster-lcd";
+		};
+	};
+};
+
+Board Specific portion:
+
+&dp_drm_cluster_lcd {
+	cluster-hactive = <1920>;
+	cluster-vactive = <720>;
+	cluster-reference = <0>;
+
+	lvds {
+		.....
+		display-timing {
+        	.....
+		};
+
+		dp_control {
+			.....
+		};
+	};
+
+	rgb {
+    	display-timing {
+           .....
+		};
+
+		dp_control {
+        	.....
+		};
+	};
+};

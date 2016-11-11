@@ -181,7 +181,10 @@ static void nx_drm_encoder_mode_set(struct drm_encoder *encoder,
 		}
 	}
 
-	nx_drm_dp_display_mode_to_sync(adjusted_mode, display);
+	if (ops && ops->set_mode)
+		ops->set_mode(display->dev, adjusted_mode);
+	else
+		nx_drm_dp_display_mode_to_sync(adjusted_mode, display);
 }
 
 static void nx_drm_encoder_prepare(struct drm_encoder *encoder)
@@ -257,6 +260,7 @@ struct drm_encoder *nx_drm_encoder_create(struct drm_device *drm,
 	encoder = &nx_encoder->encoder;
 	encoder->possible_crtcs = possible_crtcs;
 
+	nx_drm_dp_encoder_init(encoder);
 	drm_encoder_init(drm, encoder, &nx_encoder_funcs, enc_type);
 	drm_encoder_helper_add(encoder, &nx_encoder_helper_funcs);
 

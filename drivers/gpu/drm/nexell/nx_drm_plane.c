@@ -58,6 +58,15 @@ static const uint32_t support_formats_vid[] = {
 	DRM_FORMAT_YVU444,
 };
 
+static bool plane_format_bgr;
+MODULE_PARM_DESC(fb_bgr, "display plane BGR pixel format");
+module_param_named(plane_bgr, plane_format_bgr, bool, 0600);
+
+bool nx_drm_plane_support_bgr(void)
+{
+	return plane_format_bgr;
+}
+
 static int nx_drm_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 			struct drm_framebuffer *fb, int crtc_x,
 			int crtc_y, unsigned int crtc_w,
@@ -199,6 +208,7 @@ struct drm_plane *nx_drm_plane_init(struct drm_device *drm,
 	int format_count = video ?
 				ARRAY_SIZE(support_formats_vid) :
 				ARRAY_SIZE(support_formats_rgb);
+	bool bgr = plane_format_bgr;
 	int err;
 
 	DRM_DEBUG_KMS("plane.%d\n", plane_num);
@@ -211,7 +221,7 @@ struct drm_plane *nx_drm_plane_init(struct drm_device *drm,
 	nx_plane->is_yuv_plane = video;
 	plane = &nx_plane->plane;
 
-	nx_drm_dp_plane_init(drm, crtc, plane, plane_num);
+	nx_drm_dp_plane_init(drm, crtc, plane, bgr, plane_num);
 
 	err = drm_universal_plane_init(drm, plane, possible_crtcs,
 			&nx_plane_funcs, formats, format_count, drm_type);

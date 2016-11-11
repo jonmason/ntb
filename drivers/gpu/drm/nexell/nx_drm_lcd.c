@@ -460,8 +460,10 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 	struct nx_drm_device *display = ctx->display;
 	struct device_node *node = dev->of_node;
 	struct device_node *np;
-	struct device_node *backlight;
 	struct display_timing timing;
+#ifdef CONFIG_BACKLIGHT_CLASS_DEVICE
+	struct device_node *backlight;
+#endif
 	int err;
 
 	DRM_DEBUG_KMS("enter\n");
@@ -531,6 +533,7 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 				"high" : "low ");
 		}
 
+#ifdef CONFIG_BACKLIGHT_CLASS_DEVICE
 		backlight = of_parse_phandle(node, "backlight", 0);
 		if (backlight) {
 			ctx->backlight = of_find_backlight_by_node(backlight);
@@ -547,6 +550,7 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 					ctx->backlight_delay);
 			}
 		}
+#endif
 
 		/* parse panel lcd size */
 		parse_read_prop(node, "width-mm", panel->width_mm);
@@ -677,7 +681,7 @@ static int panel_lcd_remove(struct platform_device *pdev)
 	if (ctx->backlight)
 		put_device(&ctx->backlight->dev);
 
-	devm_kfree(&pdev->dev, ctx);
+	devm_kfree(dev, ctx);
 
 	return 0;
 }

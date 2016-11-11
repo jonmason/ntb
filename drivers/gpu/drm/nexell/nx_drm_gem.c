@@ -733,7 +733,7 @@ static void __vm_set_cache_attr(struct vm_area_struct *vma, uint32_t flags)
 					vm_get_page_prot(vma->vm_flags));
 	}
 
-	DRM_DEBUG_DRIVER("flags: %s\n",	gem_type_name[flags]);
+	DRM_DEBUG_DRIVER("flags: %s\n", gem_type_name[flags]);
 }
 
 static int nx_drm_gem_buf_mmap(struct nx_gem_object *nx_obj,
@@ -1707,3 +1707,4 @@ int nx_drm_gem_wait_fence(struct drm_gem_object *obj)
 #endif
 	return 0;
 }
+

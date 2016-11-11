@@ -317,6 +317,9 @@ static int nx_drm_probe(struct platform_device *pdev)
 #ifdef CONFIG_DRM_NX_TVOUT
 		"display_drm_tv",
 #endif
+#ifdef CONFIG_DRM_NX_CLUSTER_LCD
+		"display_drm_cluster_lcd",
+#endif
 	};
 	int found = 0;
 	int i;

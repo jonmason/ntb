@@ -82,15 +82,16 @@ static dma_addr_t fb_get_splash_base(struct drm_fb_helper *fb_helper)
 {
 	struct drm_crtc *crtc;
 	struct dp_plane_layer *layer;
-	dma_addr_t paddr;
+	dma_addr_t dma_addr;
 	int i;
 
 	for (i = 0; fb_helper->crtc_count > i; i++) {
 		crtc = fb_helper->crtc_info[i].mode_set.crtc;
 		layer = &to_nx_plane(crtc->primary)->layer;
-		nx_mlc_get_rgblayer_address(layer->module, layer->num, &paddr);
-		if (paddr)
-			return paddr;
+		nx_mlc_get_rgblayer_address(layer->module,
+				layer->num, &dma_addr);
+		if (dma_addr)
+			return dma_addr;
 	}
 	return 0;
 }
@@ -540,8 +541,8 @@ int nx_drm_framebuffer_init(struct drm_device *drm)
 		      drm->mode_config.num_connector);
 
 	nx_framebuffer = kzalloc(sizeof(*nx_framebuffer), GFP_KERNEL);
-	if (IS_ERR(nx_framebuffer))
-		return PTR_ERR(nx_framebuffer);
+	if (!nx_framebuffer)
+		return -ENOMEM;
 
 	priv->framebuffer_dev = nx_framebuffer;
 	num_crtc = drm->mode_config.num_crtc;
@@ -558,7 +559,7 @@ int nx_drm_framebuffer_init(struct drm_device *drm)
 	return 0;
 
 err_drm_fb_dev_free:
-	devm_kfree(drm->dev, nx_framebuffer);
+	kfree(nx_framebuffer);
 	return ret;
 }
 
@@ -569,7 +570,7 @@ void nx_drm_framebuffer_fini(struct drm_device *drm)
 	struct nx_drm_fbdev *fbdev = nx_framebuffer->fbdev;
 
 	nx_drm_fbdev_fini(fbdev);
-	devm_kfree(drm->dev, nx_framebuffer);
+	kfree(nx_framebuffer);
 	priv->framebuffer_dev = NULL;
 }
 

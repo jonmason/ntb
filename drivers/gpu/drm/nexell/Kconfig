@@ -59,6 +59,16 @@ config DRM_NX_TVOUT
 	 If you want to enable tv display,
 	 you should selet this option.
 
+config DRM_NX_CLUSTER_LCD
+	bool "Cluster LCD support"
+	depends on DRM_NX
+	select DRM_PANEL
+	default n
+	help
+	 This selects support for cluster lcd out.
+	 If you want to enable cluster lcd display,
+	 you should selet this option with LCDs type (LVDS, RGB).
+
 config DRM_CHECK_IOCTL_AUTH
 	bool "Check ioctl authentication for modesetting driver"
 	depends on DRM

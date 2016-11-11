@@ -30,6 +30,7 @@ struct nx_drm_ops {
 			struct drm_connector *connector);
 	int (*get_modes)(struct device *dev, struct drm_connector *connector);
 	int (*check_mode)(struct device *dev, struct drm_display_mode *mode);
+	void (*set_mode)(struct device *dev, struct drm_display_mode *mode);
 
 	void (*commit)(struct device *dev);
 	void (*dpms)(struct device *dev, int mode);
@@ -97,19 +98,15 @@ void nx_drm_dp_crtc_irq_done(struct drm_crtc *crtc, int pipe);
 void nx_drm_dp_crtc_reset(struct drm_crtc *crtc);
 
 void nx_drm_dp_plane_init(struct drm_device *drm, struct drm_crtc *crtc,
-			struct drm_plane *plane, int plane_num);
+			struct drm_plane *plane, bool bgr, int plane_num);
 int nx_drm_dp_plane_mode_set(struct drm_crtc *crtc,
 			struct drm_plane *plane, struct drm_framebuffer *fb,
-			int crtc_x, int crtc_y,
-			unsigned int crtc_w, unsigned int crtc_h,
-			uint32_t src_x, uint32_t src_y,
-			uint32_t src_w, uint32_t src_h);
+			int crtc_x, int crtc_y, int crtc_w, int crtc_h,
+			int src_x, int src_y, int src_w, int src_h);
 int nx_drm_dp_plane_update(struct drm_plane *plane,
 			struct drm_framebuffer *fb,
-			int crtc_x, int crtc_y,
-			unsigned int crtc_w, unsigned int crtc_h,
-			uint32_t src_x, uint32_t src_y,
-			uint32_t src_w, uint32_t src_h, int align);
+			int crtc_x, int crtc_y, int crtc_w, int crtc_h,
+			int src_x, int src_y, int src_w, int src_h, int align);
 int nx_drm_dp_plane_disable(struct drm_plane *plane);
 void nx_drm_dp_plane_set_color(struct drm_plane *plane,
 			enum dp_color_type type, unsigned int color);
@@ -117,7 +114,9 @@ void nx_drm_dp_plane_set_priority(struct drm_plane *plane, int priority);
 
 void nx_drm_dp_display_mode_to_sync(struct drm_display_mode *mode,
 			struct nx_drm_device *display);
+void nx_drm_dp_display_add_link(struct nx_drm_device *display);
 
+void nx_drm_dp_encoder_init(struct drm_encoder *encoder);
 void nx_drm_dp_encoder_prepare(struct drm_encoder *encoder,
 			int index, bool irqon);
 void nx_drm_dp_encoder_unprepare(struct drm_encoder *encoder);

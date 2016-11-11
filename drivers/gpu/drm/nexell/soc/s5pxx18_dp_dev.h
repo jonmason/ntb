@@ -29,6 +29,7 @@
 #include "s5pxx18_soc_disptop_clk.h"
 
 #define CHECK_DP_POWRON
+#define	CLISTER_LCD_MAX		2
 
 /*
  * display sync info
@@ -127,6 +128,7 @@ enum dp_panel_type {
 	dp_panel_type_mipi,
 	dp_panel_type_hdmi,
 	dp_panel_type_tv,
+	dp_panel_type_cluster_lcd,
 	dp_panel_type_vidi,
 };
 
@@ -141,6 +143,8 @@ struct dp_control_dev {
 	void *dp_output;
 	struct dp_control_ops *ops;
 	void *regs[sizeof(struct nx_dpc_register_set)/sizeof(void *)];
+	bool cluster;
+	struct list_head list; /* next contol dev */
 };
 
 struct dp_control_ops {
@@ -187,6 +191,7 @@ struct dp_lvds_dev {
 	int pol_inv_vs;		/* bsync polarity invert for VESA, JEIDA */
 	int pol_inv_de;		/* de polarity invert for VESA, JEIDA */
 	int pol_inv_ck;		/* input clock(pixel clock) polarity invert */
+	int voltage_level;
 	void *reset_control;
 	int num_resets;
 };
@@ -217,6 +222,12 @@ struct dp_mipi_xfer {
 #define	PLANE_FLAG_VIDEO	(1<<0)
 #define	PLANE_FLAG_UNKNOWN	(0xFFFFFFF)
 
+enum dp_cluster_dir {
+	dp_cluster_hor,
+	dp_cluster_ver,
+	dp_cluster_clone,
+};
+
 struct dp_plane_top {
 	struct device *dev;
 	void *base;
@@ -235,6 +246,9 @@ struct dp_plane_top {
 	int interlace;
 	int enable;
 	void *regs[sizeof(struct nx_mlc_register_set)/sizeof(void *)];
+	struct list_head list; /* next top */
+	bool cluster;
+	enum dp_cluster_dir cluster_dir;
 };
 
 /*
@@ -267,6 +281,7 @@ struct dp_plane_layer {
 	int module, num;
 	enum dp_plane_type type;
 	unsigned int format;
+	bool is_bgr;
 
 	/* source */
 	int left;

@@ -12,4 +12,5 @@ obj-$(CONFIG_DRM_NX_LVDS)		+= nx_drm_lcd.o
 obj-$(CONFIG_DRM_NX_MIPI_DSI)	+= nx_drm_lcd.o
 obj-$(CONFIG_DRM_NX_HDMI)		+= nx_drm_hdmi.o
 obj-$(CONFIG_DRM_NX_TVOUT)		+= nx_drm_tv.o
+obj-$(CONFIG_DRM_NX_CLUSTER_LCD)	+= nx_drm_cluster_lcd.o
 obj-$(CONFIG_DRM_NX)			+= nx_drm.o

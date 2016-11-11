@@ -1056,7 +1056,7 @@ void nx_mlc_set_video_layer_scale(u32 module_index, u32 sw, u32 sh, u32 dw,
 	const u32 filter_luma_pos = 28;
 	const u32 filter_choma_pos = 29;
 	const u32 scale_mask = ((1 << 23) - 1);
-	register u32 hscale, vscale, cal_sh;
+	register u32 hscale = 0, vscale = 0, cal_sh;
 	register struct nx_mlc_register_set *pregister;
 
 	pregister = __g_module_variables[module_index].pregister;
@@ -1065,7 +1065,9 @@ void nx_mlc_set_video_layer_scale(u32 module_index, u32 sw, u32 sh, u32 dw,
 		sw--;
 		dw--;
 	}
-	hscale = (sw << 11) / dw;
+
+	if (dw)
+		hscale = (sw << 11) / dw;
 
 	if ((bvlumaenb || bvchromaenb) && (dh > sh)) {
 		sh--;
@@ -1077,7 +1079,8 @@ void nx_mlc_set_video_layer_scale(u32 module_index, u32 sw, u32 sh, u32 dw,
 			vscale--;
 
 	} else {
-		vscale = (sh << 11) / dh;
+		if (dh)
+			vscale = (sh << 11) / dh;
 	}
 
 	writel(((bhlumaenb << filter_luma_pos) |

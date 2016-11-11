@@ -21,6 +21,7 @@
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/dma-buf.h>
+#include <video/videomode.h>
 
 #include "../nx_drm_drv.h"
 #include "../nx_drm_crtc.h"
@@ -42,6 +43,16 @@ static const char * const panel_type_name[] = {
 	[dp_panel_type_mipi] = "MIPI",
 	[dp_panel_type_hdmi] = "HDMI",
 	[dp_panel_type_tv] = "TV",
+	[dp_panel_type_cluster_lcd] = "CLUSTER-LCD",
+};
+
+/* for cluster lcd */
+static struct list_head crtc_top_list = LIST_HEAD_INIT(crtc_top_list);
+static struct list_head dp_dpc_list = LIST_HEAD_INIT(dp_dpc_list);
+
+struct dp_rectangle {
+	int left, right;
+	int top, bottom;
 };
 
 enum dp_panel_type dp_panel_get_type(struct nx_drm_device *display)
@@ -134,70 +145,180 @@ static uint32_t convert_dp_vid_format(uint32_t fourcc,
 	return 0;
 }
 
+#define LIST_LAYER_ENTRY(layer, top, num)	{ \
+		list_for_each_entry(layer, &top->plane_list, list) {	\
+			if (num == layer->num)	\
+				break;	\
+		}	\
+		if (!layer)	\
+			continue;	\
+	}
+
+static inline void dp_rect_rgb(struct dp_rectangle *r,
+			int cx, int cy, int cw, int ch,
+			int aw, int ah, enum dp_cluster_dir dir)
+{
+	r->left = cx;
+	r->right = cx + cw;
+	cw = r->right - r->left;
+
+	if (r->left < 0)
+		r->left = 0;
+
+	if (r->left >= aw)
+		goto invalid;
+
+	if (r->right > aw)
+		r->right = aw;
+
+	if (cw <= 0)
+		goto invalid;
+
+	r->top = cy;
+	r->bottom = cy + ch;
+	ch = r->bottom - r->top;
+
+	if (r->top >= ah)
+		goto invalid;
+
+	if (r->bottom <= 0)
+		goto invalid;
+
+	if (ch <= 0)
+		goto invalid;
+
+	return;
+
+invalid:
+	r->left = 0, r->right = 0;
+	r->top = 0, r->bottom = 0;
+}
+
+static inline void dp_rect_video(struct dp_rectangle *r,
+			int cx, int cy, int cw, int ch,
+			int aw, int ah, enum dp_cluster_dir dir)
+{
+	r->left = cx;
+	r->right = cx + cw;
+
+	if (r->right <= 0)
+		goto invalid;
+
+	if (r->left >= aw)
+		goto invalid;
+
+	r->top = cy;
+	r->bottom = cy + ch;
+
+	if (r->top >= ah)
+		goto invalid;
+
+	if (r->bottom <= 0)
+		goto invalid;
+
+	return;
+
+invalid:
+	r->left = 0, r->right = 0;
+	r->top = 0, r->bottom = 0;
+}
+
 static void dp_crtc_resume(struct drm_crtc *crtc)
 {
 	struct nx_drm_crtc *nx_crtc = to_nx_crtc(crtc);
 	struct dp_plane_top *top = &nx_crtc->top;
-	int module = top->module;
-	void *from = top->regs;
-	void *to = nx_mlc_get_base_address(module);
-	int size = sizeof(top->regs);
+	void *base;
 
-	DRM_DEBUG_KMS("crtc.%d restore %d bytes\n", module, size);
+	DRM_DEBUG_KMS("crtc.%d restore\n", top->module);
 
 	/* restore multiple layer */
-	memcpy(to, from, size);
-
-	nx_soc_dp_plane_top_prepare(top);
+	if (!nx_crtc->cluster) {
+		base = nx_mlc_get_base_address(top->module);
+		memcpy(base, top->regs, sizeof(top->regs));
+		nx_soc_dp_plane_top_prepare(top);
+	} else {
+		list_for_each_entry(top, &crtc_top_list, list) {
+			base = nx_mlc_get_base_address(top->module);
+			memcpy(base, top->regs, sizeof(top->regs));
+			nx_soc_dp_plane_top_prepare(top);
+		}
+	}
 }
 
 static void dp_crtc_suspend(struct drm_crtc *crtc)
 {
 	struct nx_drm_crtc *nx_crtc = to_nx_crtc(crtc);
 	struct dp_plane_top *top = &nx_crtc->top;
-	int module = top->module;
-	void *from = nx_mlc_get_base_address(module);
-	void *to = top->regs;
-	int size = sizeof(top->regs);
+	void *base;
 
-	DRM_DEBUG_KMS("crtc.%d store %d bytes\n", module, size);
+	DRM_DEBUG_KMS("crtc.%d store\n", top->module);
 
 	/* store multiple layer */
-	memcpy(to, from, size);
+	if (!nx_crtc->cluster) {
+		base = nx_mlc_get_base_address(top->module);
+		memcpy(top->regs, base, sizeof(top->regs));
+	} else {
+		list_for_each_entry(top, &crtc_top_list, list) {
+			base = nx_mlc_get_base_address(top->module);
+			memcpy(top->regs, base, sizeof(top->regs));
+		}
+	}
 }
 
-static void dp_encoder_resume(struct drm_encoder *encoder)
+static void dp_dpc_resume(struct nx_drm_device *display)
 {
-	struct nx_drm_device *display = to_nx_encoder(encoder)->display;
 	struct dp_control_dev *dpc = display_to_dpc(display);
-	int module = dpc->module;
-	void *from = dpc->regs;
-	void *to = nx_dpc_get_base_address(module);
-	int size = sizeof(dpc->regs);
+	void *base;
 
-	DRM_DEBUG_KMS("dev.%d restore %d for %s\n",
-		module, size, dp_panel_type_name(dpc->panel_type));
+	DRM_DEBUG_KMS("dev.%d restore for %s\n",
+		dpc->module, dp_panel_type_name(dpc->panel_type));
 
 	/* restore display contrllor */
-	memcpy(to, from, size);
-
-	nx_soc_dp_cont_dpc_clk_on(dpc);
+	if (!dpc->cluster) {
+		base = nx_dpc_get_base_address(dpc->module);
+		memcpy(base, dpc->regs, sizeof(dpc->regs));
+		nx_soc_dp_cont_dpc_clk_on(dpc);
+	} else {
+		list_for_each_entry(dpc, &dp_dpc_list, list) {
+			base = nx_dpc_get_base_address(dpc->module);
+			memcpy(base, dpc->regs, sizeof(dpc->regs));
+			nx_soc_dp_cont_dpc_clk_on(dpc);
+		}
+	}
 }
 
-static void dp_encoder_suspend(struct drm_encoder *encoder)
+static void dp_dpc_suspend(struct nx_drm_device *display)
 {
-	struct nx_drm_device *display = to_nx_encoder(encoder)->display;
 	struct dp_control_dev *dpc = display_to_dpc(display);
-	int module = dpc->module;
-	void *from = nx_dpc_get_base_address(module);
-	void *to = dpc->regs;
-	int size = sizeof(dpc->regs);
+	void *base;
 
-	DRM_DEBUG_KMS("dev.%d store %d for %s\n",
-		module, size, dp_panel_type_name(dpc->panel_type));
+	DRM_DEBUG_KMS("dev.%d store for %s\n",
+		dpc->module, dp_panel_type_name(dpc->panel_type));
 
 	/* store display contrllor */
-	memcpy(to, from, size);
+	if (!dpc->cluster) {
+		base = nx_dpc_get_base_address(dpc->module);
+		memcpy(dpc->regs, base, sizeof(dpc->regs));
+	} else {
+		list_for_each_entry(dpc, &dp_dpc_list, list) {
+			base = nx_dpc_get_base_address(dpc->module);
+			memcpy(dpc->regs, base, sizeof(dpc->regs));
+		}
+	}
+}
+
+void dp_crtc_add_link(struct drm_crtc *new)
+{
+	struct dp_plane_top *top = &to_nx_crtc(new)->top;
+
+	list_add_tail(&top->list, &crtc_top_list);
+}
+
+void nx_drm_dp_display_add_link(struct nx_drm_device *new)
+{
+	struct dp_control_dev *dpc = display_to_dpc(new);
+
+	list_add_tail(&dpc->list, &dp_dpc_list);
 }
 
 #define parse_read_prop(n, s, v)	{ \
@@ -209,8 +330,8 @@ static void dp_encoder_suspend(struct drm_encoder *encoder)
 int nx_drm_dp_panel_res_parse(struct device *dev,
 			struct nx_drm_res *res, enum dp_panel_type panel_type)
 {
-	struct device_node *node = dev->of_node;
 	struct device_node *np;
+	struct device_node *node = dev->of_node;
 	const __be32 *list;
 	bool reset;
 	const char *strings[8];
@@ -424,36 +545,26 @@ int nx_drm_dp_panel_dev_register(struct device *dev,
 	int err = -EINVAL;
 
 	if (dp_panel_type_rgb == type) {
-
 		#ifdef CONFIG_DRM_NX_RGB
 		err = nx_dp_device_rgb_register(dev, np, dpc);
 		#endif
-
 	} else if (dp_panel_type_lvds == type) {
-
 		#ifdef CONFIG_DRM_NX_LVDS
 		err = nx_dp_device_lvds_register(dev, np, dpc,
 				(void *)res->dev_resets, res->num_dev_resets);
 		#endif
-
 	} else if (dp_panel_type_mipi == type) {
-
 		#ifdef CONFIG_DRM_NX_MIPI_DSI
 		err = nx_dp_device_mipi_register(dev, np, dpc);
 		#endif
-
 	} else if (dp_panel_type_hdmi == type) {
-
 		#ifdef CONFIG_DRM_NX_HDMI
 		err = nx_dp_device_hdmi_register(dev, np, dpc);
 		#endif
-
 	} else if (dp_panel_type_tv == type) {
-
 		#ifdef CONFIG_DRM_NX_TVOUT
 		err = nx_soc_dp_tv_register(dev, np, dpc);
 		#endif
-
 	} else {
 		DRM_ERROR("not support panel type [%d] !!!\n", type);
 		return -EINVAL;
@@ -641,6 +752,7 @@ void nx_drm_dp_crtc_dpms(struct drm_crtc *crtc, int mode)
 {
 	struct nx_drm_crtc *nx_crtc = to_nx_crtc(crtc);
 	struct dp_plane_top *top = &nx_crtc->top;
+	struct nx_cluster_crtc *cluster = nx_crtc->cluster;
 	bool suspend = nx_crtc->suspended;
 	int on = (mode == DRM_MODE_DPMS_ON ? 1 : 0);
 
@@ -657,7 +769,12 @@ void nx_drm_dp_crtc_dpms(struct drm_crtc *crtc, int mode)
 			dp_crtc_suspend(crtc);
 	}
 
-	nx_soc_dp_plane_top_set_enable(top, on);
+	if (!cluster) {
+		nx_soc_dp_plane_top_set_enable(top, on);
+	} else {
+		list_for_each_entry(top, &crtc_top_list, list)
+			nx_soc_dp_plane_top_set_enable(top, on);
+	}
 }
 
 void nx_drm_dp_crtc_commit(struct drm_crtc *crtc)
@@ -685,13 +802,26 @@ void nx_drm_dp_crtc_commit(struct drm_crtc *crtc)
 	DRM_DEBUG_KMS("crtc[%d x %d] addr:0x%x\n",
 			width, height, (unsigned int)dma_addr);
 
-	/* set video color key */
-	nx_soc_dp_plane_rgb_set_color(layer,
-		dp_color_transp, top->color_key, true, false);
+	if (!nx_crtc->cluster) {
+		nx_soc_dp_plane_rgb_set_color(layer,
+			dp_color_transp, top->color_key, true, false);
+		nx_soc_dp_plane_rgb_set_address(layer, dma_addr,
+					pixel, hstride, 0, true);
+		nx_soc_dp_plane_rgb_set_enable(layer, true, true);
+	} else {
+		list_for_each_entry(top, &crtc_top_list, list) {
+			LIST_LAYER_ENTRY(layer, top, num);
 
-	nx_soc_dp_plane_rgb_set_address(layer,
-			dma_addr, pixel, hstride, 0, true);
-	nx_soc_dp_plane_rgb_set_enable(layer, true, true);
+			nx_soc_dp_plane_rgb_set_color(layer, dp_color_transp,
+						top->color_key, true, false);
+			nx_soc_dp_plane_rgb_set_address(layer, dma_addr,
+						pixel, hstride, 0, true);
+			nx_soc_dp_plane_rgb_set_enable(layer, true, true);
+
+			/* cluster lcd base */
+			dma_addr += layer->dst_width * pixel;
+		}
+	}
 }
 
 void nx_drm_dp_crtc_irq_on(struct drm_crtc *crtc, int pipe)
@@ -717,7 +847,11 @@ void nx_drm_dp_crtc_init(struct drm_device *drm,
 
 	top->module = index;
 	top->dev = drm->dev;
+
 	INIT_LIST_HEAD(&top->plane_list);
+	INIT_LIST_HEAD(&top->list);
+
+	dp_crtc_add_link(crtc);
 }
 
 void nx_drm_dp_crtc_reset(struct drm_crtc *crtc)
@@ -740,25 +874,42 @@ void nx_drm_dp_plane_set_color(struct drm_plane *plane,
 {
 	struct nx_drm_plane *nx_plane = to_nx_plane(plane);
 	struct dp_plane_layer *layer = &nx_plane->layer;
+	struct dp_plane_top *top = layer->plane_top;
+	int num = layer->num;
 
 	DRM_DEBUG_KMS("crtc.%d type:%d color:0x%x\n",
 		layer->module, type, color);
 
-	if (dp_color_colorkey == type) {
-		struct dp_plane_top *top = layer->plane_top;
-
-		list_for_each_entry(layer, &top->plane_list, list) {
-			DRM_DEBUG_KMS("primary.%d layer.%d [%s]\n",
-				top->primary_plane, layer->num, layer->name);
-			if (layer->num == top->primary_plane)
-				break;
-		}
-		nx_soc_dp_plane_rgb_set_color(layer,
-			dp_color_transp, color, true, true);
-	} else {
-		if (dp_plane_video != layer->type)
+	if (!top->cluster) {
+		if (dp_color_colorkey == type) {
+			list_for_each_entry(layer, &top->plane_list, list) {
+				if (layer->num == top->primary_plane)
+					break;
+			}
 			nx_soc_dp_plane_rgb_set_color(layer,
-					type, color, true, true);
+				dp_color_transp, color, true, true);
+		} else {
+			if (dp_plane_video != layer->type)
+				nx_soc_dp_plane_rgb_set_color(layer,
+						type, color, true, true);
+		}
+	} else {
+		list_for_each_entry(top, &crtc_top_list, list) {
+			if (dp_color_colorkey == type) {
+				list_for_each_entry(layer,
+					&top->plane_list, list) {
+					if (layer->num == top->primary_plane)
+						break;
+				}
+				nx_soc_dp_plane_rgb_set_color(layer,
+					dp_color_transp, color, true, true);
+			} else {
+				LIST_LAYER_ENTRY(layer, top, num);
+				if (dp_plane_video != layer->type)
+					nx_soc_dp_plane_rgb_set_color(layer,
+						type, color, true, true);
+			}
+		}
 	}
 }
 
@@ -766,24 +917,36 @@ void nx_drm_dp_plane_set_priority(struct drm_plane *plane, int priority)
 {
 	struct nx_drm_plane *nx_plane = to_nx_plane(plane);
 	struct dp_plane_layer *layer = &nx_plane->layer;
+	struct dp_plane_top *top = layer->plane_top;
 
-	nx_soc_dp_plane_video_set_priority(layer, priority);
+	if (!top->cluster) {
+		nx_soc_dp_plane_video_set_priority(layer, priority);
+	} else {
+		list_for_each_entry(top, &crtc_top_list, list)
+			list_for_each_entry(layer, &top->plane_list, list) {
+				if (dp_plane_video == layer->type) {
+					nx_soc_dp_plane_video_set_priority(
+						layer, priority);
+					break;
+				}
+			}
+	}
 }
 
 int nx_drm_dp_plane_mode_set(struct drm_crtc *crtc,
 			struct drm_plane *plane,
 			struct drm_framebuffer *fb,
-			int crtc_x, int crtc_y,
-			unsigned int crtc_w, unsigned int crtc_h,
-			uint32_t src_x, uint32_t src_y,
-			uint32_t src_w, uint32_t src_h)
+			int crtc_x, int crtc_y, int crtc_w, int crtc_h,
+			int src_x, int src_y, int src_w, int src_h)
 {
 	struct nx_drm_crtc *nx_crtc = to_nx_crtc(crtc);
 	struct nx_drm_plane *nx_plane = to_nx_plane(plane);
 	struct dp_plane_top *top = &nx_crtc->top;
 	struct dp_plane_layer *layer = &nx_plane->layer;
 	int pixel = fb->bits_per_pixel >> 3;
+	int num = layer->num;
 	unsigned int format;
+	struct dp_rectangle rect;
 	int ret;
 
 	ret = convert_dp_rgb_format(fb->pixel_format,
@@ -791,21 +954,60 @@ int nx_drm_dp_plane_mode_set(struct drm_crtc *crtc,
 	if (0 > ret)
 		return ret;
 
-	DRM_DEBUG_KMS("crtc.%d plane.%d :\n",
-			top->module, layer->num);
+	DRM_DEBUG_KMS("crtc.%d plane.%d :\n", top->module, layer->num);
 	DRM_DEBUG_KMS("crtc[%d x %d] src[%d,%d,%d,%d]\n",
 			crtc_w, crtc_h, src_x, src_y, src_w, src_h);
 	DRM_DEBUG_KMS("%s -> 0x%x, pixel:%d, back:0x%x\n",
 			drm_get_format_name(fb->pixel_format), format,
 			pixel, top->back_color);
 
-	nx_soc_dp_plane_top_prepare(top);
-	nx_soc_dp_plane_top_set_bg_color(top);
-	nx_soc_dp_plane_top_set_format(top, crtc_w, crtc_h);
-	nx_soc_dp_plane_rgb_set_format(layer, format, pixel, true);
-	nx_soc_dp_plane_rgb_set_position(layer, src_x, src_y, src_w, src_h,
-			crtc_x, crtc_y, crtc_w, crtc_h, false);
+	if (!nx_crtc->cluster) {
+		dp_rect_rgb(&rect, crtc_x, crtc_y, crtc_w, crtc_h,
+					crtc_w, crtc_h,	0);
+		nx_soc_dp_plane_top_prepare(top);
+		nx_soc_dp_plane_top_set_bg_color(top);
+		nx_soc_dp_plane_top_set_format(top, crtc_w, crtc_h);
+		nx_soc_dp_plane_rgb_set_format(layer, format, pixel, true);
+		nx_soc_dp_plane_rgb_set_position(layer,
+					src_x, src_y, src_w, src_h,
+					rect.left, rect.top,
+					rect.right - rect.left,
+					rect.bottom - rect.top, false);
+	} else {
+		int cx, cy, cw, ch;
+		int aw, ah;
+		struct videomode *vm;
 
+		vm = nx_crtc->cluster->vm;
+		cx = crtc_x, cy = crtc_y;
+		cw = crtc_w, ch = crtc_h;
+
+		list_for_each_entry(top, &crtc_top_list, list) {
+			aw = vm->hactive;
+			ah = vm->vactive;
+			vm++;
+			top->cluster_dir =
+					nx_crtc->cluster->cluster_dir;
+			top->cluster = true;
+
+			dp_rect_rgb(&rect, cx, cy, cw, ch,
+						aw, ah,	top->cluster_dir);
+			cx = cx - aw;
+
+			LIST_LAYER_ENTRY(layer, top, num);
+
+			nx_soc_dp_plane_top_prepare(top);
+			nx_soc_dp_plane_top_set_bg_color(top);
+			nx_soc_dp_plane_top_set_format(top, aw, ah);
+			nx_soc_dp_plane_rgb_set_format(layer,
+					format, pixel, true);
+			nx_soc_dp_plane_rgb_set_position(layer,
+					src_x, src_y, src_w, src_h,
+					rect.left, rect.top,
+					rect.right - rect.left,
+					rect.bottom - rect.top, false);
+		}
+	}
 	return 0;
 }
 
@@ -832,33 +1034,123 @@ int nx_drm_dp_plane_wait_sync(struct drm_plane *plane,
 	return ret;
 }
 
-int nx_drm_dp_plane_update(struct drm_plane *plane,
-			struct drm_framebuffer *fb,
-			int crtc_x, int crtc_y,
-			unsigned int crtc_w, unsigned int crtc_h,
-			uint32_t src_x, uint32_t src_y,
-			uint32_t src_w, uint32_t src_h, int align)
+static int dp_plane_rgb_update(struct drm_framebuffer *fb,
+			struct dp_plane_layer *layer,
+			int crtc_x, int crtc_y, int crtc_w, int crtc_h,
+			int src_x, int src_y, int src_w, int src_h, int align)
 {
-	struct nx_drm_plane *nx_plane;
-	struct dp_plane_layer *layer;
+	struct nx_gem_object *nx_obj;
+	struct dp_plane_top *top;
+	struct dp_rectangle rect;
+	dma_addr_t dma_addr;
+	int pixel = (fb->bits_per_pixel >> 3);
+	int num = layer->num;
+	unsigned int format;
+	int pitch;
+	int ret;
+
+	nx_obj = nx_drm_fb_get_gem_obj(fb, 0);
+	top = layer->plane_top;
+	dma_addr = nx_obj->dma_addr;
+	pitch = fb->pitches[0];
+
+	ret = convert_dp_rgb_format(fb->pixel_format,
+				fb->bits_per_pixel, fb->depth, &format);
+	if (ret < 0)
+		return ret;
+
+	if (!top->cluster) {
+		dp_rect_rgb(&rect, crtc_x, crtc_y,
+				crtc_w, crtc_h, top->width, top->height, 0);
+		nx_soc_dp_plane_rgb_set_format(layer, format, pixel, true);
+		nx_soc_dp_plane_rgb_set_position(layer,
+				src_x, src_y, src_w, src_h, rect.left, rect.top,
+				rect.right - rect.left,
+				rect.bottom - rect.top, true);
+		nx_soc_dp_plane_rgb_set_address(layer,
+				dma_addr, pixel, pitch, align, true);
+		nx_soc_dp_plane_rgb_set_enable(layer, true, true);
+
+	} else {
+		int cx, cy, cw, ch;
+		int aw, ah;
+
+		cx = crtc_x, cy = crtc_y;
+		cw = crtc_w, ch = crtc_h;
+
+		list_for_each_entry(top, &crtc_top_list, list) {
+			aw = top->width, ah = top->height;
+			dp_rect_rgb(&rect, cx, cy, cw, ch,
+						aw, ah, top->cluster_dir);
+			cx = cx - aw;
+
+			LIST_LAYER_ENTRY(layer, top, num);
+
+			nx_soc_dp_plane_rgb_set_format(
+						layer, format, pixel, true);
+			nx_soc_dp_plane_rgb_set_position(layer,	src_x, src_y,
+					src_w, src_h, rect.left, rect.top,
+					rect.right - rect.left,
+					rect.bottom - rect.top, true);
+			nx_soc_dp_plane_rgb_set_address(layer,
+					dma_addr, pixel, pitch, align, true);
+			nx_soc_dp_plane_rgb_set_enable(layer, true, true);
+
+			/* next fb base */
+			dma_addr += layer->dst_width * pixel;
+		}
+	}
+
+	return 0;
+}
+
+static inline int dp_plane_video_base(struct dp_plane_layer *layer,
+			dma_addr_t dma_addrs[4], unsigned int pitches[4],
+			unsigned int offsets[4], int planes)
+{
+	dma_addr_t lua, cba, cra;
+	int lus, cbs, crs;
+	int ret = 0;
+
+	switch (planes) {
+	case 1:
+		lua = dma_addrs[0], lus = pitches[0];
+		nx_soc_dp_plane_video_set_address_1p(layer,
+				lua, lus, true);
+		break;
+	case 2:
+	case 3:
+		lua = dma_addrs[0];
+		cba = offsets[1] ? lua + offsets[1] : dma_addrs[1];
+		cra = offsets[2] ? lua + offsets[2] : dma_addrs[2];
+		lus = pitches[0], cbs = pitches[1], crs = pitches[2];
+		nx_soc_dp_plane_video_set_address_3p(layer, lua, lus,
+				cba, cbs, cra, crs, true);
+		break;
+	default:
+		ret = -EINVAL;
+		break;
+	}
+	return ret;
+}
+
+static int dp_plane_video_update(struct drm_framebuffer *fb,
+			struct dp_plane_layer *layer,
+			int crtc_x, int crtc_y, int crtc_w, int crtc_h,
+			int src_x, int src_y, int src_w, int src_h)
+{
+	struct dp_plane_top *top;
+	struct dp_rectangle rect;
 	struct nx_gem_object *nx_obj[4];
 	dma_addr_t dma_addrs[4];
 	unsigned int pitches[4], offsets[4];
-	enum dp_plane_type type;
-	int num_planes = 0;
 	unsigned int format;
-	int ret, i = 0;
+	int num_planes, num;
+	int i, ret;
 
-	nx_plane = to_nx_plane(plane);
-	layer = &nx_plane->layer;
-	type = layer->type;
 	num_planes = drm_format_num_planes(fb->pixel_format);
-
-	DRM_DEBUG_KMS("crtc.%d plane.%d (%s) : planes %d\n",
-		layer->module, layer->num, layer->name, num_planes);
-	DRM_DEBUG_KMS("%s crtc[%d,%d,%d,%d] src[%d,%d,%d,%d]\n",
-		drm_get_format_name(fb->pixel_format),
-		crtc_x, crtc_y, crtc_w, crtc_h, src_x, src_y, src_w, src_h);
+	top = layer->plane_top;
+	num = layer->num;
 
 	for (i = 0; num_planes > i; i++) {
 		nx_obj[i] = nx_drm_fb_get_gem_obj(fb, i);
@@ -867,92 +1159,125 @@ int nx_drm_dp_plane_update(struct drm_plane *plane,
 		pitches[i] = fb->pitches[i];
 	}
 
-	/* update rgb plane */
-	if (dp_plane_rgb == type) {
-		int pixel = (fb->bits_per_pixel >> 3);
+	ret = convert_dp_vid_format(fb->pixel_format,
+				&format);
+	if (ret < 0)
+		return ret;
 
-		ret = convert_dp_rgb_format(fb->pixel_format,
-				fb->bits_per_pixel, fb->depth, &format);
-		if (0 > ret)
-			return ret;
-
-		nx_soc_dp_plane_rgb_set_format(layer, format, pixel, true);
-		nx_soc_dp_plane_rgb_set_position(layer,
-				src_x, src_y, src_w, src_h,
-				crtc_x, crtc_y, crtc_w, crtc_h, true);
-
-		ret = nx_drm_dp_plane_wait_sync(plane, fb, false);
-		if (!ret)
-			nx_soc_dp_plane_rgb_set_address(layer,
-				dma_addrs[0], pixel, crtc_w * pixel, align,
-				true);
-
-		nx_soc_dp_plane_rgb_set_enable(layer, true, true);
-
-	/* update video plane */
-	} else {
-		dma_addr_t lua, cba, cra;
-		int lus, cbs, crs;
-
-		ret = convert_dp_vid_format(fb->pixel_format,
-					&format);
-		if (0 > ret)
-			return ret;
-
+	if (!top->cluster) {
+		dp_rect_video(&rect, crtc_x, crtc_y, crtc_w, crtc_h,
+				top->width, top->height, 0);
 		nx_soc_dp_plane_video_set_format(layer, format, true);
 		nx_soc_dp_plane_video_set_position(layer,
 				src_x, src_y, src_w, src_h,
-				crtc_x, crtc_y, crtc_w, crtc_h, true);
+				rect.left, rect.top, rect.right - rect.left,
+				rect.bottom - rect.top, true);
 
-		switch (num_planes) {
-		case 1:
-			lua = dma_addrs[0], lus = pitches[0];
-			nx_soc_dp_plane_video_set_address_1p(layer,
-				lua, lus, true);
-			break;
-
-		case 2:
-		case 3:
-			lua = dma_addrs[0];
-			cba = offsets[1] ? lua + offsets[1] : dma_addrs[1];
-			cra = offsets[2] ? lua + offsets[2] : dma_addrs[2];
-			lus = pitches[0], cbs = pitches[1], crs = pitches[2];
-
-			nx_soc_dp_plane_video_set_address_3p(layer, lua, lus,
-				cba, cbs, cra, crs, true);
-			break;
-		default:
-			ret = -EINVAL;
-			break;
-		}
-
+		ret = dp_plane_video_base(layer,
+				dma_addrs, pitches, offsets, num_planes);
 		if (0 > ret)
 			return ret;
 
 		nx_soc_dp_plane_video_set_enable(layer, true, true);
+	} else {
+		int cx, cy, cw, ch;
+		int aw, ah;
+
+		cx = crtc_x, cy = crtc_y;
+		cw = crtc_w, ch = crtc_h;
+
+		list_for_each_entry(top, &crtc_top_list, list) {
+
+			aw = top->width, ah = top->height;
+			dp_rect_video(&rect, cx, cy, cw, ch,
+						aw, ah, top->cluster_dir);
+			cx = cx - aw;
+
+			LIST_LAYER_ENTRY(layer, top, num);
+
+			nx_soc_dp_plane_video_set_format(layer, format, true);
+			nx_soc_dp_plane_video_set_position(layer,
+					src_x, src_y, src_w, src_h,
+					rect.left, rect.top,
+					rect.right - rect.left,
+					rect.bottom - rect.top, true);
+
+			ret = dp_plane_video_base(layer, dma_addrs,
+					pitches, offsets, num_planes);
+			if (ret < 0)
+				continue;
+
+			nx_soc_dp_plane_video_set_enable(layer, true, true);
+		}
 	}
+
 	return 0;
+}
+
+int nx_drm_dp_plane_update(struct drm_plane *plane,
+			struct drm_framebuffer *fb,
+			int crtc_x, int crtc_y, int crtc_w, int crtc_h,
+			int src_x, int src_y, int src_w, int src_h, int align)
+{
+	struct dp_plane_layer *layer;
+	enum dp_plane_type type;
+	int ret;
+
+	layer = &to_nx_plane(plane)->layer;
+	type = layer->type;
+
+	DRM_DEBUG_KMS("crtc.%d plane.%d (%s)\n",
+		layer->module, layer->num, layer->name);
+	DRM_DEBUG_KMS("%s crtc[%d,%d,%d,%d] src[%d,%d,%d,%d]\n",
+		drm_get_format_name(fb->pixel_format),
+		crtc_x, crtc_y, crtc_w, crtc_h, src_x, src_y, src_w, src_h);
+
+	if (dp_plane_rgb == type) {
+		ret = nx_drm_dp_plane_wait_sync(plane, fb, false);
+		if (!ret)
+			ret = dp_plane_rgb_update(fb, layer,
+					crtc_x, crtc_y, crtc_w, crtc_h,
+					src_x, src_y, src_w, src_h, align);
+	} else {
+		ret = dp_plane_video_update(fb, layer,
+					crtc_x, crtc_y, crtc_w, crtc_h,
+					src_x, src_y, src_w, src_h);
+	}
+	return ret;
 }
 
 int nx_drm_dp_plane_disable(struct drm_plane *plane)
 {
 	struct nx_drm_plane *nx_plane = to_nx_plane(plane);
 	struct dp_plane_layer *layer = &nx_plane->layer;
+	struct dp_plane_top *top = layer->plane_top;
+	int num = layer->num;
 
 	DRM_DEBUG_KMS("enter (%s)\n",
 		dp_plane_rgb == layer->type ? "RGB" : "VIDEO");
 
-	if (dp_plane_rgb == layer->type)
-		nx_soc_dp_plane_rgb_set_enable(layer, false, true);
-	else
-		nx_soc_dp_plane_video_set_enable(layer, false, true);
-
+	if (!top->cluster) {
+		if (dp_plane_rgb == layer->type)
+			nx_soc_dp_plane_rgb_set_enable(layer, false, true);
+		else
+			nx_soc_dp_plane_video_set_enable(layer, false, true);
+	} else {
+		list_for_each_entry(top, &crtc_top_list, list) {
+			LIST_LAYER_ENTRY(layer, top, num);
+			if (dp_plane_rgb == layer->type)
+				nx_soc_dp_plane_rgb_set_enable(layer,
+								false, true);
+			else
+				nx_soc_dp_plane_video_set_enable(layer,
+								false, true);
+		}
+	}
 	return 0;
 }
 
 void nx_drm_dp_plane_init(struct drm_device *drm,
-			struct drm_crtc *crtc,
-			struct drm_plane *plane, int plane_num)
+			struct drm_crtc *crtc, struct drm_plane *plane,
+			bool bgr, int plane_num)
 {
 	struct nx_drm_plane *nx_plane = to_nx_plane(plane);
 	struct dp_plane_layer *layer = &nx_plane->layer;
@@ -970,6 +1295,7 @@ void nx_drm_dp_plane_init(struct drm_device *drm,
 	layer->module = top->module;
 	layer->num = plane_num;
 	layer->type = type;
+	layer->is_bgr = bgr;
 
 	sprintf(layer->name, "%d-%s%d",
 		module, dp_plane_video == type ? "vid" : "rgb", plane_num);
@@ -1015,6 +1341,10 @@ void nx_drm_dp_display_mode_to_sync(struct drm_display_mode *mode,
 	sync->pixel_clock_hz = vm.pixelclock;
 }
 
+void nx_drm_dp_encoder_init(struct drm_encoder *encoder)
+{
+}
+
 void nx_drm_dp_encoder_commit(struct drm_encoder *encoder)
 {
 	struct nx_drm_device *display = to_nx_encoder(encoder)->display;
@@ -1028,8 +1358,15 @@ void nx_drm_dp_encoder_commit(struct drm_encoder *encoder)
 	 * no power on then encoder->dpms should be called
 	 * with DRM_MODE_DPMS_ON for the hardware power to be on.
 	 */
-	nx_soc_dp_cont_prepare(dpc);
-	nx_soc_dp_cont_power_on(dpc, true);
+	if (!dpc->cluster) {
+		nx_soc_dp_cont_prepare(dpc);
+		nx_soc_dp_cont_power_on(dpc, true);
+	} else {
+		list_for_each_entry(dpc, &dp_dpc_list, list) {
+			nx_soc_dp_cont_prepare(dpc);
+			nx_soc_dp_cont_power_on(dpc, true);
+		}
+	}
 }
 
 int nx_drm_dp_encoder_get_dpms(struct drm_encoder *encoder)
@@ -1054,15 +1391,22 @@ void nx_drm_dp_encoder_dpms(struct drm_encoder *encoder, bool poweron)
 
 	if (suspend) {
 		if (poweron)
-			dp_encoder_resume(encoder);
+			dp_dpc_resume(display);
 		else
-			dp_encoder_suspend(encoder);
+			dp_dpc_suspend(display);
 	}
 
-	if (poweron)
-		nx_soc_dp_cont_prepare(dpc);
-
-	nx_soc_dp_cont_power_on(dpc, poweron);
+	if (!dpc->cluster) {
+		if (poweron)
+			nx_soc_dp_cont_prepare(dpc);
+		nx_soc_dp_cont_power_on(dpc, poweron);
+	} else {
+		list_for_each_entry(dpc, &dp_dpc_list, list) {
+			if (poweron)
+				nx_soc_dp_cont_prepare(dpc);
+			nx_soc_dp_cont_power_on(dpc, poweron);
+		}
+	}
 }
 
 void nx_drm_dp_encoder_prepare(struct drm_encoder *encoder,
@@ -1074,15 +1418,27 @@ void nx_drm_dp_encoder_prepare(struct drm_encoder *encoder,
 	/*
 	 * set display module index
 	 */
-	dpc->module = index;
+	if (!dpc->cluster)
+		dpc->module = index;
 
-	nx_soc_dp_cont_dpc_clk_on(dpc);
+	DRM_DEBUG_KMS("%s prepare pipe.%d cluster:%d\n",
+		dp_panel_type_name(dpc->panel_type), index, dpc->cluster);
+
+	if (!dpc->cluster) {
+		nx_soc_dp_cont_dpc_clk_on(dpc);
+	} else {
+		list_for_each_entry(dpc, &dp_dpc_list, list)
+			nx_soc_dp_cont_dpc_clk_on(dpc);
+	}
 }
 
 void nx_drm_dp_encoder_unprepare(struct drm_encoder *encoder)
 {
 	struct nx_drm_device *display = to_nx_encoder(encoder)->display;
 	struct dp_control_dev *dpc = display_to_dpc(display);
+
+	DRM_DEBUG_KMS("%s unprepare pipe.%d\n",
+		dp_panel_type_name(dpc->panel_type), dpc->module);
 
 	nx_soc_dp_cont_irq_on(dpc->module, false);
 }
@@ -1108,7 +1464,8 @@ int nx_drm_dp_lcd_enable(struct nx_drm_device *display,
 	struct dp_control_ops *ops = dpc->ops;
 	int module = dpc->module;
 
-	DRM_DEBUG_KMS("%s\n", dp_panel_type_name(dpc->panel_type));
+	DRM_DEBUG_KMS("%s dev.%d\n",
+			dp_panel_type_name(dpc->panel_type), module);
 
 	if (dp_panel_type_rgb == dpc->panel_type) {
 		/*
@@ -1228,7 +1585,8 @@ int nx_drm_dp_tv_disable(struct nx_drm_device *display,
 }
 
 #ifdef CONFIG_DRM_NX_MIPI_DSI
-static void dp_mipi_dsi_dump_messages(const struct mipi_dsi_msg *msg, bool dump)
+static void dp_mipi_dsi_dump_messages(const struct mipi_dsi_msg *msg,
+			bool dump)
 {
 	const char *txb = msg->tx_buf;
 	const char *rxb = msg->rx_buf;
