@@ -37,7 +37,7 @@
 #include "smp.h"
 #include "mgmt_util.h"
 
-#ifdef CONFIG_MARVELL_DRIVERS
+#ifdef CONFIG_MRVL_BT_DRIVER
 static bool sc_force_disable = true;
 #else
 static bool sc_force_disable;
