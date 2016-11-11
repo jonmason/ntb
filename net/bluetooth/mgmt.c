@@ -37,25 +37,6 @@
 #include "smp.h"
 #include "mgmt_util.h"
 
-#ifdef CONFIG_MRVL_BT_DRIVER
-static bool sc_force_disable = true;
-#else
-static bool sc_force_disable;
-#endif
-
-static int sc_force_disable_setup(char *str)
-{
-	int rc = simple_strtol(str, NULL, 0);
-	if (rc)
-		sc_force_disable = true;
-	else
-		sc_force_disable = false;
-
-	return 1;
-}
-
-__setup("sc_force_disable=", sc_force_disable_setup);
-
 #define MGMT_VERSION	1
 #define MGMT_REVISION	10
 
@@ -650,15 +631,14 @@ static u32 get_supported_settings(struct hci_dev *hdev)
 			settings |= MGMT_SETTING_HS;
 		}
 
-		if (lmp_sc_capable(hdev) && !sc_force_disable)
+		if (lmp_sc_capable(hdev))
 			settings |= MGMT_SETTING_SECURE_CONN;
 	}
 
 	if (lmp_le_capable(hdev)) {
 		settings |= MGMT_SETTING_LE;
 		settings |= MGMT_SETTING_ADVERTISING;
-		if (!sc_force_disable)
-			settings |= MGMT_SETTING_SECURE_CONN;
+		settings |= MGMT_SETTING_SECURE_CONN;
 		settings |= MGMT_SETTING_PRIVACY;
 		settings |= MGMT_SETTING_STATIC_ADDRESS;
 	}
