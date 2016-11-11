@@ -90,6 +90,12 @@ struct gether {
 			|USB_CDC_PACKET_TYPE_PROMISCUOUS \
 			|USB_CDC_PACKET_TYPE_DIRECTED)
 
+#if defined(CONFIG_USB_F_CARPLAY) || defined(CONFIG_USB_CONFIGFS_CARPLAY)
+/* create regnet sysfs */
+extern void gether_sysreg(void);
+extern void gether_sysunreg(void);
+#endif
+
 /* variant of gether_setup that allows customizing network device name */
 struct eth_dev *gether_setup_name(struct usb_gadget *g,
 		const char *dev_addr, const char *host_addr,
