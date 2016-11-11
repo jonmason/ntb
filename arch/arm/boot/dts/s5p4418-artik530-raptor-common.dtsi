@@ -340,7 +340,6 @@
 
 	panel: panel-simple {
 		compatible = "dongguan,gst7d0038";
-		enable-gpios = <&gpio_e 30 0>;
 		backlight = <&backlight>;
 		status = "okay";
 
