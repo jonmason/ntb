@@ -17,6 +17,7 @@
  */
 
 #include <dt-bindings/soc/nxp5540-base.h>
+#include <dt-bindings/reset/nexell,nxp5540-reset.h>
 #include <dt-bindings/interrupt-controller/nxp5540-irq.h>
 
 / {
@@ -114,6 +115,25 @@
 			interrupt-controller;
 			#interrupt-cells = <3>;
 			reg	= <0xC0009000 0x1000>, <0xC000a000 0x100>;
+		};
+
+		nxp5540_reset:reset {
+			#reset-cells = <2>;
+			compatible = "nexell,nxp5540-reset";
+			reg = <PHYS_BASE_SYS_RSTCON 0x800
+			       PHYS_BASE_TBUS_RSTCON 0x800
+			       PHYS_BASE_LBUS_RSTCON 0x800
+			       PHYS_BASE_BBUS_RSTCON 0x800
+			       PHYS_BASE_CODA_RSTCON 0x800
+			       PHYS_BASE_DISP_RSTCON 0x800
+			       PHYS_BASE_USB_RSTCON 0x800
+			       PHYS_BASE_HDMI_RSTCON 0x800
+			       PHYS_BASE_WAVE_RSTCON 0x800
+			       PHYS_BASE_DREX_RSTCON 0x800
+			       PHYS_BASE_WAVE420_RSTCON 0x800
+			       PHYS_BASE_CPU_RSTCON 0x800
+			       PHYS_BASE_PERICLK_RSTCON 0x800>;
+			status = "okay";
 		};
 
 	}; /*** soc ***/
