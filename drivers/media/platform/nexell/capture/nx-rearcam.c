@@ -2419,10 +2419,6 @@ static void _cleanup_me(struct nx_rearcam *me)
 {
 	unsigned long flags;
 
-	spin_lock_irqsave(&me->display_lock, flags);
-	_set_dpc_interrupt(me, false);
-	spin_unlock_irqrestore(&me->display_lock, flags);
-
 	if (me->rotation) {
 		mutex_lock(&me->rot_lock);
 		mutex_unlock(&me->rot_lock);
@@ -2477,7 +2473,6 @@ static void _turn_off(struct nx_rearcam *me)
 	_set_vip_interrupt(me, false);
 
 	_cleanup_me(me);
-	_disable_dpc_irq(me);
 	_reset_queue(me);
 
 	me->is_display_on = false;
@@ -2977,7 +2972,6 @@ static void _init_hw_dpc(struct nx_rearcam *me)
 			module);
 		return;
 	}
-	disable_irq_nosync(me->irq_dpc);
 
 	me->is_enable_dpc_irq = false;
 }
