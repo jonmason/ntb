@@ -190,12 +190,28 @@ static int nx_simple_card_dai_init(struct snd_soc_pcm_runtime *rtd)
 	struct snd_soc_dai *cpu = rtd->cpu_dai;
 	struct simple_dai_props *dai_props;
 	int num, ret;
+	unsigned int mclk_fs = 0;
 
 	num = rtd - rtd->card->rtd;
 	dai_props = &priv->dai_props[num];
+
+	if (priv->mclk_fs)
+		mclk_fs = priv->mclk_fs;
+	else if (dai_props->mclk_fs)
+		mclk_fs = dai_props->mclk_fs;
+
 	ret = __nx_simple_card_dai_init(codec, &dai_props->codec_dai);
 	if (ret < 0)
 		return ret;
+
+	if (mclk_fs) {
+		cpu->driver->playback.formats =
+			(mclk_fs == 256) ? SNDRV_PCM_FMTBIT_S16_LE :
+			SNDRV_PCM_FMTBIT_S24_LE;
+		cpu->driver->capture.formats =
+			(mclk_fs == 256) ? SNDRV_PCM_FMTBIT_S16_LE :
+			SNDRV_PCM_FMTBIT_S24_LE;
+	}
 
 	ret = __nx_simple_card_dai_init(cpu, &dai_props->cpu_dai);
 	if (ret < 0)
