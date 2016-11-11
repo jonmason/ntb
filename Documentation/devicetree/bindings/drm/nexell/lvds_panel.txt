@@ -14,6 +14,7 @@ Required properties for display soc panel driver:
     timing binding details.
 
  - format: lvds format 0: VESA format, 1: JEDIA foramt, 2: user location
+ - voltage_level: lvds tx driver output differential volatge level control pin
 
   - dp_control: sub node to config display port hw parameters.
    - clk_src_lv0: select display clock source of clock generator '0'

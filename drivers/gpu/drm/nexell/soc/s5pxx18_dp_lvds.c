@@ -24,6 +24,8 @@
 
 #include "s5pxx18_dp_dev.h"
 
+#define	DEF_VOLTAGE_LEVEL	(0x20)
+
 static void lvds_phy_reset(struct reset_control *rsc[], int num)
 {
 	int count = num;
@@ -58,6 +60,7 @@ static int nx_soc_dp_lvds_set_prepare(struct dp_control_dev *dpc,
 	struct dp_lvds_dev *dev = dpc->dp_output;
 	struct dp_ctrl_info *ctrl = &dpc->ctrl;
 	struct reset_control **rsc = dev->reset_control;
+	u32 voltage = DEF_VOLTAGE_LEVEL;
 
 	/*
 	 *-------- predefined type.
@@ -80,8 +83,10 @@ static int nx_soc_dp_lvds_set_prepare(struct dp_control_dev *dpc,
 	u32 LOC_D[7] = {ZERO,ZERO,ZERO,ZERO,ZERO,ZERO,ZERO};
 	u32 LOC_E[7] = {ZERO,ZERO,ZERO,ZERO,ZERO,ZERO,ZERO};
 
-	if (dev)
+	if (dev) {
 		format = dev->lvds_format;
+		voltage = dev->voltage_level;
+	}
 
 	pr_debug("%s: format: %d\n", __func__, format);
 
@@ -143,7 +148,7 @@ static int nx_soc_dp_lvds_set_prepare(struct dp_control_dev *dpc,
 			|	(0<<24) /* CNNCT_CNT, connectivity ctrl pin, 0:tx operating, 1: con check */
 			|	(0<<23) /* VOD_HIGH_S, VOD control pin, 1 : Vod only */
 			|	(0<<22) /* SRC_TRH, source termination resistor select pin */
-			|	(0x20/*0x3F*/<<14) /* CNT_VOD_H, TX driver output differential volatge level control pin */
+			|       (voltage<<14)
 			|	(0x01<<6) /* CNT_PEN_H, TX driver pre-emphasis level control */
 			|	(0x4<<3) /* FC_CODE, vos control pin */
 			|	(0<<2) /* OUTCON, TX Driver state selectioin pin, 0:Hi-z, 1:Low */
@@ -247,13 +252,19 @@ int nx_dp_device_lvds_register(struct device *dev,
 {
 	struct dp_lvds_dev *out;
 	u32 format;
+	u32 voltage;
 
 	out = kzalloc(sizeof(*out), GFP_KERNEL);
 	if (!out)
 		return -ENOMEM;
 
+	out->voltage_level = DEF_VOLTAGE_LEVEL;
+
 	if (!of_property_read_u32(np, "format", &format))
 		out->lvds_format = format;
+
+	if (!of_property_read_u32(np, "voltage_level", &voltage))
+		out->voltage_level = voltage;
 
 	out->reset_control = (void *)resets;
 	out->num_resets = num_resets;

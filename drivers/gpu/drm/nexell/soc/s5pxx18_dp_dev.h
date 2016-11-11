@@ -184,6 +184,7 @@ struct dp_lvds_dev {
 	int pol_inv_vs;		/* bsync polarity invert for VESA, JEIDA */
 	int pol_inv_de;		/* de polarity invert for VESA, JEIDA */
 	int pol_inv_ck;		/* input clock(pixel clock) polarity invert */
+	int voltage_level;
 	void *reset_control;
 	int num_resets;
 };
