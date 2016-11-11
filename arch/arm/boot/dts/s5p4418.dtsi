@@ -857,17 +857,10 @@
 			};
 		};
 
-		scaler@c0066000 {
-			compatible = "nexell,scaler";
-			reg = <PHYS_BASE_SCALER 0x1000>;
-			interrupts = <IRQ_SCALER>;
-			clock-names = "scaler";
-			clocks = <&scaler>;
-			reset-names = "scaler-reset";
-			resets = <&nexell_reset RESET_ID_SCALER>;
+		dp_drm_cluster_lcd: display_drm_cluster_lcd{
+			compatible = "nexell,s5pxx18-drm-cluster-lcd";
 			status = "disabled";
 		};
-
 
 		dp_drm_tvout: display_drm_tv{
 			compatible = "nexell,s5pxx18-drm-tv";
@@ -890,6 +883,17 @@
 						"rsc-hdmi-tmds", "rsc-hdmi", "rsc-hdmi-phy";
 				soc,tieoff = <NX_TIEOFF_DISPLAYTOP0_i_HDMI_PHY_REFCLK_SEL 1>;
 			};
+		};
+
+		scaler@c0066000 {
+			compatible = "nexell,scaler";
+			reg = <PHYS_BASE_SCALER 0x1000>;
+			interrupts = <IRQ_SCALER>;
+			clock-names = "scaler";
+			clocks = <&scaler>;
+			reset-names = "scaler-reset";
+			resets = <&nexell_reset RESET_ID_SCALER>;
+			status = "disabled";
 		};
 
 		gpu@c0070000 {
