@@ -62,6 +62,16 @@
 			dfs;
 			status = "okay";
 		};
+
+		dwc2otg@c0040000 {
+			/delete-property/ gpios;
+		};
+
+		i2c_1:i2c@c00a5000 {
+			rate = <400000>;
+			retry-delay = <500>;
+			retry-cnt = <10>;
+		};
 	};
 
 	snd_null: snd_null@10 {
