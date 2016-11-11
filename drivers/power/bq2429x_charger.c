@@ -470,13 +470,16 @@ MODULE_DEVICE_TABLE(of, bq24296_battery_of_match);
 #ifdef CONFIG_PM
 static int bq24296_battery_suspend(struct device *dev)
 {
-	cancel_delayed_work_sync(&bq24296_di->usb_detect_work);
+	if (gpio_is_valid(bq24296_pdata->dc_det_pin))
+		cancel_delayed_work_sync(&bq24296_di->usb_detect_work);
+
 	return 0;
 }
 
 static int bq24296_battery_resume(struct device *dev)
 {
-	schedule_delayed_work(&bq24296_di->usb_detect_work,
+	if (gpio_is_valid(bq24296_pdata->dc_det_pin))
+		schedule_delayed_work(&bq24296_di->usb_detect_work,
 			msecs_to_jiffies(50));
 	return 0;
 }
