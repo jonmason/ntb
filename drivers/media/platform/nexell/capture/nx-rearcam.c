@@ -537,6 +537,9 @@ static int _enable_rot_ctx(struct nx_rearcam *);
 static void _enable_dpc_irq_ctx(struct nx_rearcam *);
 static void _enable_vip_irq_ctx(struct nx_rearcam *);
 
+static void _init_gpio_event_worker(struct nx_rearcam *);
+static void _deinit_gpio_event_worker(struct nx_rearcam *);
+
 static struct device_node *_of_get_node_by_property(struct device *dev,
 		struct device_node *np, char *prop_name)
 {
@@ -2587,14 +2590,16 @@ static void _work_handler_reargear(struct work_struct *work)
 	mutex_unlock(&me->decide_work_lock);
 }
 
-static irqreturn_t _irq_handler(int irq, void *devdata)
+static void _gpio_event_worker(struct work_struct *work)
 {
-	struct nx_rearcam *me = devdata;
+	struct nx_rearcam *me = container_of(work, struct nx_rearcam,
+				work_gpio_event);
 
 	nx_soc_gpio_clr_int_pend(PAD_GPIO_ALV + 3);
 
 	mutex_lock(&me->decide_work_lock);
 	cancel_delayed_work(&me->work);
+
 	if (!is_reargear_on(me)) {
 		schedule_delayed_work(&me->work, msecs_to_jiffies(100));
 	} else {
@@ -2602,6 +2607,13 @@ static irqreturn_t _irq_handler(int irq, void *devdata)
 			msecs_to_jiffies(me->detect_delay));
 	}
 	mutex_unlock(&me->decide_work_lock);
+}
+
+static irqreturn_t _irq_handler(int irq, void *devdata)
+{
+	struct nx_rearcam *me = devdata;
+
+	queue_work(me->wq_gpio_event, &me->work_gpio_event);
 
 	return IRQ_HANDLED;
 }
@@ -3103,6 +3115,29 @@ static void _deinit_sensor_worker(struct nx_rearcam *me)
 	flush_workqueue(me->wq_sensor_init);
 
 	destroy_workqueue(me->wq_sensor_init);
+}
+
+static void _init_gpio_event_worker(struct nx_rearcam *me)
+{
+	struct device *dev = &me->pdev->dev;
+
+	INIT_WORK(&me->work_gpio_event, _gpio_event_worker);
+
+	me->wq_gpio_event = create_singlethread_workqueue("wq_gpio_event");
+	if (!me->wq_gpio_event) {
+		dev_err(dev, "create gpio event work queue error!\n");
+		return;
+	}
+}
+
+static void _deinit_gpio_event_worker(struct nx_rearcam *me)
+{
+	if (me->wq_gpio_event != NULL) {
+		cancel_work_sync(&me->work_gpio_event);
+		flush_workqueue(me->wq_gpio_event);
+
+		destroy_workqueue(me->wq_gpio_event);
+	}
 }
 
 static int get_rotate_width_rate(struct nx_rearcam *me, enum FRAME_KIND type)
@@ -3887,6 +3922,7 @@ static int init_me(struct nx_rearcam *me)
 	_reset_hw_display(me);
 	_init_hw_mlc(me);
 
+	_init_gpio_event_worker(me);
 	_init_sensor_worker(me);
 	_enable_gpio_irq_ctx(me);
 
@@ -3917,6 +3953,7 @@ static int deinit_me(struct nx_rearcam *me)
 
 	_disable_gpio_irq_ctx(me);
 	_deinit_sensor_worker(me);
+	_deinit_gpio_event_worker(me);
 
 	_free_buffer(me);
 	me->removed = true;
