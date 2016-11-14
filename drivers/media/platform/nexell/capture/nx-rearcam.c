@@ -410,10 +410,14 @@ struct nx_rearcam {
 	int event_gpio;
 	int active_high;
 	int detect_delay;
+	int is_enable_gpio_irq;
 	struct reg_val *init_data;
+	struct work_struct work_gpio_event;
+	struct workqueue_struct *wq_gpio_event;
 
 	int irq_event;
 	int irq_vip;
+	int is_enable_vip_irq;
 	int irq_count;
 	char irq_name_vip[30];
 
@@ -517,12 +521,21 @@ extern struct nx_vendor_context nx_vendor_ctx;
 
 static irqreturn_t _dpc_irq_handler(int, void *);
 static int nx_rearcam_remove(struct platform_device *pdev);
-static void _init_hw_vip(struct nx_rearcam *me);
 static void _dpc_set_display(struct nx_rearcam *);
 static void _set_enable_lvds(struct nx_rearcam *);
 static void _set_disable_lvds(struct nx_rearcam *);
-static void _enable_dpc_irq(struct nx_rearcam *);
-static void _disable_dpc_irq(struct nx_rearcam *);
+
+static void _destroy_display_worker(struct nx_rearcam *);
+static void _display_worker(struct work_struct *);
+
+static void _disable_vip_irq_ctx(struct nx_rearcam *);
+static void _disable_dpc_irq_ctx(struct nx_rearcam *);
+
+static void init_hw(struct nx_rearcam *);
+
+static int _enable_rot_ctx(struct nx_rearcam *);
+static void _enable_dpc_irq_ctx(struct nx_rearcam *);
+static void _enable_vip_irq_ctx(struct nx_rearcam *);
 
 static struct device_node *_of_get_node_by_property(struct device *dev,
 		struct device_node *np, char *prop_name)
@@ -1556,11 +1569,9 @@ static int nx_reset_apply(struct reset_control *reset_ctrl)
 	bool reset = reset_control_status(reset_ctrl);
 
 	if (reset)
-		reset_control_assert(reset_ctrl);
+		reset_control_deassert(reset_ctrl);
 
 	mdelay(1);
-
-	reset_control_deassert(reset_ctrl);
 
 	return 0;
 }
@@ -2215,6 +2226,19 @@ static void _set_mlc(struct nx_rearcam *me)
 	_set_enable_mlc(me);
 }
 
+static bool _is_enable_vip(struct nx_rearcam *me)
+{
+	int module = me->clipper_info.module;
+	int vip_enb = 0;
+	int sep_enb = 0;
+	int clip_enb = 0;
+	int deci_enb = 0;
+
+	nx_vip_get_vipenable(module, &vip_enb, &sep_enb, &clip_enb, &deci_enb);
+
+	return vip_enb  ? true : false;
+}
+
 static bool _is_enable_mlc(struct nx_rearcam *me)
 {
 	int module = me->mlc_module;
@@ -2399,51 +2423,97 @@ static void _dpc_set_display(struct nx_rearcam *me)
 
 static void _cancel_display_worker(struct nx_rearcam *me)
 {
-	cancel_work_sync(&me->work_display);
-	flush_workqueue(me->wq_display);
+	if (me->wq_display != NULL) {
+		cancel_work_sync(&me->work_display);
+		flush_workqueue(me->wq_display);
+	}
 }
 
 static void _cancel_rot_worker(struct nx_rearcam *me)
 {
-	cancel_work_sync(&me->work_lu_rot);
-	flush_workqueue(me->wq_lu_rot);
+	if (me->wq_lu_rot != NULL) {
+		cancel_work_sync(&me->work_lu_rot);
+		flush_workqueue(me->wq_lu_rot);
+	}
 
-	cancel_work_sync(&me->work_cb_rot);
-	flush_workqueue(me->wq_cb_rot);
+	if (me->wq_cb_rot != NULL) {
+		cancel_work_sync(&me->work_cb_rot);
+		flush_workqueue(me->wq_cb_rot);
+	}
 
-	cancel_work_sync(&me->work_cr_rot);
-	flush_workqueue(me->wq_cr_rot);
+	if (me->wq_cr_rot != NULL) {
+		cancel_work_sync(&me->work_cr_rot);
+		flush_workqueue(me->wq_cr_rot);
+	}
+}
+
+static void _destroy_display_worker(struct nx_rearcam *me)
+{
+	if (me->wq_display != NULL) {
+		destroy_workqueue(me->wq_display);
+		me->wq_display = NULL;
+	}
+}
+
+static void _destroy_rot_worker(struct nx_rearcam *me)
+{
+	if (me->wq_lu_rot != NULL) {
+		destroy_workqueue(me->wq_lu_rot);
+		me->wq_lu_rot = NULL;
+	}
+
+	if (me->wq_cb_rot != NULL) {
+		destroy_workqueue(me->wq_cb_rot);
+		me->wq_cb_rot = NULL;
+	}
+
+	if (me->wq_cr_rot != NULL) {
+		destroy_workqueue(me->wq_cr_rot);
+		me->wq_cr_rot = NULL;
+	}
+}
+
+static void _setup_me(struct nx_rearcam *me)
+{
+	init_hw(me);
+
+	if (me->rotation)
+		_enable_rot_ctx(me);
+
+	_enable_dpc_irq_ctx(me);
+	_enable_vip_irq_ctx(me);
 }
 
 static void _cleanup_me(struct nx_rearcam *me)
 {
 	unsigned long flags;
 
+	spin_lock_irqsave(&me->display_lock, flags);
+	/*	_set_dpc_interrupt(me, false);	*/
+	spin_unlock_irqrestore(&me->display_lock, flags);
+
+	_disable_vip_irq_ctx(me);
+	_disable_dpc_irq_ctx(me);
+
 	if (me->rotation) {
 		mutex_lock(&me->rot_lock);
 		mutex_unlock(&me->rot_lock);
 	}
 
-	_cancel_display_worker(me);
-
-	if (me->rotation)
+	if (me->rotation) {
 		_cancel_rot_worker(me);
+		_destroy_rot_worker(me);
+	}
 }
 
 static void _turn_on(struct nx_rearcam *me)
 {
 	struct device *dev = &me->pdev->dev;
 
-	_set_mlc_layer_priority(me);
-
-	if (_is_enable_mlc(me) == false)
-		_set_mlc(me);
-
-	if (_is_enable_dpc(me) == false)
-		_set_dpc(me);
-
 	if (me->is_on)
 		return;
+
+	_set_mlc_layer_priority(me);
 
 	me->is_on = true;
 
@@ -2460,7 +2530,9 @@ static void _turn_on(struct nx_rearcam *me)
 
 	_reset_values(me);
 	_all_buffer_to_empty_queue(me);
-	_enable_dpc_irq(me);
+
+	_setup_me(me);
+
 	_set_vip_interrupt(me, true);
 	_vip_run(me);
 }
@@ -2470,8 +2542,7 @@ static void _turn_off(struct nx_rearcam *me)
 	_mlc_overlay_stop(me);
 	_mlc_video_stop(me);
 
-	_set_vip_interrupt(me, false);
-
+	/*	_set_vip_interrupt(me, false);	*/
 	_cleanup_me(me);
 	_reset_queue(me);
 
@@ -2534,7 +2605,6 @@ static irqreturn_t _irq_handler(int irq, void *devdata)
 
 	return IRQ_HANDLED;
 }
-
 
 static irqreturn_t _dpc_irq_handler(int irq, void *devdata)
 {
@@ -2636,7 +2706,6 @@ static void _reset_hw_display(struct nx_rearcam *me)
 	nx_reset_apply(me->reset_display_top);
 	/* dual display reset */
 	nx_reset_apply(me->reset_dual_display);
-	/* display top reset */
 }
 
 static void lvds_phy_reset(struct nx_rearcam *me)
@@ -2871,50 +2940,82 @@ static void _init_hw_display_top(struct nx_rearcam *me)
 	_set_display_top(me);
 }
 
-static void _init_hw_gpio(struct nx_rearcam *me)
+static void _enable_gpio_irq_ctx(struct nx_rearcam *me)
 {
 	int ret;
 	struct device *dev = &me->pdev->dev;
 
-	ret = devm_gpio_request_one(dev, me->event_gpio,
-					GPIOF_IN, dev_name(dev));
-	if (ret)
-		dev_err(dev, "unable to request GPIO %d\n", me->event_gpio);
+	if (!me->is_enable_gpio_irq) {
+		ret = devm_gpio_request_one(dev, me->event_gpio,
+						GPIOF_IN, dev_name(dev));
+		if (ret)
+			dev_err(dev, "unable to request GPIO %d\n",
+			me->event_gpio);
 
-	me->irq_event = gpio_to_irq(me->event_gpio);
-	ret = devm_request_irq(dev, me->irq_event, _irq_handler,
-			IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
-			"rearcam-event-irq", me);
-	if (ret) {
-		dev_err(dev, "%s: failed to devm_request_irq(irqnum %d)\n",
-			__func__, me->irq_event);
-		return;
+		me->irq_event = gpio_to_irq(me->event_gpio);
+		ret = devm_request_irq(dev, me->irq_event, _irq_handler,
+				IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
+				"rearcam-event-irq", me);
+		if (ret) {
+			dev_err(dev, "%s: failed to gpio irq(irqnum %d)\n",
+				__func__, me->irq_event);
+			return;
+		}
+
+		disable_irq(me->irq_event);
+
+		me->is_enable_gpio_irq = true;
 	}
-
-	disable_irq(me->irq_event);
 }
 
-static void _init_hw_vip(struct nx_rearcam *me)
+static void _disable_gpio_irq_ctx(struct nx_rearcam *me)
+{
+	struct device *dev = &me->pdev->dev;
+
+	if (me->is_enable_gpio_irq) {
+		disable_irq(me->irq_event);
+		devm_free_irq(dev, me->irq_event, me);
+
+		me->is_enable_gpio_irq = false;
+	}
+}
+
+static void _enable_vip_irq_ctx(struct nx_rearcam *me)
 {
 	int ret;
 	int err;
 	struct device *dev = &me->pdev->dev;
 	int module = me->clipper_info.module;
 
-	ret = platform_get_irq(me->pdev, module);
-	if (ret < 0) {
-		dev_err(dev, "failed to get module\n");
-		return;
-	}
+	if (!me->is_enable_vip_irq) {
+		ret = platform_get_irq(me->pdev, module);
+		if (ret < 0) {
+			dev_err(dev, "failed to get module\n");
+			return;
+		}
 
-	me->irq_vip = ret;
-	sprintf(me->irq_name_vip, "nx-rearcam-vip%d", module);
-	err = devm_request_irq(dev, me->irq_vip, &_vip_irq_handler,
-		IRQF_SHARED, me->irq_name_vip, me);
-	if (err) {
-		dev_err(dev, "failed to devm_request_irq for vip %d\n",
-			module);
-		return;
+		me->irq_vip = ret;
+		sprintf(me->irq_name_vip, "nx-rearcam-vip%d", module);
+		err = devm_request_irq(dev, me->irq_vip, &_vip_irq_handler,
+			IRQF_SHARED, me->irq_name_vip, me);
+		if (err) {
+			dev_err(dev, "failed to devm_request_irq for vip %d\n",
+				module);
+			return;
+		}
+
+		me->is_enable_vip_irq = true;
+	}
+}
+
+static void _disable_vip_irq_ctx(struct nx_rearcam *me)
+{
+	struct device *dev = &me->pdev->dev;
+
+	if (me->is_enable_vip_irq) {
+		devm_free_irq(dev, me->irq_vip, me);
+
+		me->is_enable_vip_irq = false;
 	}
 }
 
@@ -2930,53 +3031,62 @@ static void _init_hw_mlc(struct nx_rearcam *me)
 		_set_mlc_video(me);
 }
 
-static void _enable_dpc_irq(struct nx_rearcam *me)
+static void _enable_dpc_irq_ctx(struct nx_rearcam *me)
 {
+	struct device *dev = &me->pdev->dev;
+	int module = me->dpc_module;
+	int err;
+
 	if (!me->is_enable_dpc_irq) {
-		enable_irq(me->irq_dpc);
+		INIT_WORK(&me->work_display, _display_worker);
+
+		me->wq_display = create_singlethread_workqueue("wq_display");
+		if (!me->wq_display) {
+			dev_err(dev, "create work queue error!\n");
+			return;
+		}
+
+		sprintf(me->irq_name_dpc, "nx-rearcam-dpc%d", module);
+		err = devm_request_irq(dev, me->irq_dpc, &_dpc_irq_handler,
+			IRQF_SHARED, me->irq_name_dpc, me);
+		if (err) {
+			dev_err(dev, "failed to devm_request_irq for dpc %d\n",
+				module);
+			return;
+		}
+
 		me->is_enable_dpc_irq = true;
 	}
 }
 
-static void _disable_dpc_irq(struct nx_rearcam *me)
+static void _disable_dpc_irq_ctx(struct nx_rearcam *me)
 {
+	struct device *dev = &me->pdev->dev;
+
 	if (me->is_enable_dpc_irq) {
-		disable_irq(me->irq_dpc);
+		_cancel_display_worker(me);
+		_destroy_display_worker(me);
+
+		devm_free_irq(dev, me->irq_dpc, me);
+
 		me->is_enable_dpc_irq = false;
 	}
 }
 
 static void _init_hw_dpc(struct nx_rearcam *me)
 {
-	struct device *dev = &me->pdev->dev;
 	int module = me->dpc_module;
-	int err;
 
 	nx_dpc_set_base_address(module, *(me->base_addr + 0));
-	nx_dpc_set_clock_pclk_mode(module, nx_pclkmode_always);
 
-	if (_is_enable_dpc(me) == false)
+	if (_is_enable_dpc(me) == false) {
+		nx_dpc_set_clock_pclk_mode(module, nx_pclkmode_always);
+
 		_set_dpc(me);
-
-	me->wq_display = create_singlethread_workqueue("wq_display");
-	if (!me->wq_display) {
-		dev_err(dev, "create work queue error!\n");
-		return;
 	}
-
-	sprintf(me->irq_name_dpc, "nx-rearcam-dpc%d", module);
-	err = devm_request_irq(dev, me->irq_dpc, &_dpc_irq_handler,
-		IRQF_SHARED, me->irq_name_dpc, me);
-	if (err) {
-		dev_err(dev, "failed to devm_request_irq for dpc %d\n",
-			module);
-		return;
-	}
-
-	me->is_enable_dpc_irq = false;
 }
 
-static void _init_hw_sensor(struct nx_rearcam *me)
+static void _init_sensor_worker(struct nx_rearcam *me)
 {
 	struct device *dev = &me->pdev->dev;
 
@@ -2985,6 +3095,14 @@ static void _init_hw_sensor(struct nx_rearcam *me)
 		dev_err(dev, "create sensor init work queue error!\n");
 		return;
 	}
+}
+
+static void _deinit_sensor_worker(struct nx_rearcam *me)
+{
+	cancel_work_sync(&me->work_sensor_init);
+	flush_workqueue(me->wq_sensor_init);
+
+	destroy_workqueue(me->wq_sensor_init);
 }
 
 static int get_rotate_width_rate(struct nx_rearcam *me, enum FRAME_KIND type)
@@ -3000,7 +3118,7 @@ static int get_rotate_width_rate(struct nx_rearcam *me, enum FRAME_KIND type)
 		width /= 2;
 	}
 
-	return ((sync->h_active_len * width)/sync->v_active_len)-1;
+	return ((sync->h_active_len * width)/sync->v_active_len);
 }
 
 static int _alloc_cacheable_buf(struct device *dev,
@@ -3106,9 +3224,9 @@ static int _alloc_video_rot_memory(struct nx_rearcam *me,
 	int width = me->rot_width_rate_y_size;
 	int height = me->width;
 
-	lu_stride = _stride_cal(me, Y);
-	cb_stride = _stride_cal(me, CB);
-	cr_stride = _stride_cal(me, CR);
+	lu_stride = YUV_Y_STRIDE(width);
+	cb_stride = YUV_CB_STRIDE(width/2);
+	cr_stride = YUV_CR_STRIDE(width/2);
 
 	size = lu_stride * height +
 		cb_stride * (height / 2) +
@@ -3542,8 +3660,16 @@ static void _init_context(struct nx_rearcam *me)
 	mutex_init(&me->decide_work_lock);
 
 	INIT_DELAYED_WORK(&me->work, _work_handler_reargear);
-	INIT_WORK(&me->work_display, _display_worker);
 	INIT_WORK(&me->work_sensor_init, _sensor_init_worker);
+
+	me->wq_sensor_init = NULL;
+	me->wq_display = NULL;
+
+	if (me->rotation) {
+		me->wq_lu_rot = NULL;
+		me->wq_cb_rot = NULL;
+		me->wq_cr_rot = NULL;
+	}
 
 	me->rot_src = NULL;
 	me->rot_dst = NULL;
@@ -3554,11 +3680,15 @@ static void _init_context(struct nx_rearcam *me)
 	me->removed = false;
 	me->is_remove = false;
 
+	me->is_enable_gpio_irq = false;
+	me->is_enable_vip_irq = false;
+	me->is_enable_dpc_irq = false;
+
 	me->rot_width_rate_y_size = get_rotate_width_rate(me, Y);
 	me->rot_width_rate_c_size = get_rotate_width_rate(me, CB);
 }
 
-static int _init_rotation_worker(struct nx_rearcam *me)
+static int _enable_rot_ctx(struct nx_rearcam *me)
 {
 	struct device *dev = &me->pdev->dev;
 
@@ -3585,6 +3715,12 @@ static int _init_rotation_worker(struct nx_rearcam *me)
 	}
 
 	return 0;
+}
+
+static void _disable_rot_ctx(struct nx_rearcam *me)
+{
+	_cancel_rot_worker(me);
+	_destroy_rot_worker(me);
 }
 
 static void _init_queue_context(struct nx_rearcam *me)
@@ -3727,34 +3863,38 @@ static void _init_vendor(struct nx_rearcam *me)
 	me->draw_rgb_overlay		= nx_rearcam_draw_rgb_overlay;
 }
 
+static void init_hw(struct nx_rearcam *me)
+{
+	_init_hw_dpc(me);
+
+	if (_is_enable_dpc(me) == false) {
+		/*	_reset_hw_display(me);	*/
+		_init_hw_display_top(me);
+		_init_hw_lvds(me);
+	}
+
+	if (_is_enable_mlc(me) == false)
+		_init_hw_mlc(me);
+}
+
 static int init_me(struct nx_rearcam *me)
 {
 	_init_vendor(me);
 	_init_context(me);
-
-	if (me->rotation)
-		_init_rotation_worker(me);
-
 	_init_queue_context(me);
 	_init_buffer(me);
 
 	_reset_hw_display(me);
-	_init_hw_display_top(me);
-	_init_hw_lvds(me);
-
 	_init_hw_mlc(me);
-	_init_hw_dpc(me);
-	_init_hw_vip(me);
-	_init_hw_gpio(me);
-	_init_hw_sensor(me);
+
+	_init_sensor_worker(me);
+	_enable_gpio_irq_ctx(me);
 
 	return 0;
 }
 
 static int deinit_me(struct nx_rearcam *me)
 {
-	struct device *dev = &me->pdev->dev;
-
 	if (me->init_data != NULL)
 		kfree(me->init_data);
 
@@ -3762,22 +3902,21 @@ static int deinit_me(struct nx_rearcam *me)
 		kfree(me->base_addr);
 
 	if (me->removed) {
-		_mlc_overlay_stop(me);
-		_mlc_video_stop(me);
-
-		_set_vip_interrupt(me, false);
-		_vip_stop(me);
+		/*	_set_vip_interrupt(me, false);	*/
+		/*	_vip_stop(me);	*/
 		_cleanup_me(me);
+
+		if (me->rotation)
+			_disable_rot_ctx(me);
+
 		_reset_queue(me);
 
 		me->is_display_on = false;
 		me->mlc_on_first = false;
 	}
 
-	devm_free_irq(dev, me->irq_dpc, me);
-	devm_free_irq(dev, me->irq_vip, me);
-	devm_gpio_free(dev, me->event_gpio);
-	devm_free_irq(dev, me->irq_event, me);
+	_disable_gpio_irq_ctx(me);
+	_deinit_sensor_worker(me);
 
 	_free_buffer(me);
 	me->removed = true;
