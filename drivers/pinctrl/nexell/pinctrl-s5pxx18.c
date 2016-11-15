@@ -1283,7 +1283,7 @@ void nx_soc_alive_clr_int_pend(unsigned int io)
 	IO_UNLOCK(ALIVE_INDEX);
 }
 
-int s5pxx18_gpio_suspend(int idx)
+static int s5pxx18_gpio_suspend(int idx)
 {
 	struct nx_gpio_reg_set *reg;
 	struct nx_gpio_reg_set *gpio_save;
@@ -1322,7 +1322,7 @@ int s5pxx18_gpio_suspend(int idx)
 	return 0;
 }
 
-int s5pxx18_gpio_resume(int idx)
+static int s5pxx18_gpio_resume(int idx)
 {
 	struct nx_gpio_reg_set *reg;
 	struct nx_gpio_reg_set *gpio_save;
@@ -1363,7 +1363,7 @@ int s5pxx18_gpio_resume(int idx)
 	return 0;
 }
 
-int s5pxx18_alive_suspend(void)
+static int s5pxx18_alive_suspend(void)
 {
 	struct nx_alive_reg_set *reg;
 	struct nx_alive_reg_set *alive_save;
@@ -1406,7 +1406,7 @@ int s5pxx18_alive_suspend(void)
 	return 0;
 }
 
-int s5pxx18_alive_resume(void)
+static int s5pxx18_alive_resume(void)
 {
 	struct nx_alive_reg_set *reg;
 	struct nx_alive_reg_set *alive_save;
@@ -1472,7 +1472,7 @@ int s5pxx18_alive_resume(void)
 	return 0;
 }
 
-int s5pxx18_gpio_device_init(struct list_head *banks, int nr_banks)
+static int s5pxx18_gpio_device_init(struct list_head *banks, int nr_banks)
 {
 	struct module_init_data *init_data;
 	int n = ALIVE_INDEX + 1;

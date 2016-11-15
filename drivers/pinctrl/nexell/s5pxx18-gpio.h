@@ -284,16 +284,6 @@ struct module_init_data {
  * nx_alive
  */
 
-/* ALIVE Interrupts for interrupt interface */
-#define nx_alive_int_alivegpio0 0
-#define nx_alive_int_alivegpio1 1
-#define nx_alive_int_alivegpio2 2
-#define nx_alive_int_alivegpio3 3
-#define nx_alive_int_alivegpio4 4
-#define nx_alive_int_alivegpio5 5
-#define nx_alive_int_alivegpio6 6
-#define nx_alive_int_alivegpio7 7
-
 /* ALIVE GPIO Detect Mode */
 #define nx_alive_detect_mode_async_lowlevel 0
 #define nx_alive_detect_mode_async_highlevel 1
@@ -309,44 +299,44 @@ struct nx_alive_reg_set {
 	u32 ALIVEPWRGATEREG;
 	/* 0x04 : Alive GPIO ASync Detect Mode Reset Register0 */
 	u32 ALIVEGPIOASYNCDETECTMODERSTREG0;
-	/* 0x08 : Alive GPIO gASync Detect Mode Set gRegister0 */
+	/* 0x08 : Alive GPIO ASync Detect Mode Set Register0 */
 	u32 ALIVEGPIOASYNCDETECTMODESETREG0;
-	/* 0x0C : Alive GPIO gLow ASync Detect gMode Read Register */
+	/* 0x0C : Alive GPIO Low ASync Detect Mode Read Register */
 	u32 ALIVEGPIOLOWASYNCDETECTMODEREADREG;
 
-	/* 0x10 : Alive GPIO gASync Detect Mode Reset gRegister1 */
+	/* 0x10 : Alive GPIO ASync Detect Mode Reset Register1 */
 	u32 ALIVEGPIOASYNCDETECTMODERSTREG1;
-	/* 0x14 : Alive GPIO gASync Detect Mode Set gRegister1 */
+	/* 0x14 : Alive GPIO ASync Detect Mode Set Register1 */
 	u32 ALIVEGPIOASYNCDETECTMODESETREG1;
-	/* 0x18 : Alive GPIO gHigh ASync Detect gMode Read Register */
+	/* 0x18 : Alive GPIO High ASync Detect Mode Read Register */
 	u32 ALIVEGPIOHIGHASYNCDETECTMODEREADREG;
 
-	/* 0x1C : Alive GPIO Detect gMode Reset Register0 */
+	/* 0x1C : Alive GPIO Detect Mode Reset Register0 */
 	u32 ALIVEGPIODETECTMODERSTREG0;
-	/* 0x20 : Alive GPIO Detect gMode Reset Register0 */
+	/* 0x20 : Alive GPIO Detect Mode Set Register0 */
 	u32 ALIVEGPIODETECTMODESETREG0;
-	/* 0x24 : Alive GPIO gFalling Edge Detect Mode gRead Register */
+	/* 0x24 : Alive GPIO Falling Edge Detect Mode Read Register */
 	u32 ALIVEGPIOFALLDETECTMODEREADREG;
 
 	/* 0x28 : Alive GPIO Detect Mode Reset Register1 */
 	u32 ALIVEGPIODETECTMODERSTREG1;
-	/* 0x2C : Alive GPIO Detect Mode Reset Register1 */
+	/* 0x2C : Alive GPIO Detect Mode Set Register1 */
 	u32 ALIVEGPIODETECTMODESETREG1;
 	/* 0x30 : Alive GPIO Rising Edge Detect Mode Read Register */
 	u32 ALIVEGPIORISEDETECTMODEREADREG;
 
 	/* 0x34 : Alive GPIO Detect Mode Reset Register2 */
 	u32 ALIVEGPIODETECTMODERSTREG2;
-	/* 0x38 : Alive GPIO Detect Mode Reset Register2 */
+	/* 0x38 : Alive GPIO Detect Mode Set Register2 */
 	u32 ALIVEGPIODETECTMODESETREG2;
-	/* 0x3C : Alive GPIO Low Level Detect Mode Read gRegister */
+	/* 0x3C : Alive GPIO Low Level Detect Mode Read Register */
 	u32 ALIVEGPIOLOWDETECTMODEREADREG;
 
 	/* 0x40 : Alive GPIO Detect Mode Reset Register3 */
 	u32 ALIVEGPIODETECTMODERSTREG3;
-	/* 0x44 : Alive GPIO Detect Mode Reset Register3 */
+	/* 0x44 : Alive GPIO Detect Mode Set Register3 */
 	u32 ALIVEGPIODETECTMODESETREG3;
-	/* 0x48 : Alive GPIO High Level Detect Mode Read gRegister */
+	/* 0x48 : Alive GPIO High Level Detect Mode Read Register */
 	u32 ALIVEGPIOHIGHDETECTMODEREADREG;
 
 	/* 0x4C : Alive GPIO Detect Enable Reset Register */
@@ -394,85 +384,85 @@ struct nx_alive_reg_set {
 	/* 0x94 : Alive GPIO PAD Out Read Register */
 	u32 ALIVEGPIOPADOUTREADREG;
 
-	/*  0x98 : VDD Control Reset Register */
+	/* 0x98 : VDD Control Reset Register */
 	u32 VDDCTRLRSTREG;
-	/*  0x9C : VDD Control Set Register */
+	/* 0x9C : VDD Control Set Register */
 	u32 VDDCTRLSETREG;
 	/* 0xA0 : VDD Control Read Register */
 	u32 VDDCTRLREADREG;
 
-	/* 0x0A4 :  wCS[41] */
+	/* 0x0A4 : ALIVE CLEAR WAKEUP STATUS REGISTER */
 	u32 CLEARWAKEUPSTATUS;
-	/* 0x0A8 :  wCS[42] */
+	/* 0x0A8 : ALIVE SLEEP WAKEUP STATUS REGISTER */
 	u32 WAKEUPSTATUS;
 
-	/* 0x0AC :  wCS[43] */
+	/* 0x0AC : ALIVE SCRATCH RESET REGISTER1 */
 	u32 ALIVESCRATCHRST1;
-	/* 0x0B0 :  wCS[44] */
+	/* 0x0B0 : ALIVE SCRATCH SET REGISTER1 */
 	u32 ALIVESCRATCHSET1;
-	/* 0x0B4 :  wCS[45] */
+	/* 0x0B4 : ALIVE SCRATCH READ REGISTER1 */
 	u32 ALIVESCRATCHVALUE1;
 
-	/* 0x0B8 :  wCS[46] */
+	/* 0x0B8 : ALIVE SCRATCH RESET REGISTER2 */
 	u32 ALIVESCRATCHRST2;
-	/* 0x0BC :  wCS[47] */
+	/* 0x0BC : ALIVE SCRATCH SET REGISTER2 */
 	u32 ALIVESCRATCHSET2;
-	/* 0x0C0 :  wCS[48] */
+	/* 0x0C0 : ALIVE SCRATCH READ REGISTER2 */
 	u32 ALIVESCRATCHVALUE2;
 
-	/* 0x0C4 :  wCS[49] */
+	/* 0x0C4 : ALIVE SCRATCH RESET REGISTER3 */
 	u32 ALIVESCRATCHRST3;
-	/* 0x0C8 :  wCS[50] */
+	/* 0x0C8 : ALIVE SCRATCH SET REGISTER3 */
 	u32 ALIVESCRATCHSET3;
-	/* 0x0CC :  wCS[51] */
+	/* 0x0CC : ALIVE SCRATCH READ REGISTER3 */
 	u32 ALIVESCRATCHVALUE3;
 
-	/* 0x0D0 :  wCS[52] */
+	/* 0x0D0 : ALIVE SCRATCH RESET REGISTER4 */
 	u32 ALIVESCRATCHRST4;
-	/* 0x0D4 :  wCS[53] */
+	/* 0x0D4 : ALIVE SCRATCH SET REGISTER4 */
 	u32 ALIVESCRATCHSET4;
-	/* 0x0D8 :  wCS[54] */
+	/* 0x0D8 : ALIVE SCRATCH READ REGISTER4 */
 	u32 ALIVESCRATCHVALUE4;
 
-	/* 0x0DC :  wCS[55] */
+	/* 0x0DC : ALIVE SCRATCH RESET REGISTER5 */
 	u32 ALIVESCRATCHRST5;
-	/* 0x0E0 :  wCS[56] */
+	/* 0x0E0 : ALIVE SCRATCH SET REGISTER */
 	u32 ALIVESCRATCHSET5;
-	/* 0x0E4 :  wCS[57] */
+	/* 0x0E4 : ALIVE SCRATCH READ REGISTER5 */
 	u32 ALIVESCRATCHVALUE5;
 
-	/* 0x0E8 :  wCS[58] */
+	/* 0x0E8 : ALIVE SCRATCH RESET REGISTER6 */
 	u32 ALIVESCRATCHRST6;
-	/* 0x0EC :  wCS[59] */
+	/* 0x0EC : ALIVE SCRATCH SET REGISTER6 */
 	u32 ALIVESCRATCHSET6;
-	/* 0x0F0 :  wCS[60] */
+	/* 0x0F0 : ALIVE SCRATCH READ REGISTER6 */
 	u32 ALIVESCRATCHVALUE6;
 
-	/* 0x0F4 :  wCS[61] */
+	/* 0x0F4 : ALIVE SCRATCH RESET REGISTER7 */
 	u32 ALIVESCRATCHRST7;
-	/* 0x0F8 :  wCS[62] */
+	/* 0x0F8 : ALIVE SCRATCH SET REGISTER7 */
 	u32 ALIVESCRATCHSET7;
-	/* 0x0FC :  wCS[63] */
+	/* 0x0FC : ALIVE SCRATCH READ REGISTER7 */
 	u32 ALIVESCRATCHVALUE7;
 
-	/* 0x100 :  wCS[64] */
+	/* 0x100 : ALIVE SCRATCH RESET REGISTER8 */
 	u32 ALIVESCRATCHRST8;
-	/* 0x104 :  wCS[65] */
+	/* 0x104 : ALIVE SCRATCH SET REGISTER8 */
 	u32 ALIVESCRATCHSET8;
-	/* 0x108 :  wCS[66] */
+	/* 0x108 : ALIVE SCRATCH READ REGISTER8 */
 	u32 ALIVESCRATCHVALUE8;
 
-	/* 0x10C :  wCS[67] */
+	/* 0x10C : VDD OFF DELAY RESET REGISTER */
 	u32 VDDOFFCNTVALUERST;
-	/* 0x110 :  wCS[68] */
+	/* 0x110 : VDD OFF DELAY SET REGISTER */
 	u32 VDDOFFCNTVALUESET;
 
-	/* 0x114 :  wCS[69] */
-	u32 VDDOFFCNTVALUE0;
-	/* 0x118 :  wCS[70] */
-	u32 VDDOFFCNTVALUE1;
+	/* 0x114 : VDD OFF DELAY VALUE REGISTER */
+	u32 VDDOFFCNTVALUE;
+	/* 0x118 : VDD OFF DELAY TIMER REGISTER */
+	u32 VDDOFFCNTTIMER;
 
-	/* 0x11C :  wCS[71] */
+	/* 0x11C : ALIVE GPIO INPUT VALUE READ REGISTER */
 	u32 ALIVEGPIOINPUTVALUE;
 };
 
@@ -505,14 +495,6 @@ extern void nx_soc_alive_set_det_mode(unsigned int io, unsigned int mode,
 extern int nx_soc_alive_get_det_mode(unsigned int io, unsigned int mode);
 extern int nx_soc_alive_get_int_pend(unsigned int io);
 extern void nx_soc_alive_clr_int_pend(unsigned int io);
-
-extern int s5pxx18_gpio_device_init(struct list_head *banks, int nr_banks);
-
-extern int s5pxx18_gpio_suspend(int idx);
-extern int s5pxx18_gpio_resume(int idx);
-
-extern int s5pxx18_alive_suspend(void);
-extern int s5pxx18_alive_resume(void);
 
 extern u32 nx_alive_get_wakeup_status(void);
 extern void nx_alive_clear_wakeup_status(void);
