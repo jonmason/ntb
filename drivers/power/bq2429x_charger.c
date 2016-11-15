@@ -575,6 +575,9 @@ static int bq24296_battery_probe(struct i2c_client *client,
 	/* setting input current limit to 3A for DC charging */
 	bq24296_update_input_current_limit(IINLIM_3000MA);
 
+	/* Disable chagrer */
+	bq24296_update_charge_mode(CHARGE_MODE_CONFIG_CHARGE_DISABLE);
+
 	if (gpio_is_valid(pdev->chg_irq_pin)) {
 		dev_info(di->dev, "chg irq pin : %d\n", pdev->chg_irq_pin);
 		pdev->chg_irq = gpio_to_irq(pdev->chg_irq_pin);
