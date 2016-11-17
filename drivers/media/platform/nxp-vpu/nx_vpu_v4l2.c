@@ -944,13 +944,12 @@ static int nx_vpu_open(struct file *file)
 		goto err_ctx_init;
 
 	/* FW Download, HW Init, Clock Set */
-#ifdef ENABLE_POWER_SAVING
 	if (dev->cur_num_instance == 0) {
-		dev->curr_ctx = ctx->idx;
-
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
 		nx_vpu_qos_update(NX_BUS_CLK_VPU_KHZ);
 #endif
+#ifdef ENABLE_POWER_SAVING
+		dev->curr_ctx = ctx->idx;
 
 		NX_VPU_Clock(1);
 		ret = NX_VpuInit(dev, dev->regs_base,
@@ -963,8 +962,8 @@ static int nx_vpu_open(struct file *file)
 
 		if (ret)
 			goto err_hw_init;
-	}
 #endif
+	}
 
 	mutex_unlock(&dev->vpu_mutex);
 
@@ -1003,17 +1002,16 @@ static int nx_vpu_close(struct file *file)
 			free_decoder_memory(ctx);
 	}
 
-#ifdef ENABLE_POWER_SAVING
 	if (dev->cur_num_instance == 0) {
+#ifdef ENABLE_POWER_SAVING
 		/* H/W Power Off */
 		NX_VPU_Clock(1);
 		NX_VpuDeInit(dev);
-
+#endif
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
 		nx_vpu_qos_update(NX_BUS_CLK_IDLE_KHZ);
 #endif
 	}
-#endif
 
 #ifdef ENABLE_CLOCK_GATING
 	NX_VPU_Clock(0);
