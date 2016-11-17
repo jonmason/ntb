@@ -31,7 +31,6 @@
 #include "circular_buffer.h"
 #include "tzdev.h"
 #include "tzdev_internal.h"
-#include "tzpage.h"
 #include "tzdev_smc.h"
 
 /*#define CONFIG_INSTANCE_DEBUG*/

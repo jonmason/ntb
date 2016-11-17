@@ -23,13 +23,120 @@
 #include <linux/uaccess.h>
 #include <linux/slab.h>
 #include "tzdev.h"
-#include "tzpage.h"
 #include "tzdev_smc.h"
 #include "wsm.h"
 #include "tzlog_print.h"
 
+#define ARCH_V2P_ERROR		1
+
+#ifdef __arm__
+#ifdef CONFIG_ARM_LPAE
+static inline phys_addr_t arch_v2p_translate(unsigned long addr, int is_write)
+{
+	phys_addr_t result;
+
+	if (is_write) {
+		__asm__ __volatile__(
+				"MCR p15, 0, %1, c7, c8, 3\n\t"
+				"ISB\n\t"
+				"MRRC p15, 0, %Q0, %R0, c7\n\t"
+				: "=r"(result)
+				: "r"(addr));
+	} else {
+		__asm__ __volatile__(
+				"MCR p15, 0, %1, c7, c8, 2\n\t"
+				"ISB\n\t"
+				"MRRC p15, 0, %Q0, %R0, c7\n\t"
+				: "=r"(result)
+				: "r"(addr));
+	}
+
+	if (result & 1)
+		return ARCH_V2P_ERROR;
+
+	return result & 0x000000FFFFFFF000ULL;
+}
+#else
+static inline phys_addr_t arch_v2p_translate(unsigned long addr, int is_write)
+{
+	uint32_t result;
+
+	if (is_write) {
+		__asm__ __volatile__(
+				"MCR p15, 0, %1, c7, c8, 3\n\t"
+				"ISB\n\t"
+				"MRC p15, 0, %0, c7, c4, 0\n\t"
+				: "=r"(result)
+				: "r"(addr));
+	} else {
+		__asm__ __volatile__(
+				"MCR p15, 0, %1, c7, c8, 2\n\t"
+				"ISB\n\t"
+				"MRC p15, 0, %0, c7, c4, 0\n\t"
+				: "=r"(result)
+				: "r"(addr));
+	}
+
+	if (result & 1)
+		return ARCH_V2P_ERROR;
+
+	/* Supersection */
+	if (result & 2) {
+		return ((phys_addr_t)(result & 0xFF000000)) |
+			   (((phys_addr_t)(result & 0x00FF0000)) << 16) |
+			   (addr & 0x00FFF000);
+	}
+
+	return result & 0xFFFFF000;
+}
+#endif /* __arm__ */
+#elif defined(__aarch64__)
+static inline phys_addr_t arch_v2p_translate(unsigned long addr, int is_write)
+{
+	phys_addr_t result;
+
+	if (is_write) {
+		__asm__ __volatile__(
+				"AT S1E0W, %1\n\t"
+				"ISB\n\t"
+				"mrs %0, PAR_EL1\n\t"
+				: "=r"(result)
+				: "r"(addr));
+	} else {
+		__asm__ __volatile__(
+				"AT S1E0R, %1\n\t"
+				"ISB\n\t"
+				"mrs %0, PAR_EL1\n\t"
+				: "=r"(result)
+				: "r"(addr));
+	}
+
+	if (result & 1)
+		return ARCH_V2P_ERROR;
+
+	return result & 0x000FFFFFFFFFF000ULL;
+}
+#else /* __aarch64__ */
+#error "Unsupported TLB operation"
+#endif
+
+static inline phys_addr_t v2p_translate(unsigned long addr, int is_write)
+{
+	phys_addr_t phys = arch_v2p_translate(addr, is_write);
+	char c;
+
+	if (phys != ARCH_V2P_ERROR)
+		return phys;
+
+	if (copy_from_user(&c, (const void * __user)addr, sizeof(c)))
+		return ARCH_V2P_ERROR;
+
+	return arch_v2p_translate(addr, is_write);
+}
+
 int tzwsm_register_tzdev_memory(uint64_t ctx_id, struct page **pages,
-				size_t num_pages, gfp_t gfp, int for_kernel)
+				phys_addr_t *pfns, size_t num_pages,
+				gfp_t gfp, int for_kernel)
 {
 	struct page *level0_page = NULL;
 	struct page **level1_pages = NULL;
@@ -102,11 +209,12 @@ int tzwsm_register_tzdev_memory(uint64_t ctx_id, struct page **pages,
 
 			tzlog_print(TZLOG_DEBUG,
 				    "Level 1 Indirection #%zd Address %llx\n",
-					l1index,
+				    l1index,
 				    (uint64_t)page_to_phys(level1_pages[l1index]));
 
 			for (j = 0; j < level1->num_pfns; ++j, ++i) {
-				level1->address[j] = page_to_phys(pages[i]);
+				level1->address[j] = pages ?
+					page_to_phys(pages[i]) : pfns[i];
 
 				tzlog_print(TZLOG_DEBUG,
 					    "Page #%zu Address %llx\n", i,
@@ -117,7 +225,8 @@ int tzwsm_register_tzdev_memory(uint64_t ctx_id, struct page **pages,
 		tzlog_print(TZLOG_DEBUG, "No need for level1 pages\n");
 
 		for (i = 0; i < num_pages; ++i) {
-			level0->address[i] = page_to_phys(pages[i]);
+			level0->address[i] = pages ?
+				page_to_phys(pages[i]) : pfns[i];
 
 			tzlog_print(TZLOG_DEBUG, "Page #%zu Address %llx\n", i,
 				    (uint64_t) level0->address[i]);
@@ -190,7 +299,7 @@ int tzwsm_register_kernel_memory(const void *ptr, size_t size, gfp_t gfp)
 		}
 	}
 
-	result = tzwsm_register_tzdev_memory(0, pages, size, gfp, 1);
+	result = tzwsm_register_tzdev_memory(0, pages, NULL, size, gfp, 1);
 
 	kfree(pages);
 
@@ -204,9 +313,11 @@ void tzwsm_unregister_kernel_memory(int wsmid)
 
 int tzwsm_register_user_memory(uint64_t ctx_id, const void *__user ptr,
 			       size_t size, int rw, gfp_t gfp,
-			       struct page ***p_pages, size_t *p_num_pages)
+			       struct page ***p_pages, phys_addr_t **p_pfns,
+			       size_t *p_num_pages)
 {
 	struct page **pages;
+	phys_addr_t *pfns = NULL;
 	size_t num_pages;
 	int error;
 	size_t i;
@@ -238,45 +349,112 @@ int tzwsm_register_user_memory(uint64_t ctx_id, const void *__user ptr,
 		error = get_user_pages_fast(
 				(unsigned long)ptr_base, num_pages, 0, pages);
 
+	if (error == -EFAULT) {
+		struct mm_struct *mm;
+		struct vm_area_struct *vma;
+
+		kfree(pages);
+		pages = NULL;
+
+		mm = current->mm;
+		down_read(&mm->mmap_sem);
+		vma = find_vma(mm, ptr_base);
+		if (vma != NULL) {
+			if (vma->vm_flags & (VM_IO | VM_PFNMAP)) {
+				if (ptr_end <= vma->vm_end) {
+					error = 0;
+				} else {
+					tzlog_print(TZLOG_ERROR,
+						"wsm: Pointer to PFNMAP %p must fit same vma\n",
+						ptr);
+				}
+			}
+		}
+		up_read(&mm->mmap_sem);
+
+		if (error == 0) {
+			unsigned long trans_addr;
+			unsigned int index = 0;
+
+			pfns = (phys_addr_t *)kzalloc(
+					sizeof(phys_addr_t) * num_pages, gfp);
+
+			if (!pfns)
+				return -ENOMEM;
+
+			for (trans_addr = ptr_base; trans_addr < ptr_end;
+						trans_addr += PAGE_SIZE) {
+				pfns[index] = v2p_translate(trans_addr,
+						rw == VERIFY_READ ? 0 : 1);
+
+				if (pfns[index] == ARCH_V2P_ERROR) {
+					tzlog_print(TZLOG_ERROR,
+						"Error translating address %p. You must ensure user mapping %p \exists\n",
+					(void *)trans_addr, ptr);
+					error = -EFAULT;
+					break;
+				}
+
+				++index;
+			}
+
+			if (error == 0)
+				error = num_pages;
+		}
+	}
+
 	if (error <= 0) {
 		kfree(pages);
+		kfree(pfns);
 		return error == 0 ? -EFAULT : error;
 	}
 
-	if ((size_t) error != num_pages) {
-
-		for (i = 0; i < (size_t) error; ++i)
-			put_page(pages[i]);
+	if ((size_t)error != num_pages) {
+		if (pages) {
+			for (i = 0; i < (size_t)error; ++i)
+				put_page(pages[i]);
+		}
 
 		kfree(pages);
+		kfree(pfns);
+
 		return -EFAULT;
 	}
 
-	error = tzwsm_register_tzdev_memory(ctx_id, pages, num_pages, gfp, 0);
+	error = tzwsm_register_tzdev_memory(ctx_id, pages, pfns, num_pages,
+					gfp, 0);
 
 	if (error < 0) {
-		for (i = 0; i < num_pages; ++i)
-			put_page(pages[i]);
+		if (pages) {
+			for (i = 0; i < num_pages; ++i)
+				put_page(pages[i]);
+		}
 
+		kfree(pfns);
 		kfree(pages);
+
 		return error;
 	}
 
 	*p_pages = pages;
 	*p_num_pages = num_pages;
+	*p_pfns = pfns;
 
 	return error;
 }
 
 void tzwsm_unregister_user_memory(int wsmid, struct page **pages,
-				  size_t num_pages)
+				phys_addr_t *pfns, size_t num_pages)
 {
 	size_t i;
 
 	scm_unregister_wsm(wsmid);
 
-	for (i = 0; i < num_pages; ++i)
-		put_page(pages[i]);
+	if (pages) {
+		for (i = 0; i < num_pages; ++i)
+			put_page(pages[i]);
+	}
 
 	kfree(pages);
+	kfree(pfns);
 }

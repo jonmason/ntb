@@ -34,9 +34,7 @@
 #include "tzdev_internal.h"
 #include "tzlog_print.h"
 #include "nsrpc_ree_slave.h"
-#include "tzpage.h"
 #include "tzdev_smc.h"
-#include "tzwsm.h"
 
 static int register_user_memory(struct file *owner,
 				unsigned long base,
@@ -205,6 +203,7 @@ struct tzmem_registration {
 	int id;			/* WSM id */
 	size_t num_pages;	/* Number of pages */
 	struct page **pages;	/* From get_user_pages() */
+	phys_addr_t *pfns;
 	unsigned long tee_ctx_id;	/* TEE context ID */
 	struct file *owner;	/* File which owns this WSM */
 };
@@ -219,7 +218,8 @@ static void tzmem_registration_free(struct kref *kref)
 
 	node = container_of(kref, struct tzmem_registration, kref);
 	tzlog_print(TZLOG_DEBUG, "Free WSM %d with ptr %p\n", node->id, node);
-	tzwsm_unregister_user_memory(node->id, node->pages, node->num_pages);
+	tzwsm_unregister_user_memory(node->id, node->pages,
+				node->pfns, node->num_pages);
 	kmem_cache_free(tzmem_registration_slab, node);
 }
 
@@ -314,7 +314,9 @@ static int register_user_memory(struct file *owner,
 					   size,
 					   rw ? VERIFY_WRITE : VERIFY_READ,
 					   GFP_KERNEL,
-					   &node->pages, &node->num_pages);
+					   &node->pages,
+					   &node->pfns,
+					   &node->num_pages);
 
 	if (error < 0) {
 		tzlog_print(TZLOG_ERROR,

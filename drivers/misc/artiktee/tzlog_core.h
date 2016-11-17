@@ -40,6 +40,6 @@ typedef struct tzlog_data {
 } s_tzlog_data;
 
 void tzlog_notify(void);
-void tzlog_init(void);
+void tzlog_init(char *default_msg);
 
 #endif /* __TZLOG_CORE_H__ */

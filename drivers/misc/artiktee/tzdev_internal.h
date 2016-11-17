@@ -102,6 +102,9 @@ struct secos_kern_info {
 
 	/* Secos build type */
 	char build_type[32];
+
+	/* Secos build info */
+	char build_info[256];
 };
 
 #define SECOS_KERN_INFO_V1      (sizeof(struct secos_kern_info))
@@ -133,6 +136,7 @@ void tzio_release_link(struct tzio_link *link);
 int tzwsm_register_tzdev_memory(
 		uint64_t ctx_id,
 		struct page **pages,
+		phys_addr_t *pfns,
 		size_t num_pages,
 		gfp_t gfp,
 		int for_kernel);
@@ -144,8 +148,15 @@ int tzwsm_register_user_memory(
 		int rw,
 		gfp_t gfp,
 		struct page ***p_pages,
+		phys_addr_t **p_pfns,
 		size_t *p_num_pages);
 void tzwsm_unregister_kernel_memory(int wsmid);
+
+void tzwsm_unregister_user_memory(
+		int wsmid,
+		struct page **pages,
+		phys_addr_t *pfns,
+		size_t num_pages);
 
 #endif /* __SecureOS__ */
 #endif /* __SOURCE_TZDEV_TZDEV_INTERNAL_H__ */

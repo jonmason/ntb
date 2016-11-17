@@ -28,7 +28,6 @@
 
 #include "tzdev.h"
 #include "tzdev_internal.h"
-#include "tzpage.h"
 #include "tzdev_smc.h"
 #include "tzlog_print.h"
 #include "ssdev_file.h"
@@ -85,7 +84,7 @@ void __init tzsys_init(void)
 
 	tz_syspage = (struct secos_syspage *)page_address(pg);
 
-	memid = tzwsm_register_tzdev_memory(0, &pg, 1, GFP_KERNEL, 1);
+	memid = tzwsm_register_tzdev_memory(0, &pg, NULL, 1, GFP_KERNEL, 1);
 	BUG_ON(memid < 0);
 
 	rc = scm_syscrash_register(memid);
@@ -151,7 +150,7 @@ int tzlog_output_do_dump(int is_kernel)
 	do_gettimeofday(&now);
 	T = (now.tv_sec * 1000ULL) + (now.tv_usec / 1000LL);
 
-	file_full_path = (char*)vmalloc(PATH_MAX);
+	file_full_path = (char *)vmalloc(PATH_MAX);
 	if (file_full_path == NULL) {
 		tzlog_print(K_ERR, "vmalloc failed\n");
 		ret = -1;

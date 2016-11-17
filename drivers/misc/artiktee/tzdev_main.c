@@ -53,7 +53,6 @@
 #include "tzdev_init.h"
 #include "tzdev_internal.h"
 #include "nsrpc_ree_slave.h"
-#include "tzpage.h"
 #include "tzdev_smc.h"
 #include "tzdev_plat.h"
 
@@ -1828,8 +1827,6 @@ static int fetch_kernel_info(void)
 	}
 
 	memcpy(&secos_kernel_info, &kinfo, sizeof(kinfo));
-	if (kinfo.shmem_base && kinfo.shmem_size)
-		tzpage_init(kinfo.shmem_base, kinfo.shmem_size);
 
 	return rc;
 }
@@ -1843,18 +1840,25 @@ extern struct miscdevice tzrsrc;
 #define TZCMA_LLI_TBL_PAGE	4
 #define TZCMA_ALLOC_MAX_COUNT	4
 #define TZCMA_MAX_SUPPORT_SIZE	SZ_4M
+#define TZCMA_UNMMAPED	0
+#define TZCMA_MMAPED	1
 
 static struct device *tzcma_dev;
 struct tzcma_info {
 	int chan_id;
 	size_t size;
-	dma_addr_t phyAddr;
 	unsigned long virtAddr;
 };
-
-static void *tzcma_cpuAddr[TZCMA_ALLOC_MAX_COUNT];
 struct tzcma_info g_tzcmas[TZCMA_ALLOC_MAX_COUNT];
 struct dma_chan *g_tzcma_channels[TZCMA_ALLOC_MAX_COUNT];
+
+struct tzcma_info_internal {
+	int is_mmaped;
+	dma_addr_t phyAddr;
+	void *cpuAddr;
+};
+static struct tzcma_info_internal g_tzcmas_internal[TZCMA_ALLOC_MAX_COUNT];
+
 int g_tzcma_alloc_cnt;
 bool g_tzcma_state_opened;
 
@@ -1879,7 +1883,7 @@ static int tzcma_get_alloc_idx(void)
 	int i;
 
 	for (i = 0; i < TZCMA_ALLOC_MAX_COUNT; i++) {
-		if (g_tzcmas[i].phyAddr == 0)
+		if (g_tzcmas_internal[i].phyAddr == 0)
 			return i;
 	}
 	return -1;
@@ -1890,7 +1894,8 @@ static int tzcma_get_free_idx(struct tzcma_info mem)
 	int i;
 
 	for (i = 0; i < TZCMA_ALLOC_MAX_COUNT; i++) {
-		if (g_tzcmas[i].phyAddr == mem.phyAddr)
+		if (g_tzcmas[i].chan_id == mem.chan_id
+			&& g_tzcmas[i].size == mem.size)
 			return i;
 	}
 	return -1;
@@ -1909,12 +1914,13 @@ static void tzcma_free(int idx)
 	dma_free_size = round_up(g_tzcmas[idx].size, PAGE_SIZE) +
 				TZCMA_LLI_TBL_PAGE * PAGE_SIZE;
 	dma_free_writecombine(tzcma_dev, dma_free_size,
-		tzcma_cpuAddr[idx], g_tzcmas[idx].phyAddr);
+		g_tzcmas_internal[idx].cpuAddr, g_tzcmas_internal[idx].phyAddr);
 	if (g_tzcma_channels[idx] != NULL) {
 		dma_release_channel(g_tzcma_channels[idx]);
 		g_tzcma_channels[idx] = NULL;
 	}
 	memset(&g_tzcmas[idx], 0, sizeof(struct tzcma_info));
+	memset(&g_tzcmas_internal[idx], 0, sizeof(struct tzcma_info_internal));
 }
 
 static int tzcma_alloc(int idx, size_t size)
@@ -1940,8 +1946,9 @@ static int tzcma_alloc(int idx, size_t size)
 		return -ENOMEM;
 	}
 	g_tzcmas[idx].size = size;
-	g_tzcmas[idx].phyAddr = phyAddr;
-	tzcma_cpuAddr[idx] = cpuAddr;
+	g_tzcmas_internal[idx].is_mmaped = TZCMA_UNMMAPED;
+	g_tzcmas_internal[idx].phyAddr = phyAddr;
+	g_tzcmas_internal[idx].cpuAddr = cpuAddr;
 
 	dma_cap_zero(mask);
 	dma_cap_set(DMA_MEMCPY, mask);
@@ -1968,6 +1975,8 @@ static int tzcma_open(struct inode *inode, struct file *file)
 	g_tzcma_state_opened = true;
 	for (i = 0; i < TZCMA_ALLOC_MAX_COUNT; i++) {
 		memset(&g_tzcmas[i], 0, sizeof(struct tzcma_info));
+		memset(&g_tzcmas_internal[i], 0,
+			sizeof(struct tzcma_info_internal));
 		g_tzcma_channels[i] = NULL;
 	}
 	g_tzcma_alloc_cnt = 0;
@@ -1986,8 +1995,9 @@ static int tzcma_mmap(struct file *file, struct vm_area_struct *vma)
 	size = vma->vm_end - vma->vm_start;
 
 	for (i = 0; i < TZCMA_ALLOC_MAX_COUNT; i++) {
-		if ((g_tzcmas[i].phyAddr == vma->vm_start)
+		if ((g_tzcmas_internal[i].is_mmaped == TZCMA_UNMMAPED)
 			&& (size == round_up(g_tzcmas[i].size, PAGE_SIZE))) {
+			g_tzcmas_internal[i].is_mmaped = TZCMA_MMAPED;
 			idx = i;
 			break;
 		}
@@ -1997,8 +2007,8 @@ static int tzcma_mmap(struct file *file, struct vm_area_struct *vma)
 		return -ENXIO;
 	}
 
-	cpu_addr = tzcma_cpuAddr[idx];
-	dma_addr = g_tzcmas[idx].phyAddr;
+	cpu_addr = g_tzcmas_internal[idx].cpuAddr;
+	dma_addr = g_tzcmas_internal[idx].phyAddr;
 	ret = dma_mmap_writecombine(tzcma_dev, vma, cpu_addr, dma_addr, size);
 
 	return ret;
@@ -2061,7 +2071,7 @@ static int tzcma_release(struct inode *inode, struct file *file)
 	int ret = 0;
 
 	for (i = 0; i < TZCMA_ALLOC_MAX_COUNT; i++) {
-		if (g_tzcmas[i].phyAddr != 0)
+		if (g_tzcmas_internal[i].phyAddr != 0)
 			tzcma_free(i);
 	}
 	g_tzcma_alloc_cnt = 0;
@@ -2242,7 +2252,7 @@ static int __init init_tzdev(void)
 		wake_up_process(thr);
 	}
 
-	tzlog_init();
+	tzlog_init(secos_kernel_info.build_info);
 
 	plat_init();
 

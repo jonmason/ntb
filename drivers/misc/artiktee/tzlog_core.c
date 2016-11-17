@@ -32,7 +32,6 @@
 #include "circular_buffer.h"
 #include "tzdev.h"
 #include "tzdev_internal.h"
-#include "tzpage.h"
 #include "tzdev_smc.h"
 #include "ssdev_file.h"
 
@@ -110,7 +109,7 @@ static int tzlog_output_to_error_log(char *data, int data_size,
 	do_gettimeofday(&now);
 	T = (now.tv_sec * 1000ULL) + (now.tv_usec / 1000LL);
 
-	file_full_path = (char*)vmalloc(PATH_MAX);
+	file_full_path = (char *)vmalloc(PATH_MAX);
 	if (file_full_path == NULL) {
 		tzlog_print(K_ERR, "vmalloc failed\n");
 		ret = -ENOMEM;
@@ -125,7 +124,7 @@ static int tzlog_output_to_error_log(char *data, int data_size,
 	tzlog_print(K_INFO, "file_full_path-log %s \n", file_full_path);
 
 #if defined(CONFIG_INSTANCE_DEBUG) && defined(CONFIG_USB_DUMP)
-	if(ss_file_object_exist(file_full_path) == 1)
+	if (ss_file_object_exist(file_full_path) == 1)
 		copy_file_to_usb(file_full_path);
 	else
 		tzlog_print(K_ERR, "file(%s) not exist \n", file_full_path);
@@ -133,7 +132,7 @@ static int tzlog_output_to_error_log(char *data, int data_size,
 
 exit_tzlog_output_to_error_log:
 
-	if(file_full_path != NULL)
+	if (file_full_path != NULL)
 		vfree(file_full_path);
 
 	return ret;
@@ -253,7 +252,7 @@ void tzlog_notify(void)
 	up(&log_data.sem);
 }
 
-void __init tzlog_init(void)
+void __init tzlog_init(char *default_msg)
 {
 	int ret;
 
@@ -277,11 +276,21 @@ void __init tzlog_init(void)
 					   GFP_KERNEL);
 
 	tzlog_print(TZLOG_DEBUG, "TZLOG ring at %p\n", log_data.ring);
-	if (log_data.ring != NULL)
+	if (log_data.ring != NULL) {
 		tzlog_print(TZLOG_DEBUG, "ring size %d\n", log_data.ring->size);
 
+		if (strlen(default_msg) > 0) {
+			chimera_ring_buffer_write(
+					log_data.ring,
+					(const uint8_t *)default_msg,
+					strlen(default_msg),
+					log_data.ring->size +
+					sizeof(struct chimera_ring_buffer));
+		}
+	}
+
 	log_data.log_wsm_id =
-	    tzwsm_register_tzdev_memory(0, &log_data.log_page,
+		tzwsm_register_tzdev_memory(0, &log_data.log_page, NULL,
 					1U << TZLOG_PAGE_ORDER, GFP_KERNEL, 1);
 
 	if (log_data.log_wsm_id < 0)

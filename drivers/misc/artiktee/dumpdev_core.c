@@ -36,7 +36,7 @@ extern uint get_minidump_buf_size(void);
 /* TODO : will be remove this declare. and should be share tzsys.c's dump path */
 #define ERROR_DUMP_DIR_PATH  "/save_error_log/error_log/secureos_dump/"
 
-static char* get_file_full_path(char *file_name, char *dst_buf, int dst_buf_len)
+static char *get_file_full_path(char *file_name, char *dst_buf, int dst_buf_len)
 {
 	if (file_name == NULL)
 		return NULL;
@@ -71,8 +71,7 @@ static int copy_to_file_from_ring(
 						iov[i].iov_len);
 				break;
 			}
-		}
-		else {
+		} else {
 			if (ss_file_append_object(file_full_path,
 					iov[i].iov_base,
 					iov[i].iov_len) != iov[i].iov_len) {
@@ -87,7 +86,6 @@ static int copy_to_file_from_ring(
 	return n_written;
 }
 
-
 void dumpdev_handler(NSRPCTransaction_t *txn_object)
 {
 	int ret = 0;
@@ -100,7 +98,7 @@ void dumpdev_handler(NSRPCTransaction_t *txn_object)
 
 	dumpdev_ctrl = (pss_dump_ctrl)nsrpc_payload_ptr(txn_object);
 	ring_size = get_minidump_buf_size();
-	ring = (struct chimera_ring_buffer*)get_minidump_buf();
+	ring = (struct chimera_ring_buffer *)get_minidump_buf();
 	if (ring == NULL || ring_size == 0) {
 		tzlog_print(K_ERR, "NSRPC: can not process : ring : %p ring_size : %d\n",
 			    ring, ring_size);

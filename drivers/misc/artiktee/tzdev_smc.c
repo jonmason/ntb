@@ -22,7 +22,6 @@
 #include "tzdev.h"
 #include "tzdev_internal.h"
 #include "tzdev_smc.h"
-#include "tzpage.h"
 #include "tzlog_print.h"
 #include "tzrsrc_msg.h"
 
@@ -44,7 +43,7 @@ static DEFINE_PER_CPU(SMC_STATUS, smc_status_each_core);
 
 static void update_smc_status(int cpu, int inout_status, int function_nubmer)
 {
-	SMC_STATUS * smc_status;
+	SMC_STATUS *smc_status;
 
 	smc_status = &per_cpu(smc_status_each_core, cpu);
 	smc_status->inout_status = inout_status;
@@ -55,7 +54,7 @@ static void update_smc_status(int cpu, int inout_status, int function_nubmer)
 	else if (inout_status == 1)
 		do_gettimeofday(&smc_status->smc_out);
 
-	if(inout_status == 1) {
+	if (inout_status == 1) {
 		struct timeval temp;
 		unsigned long difftime;
 
@@ -97,7 +96,7 @@ void init_smc_status(void)
 		smc_status->smc_out.tv_usec = 0;
 	}
 }
-#endif
+#endif /* CONFIG_TZDEV_DEBUG */
 
 static inline void __do_call_smc_internal(struct monitor_arguments *args,
 					  struct monitor_result *result)
@@ -164,7 +163,7 @@ int smc_init_monitor(void)
 	do_call_smc_internal(&args, &res, SMC_OP);
 
 	if (res.res[0] == -1) {
-		tzlog_print(TZLOG_INFO, "Failed to query SecureOS UUID.\n");
+		tzlog_print(TZLOG_ERROR, "Failed to query SecureOS UUID.\n");
 		return -1;
 	}
 	uuid.uuid0 = res.res[0];

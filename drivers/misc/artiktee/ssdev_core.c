@@ -35,7 +35,6 @@
 #include "ssdev_file.h"
 
 #include "tzdev.h"
-#include "tzpage.h"
 #include "tzdev_internal.h"
 #include "tzdev_smc.h"
 #include "nsrpc_ree_slave.h"
@@ -394,7 +393,7 @@ static void ssdev_file_create_data(NSRPCTransaction_t *tsx)
 	int ret;
 	int file_size;
 	void *wsm_buffer =
-	    (char *)ss_wsm_channel.payload + nsrpc_wsm_offset(tsx,
+		(char *)ss_wsm_channel.payload + nsrpc_wsm_offset(tsx,
 								&wsm_size);
 
 	ssdev_filename_create(file_main, sizeof(file_main),
@@ -899,4 +898,4 @@ int libprov_handler(NSRPCTransaction_t *txn_object)
 
 	return 0;
 }
-#endif
+#endif /* CONFIG_TEE_LIBRARY_PROVISION */

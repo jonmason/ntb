@@ -113,6 +113,10 @@ static int tzlog_print_common(
 	return 0;
 }
 
+/*
+ * will be use bit flag for decreasing parameter count.
+ * we can change log_header_info to use bit flag
+ */
 void tzlog_print_for_tee(uint32_t level,
 			 const char *label,
 			 const char *fmt, ...)

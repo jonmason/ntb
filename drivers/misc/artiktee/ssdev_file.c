@@ -114,6 +114,8 @@ void ss_file_delete_object(char *path)
 		return;
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0))
 	if (0)
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0))
+	if (!d_is_file(file_path.dentry))
 #else
 	if (!d_is_file(file_path.dentry)
 			|| d_really_is_negative(file_path.dentry))
@@ -128,6 +130,8 @@ void ss_file_delete_object(char *path)
 		if (!IS_ERR(dir)) {
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0))
 			err = vfs_unlink(dir->d_inode, file_path.dentry);
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0))
+			err = vfs_unlink(dir->d_inode, file_path.dentry, NULL);
 #else
 			err = vfs_unlink(d_inode(dir), file_path.dentry, NULL);
 #endif
