@@ -31,3 +31,13 @@ source "drivers/media/platform/nexell/capture/Kconfig"
 endif # VIDEO_NEXELL_CAPTURE
 
 endif # VIDEO_NEXELL
+
+config VIDEO_NEXELL_NXS
+        bool "Nexell NXStream Devices Support"
+	depends on VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	depends on OF
+	select VIDEOBUF2_DMA_CONTIG
+	select V4L2_MEM2MEM_DEV
+	help
+	  Say Y here to enable Nexell Stream Bus video devices.
+	  This subsystem includes all v4l2 devices of Nexell Stream Bus.
