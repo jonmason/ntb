@@ -8,3 +8,4 @@ obj-y += nxs_disp2isp.o
 obj-y += nxs_dmar.o
 obj-y += nxs_dmaw.o
 obj-y += nxs_dpc.o
+obj-y += nxs_fifo.o
