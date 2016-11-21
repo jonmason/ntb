@@ -138,3 +138,5 @@
 
 	}; /*** soc ***/
 };
+
+#include "nxstream.dtsi"
