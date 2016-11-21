@@ -18,3 +18,4 @@ obj-y += nxs_mapconv.o
 obj-y += nxs_mipi_csi.o
 obj-y += nxs_mipi_dsi.o
 obj-y += nxs_mlc_blender.o
+obj-y += nxs_mlc_bottom.o
