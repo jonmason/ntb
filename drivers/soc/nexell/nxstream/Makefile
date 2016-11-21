@@ -16,3 +16,4 @@ obj-y += nxs_isp2disp.o
 obj-y += nxs_lvds.o
 obj-y += nxs_mapconv.o
 obj-y += nxs_mipi_csi.o
+obj-y += nxs_mipi_dsi.o
