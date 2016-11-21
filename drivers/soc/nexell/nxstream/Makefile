@@ -11,3 +11,4 @@ obj-y += nxs_dpc.o
 obj-y += nxs_fifo.o
 obj-y += nxs_gamma.o
 obj-y += nxs_hdmi.o
+obj-y += nxs_hue.o
