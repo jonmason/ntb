@@ -29,3 +29,295 @@
 	soc {
 	};	/*** soc ***/
 };
+
+&nxs_resource_manager {
+	status = "okay";
+};
+
+&dmar0 {
+	status = "okay";
+};
+
+&dmar1 {
+	status = "okay";
+};
+
+&dmar2 {
+	status = "okay";
+};
+
+&dmar3 {
+	status = "okay";
+};
+
+&dmar4 {
+	status = "okay";
+};
+
+&dmar5 {
+	status = "okay";
+};
+
+&dmar6 {
+	status = "okay";
+};
+
+&dmar7 {
+	status = "okay";
+};
+
+&dmar8 {
+	status = "okay";
+};
+
+&dmar9 {
+	status = "okay";
+};
+
+&dmaw0 {
+	status = "okay";
+};
+
+&dmaw1 {
+	status = "okay";
+};
+
+&dmaw2 {
+	status = "okay";
+};
+
+&dmaw3 {
+	status = "okay";
+};
+
+&dmaw4 {
+	status = "okay";
+};
+
+&dmaw5 {
+	status = "okay";
+};
+
+&dmaw6 {
+	status = "okay";
+};
+
+&dmaw7 {
+	status = "okay";
+};
+
+&dmaw8 {
+	status = "okay";
+};
+
+&dmaw9 {
+	status = "okay";
+};
+
+&dmaw10 {
+	status = "okay";
+};
+
+&dmaw11 {
+	status = "okay";
+};
+
+&cropper0 {
+	status = "okay";
+};
+
+&cropper1 {
+	status = "okay";
+};
+
+&multitap0 {
+	status = "okay";
+};
+
+&multitap1 {
+	status = "okay";
+};
+
+&multitap2 {
+	status = "okay";
+};
+
+&multitap3 {
+	status = "okay";
+};
+
+&scaler_4096_0 {
+	status = "okay";
+};
+
+&scaler_4096_1 {
+	status = "okay";
+};
+
+&scaler_5376_0 {
+	status = "okay";
+};
+
+&mlc_bottom0 {
+	status = "okay";
+};
+
+&mlc_bottom1 {
+	status = "okay";
+};
+
+&mlc_blender0 {
+	status = "okay";
+};
+
+&mlc_blender1 {
+	status = "okay";
+};
+
+&mlc_blender2 {
+	status = "okay";
+};
+
+&mlc_blender3 {
+	status = "okay";
+};
+
+&mlc_blender4 {
+	status = "okay";
+};
+
+&mlc_blender5 {
+	status = "okay";
+};
+
+&mlc_blender6 {
+	status = "okay";
+};
+
+&mlc_blender7 {
+	status = "okay";
+};
+
+&hue0 {
+	status = "okay";
+};
+
+&hue1 {
+	status = "okay";
+};
+
+&gamma0 {
+	status = "okay";
+};
+
+&gamma1 {
+	status = "okay";
+};
+
+&fifo0 {
+	status = "okay";
+};
+
+&fifo1 {
+	status = "okay";
+};
+
+&fifo2 {
+	status = "okay";
+};
+
+&fifo3 {
+	status = "okay";
+};
+
+&fifo4 {
+	status = "okay";
+};
+
+&fifo5 {
+	status = "okay";
+};
+
+&fifo6 {
+	status = "okay";
+};
+
+&fifo7 {
+	status = "okay";
+};
+
+&fifo8 {
+	status = "okay";
+};
+
+&fifo9 {
+	status = "okay";
+};
+
+&fifo10 {
+	status = "okay";
+};
+
+&fifo11 {
+	status = "okay";
+};
+
+&mapconv {
+	status = "okay";
+};
+
+&csc0 {
+	status = "okay";
+};
+
+&csc1 {
+	status = "okay";
+};
+
+&csc2 {
+	status = "okay";
+};
+
+&csc3 {
+	status = "okay";
+};
+
+&tpgen {
+	status = "okay";
+};
+
+/* this is example of nxs_function_initator */
+/* default disabled */
+/* &nxs_function_initiator { */
+/* 	status = "okay"; */
+/*  */
+/* 	num_functions = <8>; */
+/* 	function0 = < */
+/* 		NXS_FUNCTION_MIPI_CSI 0 NXS_FUNCTION_VIP_CLIPPER 0 NXS_FUNCTION_DMAW 0xff */
+/* 	>; */
+/* 	function1 = < */
+/* 		NXS_FUNCTION_MIPI_CSI 0 NXS_FUNCTION_VIP_DECIMATOR 0 NXS_FUNCTION_DMAW 0xff */
+/* 	>; */
+/* 	function2 = < */
+/* 		NXS_FUNCTION_DMAR 0 NXS_FUNCTION_CROPPER 0 NXS_FUNCTION_DMAW 0xff */
+/* 	>; */
+/* 	function3 = < */
+/* 		NXS_FUNCTION_MLC_BOTTOM 0 NXS_FUNCTION_MLC_BLENDER 0 */
+/* 	>; */
+/* 	function4 = < */
+/* 		NXS_FUNCTION_DMAR 1 NXS_FUNCTION_MLC_BLENDER 0 NXS_FUNCTION_MLC_BLENDER 1 */
+/* 	>; */
+/* 	function5 = < */
+/* 		NXS_FUNCTION_DMAR 2 NXS_FUNCTION_MLC_BLENDER 1 NXS_FUNCTION_FIFO 0 NXS_FUNCTION_LVDS 0 */
+/* 	>; */
+/* 	function6 = < */
+/* 		NXS_FUNCTION_TPGEN 0 NXS_FUNCTION_MULTITAP 0 NXS_FUNCTION_SCALER_4096 0 NXS_FUNCTION_DMAW 0xff */
+/* 	>; */
+/* 	function7 = < */
+/* 		NXS_FUNCTION_TPGEN 0 NXS_FUNCTION_MULTITAP 0 NXS_FUNCTION_SCALER_4096 1 NXS_FUNCTION_DMAW 0xff */
+/* 	>; */
+/* }; */
+
+&nxs_v4l2_builder {
+	status = "okay";
+};
