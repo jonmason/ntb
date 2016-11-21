@@ -20,3 +20,4 @@ obj-y += nxs_mipi_dsi.o
 obj-y += nxs_mlc_blender.o
 obj-y += nxs_mlc_bottom.o
 obj-y += nxs_multitap.o
+obj-y += nxs_scaler_4096.o
