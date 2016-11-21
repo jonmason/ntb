@@ -22,3 +22,4 @@ obj-y += nxs_mlc_bottom.o
 obj-y += nxs_multitap.o
 obj-y += nxs_scaler_4096.o
 obj-y += nxs_scaler_5376.o
+obj-y += nxs_tpgen.o
