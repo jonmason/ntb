@@ -13,3 +13,4 @@ obj-y += nxs_gamma.o
 obj-y += nxs_hdmi.o
 obj-y += nxs_hue.o
 obj-y += nxs_isp2disp.o
+obj-y += nxs_lvds.o
