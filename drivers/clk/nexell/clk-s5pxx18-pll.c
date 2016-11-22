@@ -301,6 +301,7 @@ static void nx_pll_set_rate(int PLL, int P, int M, int S)
 	spin_unlock_irqrestore(&pll_lock, flags);
 }
 
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
 #if defined(CONFIG_ARCH_S5P4418)
 asmlinkage int __invoke_nexell_fn_smc(u32, u32, u32, u32);
 #endif
@@ -327,6 +328,7 @@ int nx_change_bus_freq(u32 pll_data)
 #endif
 }
 EXPORT_SYMBOL(nx_change_bus_freq);
+#endif	/* End of CONFIG_ARM_S5Pxx18_DEVFREQ */
 
 static unsigned long pll_round_rate(int pllno, unsigned long rate, int *p,
 				    int *m, int *s)
