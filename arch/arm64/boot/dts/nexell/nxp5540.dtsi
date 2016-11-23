@@ -26,6 +26,10 @@
 	#address-cells = <0x1>;
 	#size-cells = <0x1>;
 
+	aliases {
+		pinctrl0 = &pinctrl_0;
+	};
+
 	psci {
 		compatible = "arm,psci-0.2";
 		method = "smc";
@@ -136,7 +140,32 @@
 			status = "okay";
 		};
 
+		pinctrl_0: pinctrl {
+			compatible = "nexell,nxp5540-pinctrl";
+			reg = <PHYS_BASE_GPIOA 0x1000
+			       PHYS_BASE_GPIOB 0x1000
+			       PHYS_BASE_GPIOC 0x1000
+			       PHYS_BASE_GPIOD 0x1000
+			       PHYS_BASE_GPIOE 0x1000
+			       PHYS_BASE_GPIOF 0x1000
+			       PHYS_BASE_GPIOG 0x1000
+			       PHYS_BASE_GPIOH 0x1000
+			       PHYS_BASE_ALIVE 0x200>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			interrupts = <0 IRQ_GPIOA 0>,
+				     <0 IRQ_GPIOB 0>,
+				     <0 IRQ_GPIOC 0>,
+				     <0 IRQ_GPIOD 0>,
+				     <0 IRQ_GPIOE 0>,
+				     <0 IRQ_GPIOF 0>,
+				     <0 IRQ_GPIOG 0>,
+				     <0 IRQ_GPIOH 0>,
+				     <0 IRQ_ALIVE 0>;
+		};
+
 	}; /*** soc ***/
 };
 
 #include "nxstream.dtsi"
+#include "nxp5540-pinctrl.dtsi"
