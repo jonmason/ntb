@@ -1114,7 +1114,7 @@ requeue_req:
 	dev->rx_done = 0;
 	ret = usb_ep_queue(dev->ep_out, req, GFP_ATOMIC);
 	if (ret < 0) {
-		pr_debug("iap_read: failed to queue req %p (%d)\n", req, ret);
+		pr_err("iap_read: failed to queue req %p (%d)\n", req, ret);
 		r = -EIO;
 		dev->error = 1;
 		goto done;
@@ -1167,7 +1167,7 @@ static ssize_t iap_write(struct file *fp, const char __user *buf,
 
 	while (count > 0) {
 		if (dev->error) {
-			pr_debug("iap_write dev->error\n");
+			pr_err("iap_write dev->error\n");
 			r = -EIO;
 			break;
 		}
