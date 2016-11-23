@@ -22,11 +22,11 @@
 /*
  * GIC remmap hwirq to hwirq  SPI 32 ~
  */
-#define IRQ_OFFSER				(0)
+#define IRQ_OFFSET				(0)
 #define IRQ_MCUSTOP				(IRQ_OFFSET + 0)
 #define IRQ_CLKPWR_INT_CEC			(IRQ_OFFSET + 1)
 #define IRQ_CLKPWR_INTREQPWR			(IRQ_OFFSET + 2)
-#define IRQ_CLKPWR_ALIVEIRQ			(IRQ_OFFSET + 3)
+#define IRQ_ALIVE				(IRQ_OFFSET + 3)
 #define IRQ_CLKPWR_RTCIRQ			(IRQ_OFFSET + 4)
 #define IRQ_UART0				(IRQ_OFFSET + 5)
 #define IRQ_UART1				(IRQ_OFFSET + 6)
