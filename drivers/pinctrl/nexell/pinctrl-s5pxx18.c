@@ -35,6 +35,25 @@
 #include "pinctrl-s5pxx18.h"
 #include "s5pxx18-gpio.h"
 
+#ifdef CONFIG_PINCTRL_S5PXX18
+#define CASE_PAD_GPIOS				\
+	case PAD_GPIO_A:			\
+	case PAD_GPIO_B:			\
+	case PAD_GPIO_C:			\
+	case PAD_GPIO_D:			\
+	case PAD_GPIO_E
+#elif defined(CONFIG_PINCTRL_NXP5540)
+#define CASE_PAD_GPIOS				\
+	case PAD_GPIO_A:			\
+	case PAD_GPIO_B:			\
+	case PAD_GPIO_C:			\
+	case PAD_GPIO_D:			\
+	case PAD_GPIO_E:			\
+	case PAD_GPIO_F:			\
+	case PAD_GPIO_G:			\
+	case PAD_GPIO_H
+#endif
+
 static struct {
 	struct nx_gpio_reg_set *gpio_regs;
 	struct nx_gpio_reg_set gpio_save;
@@ -309,6 +328,7 @@ int nx_gpio_get_pull_enable(u32 idx, u32 bitnum)
 		return (int)(nx_gpio_pull_off);
 }
 
+#ifdef CONFIG_PINCTRL_S5PXX18
 void nx_gpio_set_input_mux_select0(u32 idx, u32 value)
 {
 	writel(value, &gpio_modules[idx].gpio_regs->GPIOx_InputMuxSelect0);
@@ -318,6 +338,7 @@ void nx_gpio_set_input_mux_select1(u32 idx, u32 value)
 {
 	writel(value, &gpio_modules[idx].gpio_regs->GPIOx_InputMuxSelect1);
 }
+#endif
 
 void nx_gpio_set_interrupt_enable(u32 idx, s32 irqnum, bool enable)
 {
@@ -461,7 +482,7 @@ s32 nx_alive_get_interrupt_pending_number(void)
 	Pend = (p_register->ALIVEGPIODETECTPENDREG &
 		p_register->ALIVEGPIOINTENBREADREG);
 
-	for (int_num = 0; int_num < 6; int_num++)
+	for (int_num = 0; int_num < NR_ALIVE; int_num++)
 		if (Pend & (1 << int_num))
 			return int_num;
 
@@ -690,14 +711,21 @@ void nx_alive_clear_wakeup_status(void) { alive_regs->CLEARWAKEUPSTATUS = 1; }
 
 const unsigned char (*gpio_fn_no)[GPIO_NUM_PER_BANK] = NULL;
 
+#ifdef CONFIG_PINCTRL_S5PXX18
 const unsigned char s5pxx18_pio_fn_no[][GPIO_NUM_PER_BANK] = {
 	ALT_NO_GPIO_A, ALT_NO_GPIO_B, ALT_NO_GPIO_C,
 	ALT_NO_GPIO_D, ALT_NO_GPIO_E, ALT_NO_ALIVE,
 };
+#elif defined(CONFIG_PINCTRL_NXP5540)
+const unsigned char s5pxx18_pio_fn_no[][GPIO_NUM_PER_BANK] = {
+	ALT_NO_GPIO_A, ALT_NO_GPIO_B, ALT_NO_GPIO_C,
+	ALT_NO_GPIO_D, ALT_NO_GPIO_E, ALT_NO_GPIO_F,
+	ALT_NO_GPIO_G, ALT_NO_GPIO_H, ALT_NO_ALIVE,
+};
+#endif
 
 /*----------------------------------------------------------------------------*/
-#define ALIVE_INDEX 5			 /* number of gpio module */
-static spinlock_t lock[ALIVE_INDEX + 1]; /* A, B, C, D, E, alive */
+static spinlock_t lock[ALIVE_INDEX + 1]; /* GPIO A, B, C, D, E, ... alive */
 static unsigned long lock_flags[ALIVE_INDEX + 1];
 
 #define IO_LOCK_INIT(x) spin_lock_init(&lock[x])
@@ -712,11 +740,7 @@ void nx_soc_gpio_set_io_func(unsigned int io, unsigned int func)
 	pr_debug("%s (%d.%02d)\n", __func__, grp, bit);
 
 	switch (io & ~(32 - 1)) {
-	case PAD_GPIO_A:
-	case PAD_GPIO_B:
-	case PAD_GPIO_C:
-	case PAD_GPIO_D:
-	case PAD_GPIO_E:
+	CASE_PAD_GPIOS:
 		IO_LOCK(grp);
 		nx_gpio_set_pad_function(grp, bit, func);
 		IO_UNLOCK(grp);
@@ -747,11 +771,7 @@ unsigned int nx_soc_gpio_get_io_func(unsigned int io)
 	pr_debug("%s (%d.%02d)\n", __func__, grp, bit);
 
 	switch (io & ~(32 - 1)) {
-	case PAD_GPIO_A:
-	case PAD_GPIO_B:
-	case PAD_GPIO_C:
-	case PAD_GPIO_D:
-	case PAD_GPIO_E:
+	CASE_PAD_GPIOS:
 		IO_LOCK(grp);
 		fn = nx_gpio_get_pad_function(grp, bit);
 		IO_UNLOCK(grp);
@@ -775,11 +795,7 @@ void nx_soc_gpio_set_io_dir(unsigned int io, int out)
 	pr_debug("%s (%d.%02d)\n", __func__, grp, bit);
 
 	switch (io & ~(32 - 1)) {
-	case PAD_GPIO_A:
-	case PAD_GPIO_B:
-	case PAD_GPIO_C:
-	case PAD_GPIO_D:
-	case PAD_GPIO_E:
+	CASE_PAD_GPIOS:
 		IO_LOCK(grp);
 		nx_gpio_set_output_enable(grp, bit, out ? true : false);
 		IO_UNLOCK(grp);
@@ -805,11 +821,7 @@ int nx_soc_gpio_get_io_dir(unsigned int io)
 	pr_debug("%s (%d.%02d)\n", __func__, grp, bit);
 
 	switch (io & ~(32 - 1)) {
-	case PAD_GPIO_A:
-	case PAD_GPIO_B:
-	case PAD_GPIO_C:
-	case PAD_GPIO_D:
-	case PAD_GPIO_E:
+	CASE_PAD_GPIOS:
 		IO_LOCK(grp);
 		dir = nx_gpio_get_output_enable(grp, bit) ? 1 : 0;
 		IO_UNLOCK(grp);
@@ -835,11 +847,7 @@ void nx_soc_gpio_set_io_pull(unsigned int io, int val)
 	pr_debug("%s (%d.%02d) sel:%d\n", __func__, grp, bit, val);
 
 	switch (io & ~(32 - 1)) {
-	case PAD_GPIO_A:
-	case PAD_GPIO_B:
-	case PAD_GPIO_C:
-	case PAD_GPIO_D:
-	case PAD_GPIO_E:
+	CASE_PAD_GPIOS:
 		IO_LOCK(grp);
 		nx_gpio_set_pull_enable(grp, bit, val);
 		IO_UNLOCK(grp);
@@ -868,11 +876,7 @@ int nx_soc_gpio_get_io_pull(unsigned int io)
 	pr_debug("%s (%d.%02d)\n", __func__, grp, bit);
 
 	switch (io & ~(32 - 1)) {
-	case PAD_GPIO_A:
-	case PAD_GPIO_B:
-	case PAD_GPIO_C:
-	case PAD_GPIO_D:
-	case PAD_GPIO_E:
+	CASE_PAD_GPIOS:
 		IO_LOCK(grp);
 		up = nx_gpio_get_pull_enable(grp, bit);
 		IO_UNLOCK(grp);
@@ -927,11 +931,7 @@ void nx_soc_gpio_set_out_value(unsigned int io, int high)
 	pr_debug("%s (%d.%02d)\n", __func__, grp, bit);
 
 	switch (io & ~(32 - 1)) {
-	case PAD_GPIO_A:
-	case PAD_GPIO_B:
-	case PAD_GPIO_C:
-	case PAD_GPIO_D:
-	case PAD_GPIO_E:
+	CASE_PAD_GPIOS:
 		IO_LOCK(grp);
 		nx_gpio_set_output_value(grp, bit, high ? true : false);
 		IO_UNLOCK(grp);
@@ -957,11 +957,7 @@ int nx_soc_gpio_get_out_value(unsigned int io)
 	pr_debug("%s (%d.%02d)\n", __func__, grp, bit);
 
 	switch (io & ~(32 - 1)) {
-	case PAD_GPIO_A:
-	case PAD_GPIO_B:
-	case PAD_GPIO_C:
-	case PAD_GPIO_D:
-	case PAD_GPIO_E:
+	CASE_PAD_GPIOS:
 		IO_LOCK(grp);
 		val = nx_gpio_get_output_value(grp, bit) ? 1 : 0;
 		IO_UNLOCK(grp);
@@ -988,11 +984,7 @@ int nx_soc_gpio_get_in_value(unsigned int io)
 	pr_debug("%s (%d.%02d)\n", __func__, grp, bit);
 
 	switch (io & ~(32 - 1)) {
-	case PAD_GPIO_A:
-	case PAD_GPIO_B:
-	case PAD_GPIO_C:
-	case PAD_GPIO_D:
-	case PAD_GPIO_E:
+	CASE_PAD_GPIOS:
 		IO_LOCK(grp);
 		val = nx_gpio_get_input_value(grp, bit) ? 1 : 0;
 		IO_UNLOCK(grp);
@@ -1018,11 +1010,7 @@ void nx_soc_gpio_set_int_enable(unsigned int io, int on)
 	pr_debug("%s (%d.%02d)\n", __func__, grp, bit);
 
 	switch (io & ~(32 - 1)) {
-	case PAD_GPIO_A:
-	case PAD_GPIO_B:
-	case PAD_GPIO_C:
-	case PAD_GPIO_D:
-	case PAD_GPIO_E:
+	CASE_PAD_GPIOS:
 		IO_LOCK(grp);
 		nx_gpio_set_interrupt_enable(grp, bit, on ? true : false);
 		IO_UNLOCK(grp);
@@ -1049,11 +1037,7 @@ int nx_soc_gpio_get_int_enable(unsigned int io)
 	pr_debug("%s (%d.%02d)\n", __func__, grp, bit);
 
 	switch (io & ~(32 - 1)) {
-	case PAD_GPIO_A:
-	case PAD_GPIO_B:
-	case PAD_GPIO_C:
-	case PAD_GPIO_D:
-	case PAD_GPIO_E:
+	CASE_PAD_GPIOS:
 		IO_LOCK(grp);
 		enb = nx_gpio_get_interrupt_enable(grp, bit) ? 1 : 0;
 		IO_UNLOCK(grp);
@@ -1080,11 +1064,7 @@ void nx_soc_gpio_set_int_mode(unsigned int io, unsigned int mode)
 	pr_debug("%s (%d.%02d, %d)\n", __func__, grp, bit, mode);
 
 	switch (io & ~(32 - 1)) {
-	case PAD_GPIO_A:
-	case PAD_GPIO_B:
-	case PAD_GPIO_C:
-	case PAD_GPIO_D:
-	case PAD_GPIO_E:
+	CASE_PAD_GPIOS:
 		IO_LOCK(grp);
 		nx_gpio_set_interrupt_mode(grp, bit, mode);
 		IO_UNLOCK(grp);
@@ -1116,11 +1096,7 @@ int nx_soc_gpio_get_int_mode(unsigned int io)
 	pr_debug("%s (%d.%02d)\n", __func__, grp, bit);
 
 	switch (io & ~(32 - 1)) {
-	case PAD_GPIO_A:
-	case PAD_GPIO_B:
-	case PAD_GPIO_C:
-	case PAD_GPIO_D:
-	case PAD_GPIO_E:
+	CASE_PAD_GPIOS:
 		IO_LOCK(grp);
 		mod = nx_gpio_get_interrupt_mode(grp, bit);
 		IO_UNLOCK(grp);
@@ -1152,11 +1128,7 @@ int nx_soc_gpio_get_int_pend(unsigned int io)
 	pr_debug("%s (%d.%02d)\n", __func__, grp, bit);
 
 	switch (io & ~(32 - 1)) {
-	case PAD_GPIO_A:
-	case PAD_GPIO_B:
-	case PAD_GPIO_C:
-	case PAD_GPIO_D:
-	case PAD_GPIO_E:
+	CASE_PAD_GPIOS:
 		IO_LOCK(grp);
 		pend = nx_gpio_get_interrupt_pending(grp, bit) ? 1 : 0;
 		IO_UNLOCK(grp);
@@ -1182,11 +1154,7 @@ void nx_soc_gpio_clr_int_pend(unsigned int io)
 	pr_debug("%s (%d.%02d)\n", __func__, grp, bit);
 
 	switch (io & ~(32 - 1)) {
-	case PAD_GPIO_A:
-	case PAD_GPIO_B:
-	case PAD_GPIO_C:
-	case PAD_GPIO_D:
-	case PAD_GPIO_E:
+	CASE_PAD_GPIOS:
 		IO_LOCK(grp);
 		nx_gpio_clear_interrupt_pending(grp, bit);
 		nx_gpio_get_interrupt_pending(grp, bit);
@@ -2041,6 +2009,17 @@ static const char *wake_event_name[] = {
 	[5] = "ALIVE 3",
 	[6] = "ALIVE 4",
 	[7] = "ALIVE 5",
+#ifdef CONFIG_PINCTRL_NXP5540
+	[8] = "ALIVE 6",
+	[9] = "ALIVE 7",
+	[10] = "ALIVE 8",
+	[11] = "ALIVE 9",
+	[12] = "ALIVE 10",
+	[13] = "ALIVE 11",
+	[14] = "ALIVE 12",
+	[15] = "ALIVE 13",
+	[16] = "ALIVE 14",
+#endif
 };
 
 #define	WAKE_EVENT_NUM	ARRAY_SIZE(wake_event_name)
@@ -2117,6 +2096,7 @@ done:
 	return 0;
 }
 
+#ifdef CONFIG_PINCTRL_S5PXX18
 /* pin banks of s5pxx18 pin-controller 0 */
 static struct nexell_pin_bank s5pxx18_pin_banks[] = {
 	SOC_PIN_BANK_EINTG(32, 0xA000, "gpioa"),
@@ -2141,3 +2121,30 @@ const struct nexell_pin_ctrl s5pxx18_pin_ctrl[] = {
 		.resume = s5pxx18_resume,
 	}
 };
+#endif
+
+#ifdef CONFIG_PINCTRL_NXP5540
+static struct nexell_pin_bank nxp5540_pin_banks[] = {
+	SOC_PIN_BANK_EINTG(32, 0x0000, "gpioa"),
+	SOC_PIN_BANK_EINTG(32, 0x1000, "gpiob"),
+	SOC_PIN_BANK_EINTG(32, 0x2000, "gpioc"),
+	SOC_PIN_BANK_EINTG(32, 0x3000, "gpiod"),
+	SOC_PIN_BANK_EINTG(32, 0x4000, "gpioe"),
+	SOC_PIN_BANK_EINTG(32, 0x5000, "gpiof"),
+	SOC_PIN_BANK_EINTG(32, 0x6000, "gpiog"),
+	SOC_PIN_BANK_EINTG(2,  0x7000, "gpioh"),
+	SOC_PIN_BANK_EINTW(15, 0x0800, "alive"),
+};
+
+const struct nexell_pin_ctrl nxp5540_pin_ctrl[] = {
+	{
+		.pin_banks = nxp5540_pin_banks,
+		.nr_banks = ARRAY_SIZE(nxp5540_pin_banks),
+		.base_init = s5pxx18_base_init,
+		.gpio_irq_init = s5pxx18_gpio_irq_init,
+		.alive_irq_init = s5pxx18_alive_irq_init,
+		.suspend = s5pxx18_suspend,
+		.resume = s5pxx18_resume,
+	}
+};
+#endif

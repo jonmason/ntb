@@ -16,6 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef __PINCTRL_S5PXX18_H
+#define __PINCTRL_S5PXX18_H
+
 #define SOC_PIN_BANK_EINTN(pins, reg, id)		\
 	{						\
 		.pctl_offset	= reg,			\
@@ -41,9 +44,9 @@
 	}
 
 
-#define GPIO_INT_OUT (0x04)
+#define GPIO_INT_OUT (0x04)   /* out enable */
 #define GPIO_INT_MODE0 (0x08) /* 0x08,0x0C */
-#define GPIO_INT_MODE1 (0x28)
+#define GPIO_INT_MODE1 (0x28) /* detect mode ex */
 #define GPIO_INT_ENB (0x10)
 #define GPIO_INT_STATUS (0x14)
 #define GPIO_INT_ALT (0x20) /* 0x20,0x24 */
@@ -98,4 +101,4 @@
 #define ARM_DMB() dmb()
 #endif
 
-
+#endif /* __PINCTRL_S5PXX18_H */

@@ -1160,10 +1160,16 @@ static struct syscore_ops nexell_pinctrl_syscore_ops = {
 };
 
 static const struct of_device_id nexell_pinctrl_dt_match[] = {
+#ifdef CONFIG_PINCTRL_S5PXX18
 	{ .compatible = "nexell,s5p6818-pinctrl",
 		.data = (void *)s5pxx18_pin_ctrl },
 	{ .compatible = "nexell,s5pxx18-pinctrl",
 		.data = (void *)s5pxx18_pin_ctrl },
+#endif
+#ifdef CONFIG_PINCTRL_NXP5540
+	{ .compatible = "nexell,nxp5540-pinctrl",
+		.data = (void *)nxp5540_pin_ctrl },
+#endif
 	{},
 };
 MODULE_DEVICE_TABLE(of, nexell_pinctrl_dt_match);

@@ -5,3 +5,11 @@ config PINCTRL_NEXELL
 	bool "Nexell SoC pinctrl driver"
 	select PINMUX
 	select PINCONF
+
+config PINCTRL_S5PXX18
+	def_bool y if (ARCH_S5P4418 || ARCH_S5P6818)
+	select PINCTRL_NEXELL
+
+config PINCTRL_NXP5540
+	def_bool y if ARCH_NXP5540
+	select PINCTRL_NEXELL
