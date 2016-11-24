@@ -29,6 +29,7 @@
 #include <linux/v4l2-mediabus.h>
 #include <linux/spinlock.h>
 #include <linux/atomic.h>
+#include <linux/completion.h>
 
 #include <media/media-device.h>
 #include <media/v4l2-device.h>
@@ -50,6 +51,8 @@
 #define NXS_VIDEO_CAPTURE_DEF_FRAMERATE	30
 #define NXS_VIDEO_RENDER_DEF_FRAMERATE	60
 #define NXS_VIDEO_MAX_PLANES	3
+
+#define NXS_VIDEO_JOB_TIMEOUT	(2*HZ)
 
 enum nxs_video_type {
 	NXS_VIDEO_TYPE_NONE = 0,
@@ -80,18 +83,18 @@ struct nxs_video {
 
 #define vdev_to_nxs_video(vdev) container_of(vdev, struct nxs_video, video)
 #define vbq_to_nxs_video(vbq)	container_of(vbq, struct nxs_video, vbq)
+#define is_m2m(video)		video->type == NXS_VIDEO_TYPE_M2M
+#define is_capture(video)	video->type == NXS_VIDEO_TYPE_CAPTURE
+#define is_render(video)	video->type == NXS_VIDEO_TYPE_RENDER
 
 struct nxs_video_fh {
 	struct v4l2_fh vfh;
 	struct nxs_video *video;
 	struct vb2_queue queue;
-	struct v4l2_format format;
+	struct v4l2_format format; /* m2m: source format */
 	struct v4l2_crop crop;
 	struct v4l2_selection selection;
 	struct v4l2_streamparm parm;
-	/* m2m */
-	struct v4l2_m2m_ctx *m2m_ctx;
-	struct v4l2_m2m_dev *m2m_dev;
 	unsigned int num_planes;
 	unsigned int strides[NXS_VIDEO_MAX_PLANES];
 	unsigned int sizes[NXS_VIDEO_MAX_PLANES];
@@ -102,15 +105,35 @@ struct nxs_video_fh {
 	spinlock_t bufq_lock;
 	atomic_t underflow;
 	u32 type; /* enum v4l2_buf_type */
+	/* m2m */
+	struct v4l2_m2m_dev *m2m_dev;
+	struct v4l2_m2m_ctx *m2m_ctx;
+	struct v4l2_format dst_format;
+	u32 dst_type;
+	unsigned int dst_num_planes;
+	unsigned int dst_strides[NXS_VIDEO_MAX_PLANES];
+	unsigned int dst_sizes[NXS_VIDEO_MAX_PLANES];
+	unsigned int dst_width;
+	unsigned int dst_height;
+	unsigned int dst_pixelformat;
+	atomic_t running;
+	struct completion stop_done;
 };
 
 #define to_nxs_video_fh(fh)	container_of(fh, struct nxs_video_fh, vfh)
 #define queue_to_nxs_video_fh(q) \
 				container_of(q, struct nxs_video_fh, queue)
 
+/* nxs_video_buffer is same to v4l2_m2m_buffer */
 struct nxs_video_buffer {
-	struct list_head list;
 	struct vb2_v4l2_buffer vb;
+	struct list_head list;
+	/* dma_addr_t dma_addr[NXS_VIDEO_MAX_PLANES]; */
+	/* unsigned int strides[NXS_VIDEO_MAX_PLANES]; */
+};
+
+struct nxs_address_info {
+	u32 num_planes;
 	dma_addr_t dma_addr[NXS_VIDEO_MAX_PLANES];
 	unsigned int strides[NXS_VIDEO_MAX_PLANES];
 };
@@ -304,6 +327,8 @@ static struct nxs_video_format supported_mplane_formats[] = {
  * util functions
  */
 static int nxs_vbq_init(struct nxs_video_fh *vfh, u32 type);
+static int nxs_m2m_queue_init(void *priv, struct vb2_queue *src_q,
+			      struct vb2_queue *dst_q);
 
 static inline bool is_multiplanar(u32 buf_type)
 {
@@ -312,6 +337,17 @@ static inline bool is_multiplanar(u32 buf_type)
 	case V4L2_BUF_TYPE_VIDEO_OUTPUT:
 		return false;
 	case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
+	case V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE:
+		return true;
+	}
+
+	return false;
+}
+
+static inline bool is_output(u32 buf_type)
+{
+	switch (buf_type) {
+	case V4L2_BUF_TYPE_VIDEO_OUTPUT:
 	case V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE:
 		return true;
 	}
@@ -374,10 +410,11 @@ static struct nxs_video_buffer *get_next_video_buffer(struct nxs_video_fh *vfh,
 }
 
 /* chain functions */
-static void nxs_video_irqcallback(struct nxs_dev *pthis, void *data);
-
 static int nxs_chain_register_irqcallback(struct nxs_function_instance *inst,
-					  struct nxs_video_fh *vfh)
+					  struct nxs_video_fh *vfh,
+					  void (*handler)(struct nxs_dev *,
+							  void*)
+					  )
 {
 	struct nxs_dev *last;
 	struct nxs_irq_callback *callback;
@@ -390,7 +427,7 @@ static int nxs_chain_register_irqcallback(struct nxs_function_instance *inst,
 	if (!callback)
 		return -ENOMEM;
 
-	callback->handler = nxs_video_irqcallback;
+	callback->handler = handler;
 	callback->data = vfh;
 
 	return nxs_dev_register_irq_callback(last, NXS_DEV_IRQCALLBACK_TYPE_IRQ,
@@ -459,20 +496,69 @@ static int nxs_chain_config(struct nxs_function_instance *inst,
 	return 0;
 }
 
+static int nxs_m2m_chain_config(struct nxs_function_instance *inst,
+				struct nxs_video_fh *vfh)
+{
+	struct nxs_dev *nxs_dev;
+	union nxs_control src_f, dst_f;
+	int ret;
+
+	/* format */
+	src_f.format.width = vfh->width;
+	src_f.format.height = vfh->height;
+	src_f.format.pixelformat = vfh->pixelformat;
+
+	dst_f.format.width = vfh->dst_width;
+	dst_f.format.height = vfh->dst_height;
+	dst_f.format.pixelformat = vfh->dst_pixelformat;
+
+	list_for_each_entry_reverse(nxs_dev, &inst->dev_list, func_list) {
+		ret = nxs_set_control(nxs_dev, NXS_CONTROL_FORMAT, &src_f);
+		if (ret)
+			return ret;
+
+		ret = nxs_set_control(nxs_dev, NXS_CONTROL_DST_FORMAT, &dst_f);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
 static int nxs_dev_set_buffer(struct nxs_dev *nxs_dev,
-			      struct nxs_video_fh *vfh,
-			      struct nxs_video_buffer *buffer)
+			      struct nxs_address_info *info)
 {
 	union nxs_control control;
 	int i;
 
-	control.buffer.num_planes = vfh->num_planes;
-	for (i = 0; i < vfh->num_planes; i++) {
-		control.buffer.address[i] = buffer->dma_addr[i];
-		control.buffer.strides[i] = buffer->strides[i];
+	control.buffer.num_planes = info->num_planes;
+	for (i = 0; i < info->num_planes; i++) {
+		control.buffer.address[i] = info->dma_addr[i];
+		control.buffer.strides[i] = info->strides[i];
 	}
 
 	return nxs_set_control(nxs_dev, NXS_CONTROL_BUFFER, &control);
+}
+
+static int nxs_get_address_info(struct vb2_v4l2_buffer *vb,
+				unsigned int *strides,
+				struct nxs_address_info *info)
+{
+	int i;
+	struct vb2_buffer *buf = &vb->vb2_buf;
+
+	info->num_planes = buf->num_planes;
+	memcpy(info->strides, strides, buf->num_planes * sizeof(unsigned int));
+
+	for (i = 0; i < buf->num_planes; i++) {
+		info->dma_addr[i] = vb2_dma_contig_plane_dma_addr(buf, i);
+		if (!info->dma_addr[i]) {
+			WARN(1, "failed to get dma_addr for index %d\n", i);
+			return -ENOMEM;
+		}
+	}
+
+	return 0;
 }
 
 static int nxs_chain_set_buffer(struct nxs_function_instance *inst,
@@ -491,17 +577,49 @@ static int nxs_chain_set_buffer(struct nxs_function_instance *inst,
 		nxs_dev = list_first_entry(&inst->dev_list, struct nxs_dev,
 					   func_list);
 		break;
-	case NXS_VIDEO_TYPE_M2M:
-		/* TODO */
-		break;
 	default:
 		dev_err(&video->vdev.dev, "%s: Not supported type(0x%x)\n",
 			__func__, video->type);
 		return -EINVAL;
 	}
 
-	if (nxs_dev)
-		return nxs_dev_set_buffer(nxs_dev, vfh, buffer);
+	if (nxs_dev) {
+		struct nxs_address_info info;
+
+		nxs_get_address_info(&buffer->vb,
+				     vfh->strides,
+				     &info);
+		return nxs_dev_set_buffer(nxs_dev, &info);
+	}
+
+	return 0;
+}
+
+static int nxs_m2m_chain_set_buffer(struct nxs_function_instance *inst,
+				    struct nxs_video_fh *vfh,
+				    struct nxs_address_info *src_addr_info,
+				    struct nxs_address_info *dst_addr_info)
+{
+	struct nxs_dev *src_nxs_dev = NULL, *dst_nxs_dev = NULL;
+	int ret;
+
+	src_nxs_dev = list_first_entry(&inst->dev_list, struct nxs_dev,
+				       func_list);
+	if (WARN(!src_nxs_dev, "src nxs_dev non exist\n"))
+		return -ENODEV;
+
+	dst_nxs_dev = list_first_entry(&inst->dev_list, struct nxs_dev,
+				       func_list);
+	if (WARN(!dst_nxs_dev, "dst nxs_dev non exist\n"))
+		return -ENODEV;
+
+	ret = nxs_dev_set_buffer(src_nxs_dev, src_addr_info);
+	if (WARN(ret, "failed to nxs_dev_set_buffer for src\n"))
+		return ret;
+
+	ret = nxs_dev_set_buffer(dst_nxs_dev, dst_addr_info);
+	if (WARN(ret, "failed to nxs_dev_set_buffer for dst\n"))
+		return ret;
 
 	return 0;
 }
@@ -533,6 +651,7 @@ static void nxs_chain_stop(struct nxs_function_instance *inst)
 }
 
 /* irq callback */
+/* capture, output */
 static void nxs_video_irqcallback(struct nxs_dev *nxs_dev, void *data)
 {
 	struct nxs_video_fh *vfh;
@@ -554,10 +673,46 @@ static void nxs_video_irqcallback(struct nxs_dev *nxs_dev, void *data)
 		atomic_set(&vfh->underflow, 1);
 		nxs_chain_stop(video->nxs_function);
 	} else {
-		nxs_dev_set_buffer(nxs_dev, vfh, next_buffer);
+		struct nxs_address_info info;
+
+		nxs_get_address_info(&next_buffer->vb,
+				     vfh->strides,
+				     &info);
+		nxs_dev_set_buffer(nxs_dev, &info);
 	}
 
+	v4l2_get_timestamp(&done_buffer->vb.timestamp);
 	vb2_buffer_done(&done_buffer->vb.vb2_buf, VB2_BUF_STATE_DONE);
+}
+
+/* m2m */
+static void nxs_m2m_job_finish(struct nxs_video_fh *vfh, int vb_state)
+{
+	struct vb2_v4l2_buffer *src_vb, *dst_vb;
+
+	src_vb = v4l2_m2m_src_buf_remove(vfh->m2m_ctx);
+	if (WARN(!src_vb, "src_vb is NULL\n"))
+		return;
+
+	dst_vb = v4l2_m2m_dst_buf_remove(vfh->m2m_ctx);
+	if (WARN(!dst_vb, "dst_vb is NULL\n"))
+		return;
+
+	v4l2_get_timestamp(&dst_vb->timestamp);
+
+	v4l2_m2m_buf_done(src_vb, vb_state);
+	v4l2_m2m_buf_done(dst_vb, vb_state);
+
+	v4l2_m2m_job_finish(vfh->m2m_dev, vfh->m2m_ctx);
+}
+
+static void nxs_video_m2m_irqcallback(struct nxs_dev *nxs_dev, void *data)
+{
+	struct nxs_video_fh *vfh = data;
+
+	nxs_m2m_job_finish(vfh, VB2_BUF_STATE_DONE);
+	atomic_set(&vfh->running, 0);
+	complete(&vfh->stop_done);
 }
 
 /*
@@ -578,6 +733,11 @@ static int nxs_video_open(struct file *file)
 	INIT_LIST_HEAD(&handle->bufq);
 	spin_lock_init(&handle->bufq_lock);
 	atomic_set(&handle->underflow, 0);
+
+	if (is_m2m(nxs_video)) {
+		atomic_set(&handle->running, 0);
+		init_completion(&handle->stop_done);
+	}
 
 	memset(&handle->format, 0, sizeof(handle->format));
 
@@ -642,26 +802,58 @@ static struct v4l2_file_operations nxs_video_fops = {
 /* v4l2_m2m_ops */
 static void nxs_m2m_device_run(void *priv)
 {
-	/* TODO */
-	pr_info("%s: entered\n", __func__);
+	struct nxs_video_fh *vfh = priv;
+	struct vb2_v4l2_buffer *src_vb, *dst_vb;
+	struct nxs_address_info src_addr_info, dst_addr_info;
+	int ret;
+
+	src_vb = v4l2_m2m_next_src_buf(vfh->m2m_ctx);
+	if (WARN(!src_vb, "failed to src_vb\n"))
+		return;
+	ret = nxs_get_address_info(src_vb, vfh->strides, &src_addr_info);
+	if (WARN(ret, "failed to nxs_get_address_info for src_vb\n"))
+		return;
+
+	dst_vb = v4l2_m2m_next_dst_buf(vfh->m2m_ctx);
+	if (WARN(!src_vb, "failed to src_vb\n"))
+		return;
+	ret = nxs_get_address_info(src_vb, vfh->dst_strides, &dst_addr_info);
+	if (WARN(ret, "failed to nxs_get_address_info for dst_vb\n"))
+		return;
+
+	ret = nxs_m2m_chain_set_buffer(vfh->video->nxs_function, vfh,
+				       &src_addr_info, &dst_addr_info);
+	if (ret)
+		return;
+
+	atomic_set(&vfh->running, 1);
+
+	nxs_chain_run(vfh->video->nxs_function);
 }
 
-static int nxs_m2m_job_ready(void *priv)
-{
-	/* TODO */
-	pr_info("%s: entered\n", __func__);
-	return 0;
-}
+/* This callback may not be needed */
+/* static int nxs_m2m_job_ready(void *priv) */
+/* { */
+/* 	#<{(| TODO |)}># */
+/* 	pr_info("%s: entered\n", __func__); */
+/* 	return 0; */
+/* } */
 
 static void nxs_m2m_job_abort(void *priv)
 {
-	/* TODO */
-	pr_info("%s: entered\n", __func__);
+	struct nxs_video_fh *vfh = priv;
+
+	if (atomic_read(&vfh->running)) {
+		if (!wait_for_completion_timeout(&vfh->stop_done,
+						 NXS_VIDEO_JOB_TIMEOUT))
+			dev_err(&vfh->video->vdev.dev, "timeout for waiting stop\n");
+	} else
+		nxs_m2m_job_finish(vfh, VB2_BUF_STATE_ERROR);
 }
 
 static struct v4l2_m2m_ops nxs_m2m_ops = {
 	.device_run = nxs_m2m_device_run,
-	.job_ready  = nxs_m2m_job_ready,
+	/* .job_ready  = nxs_m2m_job_ready, */
 	.job_abort  = nxs_m2m_job_abort,
 };
 
@@ -750,16 +942,29 @@ static int nxs_vidioc_enum_fmt_vid_out_mplane(struct file *file, void *fh,
 static int generic_g_fmt(void *fh, struct v4l2_format *f)
 {
 	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
-	struct v4l2_format *cur_format = &vfh->format;
+	struct nxs_video *video = vfh->video;
+	struct v4l2_format *cur_format = NULL;
 
-	if (cur_format->type == 0) {
-		struct nxs_video *video = vfh->video;
-		dev_err(&video->vdev.dev, "G_FMT: S_FMT is not called\n");
-		return -EINVAL;
+	if (video->type == NXS_VIDEO_TYPE_CAPTURE ||
+	    video->type == NXS_VIDEO_TYPE_RENDER)
+		cur_format = &vfh->format;
+	else if (video->type == NXS_VIDEO_TYPE_M2M)
+		cur_format = is_output(f->type) ? &vfh->format :
+			&vfh->dst_format;
+
+	if (cur_format) {
+		if (cur_format->type == 0) {
+			struct nxs_video *video = vfh->video;
+			dev_err(&video->vdev.dev,
+				"G_FMT: S_FMT is not called\n");
+			return -EINVAL;
+		}
+
+		memcpy(f, cur_format, sizeof(*f));
+		return 0;
 	}
 
-	memcpy(f, cur_format, sizeof(*f));
-	return 0;
+	return -EINVAL;
 }
 
 static int nxs_vidioc_g_fmt_vid_cap(struct file *file, void *fh,
@@ -816,6 +1021,53 @@ static bool is_supported_format(struct nxs_video_fh *vfh, struct v4l2_format *f)
 	return supported;
 }
 
+static int m2m_s_fmt(void *fh, struct v4l2_format *f)
+{
+	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
+	struct nxs_video *video = vfh->video;
+
+	if (is_supported_format(vfh, f)) {
+		if (is_output(f->type)) {
+			/* source path */
+			memcpy(&vfh->format, f, sizeof(*f));
+			vfh->type = f->type;
+			get_info_of_format(f, &vfh->num_planes,
+					   vfh->strides, vfh->sizes,
+					   &vfh->width, &vfh->height,
+					   &vfh->pixelformat);
+		} else {
+			/* dst path */
+			memcpy(&vfh->dst_format, f, sizeof(*f));
+			vfh->dst_type = f->type;
+			get_info_of_format(f, &vfh->dst_num_planes,
+					   vfh->dst_strides, vfh->dst_sizes,
+					   &vfh->dst_width, &vfh->dst_height,
+					   &vfh->dst_pixelformat);
+		}
+
+		if (!vfh->m2m_ctx) {
+			vfh->m2m_dev = v4l2_m2m_init(&nxs_m2m_ops);
+			if (IS_ERR(vfh->m2m_dev)) {
+				dev_err(&video->vdev.dev,
+					"%s: failed to init m2m device\n",
+					__func__);
+				return PTR_ERR(vfh->m2m_dev);
+			}
+
+			vfh->m2m_ctx = v4l2_m2m_ctx_init(vfh->m2m_dev, vfh,
+							 nxs_m2m_queue_init);
+			if (IS_ERR(vfh->m2m_ctx)) {
+				dev_err(&video->vdev.dev,
+					"%s: failed to init m2m context\n",
+					__func__);
+				return PTR_ERR(vfh->m2m_ctx);
+			}
+		}
+	}
+
+	return 0;
+}
+
 static int generic_s_fmt(void *fh, struct v4l2_format *f)
 {
 	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
@@ -870,19 +1122,7 @@ static int generic_s_fmt(void *fh, struct v4l2_format *f)
 				   vfh->sizes, &vfh->width, &vfh->height,
 				   &vfh->pixelformat);
 
-		if (video->type == NXS_VIDEO_TYPE_CAPTURE ||
-		    video->type == NXS_VIDEO_TYPE_RENDER)
-			return nxs_vbq_init(vfh, f->type);
-		else if (video->type == NXS_VIDEO_TYPE_M2M &&
-			 !vfh->m2m_ctx) {
-			vfh->m2m_dev = v4l2_m2m_init(&nxs_m2m_ops);
-			if (IS_ERR(vfh->m2m_dev)) {
-				dev_err(&video->vdev.dev,
-					"%s: failed to initialize v4l2-m2m device\n",
-					__func__);
-				return PTR_ERR(vfh->m2m_dev);
-			}
-		}
+		return nxs_vbq_init(vfh, f->type);
 	}
 
 	return -EINVAL;
@@ -891,24 +1131,48 @@ static int generic_s_fmt(void *fh, struct v4l2_format *f)
 static int nxs_vidioc_s_fmt_vid_cap(struct file *file, void *fh,
 				    struct v4l2_format *f)
 {
+	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
+	struct nxs_video *video = vfh->video;
+
+	if (is_m2m(video))
+		return m2m_s_fmt(fh, f);
+
 	return generic_s_fmt(fh, f);
 }
 
 static int nxs_vidioc_s_fmt_vid_out(struct file *file, void *fh,
 				    struct v4l2_format *f)
 {
+	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
+	struct nxs_video *video = vfh->video;
+
+	if (is_m2m(video))
+		return m2m_s_fmt(fh, f);
+
 	return generic_s_fmt(fh, f);
 }
 
 static int nxs_vidioc_s_fmt_vid_cap_mplane(struct file *file, void *fh,
 					   struct v4l2_format *f)
 {
+	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
+	struct nxs_video *video = vfh->video;
+
+	if (is_m2m(video))
+		return m2m_s_fmt(fh, f);
+
 	return generic_s_fmt(fh, f);
 }
 
 static int nxs_vidioc_s_fmt_vid_out_mplane(struct file *file, void *fh,
 					   struct v4l2_format *f)
 {
+	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
+	struct nxs_video *video = vfh->video;
+
+	if (is_m2m(video))
+		return m2m_s_fmt(fh, f);
+
 	return generic_s_fmt(fh, f);
 }
 
@@ -956,7 +1220,8 @@ static int nxs_vidioc_reqbufs(struct file *file, void *fh,
 	int ret;
 
 	mutex_lock(&video->queue_lock);
-	ret = vb2_reqbufs(&vfh->queue, b);
+	ret = is_m2m(video) ? v4l2_m2m_reqbufs(file, vfh->m2m_ctx, b) :
+		vb2_reqbufs(&vfh->queue, b);
 	mutex_unlock(&video->queue_lock);
 
 	return ret;
@@ -970,7 +1235,8 @@ static int nxs_vidioc_querybuf(struct file *file, void *fh,
 	int ret;
 
 	mutex_lock(&video->queue_lock);
-	ret = vb2_querybuf(&vfh->queue, b);
+	ret = is_m2m(video) ? v4l2_m2m_querybuf(file, vfh->m2m_ctx, b) :
+		vb2_querybuf(&vfh->queue, b);
 	mutex_unlock(&video->queue_lock);
 
 	return ret;
@@ -983,7 +1249,8 @@ static int nxs_vidioc_qbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 	int ret;
 
 	mutex_lock(&video->queue_lock);
-	ret = vb2_qbuf(&vfh->queue, b);
+	ret = is_m2m(video) ? v4l2_m2m_qbuf(file, vfh->m2m_ctx, b) :
+		vb2_qbuf(&vfh->queue, b);
 	mutex_unlock(&video->queue_lock);
 
 	return ret;
@@ -997,7 +1264,8 @@ static int nxs_vidioc_expbuf(struct file *file, void *fh,
 	int ret;
 
 	mutex_lock(&video->queue_lock);
-	ret = vb2_expbuf(&vfh->queue, e);
+	ret = is_m2m(video) ? v4l2_m2m_expbuf(file, vfh->m2m_ctx, e) :
+		vb2_expbuf(&vfh->queue, e);
 	mutex_unlock(&video->queue_lock);
 
 	return ret;
@@ -1010,7 +1278,8 @@ static int nxs_vidioc_dqbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 	int ret;
 
 	mutex_lock(&video->queue_lock);
-	ret = vb2_dqbuf(&vfh->queue, b, file->f_flags & O_NONBLOCK);
+	ret = is_m2m(video) ? v4l2_m2m_dqbuf(file, vfh->m2m_ctx, b) :
+		vb2_dqbuf(&vfh->queue, b, file->f_flags & O_NONBLOCK);
 	mutex_unlock(&video->queue_lock);
 
 	return ret;
@@ -1024,7 +1293,8 @@ static int nxs_vidioc_create_bufs(struct file *file, void *fh,
 	int ret;
 
 	mutex_lock(&video->queue_lock);
-	ret = vb2_create_bufs(&vfh->queue, b);
+	ret = is_m2m(video) ? v4l2_m2m_create_bufs(file, vfh->m2m_ctx, b) :
+		vb2_create_bufs(&vfh->queue, b);
 	mutex_unlock(&video->queue_lock);
 
 	return ret;
@@ -1038,7 +1308,8 @@ static int nxs_vidioc_prepare_buf(struct file *file, void *fh,
 	int ret;
 
 	mutex_lock(&video->queue_lock);
-	ret = vb2_prepare_buf(&vfh->queue, b);
+	ret = is_m2m(video) ? v4l2_m2m_prepare_buf(file, vfh->m2m_ctx, b):
+		vb2_prepare_buf(&vfh->queue, b);
 	mutex_unlock(&video->queue_lock);
 
 	return ret;
@@ -1057,7 +1328,8 @@ static int nxs_vidioc_streamon(struct file *file, void *fh,
 
 	mutex_lock(&video->stream_lock);
 	mutex_lock(&video->queue_lock);
-	ret = vb2_streamon(&vfh->queue, type);
+	ret = is_m2m(video) ? v4l2_m2m_streamon(file, vfh->m2m_ctx, type) :
+		vb2_streamon(&vfh->queue, type);
 	mutex_unlock(&video->queue_lock);
 	mutex_unlock(&video->stream_lock);
 
@@ -1076,7 +1348,8 @@ static int nxs_vidioc_streamoff(struct file *file, void *fh,
 
 	mutex_lock(&video->stream_lock);
 	mutex_lock(&video->queue_lock);
-	ret = vb2_streamoff(&vfh->queue, type);
+	ret = is_m2m(video) ? v4l2_m2m_streamoff(file, vfh->m2m_ctx, type) :
+		vb2_streamoff(&vfh->queue, type);
 	mutex_unlock(&video->queue_lock);
 	mutex_unlock(&video->stream_lock);
 
@@ -1187,9 +1460,12 @@ static int nxs_vidioc_try_ext_ctrls(struct file *file, void *fh,
 static int nxs_vidioc_cropcap(struct file *file, void *fh,
 			      struct v4l2_cropcap *a)
 {
-	/* struct nxs_video_fh *vfh = to_nxs_video_fh(fh); */
-	/* struct nxs_video *video = vfh->video; */
+	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
 	/* int ret; */
+
+	/* m2m device does not support crop */
+	if (is_m2m(vfh->video))
+		return -EINVAL;
 
 	/* TODO */
 	return 0;
@@ -1198,6 +1474,10 @@ static int nxs_vidioc_cropcap(struct file *file, void *fh,
 static int nxs_vidioc_g_crop(struct file *file, void *fh, struct v4l2_crop *a)
 {
 	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
+
+	/* m2m device does not support crop */
+	if (is_m2m(vfh->video))
+		return -EINVAL;
 
 	if (vfh->crop.type == 0)
 		return -EINVAL;
@@ -1212,6 +1492,10 @@ static int nxs_vidioc_s_crop(struct file *file, void *fh,
 {
 	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
 
+	/* m2m device does not support crop */
+	if (is_m2m(vfh->video))
+		return -EINVAL;
+
 	/* TODO: check crop area */
 	memcpy(&vfh->crop, a, sizeof(*a));
 
@@ -1222,6 +1506,10 @@ static int nxs_vidioc_g_selection(struct file *file, void *fh,
 				  struct v4l2_selection *s)
 {
 	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
+
+	/* m2m device does not support selection */
+	if (is_m2m(vfh->video))
+		return -EINVAL;
 
 	if (vfh->selection.type == 0)
 		return -EINVAL;
@@ -1236,6 +1524,10 @@ static int nxs_vidioc_s_selection(struct file *file, void *fh,
 {
 	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
 
+	/* m2m device does not support selection */
+	if (is_m2m(vfh->video))
+		return -EINVAL;
+
 	/* TODO: check selection area */
 	memcpy(&vfh->selection, s, sizeof(*s));
 
@@ -1247,6 +1539,10 @@ static int nxs_vidioc_g_parm(struct file *file, void *fh,
 			     struct v4l2_streamparm *a)
 {
 	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
+
+	/* m2m device does not support parm */
+	if (is_m2m(vfh->video))
+		return -EINVAL;
 
 	if (vfh->parm.type == 0)
 		return -EINVAL;
@@ -1260,6 +1556,10 @@ static int nxs_vidioc_s_parm(struct file *file, void *fh,
 			     struct v4l2_streamparm *a)
 {
 	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
+
+	/* m2m device does not support parm */
+	if (is_m2m(vfh->video))
+		return -EINVAL;
 
 	/* TODO: check parm parameter */
 	memcpy(&vfh->parm, a, sizeof(*a));
@@ -1323,31 +1623,56 @@ static int nxs_vidioc_enum_frameintervals(struct file *file, void *fh,
 static int nxs_vidioc_s_dv_timings(struct file *file, void *fh,
 				   struct v4l2_dv_timings *timings)
 {
-	return 0;
+	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
+
+	if (is_render(vfh->video))
+		return 0;
+
+	return -EINVAL;
 }
 
 static int nxs_vidioc_g_dv_timings(struct file *file, void *fh,
 				   struct v4l2_dv_timings *timings)
 {
-	return 0;
+	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
+
+	if (is_render(vfh->video))
+		return 0;
+
+	return -EINVAL;
 }
 
 static int nxs_vidioc_query_dv_timings(struct file *file, void *fh,
 				       struct v4l2_dv_timings *timings)
 {
-	return 0;
+	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
+
+	if (is_render(vfh->video))
+		return 0;
+
+	return -EINVAL;
 }
 
 static int nxs_vidioc_enum_dv_timings(struct file *file, void *fh,
 				      struct v4l2_enum_dv_timings *timings)
 {
-	return 0;
+	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
+
+	if (is_render(vfh->video))
+		return 0;
+
+	return -EINVAL;
 }
 
 static int nxs_vidioc_dv_timings_cap(struct file *file, void *fh,
 				     struct v4l2_dv_timings_cap *cap)
 {
-	return 0;
+	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
+
+	if (is_render(vfh->video))
+		return 0;
+
+	return -EINVAL;
 }
 
 /* EDID IOCTLs */
@@ -1355,13 +1680,23 @@ static int nxs_vidioc_dv_timings_cap(struct file *file, void *fh,
 static int nxs_vidioc_g_edid(struct file *file, void *fh,
 			     struct v4l2_edid *edid)
 {
-	return 0;
+	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
+
+	if (is_render(vfh->video))
+		return 0;
+
+	return -EINVAL;
 }
 
 static int nxs_vidioc_s_edid(struct file *file, void *fh,
 			     struct v4l2_edid *edid)
 {
-	return 0;
+	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
+
+	if (is_render(vfh->video))
+		return 0;
+
+	return -EINVAL;
 }
 
 /* v4l2_event IOCTLs */
@@ -1512,24 +1847,11 @@ static int nxs_vb2_queue_setup(struct vb2_queue *q,
 
 static int nxs_vb2_buf_prepare(struct vb2_buffer *buf)
 {
-	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(buf);
 	struct nxs_video_fh *vfh = vb2_get_drv_priv(buf->vb2_queue);
-	struct nxs_video_buffer *buffer = to_nxs_video_buffer(vbuf);
-	struct nxs_video *video = vfh->video;
 	int i;
 
-	memcpy(buffer->strides, vfh->strides,
-	       buf->num_planes * sizeof(unsigned int));
-
-	for (i = 0; i < buf->num_planes; i++) {
-		buffer->dma_addr[i] = vb2_dma_contig_plane_dma_addr(buf, i);
-		if (!buffer->dma_addr[i]) {
-			dev_err(&video->vdev.dev,
-				"failed to get dma address for index %d\n", i);
-			return -ENOMEM;
-		}
-		vb2_set_plane_payload(&buffer->vb.vb2_buf, 0, vfh->sizes[i]);
-	}
+	for (i = 0; i < buf->num_planes; i++)
+		vb2_set_plane_payload(buf, i, vfh->sizes[i]);
 
 	return 0;
 }
@@ -1559,7 +1881,8 @@ static int nxs_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 		return -ENOMEM;
 	}
 
-	ret = nxs_chain_register_irqcallback(video->nxs_function, vfh);
+	ret = nxs_chain_register_irqcallback(video->nxs_function, vfh,
+					     nxs_video_irqcallback);
 	if (ret)
 		return ret;
 
@@ -1628,41 +1951,70 @@ static int nxs_vbq_init(struct nxs_video_fh *vfh, u32 type)
 }
 
 /* m2m vb2 ops */
-static int nxs_m2m_vb2_queue_setup(struct vb2_queue *q,
-				   const void *parg,
-				   unsigned int *num_buffers,
-				   unsigned int *num_planes,
-				   unsigned int sizes[],
-				   void *alloc_ctxs[])
-{
-	/* TODO */
-	return 0;
-}
+/* static int nxs_m2m_vb2_queue_setup(struct vb2_queue *q, */
+/* 				   const void *parg, */
+/* 				   unsigned int *num_buffers, */
+/* 				   unsigned int *num_planes, */
+/* 				   unsigned int sizes[], */
+/* 				   void *alloc_ctxs[]) */
+/* { */
+/* 	#<{(| TODO |)}># */
+/* 	return 0; */
+/* } */
 
 static int nxs_m2m_vb2_buf_prepare(struct vb2_buffer *buf)
 {
-	/* TODO */
+	struct nxs_video_fh *vfh = vb2_get_drv_priv(buf->vb2_queue);
+	int i;
+
+	if (!V4L2_TYPE_IS_OUTPUT(buf->vb2_queue->type))
+		for (i = 0; i < vfh->dst_num_planes; i++)
+			vb2_set_plane_payload(buf, 0, vfh->sizes[i]);
+
 	return 0;
 }
 
 static void nxs_m2m_vb2_buf_queue(struct vb2_buffer *buf)
 {
-	/* TODO */
+	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(buf);
+	struct nxs_video_fh *vfh = vb2_get_drv_priv(buf->vb2_queue);
+
+	if (vfh->m2m_ctx)
+		v4l2_m2m_buf_queue(vfh->m2m_ctx, vbuf);
 }
 
 static int nxs_m2m_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 {
-	/* TODO */
+	struct nxs_video_fh *vfh = vb2_get_drv_priv(q);
+	struct nxs_video *video = vfh->video;
+	int ret;
+
+	ret = nxs_chain_register_irqcallback(video->nxs_function, vfh,
+					     nxs_video_m2m_irqcallback);
+	if (ret)
+		return ret;
+
+	ret = nxs_m2m_chain_config(video->nxs_function, vfh);
+	if (ret)
+		return ret;
+
 	return 0;
 }
 
 static void nxs_m2m_vb2_stop_streaming(struct vb2_queue *q)
 {
-	/* TODO */
+	struct nxs_video_fh *vfh = vb2_get_drv_priv(q);
+	struct nxs_video *video = vfh->video;
+
+	nxs_m2m_job_abort(vfh);
+
+	nxs_chain_stop(video->nxs_function);
+	nxs_chain_unregister_irqcallback(video->nxs_function);
 }
 
 static struct vb2_ops nxs_m2m_vb2_ops = {
-	.queue_setup		= nxs_m2m_vb2_queue_setup,
+	/* .queue_setup		= nxs_m2m_vb2_queue_setup, */
+	.queue_setup		= nxs_vb2_queue_setup,
 	.buf_prepare		= nxs_m2m_vb2_buf_prepare,
 	.buf_queue		= nxs_m2m_vb2_buf_queue,
 	.start_streaming	= nxs_m2m_vb2_start_streaming,
@@ -1672,13 +2024,44 @@ static struct vb2_ops nxs_m2m_vb2_ops = {
 static int nxs_m2m_queue_init(void *priv, struct vb2_queue *src_q,
 			      struct vb2_queue *dst_q)
 {
-	/* struct nxs_video_fh *vfh = priv; */
-	/* int ret; */
+	struct nxs_video_fh *vfh = priv;
+	int ret;
 
 	memset(src_q, 0, sizeof(*src_q));
+	src_q->type = is_multiplanar(vfh->type) ?
+		V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE :
+		V4L2_BUF_TYPE_VIDEO_OUTPUT;
+	src_q->io_modes = VB2_MMAP | VB2_USERPTR | VB2_DMABUF;
+	src_q->drv_priv = vfh;
+	src_q->ops = &nxs_m2m_vb2_ops;
+	src_q->mem_ops = &vb2_dma_contig_memops;
+	src_q->buf_struct_size = sizeof(struct v4l2_m2m_buffer);
+	src_q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
+	/* HACK: check below type */
+	/* src_q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY; */
+	/* HACK: check lock like below */
+	/* src_q->lock = &vfh->lock; */
 
-	/* TODO */
-	return 0;
+	ret = vb2_queue_init(src_q);
+	if (ret)
+		return ret;
+
+	memset(dst_q, 0, sizeof(*dst_q));
+	dst_q->type = is_multiplanar(vfh->type) ?
+		V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE :
+		V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	dst_q->io_modes = VB2_MMAP | VB2_USERPTR | VB2_DMABUF;
+	dst_q->drv_priv = vfh;
+	dst_q->ops = &nxs_m2m_vb2_ops;
+	dst_q->mem_ops = &vb2_dma_contig_memops;
+	dst_q->buf_struct_size = sizeof(struct v4l2_m2m_buffer);
+	dst_q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
+	/* HACK: check below type */
+	/* dst_q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY; */
+	/* HACK: check lock like below */
+	/* dst_q->lock = &vfh->lock; */
+
+	return vb2_queue_init(dst_q);
 }
 
 static u32 get_nxs_video_type(struct nxs_function_instance *inst)
