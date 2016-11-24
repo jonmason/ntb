@@ -164,6 +164,58 @@
 				     <0 IRQ_ALIVE 0>;
 		};
 
+		amba {
+			#address-cells = <1>;
+			#size-cells = <1>;
+			compatible = "arm,amba-bus";
+			interrupt-parent = <&gic>;
+			ranges;
+
+			dmac0: dmac@0x20780000 {
+				compatible = "arm,pl330", "arm,primecell";
+				reg = <PHYS_BASE_DMAC0 0x1000>;
+				interrupts = <0 IRQ_DMA0 0>;
+				#dma-cells = <1>;
+				#dma-channels = <4>;
+				#dma-requests = <32>;
+			};
+
+			dmac1: dmac@0x20790000 {
+				compatible = "arm,pl330", "arm,primecell";
+				reg = <PHYS_BASE_DMAC1 0x1000>;
+				interrupts = <0 IRQ_DMA1 0>;
+				#dma-cells = <1>;
+				#dma-channels = <4>;
+				#dma-requests = <32>;
+			};
+
+			sdma0: sdma@0x207a0000 {
+				compatible = "arm,pl330", "arm,primecell";
+				reg = <PHYS_BASE_SEC_DMA0 0x1000>;
+				interrupts = <0 IRQ_SDMA0 0>;
+				#dma-cells = <1>;
+				#dma-channels = <4>;
+				#dma-requests = <32>;
+			};
+
+			sdma1: sdma@0x207b0000 {
+				compatible = "arm,pl330", "arm,primecell";
+				reg = <PHYS_BASE_SEC_DMA1 0x1000>;
+				interrupts = <0 IRQ_SDMA1 0>;
+				#dma-cells = <1>;
+				#dma-channels = <4>;
+				#dma-requests = <32>;
+			};
+
+			mdmac: mdmac@0x207c0000 {
+				compatible = "arm,pl330", "arm,primecell";
+				reg = <PHYS_BASE_MDMAC0 0x1000>;
+				interrupts = <0 IRQ_MDMA 0>;
+				#dma-cells = <1>;
+				#dma-channels = <4>;
+				#dma-requests = <32>;
+			};
+		};
 	}; /*** soc ***/
 };
 
