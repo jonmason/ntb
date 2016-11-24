@@ -33,6 +33,7 @@ enum nxs_event_type {
 enum nxs_control_type {
 	NXS_CONTROL_NONE	= 0,
 	NXS_CONTROL_FORMAT, /* width, height, pixelformat */
+	NXS_CONTROL_DST_FORMAT, /* m2m: width, height, pixelformat */
 	NXS_CONTROL_CROP, /* input source cropping */
 	NXS_CONTROL_SELECTION, /* output target position */
 	NXS_CONTROL_TPF, /* timeperframe */
