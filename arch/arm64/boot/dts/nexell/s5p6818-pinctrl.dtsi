@@ -310,28 +310,28 @@ pinctrl@C0010000 {
 	pwm0_pin:pwm0 {
 		nexell,pins = "gpiod-1";
 		nexell,pin-function = <1>;
-		nexell,pin-pull = <0>;
+		nexell,pin-pull = <2>;
 		nexell,pin-strength = <0>;
 	};
 
 	pwm1_pin:pwm1 {
 		nexell,pins = "gpioc-13";
 		nexell,pin-function = <2>;
-		nexell,pin-pull = <0>;
+		nexell,pin-pull = <2>;
 		nexell,pin-strength = <0>;
 	};
 
 	pwm2_pin:pwm2 {
 		nexell,pins = "gpioc-14";
 		nexell,pin-function = <2>;
-		nexell,pin-pull = <0>;
+		nexell,pin-pull = <2>;
 		nexell,pin-strength = <0>;
 	};
 
 	pwm3_pin:pwm3 {
 		nexell,pins = "gpiod-0";
 		nexell,pin-function = <2>;
-		nexell,pin-pull = <0>;
+		nexell,pin-pull = <2>;
 		nexell,pin-strength = <0>;
 	};
 
@@ -339,7 +339,7 @@ pinctrl@C0010000 {
 		nexell,pins = "gpiod-9", "gpiod-10", "gpiod-11",
 				"gpiod-12", "gpiod-13";
 		nexell,pin-function = <1>;
-		nexell,pin-pull = <0>;
+		nexell,pin-pull = <2>;
 		nexell,pin-strength = <0>;
 	};
 
@@ -347,7 +347,7 @@ pinctrl@C0010000 {
 		nexell,pins = "gpioa-28", "gpioa-30", "gpiob-0",
 				"gpiob-6", "gpiob-9";
 		nexell,pin-function = <3>;
-		nexell,pin-pull = <0>;
+		nexell,pin-pull = <2>;
 		nexell,pin-strength = <0>;
 	};
 
@@ -355,7 +355,7 @@ pinctrl@C0010000 {
 		i2s2_mclk: i2s2-mclk {
 			nexell,pins = "gpioa-28";
 			nexell,pin-function = <2>;
-			nexell,pin-pull = <0>;
+			nexell,pin-pull = <2>;
 			nexell,pin-strength = <0>;
 		};
 
@@ -363,7 +363,7 @@ pinctrl@C0010000 {
 			nexell,pins = "gpiob-2", "gpiob-4",
 					"gpiob-8", "gpiob-10";
 			nexell,pin-function = <3>;
-			nexell,pin-pull = <0>;
+			nexell,pin-pull = <2>;
 			nexell,pin-strength = <0>;
 		};
 	};
