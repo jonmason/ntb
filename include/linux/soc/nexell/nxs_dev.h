@@ -177,6 +177,7 @@ struct nxs_dev {
 			   const union nxs_control *pparam);
 	int (*get_control)(const struct nxs_dev *pthis, int type,
 			   union nxs_control *pparam);
+	int (*set_dirty)(const struct nxs_dev *pthis);
 
 	struct nxs_dev_service dev_services[NXS_MAX_SERVICES];
 };
