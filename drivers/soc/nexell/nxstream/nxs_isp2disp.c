@@ -73,6 +73,11 @@ static int isp2disp_stop(const struct nxs_dev *pthis)
 	return 0;
 }
 
+static int isp2disp_set_tid(const struct nxs_dev *pthis)
+{
+	return 0;
+}
+
 static int isp2disp_set_syncinfo(const struct nxs_dev *pthis,
 			    const union nxs_control *pparam)
 {
@@ -109,6 +114,7 @@ static int nxs_isp2disp_probe(struct platform_device *pdev)
 	nxs_dev->close = isp2disp_close;
 	nxs_dev->start = isp2disp_start;
 	nxs_dev->stop = isp2disp_stop;
+	nxs_dev->set_tid = isp2disp_set_tid;
 	nxs_dev->set_control = nxs_set_control;
 	nxs_dev->get_control = nxs_get_control;
 	nxs_dev->dev_services[0].type = NXS_CONTROL_SYNCINFO;
