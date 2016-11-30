@@ -73,6 +73,16 @@ static int cropper_stop(const struct nxs_dev *pthis)
 	return 0;
 }
 
+static int cropper_set_dirty(const struct nxs_dev *pthis)
+{
+	return 0;
+}
+
+static int cropper_set_tid(const struct nxs_dev *pthis)
+{
+	return 0;
+}
+
 static int cropper_set_syncinfo(const struct nxs_dev *pthis,
 			    const union nxs_control *pparam)
 {
@@ -109,6 +119,8 @@ static int nxs_cropper_probe(struct platform_device *pdev)
 	nxs_dev->close = cropper_close;
 	nxs_dev->start = cropper_start;
 	nxs_dev->stop = cropper_stop;
+	nxs_dev->set_dirty = cropper_set_dirty;
+	nxs_dev->set_tid = cropper_set_tid;
 	nxs_dev->set_control = nxs_set_control;
 	nxs_dev->get_control = nxs_get_control;
 	nxs_dev->dev_services[0].type = NXS_CONTROL_SYNCINFO;
