@@ -135,6 +135,10 @@
 #define V2V_DELAY_BIT_OFFSET		0
 #define V2V_DELAY_BIT_MASK		0xffffffff
 
+struct nxs_tpgen {
+	struct nxs_dev nxs_dev;
+};
+
 static void tpgen_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 				     bool enable)
 {
@@ -189,12 +193,14 @@ static int tpgen_get_syncinfo(const struct nxs_dev *pthis,
 static int nxs_tpgen_probe(struct platform_device *pdev)
 {
 	int ret;
+	struct nxs_tpgen *tpgen;
 	struct nxs_dev *nxs_dev;
 
-	nxs_dev = devm_kzalloc(&pdev->dev, sizeof(*nxs_dev), GFP_KERNEL);
-	if (!nxs_dev)
+	tpgen = devm_kzalloc(&pdev->dev, sizeof(*tpgen), GFP_KERNEL);
+	if (!tpgen)
 		return -ENOMEM;
 
+	nxs_dev = &tpgen->nxs_dev;
 
 	ret = nxs_dev_parse_dt(pdev, nxs_dev);
 	if (ret)
@@ -221,17 +227,17 @@ static int nxs_tpgen_probe(struct platform_device *pdev)
 		return ret;
 
 	dev_info(nxs_dev->dev, "%s: success\n", __func__);
-	platform_set_drvdata(pdev, nxs_dev);
+	platform_set_drvdata(pdev, tpgen);
 
 	return 0;
 }
 
 static int nxs_tpgen_remove(struct platform_device *pdev)
 {
-	struct nxs_dev *nxs_dev = platform_get_drvdata(pdev);
+	struct nxs_tpgen *tpgen = platform_get_drvdata(pdev);
 
-	if (nxs_dev)
-		unregister_nxs_dev(nxs_dev);
+	if (tpgen)
+		unregister_nxs_dev(&tpgen->nxs_dev);
 
 	return 0;
 }
