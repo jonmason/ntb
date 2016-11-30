@@ -29,6 +29,11 @@
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
+struct nxs_vip {
+	struct nxs_dev nxs_dev_clipper;
+	struct nxs_dev nxs_dev_decimator;
+};
+
 static void vip_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 				     bool enable)
 {
@@ -83,14 +88,15 @@ static int vip_get_syncinfo(const struct nxs_dev *pthis,
 static int nxs_vip_probe(struct platform_device *pdev)
 {
 	int ret;
+	struct nxs_vip *vip;
 	struct nxs_dev *nxs_dev_clipper;
 	struct nxs_dev *nxs_dev_decimator;
 
-	nxs_dev_clipper = devm_kzalloc(&pdev->dev, sizeof(*nxs_dev_clipper),
-				       GFP_KERNEL);
-	if (!nxs_dev_clipper)
+	vip = devm_kzalloc(&pdev->dev, sizeof(*vip), GFP_KERNEL);
+	if (!vip)
 		return -ENOMEM;
 
+	nxs_dev_clipper = &vip->nxs_dev_clipper;
 
 	ret = nxs_dev_parse_dt(pdev, nxs_dev_clipper);
 	if (ret)
@@ -117,12 +123,7 @@ static int nxs_vip_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	nxs_dev_decimator = devm_kzalloc(&pdev->dev, sizeof(*nxs_dev_decimator),
-					 GFP_KERNEL);
-	if (!nxs_dev_decimator) {
-		unregister_nxs_dev(nxs_dev_clipper);
-		return -ENOMEM;
-	}
+	nxs_dev_decimator = &vip->nxs_dev_decimator;
 
 	INIT_LIST_HEAD(&nxs_dev_decimator->list);
 	nxs_dev_decimator->dev_ver = nxs_dev_clipper->dev_ver;
@@ -161,19 +162,18 @@ static int nxs_vip_probe(struct platform_device *pdev)
 	nxs_dev_decimator->sibling = nxs_dev_clipper;
 
 	dev_info(&pdev->dev, "%s: success\n", __func__);
-	platform_set_drvdata(pdev, nxs_dev_clipper);
+	platform_set_drvdata(pdev, vip);
 
 	return 0;
 }
 
 static int nxs_vip_remove(struct platform_device *pdev)
 {
-	struct nxs_dev *nxs_dev = platform_get_drvdata(pdev);
+	struct nxs_vip *vip = platform_get_drvdata(pdev);
 
-	if (nxs_dev) {
-		unregister_nxs_dev(nxs_dev);
-		if (nxs_dev->sibling)
-			unregister_nxs_dev(nxs_dev->sibling);
+	if (vip) {
+		unregister_nxs_dev(&vip->nxs_dev_clipper);
+		unregister_nxs_dev(&vip->nxs_dev_decimator);
 	}
 
 	return 0;
