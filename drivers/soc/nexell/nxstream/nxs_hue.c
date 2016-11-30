@@ -29,6 +29,10 @@
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
+struct nxs_hue {
+	struct nxs_dev nxs_dev;
+};
+
 static void hue_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 				     bool enable)
 {
@@ -83,12 +87,14 @@ static int hue_get_syncinfo(const struct nxs_dev *pthis,
 static int nxs_hue_probe(struct platform_device *pdev)
 {
 	int ret;
+	struct nxs_hue *hue;
 	struct nxs_dev *nxs_dev;
 
-	nxs_dev = devm_kzalloc(&pdev->dev, sizeof(*nxs_dev), GFP_KERNEL);
-	if (!nxs_dev)
+	hue = devm_kzalloc(&pdev->dev, sizeof(*hue), GFP_KERNEL);
+	if (!hue)
 		return -ENOMEM;
 
+	nxs_dev = &hue->nxs_dev;
 
 	ret = nxs_dev_parse_dt(pdev, nxs_dev);
 	if (ret)
@@ -115,17 +121,17 @@ static int nxs_hue_probe(struct platform_device *pdev)
 		return ret;
 
 	dev_info(nxs_dev->dev, "%s: success\n", __func__);
-	platform_set_drvdata(pdev, nxs_dev);
+	platform_set_drvdata(pdev, hue);
 
 	return 0;
 }
 
 static int nxs_hue_remove(struct platform_device *pdev)
 {
-	struct nxs_dev *nxs_dev = platform_get_drvdata(pdev);
+	struct nxs_hue *hue = platform_get_drvdata(pdev);
 
-	if (nxs_dev)
-		unregister_nxs_dev(nxs_dev);
+	if (hue)
+		unregister_nxs_dev(&hue->nxs_dev);
 
 	return 0;
 }
