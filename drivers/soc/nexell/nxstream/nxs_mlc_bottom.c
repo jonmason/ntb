@@ -29,22 +29,25 @@
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
-static void mlc_bottom_set_interrupt_enable(const struct nxs_dev *pthis, int type,
-				     bool enable)
+static void mlc_bottom_set_interrupt_enable(const struct nxs_dev *pthis,
+					    int type, bool enable)
 {
 }
 
-static u32 mlc_bottom_get_interrupt_enable(const struct nxs_dev *pthis, int type)
-{
-	return 0;
-}
-
-static u32 mlc_bottom_get_interrupt_pending(const struct nxs_dev *pthis, int type)
+static u32 mlc_bottom_get_interrupt_enable(const struct nxs_dev *pthis,
+					   int type)
 {
 	return 0;
 }
 
-static void mlc_bottom_clear_interrupt_pending(const struct nxs_dev *pthis, int type)
+static u32 mlc_bottom_get_interrupt_pending(const struct nxs_dev *pthis,
+					    int type)
+{
+	return 0;
+}
+
+static void mlc_bottom_clear_interrupt_pending(const struct nxs_dev *pthis,
+					       int type)
 {
 }
 
