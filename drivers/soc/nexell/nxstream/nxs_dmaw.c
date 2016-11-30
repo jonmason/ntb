@@ -87,6 +87,11 @@ static int dmaw_close(const struct nxs_dev *pthis)
 	return 0;
 }
 
+static int dmaw_set_dirty(const struct nxs_dev *pthis)
+{
+	return 0;
+}
+
 static int dmaw_start(const struct nxs_dev *pthis)
 {
 #ifdef SIMULATE_INTERRUPT
@@ -125,30 +130,34 @@ static int nxs_dmaw_probe(struct platform_device *pdev)
 {
 	int ret;
 	struct nxs_dmaw *dmaw;
+	struct nxs_dev *nxs_dev;
 
 	dmaw = devm_kzalloc(&pdev->dev, sizeof(*dmaw), GFP_KERNEL);
 	if (!dmaw)
 		return -ENOMEM;
 
-	ret = nxs_dev_parse_dt(pdev, &dmaw->nxs_dev);
+	nxs_dev = &dmaw->nxs_dev;
+
+	ret = nxs_dev_parse_dt(pdev, nxs_dev);
 	if (ret)
 		return ret;
 
-	dmaw->nxs_dev.set_interrupt_enable = dmaw_set_interrupt_enable;
-	dmaw->nxs_dev.get_interrupt_enable = dmaw_get_interrupt_enable;
-	dmaw->nxs_dev.get_interrupt_pending = dmaw_get_interrupt_pending;
-	dmaw->nxs_dev.clear_interrupt_pending = dmaw_clear_interrupt_pending;
-	dmaw->nxs_dev.open = dmaw_open;
-	dmaw->nxs_dev.close = dmaw_close;
-	dmaw->nxs_dev.start = dmaw_start;
-	dmaw->nxs_dev.stop = dmaw_stop;
-	dmaw->nxs_dev.set_control = nxs_set_control;
-	dmaw->nxs_dev.get_control = nxs_get_control;
-	dmaw->nxs_dev.dev_services[0].type = NXS_CONTROL_SYNCINFO;
-	dmaw->nxs_dev.dev_services[0].set_control = dmaw_set_syncinfo;
-	dmaw->nxs_dev.dev_services[0].get_control = dmaw_get_syncinfo;
+	nxs_dev->set_interrupt_enable = dmaw_set_interrupt_enable;
+	nxs_dev->get_interrupt_enable = dmaw_get_interrupt_enable;
+	nxs_dev->get_interrupt_pending = dmaw_get_interrupt_pending;
+	nxs_dev->clear_interrupt_pending = dmaw_clear_interrupt_pending;
+	nxs_dev->open = dmaw_open;
+	nxs_dev->close = dmaw_close;
+	nxs_dev->start = dmaw_start;
+	nxs_dev->stop = dmaw_stop;
+	nxs_dev->set_dirty = dmaw_set_dirty;
+	nxs_dev->set_control = nxs_set_control;
+	nxs_dev->get_control = nxs_get_control;
+	nxs_dev->dev_services[0].type = NXS_CONTROL_SYNCINFO;
+	nxs_dev->dev_services[0].set_control = dmaw_set_syncinfo;
+	nxs_dev->dev_services[0].get_control = dmaw_get_syncinfo;
 
-	dmaw->nxs_dev.dev = &pdev->dev;
+	nxs_dev->dev = &pdev->dev;
 
 #ifdef SIMULATE_INTERRUPT
 	setup_timer(&dmaw->timer, int_timer_func, (long)dmaw);
