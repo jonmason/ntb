@@ -44,7 +44,8 @@ static u32 mipi_dsi_get_interrupt_pending(const struct nxs_dev *pthis, int type)
 	return 0;
 }
 
-static void mipi_dsi_clear_interrupt_pending(const struct nxs_dev *pthis, int type)
+static void mipi_dsi_clear_interrupt_pending(const struct nxs_dev *pthis,
+					     int type)
 {
 }
 
