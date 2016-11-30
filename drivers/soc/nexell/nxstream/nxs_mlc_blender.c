@@ -29,6 +29,10 @@
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
+struct nxs_blender {
+	struct nxs_dev nxs_dev;
+};
+
 static void mlc_blender_set_interrupt_enable(const struct nxs_dev *pthis,
 					     int type, bool enable)
 {
@@ -86,12 +90,14 @@ static int mlc_blender_get_syncinfo(const struct nxs_dev *pthis,
 static int nxs_mlc_blender_probe(struct platform_device *pdev)
 {
 	int ret;
+	struct nxs_blender *blender;
 	struct nxs_dev *nxs_dev;
 
-	nxs_dev = devm_kzalloc(&pdev->dev, sizeof(*nxs_dev), GFP_KERNEL);
-	if (!nxs_dev)
+	blender = devm_kzalloc(&pdev->dev, sizeof(*blender), GFP_KERNEL);
+	if (!blender)
 		return -ENOMEM;
 
+	nxs_dev = &blender->nxs_dev;
 
 	ret = nxs_dev_parse_dt(pdev, nxs_dev);
 	if (ret)
@@ -118,17 +124,17 @@ static int nxs_mlc_blender_probe(struct platform_device *pdev)
 		return ret;
 
 	dev_info(nxs_dev->dev, "%s: success\n", __func__);
-	platform_set_drvdata(pdev, nxs_dev);
+	platform_set_drvdata(pdev, blender);
 
 	return 0;
 }
 
 static int nxs_mlc_blender_remove(struct platform_device *pdev)
 {
-	struct nxs_dev *nxs_dev = platform_get_drvdata(pdev);
+	struct nxs_blender *blender = platform_get_drvdata(pdev);
 
-	if (nxs_dev)
-		unregister_nxs_dev(nxs_dev);
+	if (blender)
+		unregister_nxs_dev(&blender->nxs_dev);
 
 	return 0;
 }
