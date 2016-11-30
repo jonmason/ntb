@@ -631,7 +631,7 @@
 		};
 
 		scaler_4096_0: scaler_4096@20c00c00 {
-			compatible = "nexell,scaler_4096-nxs-1.0";
+			compatible = "nexell,scaler-nxs-1.0";
 			reg = <NXS_REGBASE_SCALER(0) NXS_REGSIZE_SCALER>;
 			/* interrupts = <0 144 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
@@ -644,6 +644,7 @@
 			can_multitap_follow = <1>;
 			/* reset */
 			/* clock */
+			line_buffer_size = <4096>; /* scaler specific */
 			status = "disabled";
 		};
 
@@ -661,6 +662,7 @@
 			can_multitap_follow = <1>;
 			/* reset */
 			/* clock */
+			line_buffer_size = <4096>; /* scaler specific */
 			status = "disabled";
 		};
 
@@ -678,6 +680,7 @@
 			can_multitap_follow = <1>;
 			/* reset */
 			/* clock */
+			line_buffer_size = <5376>; /* scaler specific */
 			status = "disabled";
 		};
 
