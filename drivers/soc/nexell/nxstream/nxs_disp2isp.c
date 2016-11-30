@@ -29,6 +29,10 @@
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
+struct nxs_disp2isp {
+	struct nxs_dev nxs_dev;
+};
+
 static void disp2isp_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 				     bool enable)
 {
@@ -84,12 +88,14 @@ static int disp2isp_get_syncinfo(const struct nxs_dev *pthis,
 static int nxs_disp2isp_probe(struct platform_device *pdev)
 {
 	int ret;
+	struct nxs_disp2isp *disp2isp;
 	struct nxs_dev *nxs_dev;
 
-	nxs_dev = devm_kzalloc(&pdev->dev, sizeof(*nxs_dev), GFP_KERNEL);
-	if (!nxs_dev)
+	disp2isp = devm_kzalloc(&pdev->dev, sizeof(*disp2isp), GFP_KERNEL);
+	if (!disp2isp)
 		return -ENOMEM;
 
+	nxs_dev = &disp2isp->nxs_dev;
 
 	ret = nxs_dev_parse_dt(pdev, nxs_dev);
 	if (ret)
@@ -116,17 +122,17 @@ static int nxs_disp2isp_probe(struct platform_device *pdev)
 		return ret;
 
 	dev_info(nxs_dev->dev, "%s: success\n", __func__);
-	platform_set_drvdata(pdev, nxs_dev);
+	platform_set_drvdata(pdev, disp2isp);
 
 	return 0;
 }
 
 static int nxs_disp2isp_remove(struct platform_device *pdev)
 {
-	struct nxs_dev *nxs_dev = platform_get_drvdata(pdev);
+	struct nxs_disp2isp *disp2isp = platform_get_drvdata(pdev);
 
-	if (nxs_dev)
-		unregister_nxs_dev(nxs_dev);
+	if (disp2isp)
+		unregister_nxs_dev(&disp2isp->nxs_dev);
 
 	return 0;
 }
