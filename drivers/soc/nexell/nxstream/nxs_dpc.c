@@ -29,6 +29,10 @@
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
+struct nxs_dpc {
+	struct nxs_dev nxs_dev;
+};
+
 static void dpc_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 				     bool enable)
 {
@@ -83,12 +87,14 @@ static int dpc_get_syncinfo(const struct nxs_dev *pthis,
 static int nxs_dpc_probe(struct platform_device *pdev)
 {
 	int ret;
+	struct nxs_dpc *dpc;
 	struct nxs_dev *nxs_dev;
 
-	nxs_dev = devm_kzalloc(&pdev->dev, sizeof(*nxs_dev), GFP_KERNEL);
-	if (!nxs_dev)
+	dpc = devm_kzalloc(&pdev->dev, sizeof(*dpc), GFP_KERNEL);
+	if (!dpc)
 		return -ENOMEM;
 
+	nxs_dev = &dpc->nxs_dev;
 
 	ret = nxs_dev_parse_dt(pdev, nxs_dev);
 	if (ret)
@@ -115,17 +121,17 @@ static int nxs_dpc_probe(struct platform_device *pdev)
 		return ret;
 
 	dev_info(nxs_dev->dev, "%s: success\n", __func__);
-	platform_set_drvdata(pdev, nxs_dev);
+	platform_set_drvdata(pdev, dpc);
 
 	return 0;
 }
 
 static int nxs_dpc_remove(struct platform_device *pdev)
 {
-	struct nxs_dev *nxs_dev = platform_get_drvdata(pdev);
+	struct nxs_dpc *dpc = platform_get_drvdata(pdev);
 
-	if (nxs_dev)
-		unregister_nxs_dev(nxs_dev);
+	if (dpc)
+		unregister_nxs_dev(&dpc->nxs_dev);
 
 	return 0;
 }
