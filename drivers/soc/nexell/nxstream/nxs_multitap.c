@@ -30,7 +30,7 @@
 #include <linux/soc/nexell/nxs_res_manager.h>
 
 static void multitap_set_interrupt_enable(const struct nxs_dev *pthis, int type,
-				     bool enable)
+					  bool enable)
 {
 }
 
@@ -44,7 +44,8 @@ static u32 multitap_get_interrupt_pending(const struct nxs_dev *pthis, int type)
 	return 0;
 }
 
-static void multitap_clear_interrupt_pending(const struct nxs_dev *pthis, int type)
+static void multitap_clear_interrupt_pending(const struct nxs_dev *pthis,
+					     int type)
 {
 }
 
@@ -160,5 +161,3 @@ module_exit(nxs_multitap_exit);
 MODULE_DESCRIPTION("Nexell Stream MULTITAP driver");
 MODULE_AUTHOR("Sungwoo Park, <swpark@nexell.co.kr>");
 MODULE_LICENSE("GPL");
-
-
