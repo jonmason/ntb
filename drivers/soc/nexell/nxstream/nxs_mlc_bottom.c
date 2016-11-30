@@ -70,6 +70,16 @@ static int mlc_bottom_start(const struct nxs_dev *pthis)
 	return 0;
 }
 
+static int mlc_bottom_set_dirty(const struct nxs_dev *pthis)
+{
+	return 0;
+}
+
+static int mlc_bottom_set_tid(const struct nxs_dev *pthis)
+{
+	return 0;
+}
+
 static int mlc_bottom_stop(const struct nxs_dev *pthis)
 {
 	return 0;
@@ -111,6 +121,8 @@ static int nxs_mlc_bottom_probe(struct platform_device *pdev)
 	nxs_dev->close = mlc_bottom_close;
 	nxs_dev->start = mlc_bottom_start;
 	nxs_dev->stop = mlc_bottom_stop;
+	nxs_dev->set_dirty = mlc_bottom_set_dirty;
+	nxs_dev->set_tid = mlc_bottom_set_tid;
 	nxs_dev->set_control = nxs_set_control;
 	nxs_dev->get_control = nxs_get_control;
 	nxs_dev->dev_services[0].type = NXS_CONTROL_SYNCINFO;
