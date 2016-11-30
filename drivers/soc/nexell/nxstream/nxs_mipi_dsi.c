@@ -73,6 +73,11 @@ static int mipi_dsi_stop(const struct nxs_dev *pthis)
 	return 0;
 }
 
+static int mipi_dsi_set_dirty(const struct nxs_dev *pthis)
+{
+	return 0;
+}
+
 static int mipi_dsi_set_syncinfo(const struct nxs_dev *pthis,
 			    const union nxs_control *pparam)
 {
@@ -109,6 +114,7 @@ static int nxs_mipi_dsi_probe(struct platform_device *pdev)
 	nxs_dev->close = mipi_dsi_close;
 	nxs_dev->start = mipi_dsi_start;
 	nxs_dev->stop = mipi_dsi_stop;
+	nxs_dev->set_dirty = mipi_dsi_set_dirty;
 	nxs_dev->set_control = nxs_set_control;
 	nxs_dev->get_control = nxs_get_control;
 	nxs_dev->dev_services[0].type = NXS_CONTROL_SYNCINFO;
