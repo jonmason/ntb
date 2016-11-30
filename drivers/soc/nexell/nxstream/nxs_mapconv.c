@@ -44,7 +44,8 @@ static u32 mapconv_get_interrupt_pending(const struct nxs_dev *pthis, int type)
 	return 0;
 }
 
-static void mapconv_clear_interrupt_pending(const struct nxs_dev *pthis, int type)
+static void mapconv_clear_interrupt_pending(const struct nxs_dev *pthis,
+					    int type)
 {
 }
 
