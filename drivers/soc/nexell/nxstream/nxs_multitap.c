@@ -29,6 +29,10 @@
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
+struct nxs_multitap {
+	struct nxs_dev nxs_dev;
+};
+
 static void multitap_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 					  bool enable)
 {
@@ -84,12 +88,14 @@ static int multitap_get_syncinfo(const struct nxs_dev *pthis,
 static int nxs_multitap_probe(struct platform_device *pdev)
 {
 	int ret;
+	struct nxs_multitap *multitap;
 	struct nxs_dev *nxs_dev;
 
-	nxs_dev = devm_kzalloc(&pdev->dev, sizeof(*nxs_dev), GFP_KERNEL);
-	if (!nxs_dev)
+	multitap = devm_kzalloc(&pdev->dev, sizeof(*multitap), GFP_KERNEL);
+	if (!multitap)
 		return -ENOMEM;
 
+	nxs_dev = &multitap->nxs_dev;
 
 	ret = nxs_dev_parse_dt(pdev, nxs_dev);
 	if (ret)
@@ -116,17 +122,17 @@ static int nxs_multitap_probe(struct platform_device *pdev)
 		return ret;
 
 	dev_info(nxs_dev->dev, "%s: success\n", __func__);
-	platform_set_drvdata(pdev, nxs_dev);
+	platform_set_drvdata(pdev, multitap);
 
 	return 0;
 }
 
 static int nxs_multitap_remove(struct platform_device *pdev)
 {
-	struct nxs_dev *nxs_dev = platform_get_drvdata(pdev);
+	struct nxs_multitap *multitap = platform_get_drvdata(pdev);
 
-	if (nxs_dev)
-		unregister_nxs_dev(nxs_dev);
+	if (multitap)
+		unregister_nxs_dev(&multitap->nxs_dev);
 
 	return 0;
 }
