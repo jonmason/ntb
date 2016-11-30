@@ -72,6 +72,16 @@ static int fifo_stop(const struct nxs_dev *pthis)
 	return 0;
 }
 
+static int fifo_set_dirty(const struct nxs_dev *pthis)
+{
+	return 0;
+}
+
+static int fifo_set_tid(const struct nxs_dev *pthis)
+{
+	return 0;
+}
+
 static int fifo_set_syncinfo(const struct nxs_dev *pthis,
 			    const union nxs_control *pparam)
 {
@@ -108,6 +118,8 @@ static int nxs_fifo_probe(struct platform_device *pdev)
 	nxs_dev->close = fifo_close;
 	nxs_dev->start = fifo_start;
 	nxs_dev->stop = fifo_stop;
+	nxs_dev->set_dirty = fifo_set_dirty;
+	nxs_dev->set_tid = fifo_set_tid;
 	nxs_dev->set_control = nxs_set_control;
 	nxs_dev->get_control = nxs_get_control;
 	nxs_dev->dev_services[0].type = NXS_CONTROL_SYNCINFO;
