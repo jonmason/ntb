@@ -44,7 +44,8 @@ static u32 disp2isp_get_interrupt_pending(const struct nxs_dev *pthis, int type)
 	return 0;
 }
 
-static void disp2isp_clear_interrupt_pending(const struct nxs_dev *pthis, int type)
+static void disp2isp_clear_interrupt_pending(const struct nxs_dev *pthis,
+					     int type)
 {
 }
 
