@@ -45,8 +45,6 @@
 #define	DEF_SAMPLE_RATE			48000
 #define	DEF_FRAME_BIT			32	/* 32, 48(BFS) */
 
-#define	I2S_BASEADDR			0xC0055000
-#define	I2S_CH_OFFSET			0x1000
 #define	I2S_BUS_WIDTH			4	/* Byte */
 #define	I2S_PERI_BURST			4	/* Byte */
 #define	I2S_MAX_CLOCK			166000000
@@ -82,7 +80,7 @@ struct i2s_register {
 #define	CSR_CDCLKCON_POS		12
 #if defined(CONFIG_ARCH_S5P4418)
 #define	CSR_IMS_POS			10
-#elif defined(CONFIG_ARCH_S5P6818)
+#else
 #define	CSR_IMS_POS			11
 #endif
 #define	CSR_TXR_POS			8
@@ -94,7 +92,7 @@ struct i2s_register {
 #if defined(CONFIG_ARCH_S5P4418)
 #define	IMS_BIT_EXTCLK			(1<<0)
 #define	IMS_BIT_SLAVE			(3<<0)
-#elif defined(CONFIG_ARCH_S5P6818)
+#else
 #define	IMS_BIT_EXTCLK			(0<<0)
 #define	IMS_BIT_SLAVE			(1<<0)
 #endif
@@ -275,6 +273,13 @@ static void i2s_reset(struct device *dev)
 {
 #ifdef CONFIG_RESET_CONTROLLER
 	struct reset_control *rst;
+
+	rst = devm_reset_control_get(dev, "i2s-apb-reset");
+
+	if (!IS_ERR(rst)) {
+		if (reset_control_status(rst))
+			reset_control_reset(rst);
+	}
 
 	rst = devm_reset_control_get(dev, "i2s-reset");
 
@@ -540,18 +545,16 @@ static int nx_i2s_set_plat_param(struct nx_i2s_snd_param *par, void *data)
 {
 	struct platform_device *pdev = data;
 	struct nx_pcm_dma_param *dma = &par->play;
-	unsigned int phy_base = 0;
 	int i = 0, ret = 0;
 	unsigned int id = 0;
 	static struct snd_soc_dai_driver *dai = &i2s_dai_driver;
 	char clkname[MAX_CLK_NAME_LENGTH];
 	int dfs_pllno;
+	struct resource *res;
 
 	id = of_alias_get_id(pdev->dev.of_node, "i2s");
 
 	par->channel = id;
-
-	phy_base = I2S_BASEADDR + (par->channel * I2S_CH_OFFSET);
 
 	of_property_read_u32(pdev->dev.of_node, "master-mode",
 			     &par->master_mode);
@@ -596,6 +599,8 @@ static int nx_i2s_set_plat_param(struct nx_i2s_snd_param *par, void *data)
 	of_property_read_u32(pdev->dev.of_node, "LR-pol-inv",
 			     &par->LR_pol_inv);
 	par->base_addr = of_iomap(pdev->dev.of_node, 0);
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+
 	SND_I2S_LOCK_INIT(&par->lock);
 
 	for (i = 0; 2 > i; i++, dma = &par->capt) {
@@ -603,7 +608,7 @@ static int nx_i2s_set_plat_param(struct nx_i2s_snd_param *par, void *data)
 		dma->dev = &pdev->dev;
 
 		/* I2S TXD/RXD */
-		dma->peri_addr = phy_base + (i == 0 ? I2S_TXD_OFFSET :
+		dma->peri_addr = res->start + (i == 0 ? I2S_TXD_OFFSET :
 					     I2S_RXD_OFFSET);
 		dma->bus_width_byte = I2S_BUS_WIDTH;
 		dma->max_burst_byte = I2S_PERI_BURST;
