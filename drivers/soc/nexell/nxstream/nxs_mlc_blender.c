@@ -75,6 +75,16 @@ static int mlc_blender_stop(const struct nxs_dev *pthis)
 	return 0;
 }
 
+static int mlc_blender_set_dirty(const struct nxs_dev *pthis)
+{
+	return 0;
+}
+
+static int mlc_blender_set_tid(const struct nxs_dev *pthis)
+{
+	return 0;
+}
+
 static int mlc_blender_set_syncinfo(const struct nxs_dev *pthis,
 			    const union nxs_control *pparam)
 {
@@ -111,6 +121,8 @@ static int nxs_mlc_blender_probe(struct platform_device *pdev)
 	nxs_dev->close = mlc_blender_close;
 	nxs_dev->start = mlc_blender_start;
 	nxs_dev->stop = mlc_blender_stop;
+	nxs_dev->set_dirty = mlc_blender_set_dirty;
+	nxs_dev->set_tid = mlc_blender_set_tid;
 	nxs_dev->set_control = nxs_set_control;
 	nxs_dev->get_control = nxs_get_control;
 	nxs_dev->dev_services[0].type = NXS_CONTROL_SYNCINFO;
