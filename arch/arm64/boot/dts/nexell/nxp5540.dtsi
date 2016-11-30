@@ -28,6 +28,11 @@
 	#size-cells = <0x1>;
 
 	aliases {
+		i2s0	 = &i2s_0;
+		i2s1	 = &i2s_1;
+		i2s2	 = &i2s_2;
+		i2s3	 = &i2s_3;
+
 		pinctrl0 = &pinctrl_0;
 	};
 
@@ -216,6 +221,83 @@
 				#dma-channels = <4>;
 				#dma-requests = <32>;
 			};
+		};
+
+		i2s_0:i2s@20830000 {
+			  compatible = "nexell,nexell-i2s";
+			  reg = <PHYS_BASE_I2S0 0x1000>;
+			  dmas = <&dmac0 12 0>, <&dmac0 13 0>;
+			  dma-names = "tx", "rx";
+			  resets = <&nxp5540_reset RESET_ID_I2S_0_APB>,
+					<&nxp5540_reset RESET_ID_I2S_0_CORE>;
+			  reset-names = "i2s-apb-reset", "i2s-reset";
+			  pinctrl-names = "default";
+			  pinctrl-0 = <&i2s0_bus>;
+			  master-mode = <1>;
+			  mclk-in = <0>;
+			  trans-mode = <0>;
+			  frame-bit = <32>;
+			  sample-rate = <48000>;
+			  pre-supply-mclk = <1>;
+			  status = "disabled";
+		};
+
+		i2s_1:i2s@20840000 {
+			  compatible = "nexell,nexell-i2s";
+			  reg = <PHYS_BASE_I2S1 0x1000>;
+			  dmas = <&dmac0 14 0>, <&dmac0 15 0>;
+			  dma-names = "tx", "rx";
+			  resets = <&nxp5540_reset RESET_ID_I2S_1_APB>,
+					<&nxp5540_reset RESET_ID_I2S_1_CORE>;
+			  reset-names = "i2s-apb-reset", "i2s-reset";
+			  pinctrl-names = "default";
+			  pinctrl-0 = <&i2s1_bus>;
+			  master-mode = <1>;
+			  mclk-in = <0>;
+			  trans-mode = <0>;
+			  frame-bit = <32>;
+			  sample-rate = <48000>;
+			  pre-supply-mclk = <1>;
+			  status = "disabled";
+		};
+
+		i2s_2:i2s@20850000 {
+			  compatible = "nexell,nexell-i2s";
+			  reg = <PHYS_BASE_I2S2 0x1000>;
+			  dmas = <&dmac1 0 0>, <&dmac1 1 0>;
+			  dma-names = "tx", "rx";
+			  resets = <&nxp5540_reset RESET_ID_I2S_2_APB>,
+					<&nxp5540_reset RESET_ID_I2S_2_CORE>;
+			  reset-names = "i2s-apb-reset", "i2s-reset";
+			  pinctrl-names = "default";
+			  pinctrl-0 = <&i2s2_bus>;
+			  master-mode = <1>;
+			  mclk-in = <0>;
+			  trans-mode = <0>;
+			  frame-bit = <32>;
+			  sample-rate = <48000>;
+			  pre-supply-mclk = <1>;
+			  status = "disabled";
+		};
+
+		i2s_3:i2s@20860000 {
+			  compatible = "nexell,nexell-i2s";
+			  reg = <PHYS_BASE_I2S3 0x1000>;
+			  dmas = <&dmac1 19 0>, <&dmac1 20 0>;
+			  dma-names = "tx", "rx";
+			  resets = <&nxp5540_reset RESET_ID_I2S_3_APB>,
+					<&nxp5540_reset RESET_ID_I2S_3_CORE>;
+			  reset-names = "i2s-apb-reset", "i2s-reset";
+
+			  pinctrl-names = "default";
+			  pinctrl-0 = <&i2s3_bus>;
+			  master-mode = <1>;
+			  mclk-in = <0>;
+			  trans-mode = <0>;
+			  frame-bit = <32>;
+			  sample-rate = <48000>;
+			  pre-supply-mclk = <1>;
+			  status = "disabled";
 		};
 	}; /*** soc ***/
 };
