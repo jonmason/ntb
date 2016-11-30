@@ -84,4 +84,97 @@
 		interrupt-controller;
 		#interrupt-cells = <2>;
 	};
+
+	i2s0_bus:i2s0 {
+		i2s0_mclk: i2s0-mclk {
+			nexell,pins = "gpiob-23";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <3>;
+		};
+
+		i2s0_bclk: i2s0-bclk {
+			nexell,pins = "gpiob-22";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <3>;
+		};
+
+		i2s0_other: i2s0-other {
+			nexell,pins = "gpiob-20", "gpiob-21", "gpiob-24";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <0>;
+		};
+	};
+
+	i2s1_bus:i2s1 {
+		i2s1_mclk: i2s1-mclk {
+			nexell,pins = "gpiob-28";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <3>;
+		};
+
+		i2s1_bclk: i2s1-bclk {
+			nexell,pins = "gpiob-27";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <3>;
+		};
+
+		i2s1_other: i2s1-other {
+			nexell,pins = "gpiob-25", "gpiob-26", "gpiob-29";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <0>;
+		};
+	};
+
+	i2s2_bus:i2s2 {
+		i2s2_mclk: i2s2-mclk {
+			nexell,pins = "gpioc-1";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <3>;
+		};
+
+		i2s2_bclk: i2s2-bclk {
+			nexell,pins = "gpioc-0";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <3>;
+		};
+
+		i2s2_other: i2s2-other {
+			nexell,pins = "gpiob-30", "gpiob-31", "gpioc-2";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <0>;
+		};
+	};
+
+	i2s3_bus:i2s3 {
+		i2s3_mclk: i2s3-mclk {
+			nexell,pins = "gpioc-19";
+			nexell,pin-function = <2>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <3>;
+		};
+
+		i2s3_bclk: i2s3-bclk {
+			nexell,pins = "gpioc-18";
+			nexell,pin-function = <2>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <3>;
+		};
+
+		i2s3_other: i2s3-other {
+			nexell,pins = "gpioc-16", "gpioc-17", "gpioc-20";
+			nexell,pin-function = <2>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <0>;
+		};
+	};
+
 };
