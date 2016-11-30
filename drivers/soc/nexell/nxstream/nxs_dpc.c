@@ -72,6 +72,11 @@ static int dpc_stop(const struct nxs_dev *pthis)
 	return 0;
 }
 
+static int dpc_set_dirty(const struct nxs_dev *pthis)
+{
+	return 0;
+}
+
 static int dpc_set_syncinfo(const struct nxs_dev *pthis,
 			    const union nxs_control *pparam)
 {
@@ -108,6 +113,7 @@ static int nxs_dpc_probe(struct platform_device *pdev)
 	nxs_dev->close = dpc_close;
 	nxs_dev->start = dpc_start;
 	nxs_dev->stop = dpc_stop;
+	nxs_dev->set_dirty = dpc_set_dirty;
 	nxs_dev->set_control = nxs_set_control;
 	nxs_dev->get_control = nxs_get_control;
 	nxs_dev->dev_services[0].type = NXS_CONTROL_SYNCINFO;
