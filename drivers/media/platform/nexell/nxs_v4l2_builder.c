@@ -785,12 +785,48 @@ static int nxs_m2m_chain_set_buffer(struct nxs_function_instance *inst,
 	return 0;
 }
 
+static int nxs_chain_set_tid(struct nxs_function_instance *inst)
+{
+	struct nxs_dev *prev, *cur;
+	int ret;
+
+	prev = NULL;
+	list_for_each_entry(cur, &inst->dev_list, func_list) {
+		if (prev) {
+			if (WARN(!prev->set_tid,
+				 "no set_tid func for [%s:%d]\n",
+				 nxs_function_to_str(prev->dev_function),
+				 prev->dev_inst_index))
+				return -EINVAL;
+
+			/* TODO: handle multitap */
+			ret = prev->set_tid(prev, cur->tid, 0);
+			if (ret)
+				return ret;
+		}
+
+		prev = cur;
+	}
+
+	return 0;
+}
+
 static int nxs_chain_run(struct nxs_function_instance *inst)
 {
 	struct nxs_dev *nxs_dev;
 	int ret;
 
+	ret = nxs_chain_set_tid(inst);
+	if (ret)
+		return ret;
+
 	list_for_each_entry_reverse(nxs_dev, &inst->dev_list, func_list) {
+		if (nxs_dev->set_dirty) {
+			ret = nxs_dev->set_dirty(nxs_dev);
+			if (ret)
+				return ret;
+		}
+
 		if (nxs_dev->start) {
 			ret = nxs_dev->start(nxs_dev);
 			if (ret)
@@ -817,11 +853,15 @@ static void nxs_video_irqcallback(struct nxs_dev *nxs_dev, void *data)
 {
 	struct nxs_video_fh *vfh;
 	struct nxs_video *video;
+	struct nxs_function_instance *inst;
+	struct nxs_dev *first;
 	struct nxs_video_buffer *done_buffer;
 	struct nxs_video_buffer *next_buffer;
 
 	vfh = data;
 	video = vfh->video;
+	inst = video->nxs_function;
+	first = list_first_entry(&inst->dev_list, struct nxs_dev, func_list);
 
 	done_buffer = get_next_video_buffer(vfh, true);
 	if (!done_buffer)
@@ -838,6 +878,16 @@ static void nxs_video_irqcallback(struct nxs_dev *nxs_dev, void *data)
 				     vfh->strides,
 				     &info);
 		nxs_dev_set_buffer(nxs_dev, &info);
+
+		if (nxs_dev->set_dirty)
+			nxs_dev->set_dirty(nxs_dev);
+
+		/**
+		 * HACK
+		 * dirty of first nxs_dev must be set to apply change
+		 */
+		if (nxs_dev != first)
+			first->set_dirty(first);
 	}
 
 	v4l2_get_timestamp(&done_buffer->vb.timestamp);
