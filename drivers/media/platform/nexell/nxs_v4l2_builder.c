@@ -659,8 +659,6 @@ static void nxs_video_irqcallback(struct nxs_dev *nxs_dev, void *data)
 	struct nxs_video_buffer *done_buffer;
 	struct nxs_video_buffer *next_buffer;
 
-	/* TODO: M2M */
-
 	vfh = data;
 	video = vfh->video;
 
@@ -720,50 +718,54 @@ static void nxs_video_m2m_irqcallback(struct nxs_dev *nxs_dev, void *data)
  */
 static int nxs_video_open(struct file *file)
 {
-	struct nxs_video *nxs_video = video_drvdata(file);
+	struct nxs_video *video = video_drvdata(file);
+	struct nxs_video_fh *vfh;
 
-	struct nxs_video_fh *handle;
-
-	handle = kzalloc(sizeof(*handle), GFP_KERNEL);
-	if (!handle)
+	vfh = kzalloc(sizeof(*vfh), GFP_KERNEL);
+	if (!vfh)
 		return -ENOMEM;
 
-	v4l2_fh_init(&handle->vfh, &nxs_video->vdev);
-	v4l2_fh_add(&handle->vfh);
-	INIT_LIST_HEAD(&handle->bufq);
-	spin_lock_init(&handle->bufq_lock);
-	atomic_set(&handle->underflow, 0);
+	v4l2_fh_init(&vfh->vfh, &video->vdev);
+	v4l2_fh_add(&vfh->vfh);
 
-	if (is_m2m(nxs_video)) {
-		atomic_set(&handle->running, 0);
-		init_completion(&handle->stop_done);
+	if (is_m2m(video)) {
+		atomic_set(&vfh->running, 0);
+		init_completion(&vfh->stop_done);
+	} else {
+		INIT_LIST_HEAD(&vfh->bufq);
+		spin_lock_init(&vfh->bufq_lock);
+		atomic_set(&vfh->underflow, 0);
 	}
 
-	memset(&handle->format, 0, sizeof(handle->format));
+	vfh->video = video;
+	file->private_data = &vfh->vfh;
 
-	handle->video = nxs_video;
-	file->private_data = &handle->vfh;
-
-	nxs_video->open_count++;
+	video->open_count++;
 
 	return 0;
 }
 
 static int nxs_video_release(struct file *file)
 {
-	struct nxs_video *nxs_video = video_drvdata(file);
-	struct v4l2_fh *vfh = file->private_data;
-	struct nxs_video_fh *handle = to_nxs_video_fh(vfh);
+	struct nxs_video *video = video_drvdata(file);
+	struct v4l2_fh *fh = file->private_data;
+	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
 
-	mutex_lock(&nxs_video->queue_lock);
-	vb2_queue_release(&handle->queue);
-	mutex_unlock(&nxs_video->queue_lock);
+	mutex_lock(&video->queue_lock);
+	if (is_m2m(video)) {
+		v4l2_m2m_ctx_release(vfh->m2m_ctx);
+		v4l2_m2m_release(vfh->m2m_dev);
+	} else {
+		vb2_queue_release(&vfh->queue);
+	}
+	mutex_unlock(&video->queue_lock);
 
-	v4l2_fh_del(vfh);
-	kfree(handle);
+	v4l2_fh_del(fh);
+	v4l2_fh_exit(fh);
+	kfree(vfh);
 	file->private_data = NULL;
 
-	nxs_video->open_count--;
+	video->open_count--;
 	/* TODO: if (nxs_video->open_count == 0) */
 
 	return 0;
@@ -1323,7 +1325,7 @@ static int nxs_vidioc_streamon(struct file *file, void *fh,
 	struct nxs_video *video = vfh->video;
 	int ret;
 
-	if (type != vfh->queue.type)
+	if (!(is_m2m(video)) && type != vfh->queue.type)
 		return -EINVAL;
 
 	mutex_lock(&video->stream_lock);
@@ -1343,7 +1345,7 @@ static int nxs_vidioc_streamoff(struct file *file, void *fh,
 	struct nxs_video *video = vfh->video;
 	int ret;
 
-	if (type != vfh->queue.type)
+	if (!(is_m2m(video)) && type != vfh->queue.type)
 		return -EINVAL;
 
 	mutex_lock(&video->stream_lock);
@@ -1989,6 +1991,14 @@ static int nxs_m2m_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 	struct nxs_video *video = vfh->video;
 	int ret;
 
+	/* start streaming called twice
+	 * first: source
+	 * second: dest
+	 * when called firstly, do nothing */
+	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE ||
+	    q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT)
+		return 0;
+
 	ret = nxs_chain_register_irqcallback(video->nxs_function, vfh,
 					     nxs_video_m2m_irqcallback);
 	if (ret)
@@ -1998,13 +2008,17 @@ static int nxs_m2m_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 	if (ret)
 		return ret;
 
-	return 0;
+	return nxs_chain_run(video->nxs_function);
 }
 
 static void nxs_m2m_vb2_stop_streaming(struct vb2_queue *q)
 {
 	struct nxs_video_fh *vfh = vb2_get_drv_priv(q);
 	struct nxs_video *video = vfh->video;
+
+	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE ||
+	    q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT)
+		return;
 
 	nxs_m2m_job_abort(vfh);
 
