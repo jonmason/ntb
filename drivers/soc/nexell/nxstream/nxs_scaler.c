@@ -74,6 +74,16 @@ static int scaler_stop(const struct nxs_dev *pthis)
 	return 0;
 }
 
+static int scaler_set_dirty(const struct nxs_dev *pthis)
+{
+	return 0;
+}
+
+static int scaler_set_tid(const struct nxs_dev *pthis)
+{
+	return 0;
+}
+
 static int scaler_set_syncinfo(const struct nxs_dev *pthis,
 			    const union nxs_control *pparam)
 {
@@ -129,6 +139,8 @@ static int nxs_scaler_probe(struct platform_device *pdev)
 	nxs_dev->close = scaler_close;
 	nxs_dev->start = scaler_start;
 	nxs_dev->stop = scaler_stop;
+	nxs_dev->set_dirty = scaler_set_dirty;
+	nxs_dev->set_tid = scaler_set_tid;
 	nxs_dev->set_control = nxs_set_control;
 	nxs_dev->get_control = nxs_get_control;
 	nxs_dev->dev_services[0].type = NXS_CONTROL_SYNCINFO;
