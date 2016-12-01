@@ -73,6 +73,16 @@ static int multitap_stop(const struct nxs_dev *pthis)
 	return 0;
 }
 
+static int multitap_set_dirty(const struct nxs_dev *pthis)
+{
+	return 0;
+}
+
+static int multitap_set_tid(const struct nxs_dev *pthis)
+{
+	return 0;
+}
+
 static int multitap_set_syncinfo(const struct nxs_dev *pthis,
 			    const union nxs_control *pparam)
 {
@@ -109,6 +119,8 @@ static int nxs_multitap_probe(struct platform_device *pdev)
 	nxs_dev->close = multitap_close;
 	nxs_dev->start = multitap_start;
 	nxs_dev->stop = multitap_stop;
+	nxs_dev->set_dirty = multitap_set_dirty;
+	nxs_dev->set_tid = multitap_set_tid;
 	nxs_dev->set_control = nxs_set_control;
 	nxs_dev->get_control = nxs_get_control;
 	nxs_dev->dev_services[0].type = NXS_CONTROL_SYNCINFO;
