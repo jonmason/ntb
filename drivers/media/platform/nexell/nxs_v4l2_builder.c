@@ -43,6 +43,7 @@
 #include <media/v4l2-mem2mem.h>
 
 #include <linux/nxs_ioctl.h>
+#include <linux/nxs_v4l2.h>
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
@@ -63,6 +64,12 @@ enum nxs_video_type {
 	NXS_VIDEO_TYPE_INVALID
 };
 
+struct nxs_subdev_ctx {
+	struct v4l2_mbus_framefmt format; /* source format */
+	struct v4l2_mbus_framefmt dst_format; /* dest format */
+	struct v4l2_crop crop;
+};
+
 struct nxs_video {
 	char name[NXS_VIDEO_MAX_NAME_SIZE];
 	u32 type; /* enum nxs_video_type */
@@ -77,6 +84,9 @@ struct nxs_video {
 	void *vb2_alloc_ctx;
 
 	struct video_device vdev;
+	struct v4l2_subdev subdev;
+	struct nxs_subdev_ctx *subdev_ctx;
+	struct media_pad pad;
 
 	struct nxs_function_instance *nxs_function;
 };
@@ -86,6 +96,7 @@ struct nxs_video {
 #define is_m2m(video)		video->type == NXS_VIDEO_TYPE_M2M
 #define is_capture(video)	video->type == NXS_VIDEO_TYPE_CAPTURE
 #define is_render(video)	video->type == NXS_VIDEO_TYPE_RENDER
+#define is_subdev(video)	video->type == NXS_VIDEO_TYPE_SUBDEV
 
 struct nxs_video_fh {
 	struct v4l2_fh vfh;
@@ -518,6 +529,156 @@ static int nxs_m2m_chain_config(struct nxs_function_instance *inst,
 			return ret;
 
 		ret = nxs_set_control(nxs_dev, NXS_CONTROL_DST_FORMAT, &dst_f);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+static struct nxs_dev *
+find_nxs_dev_by_function(struct nxs_function_instance *inst, u32 function)
+{
+	struct nxs_dev *nxs_dev;
+
+	list_for_each_entry(nxs_dev, &inst->dev_list, func_list)
+		if (nxs_dev->dev_function == function)
+			return nxs_dev;
+
+	return NULL;
+}
+
+static int nxs_subdev_chain_config(struct nxs_function_instance *inst,
+				   struct nxs_subdev_ctx *ctx)
+{
+	struct nxs_dev *nxs_dev_from, *nxs_dev_to;
+	struct nxs_dev *nxs_dev_tmp;
+	struct list_head *head;
+	union nxs_control f;
+	union nxs_control df;
+	union nxs_control c;
+	int ret;
+
+	f.format.width = ctx->format.width;
+	f.format.height = ctx->format.height;
+	f.format.pixelformat = ctx->format.code;
+
+	if (ctx->dst_format.width > 0) {
+		df.format.width = ctx->dst_format.width;
+		df.format.height = ctx->dst_format.height;
+		df.format.pixelformat = ctx->dst_format.code;
+	} else {
+		df.format.width = f.format.width;
+		df.format.height = f.format.height;
+		df.format.pixelformat = f.format.pixelformat;
+	}
+
+	/* set cropper */
+	nxs_dev_to = NULL;
+	nxs_dev_to = find_nxs_dev_by_function(inst, NXS_FUNCTION_CROPPER);
+	if (nxs_dev_to) {
+		if (ctx->crop.c.width > 0) {
+			c.crop.l = ctx->crop.c.left;
+			c.crop.t = ctx->crop.c.top;
+			c.crop.w = ctx->crop.c.width;
+			c.crop.h = ctx->crop.c.height;
+		} else {
+			/* set default */
+			c.crop.l = 0;
+			c.crop.t = 0;
+			c.crop.w = ctx->format.width;
+			c.crop.h = ctx->format.height;
+		}
+
+		head = &inst->dev_list;
+		list_for_each_entry(nxs_dev_tmp, head, func_list) {
+			ret = nxs_set_control(nxs_dev_tmp, NXS_CONTROL_FORMAT,
+					      &f);
+			if (ret)
+				return ret;
+
+			ret = nxs_set_control(nxs_dev_tmp, NXS_CONTROL_CROP,
+					      &c);
+			if (ret)
+				return ret;
+
+			if (nxs_dev_tmp == nxs_dev_to)
+				break;
+		}
+
+		f.format.width = c.crop.w;
+		f.format.height = c.crop.h;
+	}
+
+	/* set csc */
+	/* nxs_dev_from = get_next_nxs_dev(nxs_dev_to); */
+	nxs_dev_from = nxs_dev_to;
+	nxs_dev_to = find_nxs_dev_by_function(inst, NXS_FUNCTION_CSC);
+	if (nxs_dev_to) {
+		if (nxs_dev_from)
+			head = &nxs_dev_from->func_list;
+		else
+			head = &inst->dev_list;
+
+		list_for_each_entry(nxs_dev_tmp, head, func_list) {
+			ret = nxs_set_control(nxs_dev_tmp, NXS_CONTROL_FORMAT,
+					      &f);
+			if (ret)
+				return ret;
+
+			ret = nxs_set_control(nxs_dev_tmp,
+					      NXS_CONTROL_DST_FORMAT, &df);
+			if (ret)
+				return ret;
+
+			if (nxs_dev_tmp == nxs_dev_to)
+				break;
+		}
+
+		f.format.pixelformat = df.format.pixelformat;
+	}
+
+	/* set scaler */
+	nxs_dev_from = nxs_dev_to;
+	nxs_dev_to = find_nxs_dev_by_function(inst, NXS_FUNCTION_SCALER_4096);
+	if (!nxs_dev_to)
+		nxs_dev_to = find_nxs_dev_by_function(inst,
+						      NXS_FUNCTION_SCALER_5376);
+	if (nxs_dev_to) {
+		if (nxs_dev_from)
+			head = &nxs_dev_from->func_list;
+		else
+			head = &inst->dev_list;
+
+		list_for_each_entry(nxs_dev_tmp, head, func_list) {
+			ret = nxs_set_control(nxs_dev_tmp, NXS_CONTROL_FORMAT,
+					      &f);
+			if (ret)
+				return ret;
+
+			ret = nxs_set_control(nxs_dev_tmp,
+					      NXS_CONTROL_DST_FORMAT, &df);
+			if (ret)
+				return ret;
+
+			if (nxs_dev_tmp == nxs_dev_to)
+				break;
+		}
+
+		f.format.width = df.format.width;
+		f.format.height = df.format.height;
+	}
+
+	/* others */
+	nxs_dev_from = nxs_dev_to;
+	if (nxs_dev_from)
+		head = &nxs_dev_from->func_list;
+	else
+		head = &inst->dev_list;
+
+	list_for_each_entry(nxs_dev_tmp, head, func_list) {
+		ret = nxs_set_control(nxs_dev_tmp, NXS_CONTROL_FORMAT,
+				      &f);
 		if (ret)
 			return ret;
 	}
@@ -2078,6 +2239,148 @@ static int nxs_m2m_queue_init(void *priv, struct vb2_queue *src_q,
 	return vb2_queue_init(dst_q);
 }
 
+/* subdev ops */
+static int nxs_subdev_get_selection(struct v4l2_subdev *sd,
+				    struct v4l2_subdev_pad_config *cfg,
+				    struct v4l2_subdev_selection *sel)
+{
+	struct nxs_video *video = v4l2_get_subdevdata(sd);
+	struct nxs_subdev_ctx *ctx = video->subdev_ctx;
+
+	memcpy(&sel->r, &ctx->crop, sizeof(struct v4l2_rect));
+
+	return 0;
+}
+
+static int nxs_subdev_set_selection(struct v4l2_subdev *sd,
+				    struct v4l2_subdev_pad_config *cfg,
+				    struct v4l2_subdev_selection *sel)
+{
+	struct nxs_video *video = v4l2_get_subdevdata(sd);
+	struct nxs_subdev_ctx *ctx = video->subdev_ctx;
+
+	if (sel->which == V4L2_SUBDEV_FORMAT_ACTIVE)
+		memcpy(&sel->r, &ctx->crop, sizeof(struct v4l2_rect));
+
+	return 0;
+}
+
+static int nxs_subdev_get_fmt(struct v4l2_subdev *sd,
+			      struct v4l2_subdev_pad_config *cfg,
+			      struct v4l2_subdev_format *format)
+{
+	struct nxs_video *video = v4l2_get_subdevdata(sd);
+	struct nxs_subdev_ctx *ctx = video->subdev_ctx;
+
+	memcpy(&format->format, &ctx->format,
+	       sizeof(struct v4l2_mbus_framefmt));
+
+	return 0;
+}
+
+static int nxs_subdev_set_fmt(struct v4l2_subdev *sd,
+			      struct v4l2_subdev_pad_config *cfg,
+			      struct v4l2_subdev_format *format)
+{
+	struct nxs_video *video = v4l2_get_subdevdata(sd);
+	struct nxs_subdev_ctx *ctx = video->subdev_ctx;
+
+	if (format->which == V4L2_SUBDEV_FORMAT_ACTIVE)
+		memcpy(&ctx->format, &format->format,
+		       sizeof(struct v4l2_mbus_framefmt));
+
+	return 0;
+}
+
+static int nxs_subdev_get_dstfmt(struct v4l2_subdev *sd,
+				 struct v4l2_subdev_format *format)
+{
+	struct nxs_video *video = v4l2_get_subdevdata(sd);
+	struct nxs_subdev_ctx *ctx = video->subdev_ctx;
+
+	memcpy(&format->format, &ctx->dst_format,
+	       sizeof(struct v4l2_mbus_framefmt));
+
+	return 0;
+}
+
+static int nxs_subdev_set_dstfmt(struct v4l2_subdev *sd,
+				 struct v4l2_subdev_format *format)
+{
+	struct nxs_video *video = v4l2_get_subdevdata(sd);
+	struct nxs_subdev_ctx *ctx = video->subdev_ctx;
+
+	if (format->which == V4L2_SUBDEV_FORMAT_ACTIVE)
+		memcpy(&ctx->dst_format, &format->format,
+		       sizeof(struct v4l2_mbus_framefmt));
+
+	return 0;
+}
+
+static int nxs_subdev_start(struct v4l2_subdev *sd)
+{
+	struct nxs_video *video = v4l2_get_subdevdata(sd);
+	struct nxs_subdev_ctx *ctx = video->subdev_ctx;
+	int ret;
+
+	ret = nxs_subdev_chain_config(video->nxs_function, ctx);
+	if (ret)
+		return ret;
+
+	return nxs_chain_run(video->nxs_function);
+}
+
+static int nxs_subdev_stop(struct v4l2_subdev *sd)
+{
+	struct nxs_video *video = v4l2_get_subdevdata(sd);
+
+	nxs_chain_stop(video->nxs_function);
+	return 0;
+}
+
+static long nxs_subdev_ioctl(struct v4l2_subdev *sd, unsigned int cmd,
+			     void *arg)
+{
+	int ret;
+
+	/* no need to copy_xx_user() here */
+	switch (cmd) {
+	case NXSIOC_S_DSTFMT:
+		ret = nxs_subdev_set_dstfmt(sd, arg);
+		break;
+	case NXSIOC_G_DSTFMT:
+		ret = nxs_subdev_get_dstfmt(sd, arg);
+		break;
+	case NXSIOC_START:
+		ret = nxs_subdev_start(sd);
+		break;
+	case NXSIOC_STOP:
+		ret = nxs_subdev_stop(sd);
+		break;
+	default:
+		ret = -EINVAL;
+		break;
+	}
+
+	return ret;
+}
+
+static const struct v4l2_subdev_pad_ops nxs_subdev_pad_ops = {
+	.get_selection = nxs_subdev_get_selection,
+	.set_selection = nxs_subdev_set_selection,
+	.get_fmt = nxs_subdev_get_fmt,
+	.set_fmt = nxs_subdev_set_fmt,
+};
+
+static const struct v4l2_subdev_core_ops nxs_subdev_core_ops = {
+	.ioctl = nxs_subdev_ioctl,
+};
+
+static const struct v4l2_subdev_ops nxs_subdev_ops = {
+	.pad  = &nxs_subdev_pad_ops,
+	.core = &nxs_subdev_core_ops,
+};
+
 static u32 get_nxs_video_type(struct nxs_function_instance *inst)
 {
 	struct nxs_dev *first, *last;
@@ -2129,40 +2432,17 @@ static void dump_nxs_function_inst(struct nxs_function_instance *inst)
 	}
 }
 
-static struct nxs_video *build_nxs_video(struct nxs_v4l2_builder *builder,
-					 const char *name,
-					 struct nxs_function_instance *inst)
+static int init_nxs_vdev(struct nxs_v4l2_builder *builder,
+			 struct nxs_video *nxs_video)
 {
 	int ret;
-	struct vb2_queue *vbq;
-	struct nxs_video *nxs_video;
-	u32 type;
 
-	nxs_video = kzalloc(sizeof(*nxs_video), GFP_KERNEL);
-	if (!nxs_video) {
-		WARN_ON(1);
-		return ERR_PTR(-ENOMEM);
-	}
-
-	pr_info("%s: builder %p, name %s, inst %p\n",
-		__func__, builder, name, inst);
-
-	/* dump_nxs_function_inst(inst); */
-	snprintf(nxs_video->name, sizeof(nxs_video->name), "%s", name);
 	/* snprintf(nxs_video->vdev.name, sizeof(nxs_video->vdev.name), */
-	/* 	 "%s", name); */
-
-	type = get_nxs_video_type(inst);
-	if (type == NXS_VIDEO_TYPE_INVALID) {
-		dev_err(builder->dev, "invalid type 0x%x\n", type);
-		kfree(nxs_video);
-		return NULL;
-	}
+	/* 	 "%s", nxs_video->name); */
 
 	mutex_init(&nxs_video->queue_lock);
 	mutex_init(&nxs_video->stream_lock);
 
-	nxs_video->type			= type;
 	nxs_video->vdev.fops		= &nxs_video_fops;
 	nxs_video->vdev.ioctl_ops	= &nxs_video_ioctl_ops;
 	nxs_video->vdev.v4l2_dev	= &builder->v4l2_dev;
@@ -2171,7 +2451,7 @@ static struct nxs_video *build_nxs_video(struct nxs_v4l2_builder *builder,
 	nxs_video->vdev.release		= video_device_release;
 	/* nxs_video->vdev.lock		= &nxs_video->queue_lock; */
 
-	switch (type) {
+	switch (nxs_video->type) {
 	case NXS_VIDEO_TYPE_CAPTURE:
 		nxs_video->vdev.vfl_dir = VFL_DIR_RX;
 		break;
@@ -2187,26 +2467,107 @@ static struct nxs_video *build_nxs_video(struct nxs_v4l2_builder *builder,
 
 	ret = video_register_device(&nxs_video->vdev, VFL_TYPE_GRABBER, -1);
 	if (ret < 0) {
-		dev_err(builder->dev, "failed to video_register_device()\n");
-		goto free_vbq;
+		dev_err(builder->dev,
+			"failed to video_register_device()\n");
+		return ret;
 	}
 
 	video_set_drvdata(&nxs_video->vdev, nxs_video);
+	return 0;
+}
+
+static int init_nxs_subdev(struct nxs_v4l2_builder *builder,
+			   struct nxs_video *nxs_video)
+{
+	int ret;
+	struct v4l2_device *v4l2_dev = nxs_video->v4l2_dev;
+	struct v4l2_subdev *sd = &nxs_video->subdev;
+	struct video_device *vdev = &nxs_video->vdev;
+	struct media_pad *pad = &nxs_video->pad;
+	struct media_entity *entity = &sd->entity;
+
+	v4l2_subdev_init(sd, &nxs_subdev_ops);
+	snprintf(sd->name, sizeof(sd->name), "%s", nxs_video->name);
+	v4l2_set_subdevdata(sd, nxs_video);
+	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
+
+	pad->flags = MEDIA_PAD_FL_SINK;
+	ret = media_entity_init(entity, 1, pad, 0);
+	if (ret) {
+		dev_err(builder->dev, "failed to media_entity_init(name: %s)\n",
+			nxs_video->name);
+		return ret;
+	}
+
+	ret = v4l2_device_register_subdev(v4l2_dev, sd);
+	if (ret) {
+		dev_err(builder->dev, "failed to v4l2_device_register_subdev(name: %s)\n",
+			nxs_video->name);
+		return ret;
+	}
+
+	video_set_drvdata(vdev, sd);
+	strlcpy(vdev->name, sd->name, sizeof(vdev->name));
+	vdev->v4l2_dev = v4l2_dev;
+	vdev->fops = &v4l2_subdev_fops;
+	vdev->ctrl_handler = sd->ctrl_handler;
+	vdev->release = video_device_release;
+	ret = __video_register_device(vdev, VFL_TYPE_SUBDEV, -1, 1, sd->owner);
+	if (ret) {
+		dev_err(builder->dev, "failed to __video_register_device(name: %s)\n",
+			nxs_video->name);
+		return ret;
+	}
+
+	nxs_video->subdev_ctx = kzalloc(sizeof(*nxs_video->subdev_ctx),
+					GFP_KERNEL);
+	if (WARN(!nxs_video->subdev_ctx, "failed to alloc subdev_ctx\n"))
+		return -ENOMEM;
+
+	return 0;
+}
+
+static struct nxs_video *build_nxs_video(struct nxs_v4l2_builder *builder,
+					 const char *name,
+					 struct nxs_function_instance *inst)
+{
+	int ret;
+	struct nxs_video *nxs_video;
+
+	nxs_video = kzalloc(sizeof(*nxs_video), GFP_KERNEL);
+	if (!nxs_video) {
+		WARN_ON(1);
+		return ERR_PTR(-ENOMEM);
+	}
+
+	dev_info(builder->dev, "%s: builder %p, name %s, inst %p\n",
+		 __func__, builder, name, inst);
+
+	nxs_video->v4l2_dev = &builder->v4l2_dev;
+	snprintf(nxs_video->name, sizeof(nxs_video->name), "%s", name);
+
+	nxs_video->type = get_nxs_video_type(inst);
+	if (nxs_video->type == NXS_VIDEO_TYPE_INVALID) {
+		dev_err(builder->dev, "invalid type 0x%x\n", nxs_video->type);
+		kfree(nxs_video);
+		return NULL;
+	}
+
+	if (is_subdev(nxs_video))
+		ret = init_nxs_subdev(builder, nxs_video);
+	else
+		ret = init_nxs_vdev(builder, nxs_video);
+
+	if (ret < 0)
+		goto free_nxs_video;
 
 	nxs_video->nxs_function = inst;
-
-	pr_info("%s exit\n", __func__);
-
 	dump_nxs_function_inst(inst);
 
 	return nxs_video;
 
-free_vbq:
-	kfree(vbq);
-
-/* free_nxs_video: */
+free_nxs_video:
 	kfree(nxs_video);
-
 	return ERR_PTR(ret);
 }
 
