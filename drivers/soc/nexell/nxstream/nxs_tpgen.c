@@ -183,7 +183,7 @@ static int tpgen_set_dirty(const struct nxs_dev *pthis)
 	return 0;
 }
 
-static int tpgen_set_tid(const struct nxs_dev *pthis)
+static int tpgen_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
 {
 	return 0;
 }

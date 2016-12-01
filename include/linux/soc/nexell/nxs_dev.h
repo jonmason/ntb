@@ -19,7 +19,6 @@
 #define _NXS_DEV_H
 
 #include <linux/atomic.h>
-/* #include <linux/nxs_v4l2.h> */
 
 #define NXS_DEV_MAX_PLANES	3
 
@@ -178,7 +177,7 @@ struct nxs_dev {
 	int (*get_control)(const struct nxs_dev *pthis, int type,
 			   union nxs_control *pparam);
 	int (*set_dirty)(const struct nxs_dev *pthis);
-	int (*set_tid)(const struct nxs_dev *pthis);
+	int (*set_tid)(const struct nxs_dev *pthis, u32 tid1, u32 tid2);
 
 	struct nxs_dev_service dev_services[NXS_MAX_SERVICES];
 };

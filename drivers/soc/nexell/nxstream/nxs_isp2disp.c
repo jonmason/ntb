@@ -73,7 +73,7 @@ static int isp2disp_stop(const struct nxs_dev *pthis)
 	return 0;
 }
 
-static int isp2disp_set_tid(const struct nxs_dev *pthis)
+static int isp2disp_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
 {
 	return 0;
 }
