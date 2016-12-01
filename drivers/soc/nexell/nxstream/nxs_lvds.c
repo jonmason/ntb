@@ -29,9 +29,33 @@
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
+#define SIMULATE_INTERRUPT
+
 struct nxs_lvds {
+#ifdef SIMULATE_INTERRUPT
+	struct timer_list timer;
+#endif
 	struct nxs_dev nxs_dev;
 };
+
+#define nxs_dev_to_lvds(dev)	container_of(dev, struct nxs_lvds, nxs_dev)
+
+#ifdef SIMULATE_INTERRUPT
+#include <linux/timer.h>
+#define INT_TIMEOUT_MS		30
+
+static void int_timer_func(unsigned long priv)
+{
+	struct nxs_lvds *lvds = (struct nxs_lvds *)priv;
+	struct nxs_dev *nxs_dev = &lvds->nxs_dev;
+
+	if (nxs_dev->irq_callback)
+		nxs_dev->irq_callback->handler(nxs_dev,
+					       nxs_dev->irq_callback->data);
+
+	mod_timer(&lvds->timer, jiffies + msecs_to_jiffies(INT_TIMEOUT_MS));
+}
+#endif
 
 static void lvds_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 				     bool enable)
@@ -64,11 +88,23 @@ static int lvds_close(const struct nxs_dev *pthis)
 
 static int lvds_start(const struct nxs_dev *pthis)
 {
+#ifdef SIMULATE_INTERRUPT
+	struct nxs_lvds *lvds = nxs_dev_to_lvds(pthis);
+
+	mod_timer(&lvds->timer, jiffies + msecs_to_jiffies(INT_TIMEOUT_MS));
+#endif
+
 	return 0;
 }
 
 static int lvds_stop(const struct nxs_dev *pthis)
 {
+#ifdef SIMULATE_INTERRUPT
+	struct nxs_lvds *lvds = nxs_dev_to_lvds(pthis);
+
+	del_timer(&lvds->timer);
+#endif
+
 	return 0;
 }
 
@@ -121,6 +157,10 @@ static int nxs_lvds_probe(struct platform_device *pdev)
 	nxs_dev->dev_services[0].get_control = lvds_get_syncinfo;
 
 	nxs_dev->dev = &pdev->dev;
+
+#ifdef SIMULATE_INTERRUPT
+	setup_timer(&lvds->timer, int_timer_func, (long)lvds);
+#endif
 
 	ret = register_nxs_dev(nxs_dev);
 	if (ret)
