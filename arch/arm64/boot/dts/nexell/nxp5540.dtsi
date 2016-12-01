@@ -19,6 +19,7 @@
 #include <dt-bindings/soc/nxp5540-base.h>
 #include <dt-bindings/reset/nexell,nxp5540-reset.h>
 #include <dt-bindings/interrupt-controller/nxp5540-irq.h>
+#include <dt-bindings/pinctrl/nexell,pinctrl.h>
 
 / {
 	model = "nexell soc";

@@ -63,7 +63,7 @@ parameters.
                  This setting means that the value is different for each pin.
                  Please refer to datasheet.
   Valid values for nexell,pin-pull are:
-     "N"       : 0 - Down, 1 - Up, 2 - Off
+     "PAD_PULL_XXX" : DOWN / UP / OFF
   Valid values for nexell,pin-strength are:
      "N"       : 0,1,2,3
 
@@ -73,21 +73,21 @@ Example:
 	gmac_txd: gmac-txd {
 		nexell,pins = "gpioe-7", "gpioe-8", "gpioe-9", "gpioe-10";
 		nexell,pin-function = <1>;
-		nexell,pin-pull = <2>;
+		nexell,pin-pull = <PAD_PULL_OFF>;
 		nexell,pin-strength = <3>;
 	};
 
 	gmac_rxd: gmac-rxd {
 		nexell,pins = "gpioe-14", "gpioe-15", "gpioe-16", "gpioe-17";
 		nexell,pin-function = <1>;
-		nexell,pin-pull = <2>;
+		nexell,pin-pull = <PAD_PULL_OFF>;
 		nexell,pin-strength = <3>;
 	};
 
 	gmac_txen: gmac-txen {
 		nexell,pins = "gpioe-11";
 		nexell,pin-function = <1>;
-		nexell,pin-pull = <2>;
+		nexell,pin-pull = <PAD_PULL_OFF>;
 		nexell,pin-strength = <3>;
 	};
 
