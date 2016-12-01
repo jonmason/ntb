@@ -178,6 +178,7 @@ struct nxs_dev {
 			   union nxs_control *pparam);
 	int (*set_dirty)(const struct nxs_dev *pthis);
 	int (*set_tid)(const struct nxs_dev *pthis, u32 tid1, u32 tid2);
+	void (*dump_register)(const struct nxs_dev *pthis);
 
 	struct nxs_dev_service dev_services[NXS_MAX_SERVICES];
 };
