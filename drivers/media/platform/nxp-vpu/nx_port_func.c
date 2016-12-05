@@ -28,7 +28,7 @@ struct nx_memory_info *nx_alloc_memory(void *drv, int32_t size, int32_t align)
 {
 	struct nx_memory_info *handle;
 
-	handle = devm_kzalloc(drv, sizeof(*handle), GFP_KERNEL);
+	handle = kzalloc(sizeof(*handle), GFP_KERNEL);
 	if (NULL == handle)
 		goto Error_Exit;
 
@@ -92,6 +92,7 @@ void nx_free_memory(struct nx_memory_info *mem)
 			cma_free(mem->phyAddr);
 #endif
 		}
+		kfree(mem);
 	}
 }
 
@@ -106,7 +107,7 @@ struct nx_vid_memory_info *nx_alloc_frame_memory(void *drv, int32_t width,
 	struct nx_vid_memory_info *vid = NULL;
 	struct nx_memory_info *mem[NX_MAX_PLANES];
 
-	vid = devm_kzalloc(drv, sizeof(*vid), GFP_KERNEL);
+	vid = kzalloc(sizeof(*vid), GFP_KERNEL);
 	if (NULL == vid)
 		goto Error_Exit;
 
@@ -176,7 +177,7 @@ void nx_free_frame_memory(struct nx_vid_memory_info *vid)
 			cma_free(vid->phyAddr[i]);
 #endif
 		}
-
+		kfree(vid);
 	}
 }
 

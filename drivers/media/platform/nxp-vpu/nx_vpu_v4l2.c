@@ -896,7 +896,7 @@ static int nx_vpu_open(struct file *file)
 	if (mutex_lock_interruptible(&g_vpu_mutex))
 		return -ERESTARTSYS;
 
-	ctx = devm_kzalloc(err, sizeof(*ctx), GFP_KERNEL);
+	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
 	if (!ctx) {
 		NX_ErrMsg(("Not enough memory.\n"));
 		ret = -ENOMEM;
@@ -1030,6 +1030,7 @@ static int nx_vpu_close(struct file *file)
 	__clear_bit(ctx->idx, &dev->ctx_work_bits);
 
 	dev->ctx[ctx->idx] = 0;
+	kfree(ctx);
 
 	mutex_unlock(&dev->dev_mutex);
 	mutex_unlock(&g_vpu_mutex);
