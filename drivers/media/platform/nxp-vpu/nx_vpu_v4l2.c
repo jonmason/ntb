@@ -47,6 +47,8 @@
 #define	NX_VIDEO_ENC_NAME "nx-vpu-enc"
 #define	NX_VIDEO_DEC_NAME "nx-vpu-dec"
 
+static int num_open_inst;
+static struct mutex g_vpu_mutex;
 
 #define INFO_MSG		0
 
@@ -86,7 +88,7 @@ int nx_vpu_try_run(struct nx_vpu_ctx *ctx)
 
 	NX_DbgMsg(INFO_MSG, ("cmd = %x\n", ctx->vpu_cmd));
 
-	mutex_lock(&dev->vpu_mutex);
+	mutex_lock(&g_vpu_mutex);
 
 #ifdef ENABLE_CLOCK_GATING
 	NX_VPU_Clock(1);
@@ -203,7 +205,7 @@ int nx_vpu_try_run(struct nx_vpu_ctx *ctx)
 	NX_VPU_Clock(0);
 #endif
 
-	mutex_unlock(&dev->vpu_mutex);
+	mutex_unlock(&g_vpu_mutex);
 
 	return ret;
 }
@@ -613,18 +615,14 @@ int nx_vpu_queue_setup(struct vb2_queue *vq,
 
 void nx_vpu_unlock(struct vb2_queue *q)
 {
-	struct nx_vpu_ctx *ctx = q->drv_priv;
-
 	FUNC_IN();
-	mutex_unlock(&ctx->dev->dev_mutex);
+	mutex_unlock(&g_vpu_mutex);
 }
 
 void nx_vpu_lock(struct vb2_queue *q)
 {
-	struct nx_vpu_ctx *ctx = q->drv_priv;
-
 	FUNC_IN();
-	mutex_lock(&ctx->dev->dev_mutex);
+	mutex_lock(&g_vpu_mutex);
 }
 
 int nx_vpu_buf_init(struct vb2_buffer *vb)
@@ -895,7 +893,7 @@ static int nx_vpu_open(struct file *file)
 
 	FUNC_IN();
 
-	if (mutex_lock_interruptible(&dev->vpu_mutex))
+	if (mutex_lock_interruptible(&g_vpu_mutex))
 		return -ERESTARTSYS;
 
 	ctx = devm_kzalloc(err, sizeof(*ctx), GFP_KERNEL);
@@ -944,7 +942,7 @@ static int nx_vpu_open(struct file *file)
 		goto err_ctx_init;
 
 	/* FW Download, HW Init, Clock Set */
-	if (dev->cur_num_instance == 0) {
+	if (num_open_inst == 0) {
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
 		nx_vpu_qos_update(NX_BUS_CLK_VPU_KHZ);
 #endif
@@ -965,7 +963,8 @@ static int nx_vpu_open(struct file *file)
 #endif
 	}
 
-	mutex_unlock(&dev->vpu_mutex);
+	num_open_inst++;
+	mutex_unlock(&g_vpu_mutex);
 
 	return ret;
 
@@ -978,7 +977,7 @@ err_ctx_init:
 err_no_ctx:
 
 err_ctx_mem:
-	mutex_unlock(&dev->vpu_mutex);
+	mutex_unlock(&g_vpu_mutex);
 
 	return ret;
 }
@@ -990,11 +989,14 @@ static int nx_vpu_close(struct file *file)
 
 	FUNC_IN();
 
+	mutex_lock(&g_vpu_mutex);
 	mutex_lock(&dev->dev_mutex);
 
 	if (ctx->is_initialized) {
 		ctx->vpu_cmd = SEQ_END;
+		mutex_unlock(&g_vpu_mutex);
 		nx_vpu_try_run(ctx);
+		mutex_lock(&g_vpu_mutex);
 
 		if (ctx->is_encoder)
 			free_encoder_memory(ctx);
@@ -1002,7 +1004,8 @@ static int nx_vpu_close(struct file *file)
 			free_decoder_memory(ctx);
 	}
 
-	if (dev->cur_num_instance == 0) {
+	num_open_inst--;
+	if (num_open_inst == 0) {
 #ifdef ENABLE_POWER_SAVING
 		/* H/W Power Off */
 		NX_VPU_Clock(1);
@@ -1029,6 +1032,7 @@ static int nx_vpu_close(struct file *file)
 	dev->ctx[ctx->idx] = 0;
 
 	mutex_unlock(&dev->dev_mutex);
+	mutex_unlock(&g_vpu_mutex);
 
 	return 0;
 }
@@ -1113,7 +1117,7 @@ static int nx_vpu_init(struct nx_vpu_v4l2 *dev)
 		return -ENOMEM;
 	}
 
-	mutex_lock(&dev->vpu_mutex);
+	mutex_lock(&g_vpu_mutex);
 
 	NX_VPU_Clock(1);
 
@@ -1124,7 +1128,7 @@ static int nx_vpu_init(struct nx_vpu_v4l2 *dev)
 	NX_VPU_Clock(0);
 #endif
 
-	mutex_unlock(&dev->vpu_mutex);
+	mutex_unlock(&g_vpu_mutex);
 
 	dev->cur_num_instance = 0;
 	dev->cur_jpg_instance = 0;
@@ -1159,6 +1163,7 @@ static int nx_vpu_probe(struct platform_device *pdev)
 	uint32_t info[2] = { };
 
 	FUNC_IN();
+	num_open_inst = 0;
 
 	dev = devm_kzalloc(&pdev->dev, sizeof(*dev), GFP_KERNEL);
 	if (!dev) {
@@ -1249,7 +1254,7 @@ static int nx_vpu_probe(struct platform_device *pdev)
 	}
 
 	mutex_init(&dev->dev_mutex);
-	mutex_init(&dev->vpu_mutex);
+	mutex_init(&g_vpu_mutex);
 
 	ret = v4l2_device_register(&pdev->dev, &dev->v4l2_dev);
 	if (ret) {
@@ -1377,7 +1382,7 @@ static int nx_vpu_remove(struct platform_device *pdev)
 	if (dev->alloc_ctx)
 		vb2_dma_contig_cleanup_ctx(dev->alloc_ctx);
 
-	mutex_destroy(&dev->vpu_mutex);
+	mutex_destroy(&g_vpu_mutex);
 	mutex_destroy(&dev->dev_mutex);
 
 	return 0;
@@ -1389,7 +1394,7 @@ static int nx_vpu_suspend(struct platform_device *pdev, pm_message_t state)
 
 	FUNC_IN();
 
-	mutex_lock(&dev->vpu_mutex);
+	mutex_lock(&g_vpu_mutex);
 	NX_VPU_Clock(1);
 
 	NX_VpuSuspend(dev);
@@ -1397,7 +1402,7 @@ static int nx_vpu_suspend(struct platform_device *pdev, pm_message_t state)
 #ifdef ENABLE_CLOCK_GATING
 	NX_VPU_Clock(0);
 #endif
-	mutex_unlock(&dev->vpu_mutex);
+	mutex_unlock(&g_vpu_mutex);
 
 	FUNC_OUT();
 	return 0;
@@ -1409,7 +1414,7 @@ static int nx_vpu_resume(struct platform_device *pdev)
 
 	FUNC_IN();
 
-	mutex_lock(&dev->vpu_mutex);
+	mutex_lock(&g_vpu_mutex);
 	NX_VPU_Clock(1);
 
 	NX_VpuResume(dev, dev->regs_base);
@@ -1417,7 +1422,7 @@ static int nx_vpu_resume(struct platform_device *pdev)
 #ifdef ENABLE_CLOCK_GATING
 	NX_VPU_Clock(0);
 #endif
-	mutex_unlock(&dev->vpu_mutex);
+	mutex_unlock(&g_vpu_mutex);
 
 	FUNC_OUT();
 	return 0;

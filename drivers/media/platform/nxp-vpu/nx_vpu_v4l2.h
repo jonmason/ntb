@@ -53,7 +53,6 @@ struct nx_vpu_v4l2 {
 
 	spinlock_t irqlock;	/* lock when operating on videobuf2 queues */
 	struct mutex dev_mutex;
-	struct mutex vpu_mutex;
 
 	wait_queue_head_t vpu_wait_queue;
 	wait_queue_head_t jpu_wait_queue;
