@@ -22,16 +22,38 @@
 #include <linux/of.h>
 #include <linux/clk.h>
 #include <linux/reset.h>
+#include <linux/regmap.h>
 #include <linux/interrupt.h>
+#include <linux/mfd/syscon.h>
 #include <linux/platform_device.h>
 
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
+#include <dt-bindings/soc/nxs_tid.h>
+
+#define MULTITAP_DIRTYSET_OFFSET	0x0000
+#define MULTITAP_DIRTYCLR_OFFSET	0x0010
+#define MULTITAP0_DIRTY			BIT(15)
+#define MULTITAP1_DIRTY			BIT(16)
+#define MULTITAP2_DIRTY			BIT(17)
+#define MULTITAP3_DIRTY			BIT(18)
+
+#define MULTITAP_CTRL1			0x0004
+
+/* MULTITAP CTRL1 */
+#define MULTITAP_TID1_SHIFT		16
+#define MULTITAP_TID1_MASK		GENMASK(29, 16)
+#define MULTITAP_TID0_SHIFT		0
+#define MULTITAP_TID0_MASK		GENMASK(13, 0)
 
 struct nxs_multitap {
 	struct nxs_dev nxs_dev;
+	struct regmap *reg;
+	u32 offset;
 };
+
+#define nxs_to_multitap(dev)    container_of(dev, struct nxs_multitap, nxs_dev)
 
 static void multitap_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 					  bool enable)
@@ -75,12 +97,51 @@ static int multitap_stop(const struct nxs_dev *pthis)
 
 static int multitap_set_dirty(const struct nxs_dev *pthis)
 {
-	return 0;
+	struct nxs_multitap *multitap = nxs_to_multitap(pthis);
+	u32 dirty_val;
+
+	switch (pthis->dev_inst_index) {
+	case 0:
+		dirty_val = MULTITAP0_DIRTY;
+		break;
+	case 1:
+		dirty_val = MULTITAP1_DIRTY;
+		break;
+	case 2:
+		dirty_val = MULTITAP2_DIRTY;
+		break;
+	case 3:
+		dirty_val = MULTITAP3_DIRTY;
+		break;
+	default:
+		dev_err(pthis->dev, "invalid inst %d\n", pthis->dev_inst_index);
+		return -ENODEV;
+	}
+
+	return regmap_write(multitap->reg, MULTITAP_DIRTYSET_OFFSET, dirty_val);
 }
 
 static int multitap_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
 {
-	return 0;
+	struct nxs_multitap *multitap = nxs_to_multitap(pthis);
+	int ret = 0;
+
+	if (tid1 != NXS_TID_DEFAULT) {
+		ret = regmap_update_bits(multitap->reg,
+					 multitap->offset + MULTITAP_CTRL1,
+					 MULTITAP_TID0_MASK,
+					 tid1 << MULTITAP_TID0_SHIFT);
+		if (ret)
+			return ret;
+	}
+
+	if (tid2 != NXS_TID_DEFAULT)
+		ret = regmap_update_bits(multitap->reg,
+					 multitap->offset + MULTITAP_CTRL1,
+					 MULTITAP_TID1_MASK,
+					 tid2 << MULTITAP_TID1_SHIFT);
+
+	return ret;
 }
 
 static int multitap_set_syncinfo(const struct nxs_dev *pthis,
@@ -100,16 +161,30 @@ static int nxs_multitap_probe(struct platform_device *pdev)
 	int ret;
 	struct nxs_multitap *multitap;
 	struct nxs_dev *nxs_dev;
+	struct resource *res;
 
 	multitap = devm_kzalloc(&pdev->dev, sizeof(*multitap), GFP_KERNEL);
 	if (!multitap)
 		return -ENOMEM;
 
 	nxs_dev = &multitap->nxs_dev;
-
 	ret = nxs_dev_parse_dt(pdev, nxs_dev);
 	if (ret)
 		return ret;
+
+	multitap->reg = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+							"syscon");
+	if (IS_ERR(multitap->reg)) {
+		dev_err(&pdev->dev, "unable to get syscon\n");
+		return PTR_ERR(multitap->reg);
+	}
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res) {
+		dev_err(&pdev->dev, "missing IO resource\n");
+		return -ENODEV;
+	}
+	multitap->offset = res->start;
 
 	nxs_dev->set_interrupt_enable = multitap_set_interrupt_enable;
 	nxs_dev->get_interrupt_enable = multitap_get_interrupt_enable;
