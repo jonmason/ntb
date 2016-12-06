@@ -86,6 +86,7 @@ struct nx_vid_memory_info {
 	int32_t stride[NX_MAX_PLANES];		/* Each plane's stride */
 	void *virAddr[NX_MAX_PLANES];
 	uint32_t phyAddr[NX_MAX_PLANES];
+	struct nx_memory_info *mem[NX_MAX_PLANES];
 };
 
 /*

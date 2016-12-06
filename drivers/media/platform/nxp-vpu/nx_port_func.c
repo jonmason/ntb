@@ -151,6 +151,7 @@ struct nx_vid_memory_info *nx_alloc_frame_memory(void *drv, int32_t width,
 		vid->stride[i] = (i == 0) ? (lWidth) : (cWidth);
 		vid->virAddr[i] = mem[i]->virAddr;
 		vid->phyAddr[i] = mem[i]->phyAddr;
+		vid->mem[i] = mem[i];
 	}
 
 	return vid;
@@ -170,12 +171,8 @@ void nx_free_frame_memory(struct nx_vid_memory_info *vid)
 		int32_t i;
 
 		for (i = 0 ; i < vid->planes ; i++) {
-#ifndef USE_ION_MEMORY
-			dma_free_coherent(vid->fd[i], vid->size[i],
-				vid->virAddr[i], vid->phyAddr[i]);
-#else
-			cma_free(vid->phyAddr[i]);
-#endif
+			if (vid->mem[i])
+				nx_free_memory(vid->mem[i]);
 		}
 		kfree(vid);
 	}
