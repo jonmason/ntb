@@ -20,18 +20,33 @@
 #include <linux/module.h>
 
 #include <linux/of.h>
+#include <linux/io.h>
 #include <linux/clk.h>
 #include <linux/reset.h>
 #include <linux/interrupt.h>
+#include <linux/of_address.h>
 #include <linux/platform_device.h>
 
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
+/* NXS2DSI */
+#define DSI_DPC_CTRL0		0x0020
+
+/* DSI DPC CTRL0 */
+#define DIRTYFLAG_TOP_SHIFT	12
+#define DIRTYFLAG_TOP_MASK	BIT(12)
+
 struct nxs_dsi {
 	struct nxs_dev nxs_dev;
+	u8 *nxs2dsi_base;
+	u8 *nxs2dsi0_i80_base;
+	u8 *nxs2dsi1_i80_base;
+	u8 *base;
 };
+
+#define nxs_to_dsi(dev)		container_of(dev, struct nxs_dsi, nxs_dev)
 
 static void mipi_dsi_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 				     bool enable)
@@ -75,6 +90,15 @@ static int mipi_dsi_stop(const struct nxs_dev *pthis)
 
 static int mipi_dsi_set_dirty(const struct nxs_dev *pthis)
 {
+	struct nxs_dsi *dsi = nxs_to_dsi(pthis);
+	u32 val;
+	u8 *reg;
+
+	reg = dsi->nxs2dsi_base + DSI_DPC_CTRL0;
+	val = readl(reg);
+	val |= 1 << DIRTYFLAG_TOP_SHIFT;
+	writel(val, reg);
+
 	return 0;
 }
 
@@ -95,16 +119,76 @@ static int nxs_mipi_dsi_probe(struct platform_device *pdev)
 	int ret;
 	struct nxs_dsi *dsi;
 	struct nxs_dev *nxs_dev;
+	struct resource res;
 
 	dsi = devm_kzalloc(&pdev->dev, sizeof(*dsi), GFP_KERNEL);
 	if (!dsi)
 		return -ENOMEM;
 
 	nxs_dev = &dsi->nxs_dev;
-
 	ret = nxs_dev_parse_dt(pdev, nxs_dev);
 	if (ret)
 		return ret;
+
+	/* NXS2DSI base */
+	ret = of_address_to_resource(pdev->dev.of_node, 0, &res);
+	if (ret) {
+		dev_err(&pdev->dev,
+			"[%s:%d] failed to get nxs2dsi base address\n",
+			nxs_function_to_str(nxs_dev->dev_function),
+			nxs_dev->dev_inst_index);
+		return -ENXIO;
+	}
+
+	dsi->nxs2dsi_base = devm_ioremap_nocache(nxs_dev->dev, res.start,
+						 resource_size(&res));
+	if (!dsi->nxs2dsi_base) {
+		dev_err(&pdev->dev,
+			"[%s:%d] failed to ioremap for nxs2dsi\n",
+			nxs_function_to_str(nxs_dev->dev_function),
+			nxs_dev->dev_inst_index);
+		return -EBUSY;
+	}
+
+	/* NXS2DSI0_I80 base */
+	ret = of_address_to_resource(pdev->dev.of_node, 1, &res);
+	if (ret) {
+		dev_err(&pdev->dev,
+			"[%s:%d] failed to get nxs2dsi0_i80 base address\n",
+			nxs_function_to_str(nxs_dev->dev_function),
+			nxs_dev->dev_inst_index);
+		return -ENXIO;
+	}
+
+	dsi->nxs2dsi0_i80_base = devm_ioremap_nocache(nxs_dev->dev, res.start,
+						      resource_size(&res));
+	if (!dsi->nxs2dsi0_i80_base) {
+		dev_err(&pdev->dev,
+			"[%s:%d] failed to ioremap for nxs2dsi0_i80\n",
+			nxs_function_to_str(nxs_dev->dev_function),
+			nxs_dev->dev_inst_index);
+		/* return -EBUSY; */
+	}
+
+	/* NXS2DSI1_I80 base */
+	ret = of_address_to_resource(pdev->dev.of_node, 2, &res);
+	if (ret) {
+		dev_err(&pdev->dev,
+			"[%s:%d] failed to get nxs2dsi1_i80 base address\n",
+			nxs_function_to_str(nxs_dev->dev_function),
+			nxs_dev->dev_inst_index);
+		return -ENXIO;
+	}
+
+	dsi->nxs2dsi1_i80_base = devm_ioremap_nocache(nxs_dev->dev, res.start,
+						      resource_size(&res));
+	if (!dsi->nxs2dsi1_i80_base) {
+		dev_err(&pdev->dev,
+			"[%s:%d] failed to ioremap for nxs2dsi1_i80\n",
+			nxs_function_to_str(nxs_dev->dev_function),
+			nxs_dev->dev_inst_index);
+		return -EBUSY;
+	}
 
 	nxs_dev->set_interrupt_enable = mipi_dsi_set_interrupt_enable;
 	nxs_dev->get_interrupt_enable = mipi_dsi_get_interrupt_enable;
