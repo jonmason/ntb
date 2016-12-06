@@ -20,18 +20,29 @@
 #include <linux/module.h>
 
 #include <linux/of.h>
+#include <linux/io.h>
 #include <linux/clk.h>
 #include <linux/reset.h>
 #include <linux/interrupt.h>
+#include <linux/of_address.h>
 #include <linux/platform_device.h>
 
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
+#define DPC_CTRL0		0x0020
+
+/* DPC CTRL0 */
+#define DIRTYFLAG_TOP_SHIFT	12
+#define DIRTYFLAG_TOP_MASK	BIT(12)
+
 struct nxs_dpc {
 	struct nxs_dev nxs_dev;
+	u8 *base;
 };
+
+#define nxs_to_dpc(dev)		container_of(dev, struct nxs_dpc, nxs_dev)
 
 static void dpc_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 				     bool enable)
@@ -74,6 +85,15 @@ static int dpc_stop(const struct nxs_dev *pthis)
 
 static int dpc_set_dirty(const struct nxs_dev *pthis)
 {
+	struct nxs_dpc *dpc = nxs_to_dpc(pthis);
+	u32 val;
+	u8 *reg;
+
+	reg = dpc->base + DPC_CTRL0;
+	val = readl(reg);
+	val |= 1 << DIRTYFLAG_TOP_SHIFT;
+	writel(val, reg);
+
 	return 0;
 }
 
@@ -94,16 +114,33 @@ static int nxs_dpc_probe(struct platform_device *pdev)
 	int ret;
 	struct nxs_dpc *dpc;
 	struct nxs_dev *nxs_dev;
+	struct resource res;
 
 	dpc = devm_kzalloc(&pdev->dev, sizeof(*dpc), GFP_KERNEL);
 	if (!dpc)
 		return -ENOMEM;
 
 	nxs_dev = &dpc->nxs_dev;
-
 	ret = nxs_dev_parse_dt(pdev, nxs_dev);
 	if (ret)
 		return ret;
+
+	ret = of_address_to_resource(pdev->dev.of_node, 0, &res);
+	if (ret) {
+		dev_err(nxs_dev->dev, "[%s:%d] failed to get base address\n",
+			nxs_function_to_str(nxs_dev->dev_function),
+			nxs_dev->dev_inst_index);
+		return -ENXIO;
+	}
+
+	dpc->base = devm_ioremap_nocache(nxs_dev->dev, res.start,
+					 resource_size(&res));
+	if (!dpc->base) {
+		dev_err(nxs_dev->dev, "[%s:%d] failed to ioremap\n",
+			nxs_function_to_str(nxs_dev->dev_function),
+			nxs_dev->dev_inst_index);
+			return -EBUSY;
+	}
 
 	nxs_dev->set_interrupt_enable = dpc_set_interrupt_enable;
 	nxs_dev->get_interrupt_enable = dpc_get_interrupt_enable;
