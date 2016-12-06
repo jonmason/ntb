@@ -22,16 +22,33 @@
 #include <linux/of.h>
 #include <linux/clk.h>
 #include <linux/reset.h>
+#include <linux/regmap.h>
 #include <linux/interrupt.h>
+#include <linux/mfd/syscon.h>
 #include <linux/platform_device.h>
 
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
+#define BOTTOM_DIRTYSET_OFFSET	0x0000
+#define BOTTOM_DIRTYCLR_OFFSET	0x0010
+#define BOTTOM0_DIRTY		BIT(23)
+#define BOTTOM1_DIRTY		BIT(24)
+
+#define BOTTOM_CTRL3		0x000c
+
+/* BOTTOM CTRL3 */
+#define BOTTOM_TID_SHIFT	0
+#define BOTTOM_TID_MASK		GENMASK(13, 0)
+
 struct nxs_bottom {
 	struct nxs_dev nxs_dev;
+	struct regmap *reg;
+	u32 offset;
 };
+
+#define nxs_to_bottom(dev)       container_of(dev, struct nxs_bottom, nxs_dev)
 
 static void mlc_bottom_set_interrupt_enable(const struct nxs_dev *pthis,
 					    int type, bool enable)
@@ -72,12 +89,27 @@ static int mlc_bottom_start(const struct nxs_dev *pthis)
 
 static int mlc_bottom_set_dirty(const struct nxs_dev *pthis)
 {
-	return 0;
+	struct nxs_bottom *bottom = nxs_to_bottom(pthis);
+	u32 dirty_val;
+
+	if (pthis->dev_inst_index == 0)
+		dirty_val = BOTTOM0_DIRTY;
+	else if (pthis->dev_inst_index == 1)
+		dirty_val = BOTTOM1_DIRTY;
+	else {
+		dev_err(pthis->dev, "invalid inst %d\n", pthis->dev_inst_index);
+		return -ENODEV;
+	}
+
+	return regmap_write(bottom->reg, BOTTOM_DIRTYSET_OFFSET, dirty_val);
 }
 
 static int mlc_bottom_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
 {
-	return 0;
+	struct nxs_bottom *bottom = nxs_to_bottom(pthis);
+
+	return regmap_update_bits(bottom->reg, bottom->offset + BOTTOM_CTRL3,
+				  BOTTOM_TID_MASK, tid1 << BOTTOM_TID_SHIFT);
 }
 
 static int mlc_bottom_stop(const struct nxs_dev *pthis)
@@ -102,16 +134,30 @@ static int nxs_mlc_bottom_probe(struct platform_device *pdev)
 	int ret;
 	struct nxs_bottom *bottom;
 	struct nxs_dev *nxs_dev;
+	struct resource *res;
 
 	bottom = devm_kzalloc(&pdev->dev, sizeof(*bottom), GFP_KERNEL);
 	if (!bottom)
 		return -ENOMEM;
 
 	nxs_dev = &bottom->nxs_dev;
-
 	ret = nxs_dev_parse_dt(pdev, nxs_dev);
 	if (ret)
 		return ret;
+
+	bottom->reg = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+						      "syscon");
+	if (IS_ERR(bottom->reg)) {
+		dev_err(&pdev->dev, "unable to get syscon\n");
+		return PTR_ERR(bottom->reg);
+	}
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res) {
+		dev_err(&pdev->dev, "missing IO resource\n");
+		return -ENODEV;
+	}
+	bottom->offset = res->start;
 
 	nxs_dev->set_interrupt_enable = mlc_bottom_set_interrupt_enable;
 	nxs_dev->get_interrupt_enable = mlc_bottom_get_interrupt_enable;
