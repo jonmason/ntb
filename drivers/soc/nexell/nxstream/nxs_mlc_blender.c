@@ -22,16 +22,51 @@
 #include <linux/of.h>
 #include <linux/clk.h>
 #include <linux/reset.h>
+#include <linux/regmap.h>
 #include <linux/interrupt.h>
+#include <linux/mfd/syscon.h>
 #include <linux/platform_device.h>
 
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
+#define BLENDER_DIRTYSET_OFFSET	0x0004
+#define BLENDER_DIRTYCLR_OFFSET	0x0014
+#define BLENDER0_DIRTY		BIT(12)
+#define BLENDER1_DIRTY		BIT(13)
+#define BLENDER2_DIRTY		BIT(14)
+#define BLENDER3_DIRTY		BIT(15)
+#define BLENDER4_DIRTY		BIT(16)
+#define BLENDER5_DIRTY		BIT(17)
+#define BLENDER6_DIRTY		BIT(18)
+#define BLENDER7_DIRTY		BIT(19)
+#define BLENDER0_TID_DIRTY	BIT(20)
+#define BLENDER1_TID_DIRTY	BIT(21)
+#define BLENDER2_TID_DIRTY	BIT(22)
+#define BLENDER3_TID_DIRTY	BIT(23)
+#define BLENDER4_TID_DIRTY	BIT(24)
+#define BLENDER5_TID_DIRTY	BIT(25)
+#define BLENDER6_TID_DIRTY	BIT(26)
+#define BLENDER7_TID_DIRTY	BIT(27)
+
+#define BLENDER_CTRL0		0x0000
+
+/* BLENDER CTRL0 */
+#define BLENDER_REG_CLEAR_SHIFT	15
+#define BLENDER_REG_CLEAR_MASK	BIT(15)
+#define BLENDER_TZPROT_SHIFT	14
+#define BLENDER_TZPROT_MASK	BIT(14)
+#define BLENDER_TID_SHIFT	0
+#define BLENDER_TID_MASK	GENMASK(13, 0)
+
 struct nxs_blender {
 	struct nxs_dev nxs_dev;
+	struct regmap *reg;
+	u32 offset;
 };
+
+#define nxs_to_blender(dev)       container_of(dev, struct nxs_blender, nxs_dev)
 
 static void mlc_blender_set_interrupt_enable(const struct nxs_dev *pthis,
 					     int type, bool enable)
@@ -77,12 +112,81 @@ static int mlc_blender_stop(const struct nxs_dev *pthis)
 
 static int mlc_blender_set_dirty(const struct nxs_dev *pthis)
 {
-	return 0;
+	struct nxs_blender *blender = nxs_to_blender(pthis);
+	u32 dirty_val;
+
+	switch (pthis->dev_inst_index) {
+	case 0:
+		dirty_val = BLENDER0_DIRTY;
+		break;
+	case 1:
+		dirty_val = BLENDER1_DIRTY;
+		break;
+	case 2:
+		dirty_val = BLENDER2_DIRTY;
+		break;
+	case 3:
+		dirty_val = BLENDER3_DIRTY;
+		break;
+	case 4:
+		dirty_val = BLENDER4_DIRTY;
+		break;
+	case 5:
+		dirty_val = BLENDER5_DIRTY;
+		break;
+	case 6:
+		dirty_val = BLENDER6_DIRTY;
+		break;
+	case 7:
+		dirty_val = BLENDER7_DIRTY;
+		break;
+	default:
+		dev_err(pthis->dev, "invalid inst %d\n", pthis->dev_inst_index);
+		return -ENODEV;
+	}
+
+	return regmap_write(blender->reg, BLENDER_DIRTYSET_OFFSET, dirty_val);
 }
 
 static int mlc_blender_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
 {
-	return 0;
+	struct nxs_blender *blender = nxs_to_blender(pthis);
+	u32 dirty_val;
+
+	regmap_update_bits(blender->reg, blender->offset + BLENDER_CTRL0,
+			   BLENDER_TID_MASK, tid1 << BLENDER_TID_SHIFT);
+
+	switch (pthis->dev_inst_index) {
+	case 0:
+		dirty_val = BLENDER0_TID_DIRTY;
+		break;
+	case 1:
+		dirty_val = BLENDER1_TID_DIRTY;
+		break;
+	case 2:
+		dirty_val = BLENDER2_TID_DIRTY;
+		break;
+	case 3:
+		dirty_val = BLENDER3_TID_DIRTY;
+		break;
+	case 4:
+		dirty_val = BLENDER4_TID_DIRTY;
+		break;
+	case 5:
+		dirty_val = BLENDER5_TID_DIRTY;
+		break;
+	case 6:
+		dirty_val = BLENDER6_TID_DIRTY;
+		break;
+	case 7:
+		dirty_val = BLENDER7_TID_DIRTY;
+		break;
+	default:
+		dev_err(pthis->dev, "invalid inst %d\n", pthis->dev_inst_index);
+		return -ENODEV;
+	}
+
+	return regmap_write(blender->reg, BLENDER_DIRTYSET_OFFSET, dirty_val);
 }
 
 static int mlc_blender_set_syncinfo(const struct nxs_dev *pthis,
@@ -102,12 +206,30 @@ static int nxs_mlc_blender_probe(struct platform_device *pdev)
 	int ret;
 	struct nxs_blender *blender;
 	struct nxs_dev *nxs_dev;
+	struct resource *res;
 
 	blender = devm_kzalloc(&pdev->dev, sizeof(*blender), GFP_KERNEL);
 	if (!blender)
 		return -ENOMEM;
 
 	nxs_dev = &blender->nxs_dev;
+	ret = nxs_dev_parse_dt(pdev, nxs_dev);
+	if (ret)
+		return ret;
+
+	blender->reg = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+						       "syscon");
+	if (IS_ERR(blender->reg)) {
+		dev_err(&pdev->dev, "unable to get syscon\n");
+		return PTR_ERR(blender->reg);
+	}
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res) {
+		dev_err(&pdev->dev, "missing IO resource\n");
+		return -ENODEV;
+	}
+	blender->offset = res->start;
 
 	ret = nxs_dev_parse_dt(pdev, nxs_dev);
 	if (ret)
