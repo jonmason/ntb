@@ -64,16 +64,18 @@
 	/* }; */
 
 	nxstream: nxstream {
-		compatible = "simple-bus";
+		compatible = "nexell,nxstream", "syscon", "simple-bus";
 		#address-cells = <1>;
 		#size-cells = <1>;
+		reg = <NXS_BASEADDR NXS_REGSIZE>;
 		interrupt-parent = <&gic>;
 		ranges;
 
 		/* dmar instance number: 10 */
 		dmar0: dmar@20c01800 {
 			compatible = "nexell,dmar-nxs-1.0";
-			reg = <NXS_REGBASE_DMAR(0) NXS_REGSIZE_DMAR>;
+			reg = <DMAR0_OFFSET DMAR_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 110 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <6 4>; */
@@ -90,7 +92,8 @@
 
 		dmar1: dmar@20c01a00 {
 			compatible = "nexell,dmar-nxs-1.0";
-			reg = <NXS_REGBASE_DMAR(1) NXS_REGSIZE_DMAR>;
+			reg = <DMAR1_OFFSET DMAR_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 111 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <7 4>; */
@@ -107,7 +110,8 @@
 
 		dmar2: dmar@20c01c00 {
 			compatible = "nexell,dmar-nxs-1.0";
-			reg = <NXS_REGBASE_DMAR(2) NXS_REGSIZE_DMAR>;
+			reg = <DMAR2_OFFSET DMAR_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 112 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <8 4>; */
@@ -124,7 +128,8 @@
 
 		dmar3: dmar@20c01e00 {
 			compatible = "nexell,dmar-nxs-1.0";
-			reg = <NXS_REGBASE_DMAR(3) NXS_REGSIZE_DMAR>;
+			reg = <DMAR3_OFFSET DMAR_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 113 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <9 4>; */
@@ -141,7 +146,8 @@
 
 		dmar4: dmar@20c02000 {
 			compatible = "nexell,dmar-nxs-1.0";
-			reg = <NXS_REGBASE_DMAR(4) NXS_REGSIZE_DMAR>;
+			reg = <DMAR4_OFFSET DMAR_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 114 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <10 4>; */
@@ -158,7 +164,8 @@
 
 		dmar5: dmar@20c02200 {
 			compatible = "nexell,dmar-nxs-1.0";
-			reg = <NXS_REGBASE_DMAR(5) NXS_REGSIZE_DMAR>;
+			reg = <DMAR5_OFFSET DMAR_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 115 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <11 4>; */
@@ -175,7 +182,8 @@
 
 		dmar6: dmar@20c02400 {
 			compatible = "nexell,dmar-nxs-1.0";
-			reg = <NXS_REGBASE_DMAR(6) NXS_REGSIZE_DMAR>;
+			reg = <DMAR6_OFFSET DMAR_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 116 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <12 4>; */
@@ -192,7 +200,8 @@
 
 		dmar7: dmar@20c02600 {
 			compatible = "nexell,dmar-nxs-1.0";
-			reg = <NXS_REGBASE_DMAR(7) NXS_REGSIZE_DMAR>;
+			reg = <DMAR7_OFFSET DMAR_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 117 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <13 4>; */
@@ -209,7 +218,8 @@
 
 		dmar8: dmar@20c02800 {
 			compatible = "nexell,dmar-nxs-1.0";
-			reg = <NXS_REGBASE_DMAR(8) NXS_REGSIZE_DMAR>;
+			reg = <DMAR8_OFFSET DMAR_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 118 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <14 4>; */
@@ -226,7 +236,8 @@
 
 		dmar9: dmar@20c02a00 {
 			compatible = "nexell,dmar-nxs-1.0";
-			reg = <NXS_REGBASE_DMAR(9) NXS_REGSIZE_DMAR>;
+			reg = <DMAR9_OFFSET DMAR_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 119 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <15 4>; */
@@ -244,7 +255,8 @@
 		/* dmar instance number: 12 */
 		dmaw0: dmaw@20c05000 {
 			compatible = "nexell,dmaw-nxs-1.0";
-			reg = <NXS_REGBASE_DMAW(0) NXS_REGSIZE_DMAW>;
+			reg = <DMAW0_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 120 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <16 4>; */
@@ -259,7 +271,8 @@
 
 		dmaw1: dmaw@20c05200 {
 			compatible = "nexell,dmaw-nxs-1.0";
-			reg = <NXS_REGBASE_DMAW(1) NXS_REGSIZE_DMAW>;
+			reg = <DMAW1_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 121 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <17 4>; */
@@ -274,7 +287,8 @@
 
 		dmaw2: dmaw@20c05400 {
 			compatible = "nexell,dmaw-nxs-1.0";
-			reg = <NXS_REGBASE_DMAW(2) NXS_REGSIZE_DMAW>;
+			reg = <DMAW2_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 122 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <18 4>; */
@@ -289,7 +303,8 @@
 
 		dmaw3: dmaw@20c05600 {
 			compatible = "nexell,dmaw-nxs-1.0";
-			reg = <NXS_REGBASE_DMAW(3) NXS_REGSIZE_DMAW>;
+			reg = <DMAW3_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 123 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <19 4>; */
@@ -304,7 +319,8 @@
 
 		dmaw4: dmaw@20c05800 {
 			compatible = "nexell,dmaw-nxs-1.0";
-			reg = <NXS_REGBASE_DMAW(4) NXS_REGSIZE_DMAW>;
+			reg = <DMAW4_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 124 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <20 4>; */
@@ -319,7 +335,8 @@
 
 		dmaw5: dmaw@20c05a00 {
 			compatible = "nexell,dmaw-nxs-1.0";
-			reg = <NXS_REGBASE_DMAW(5) NXS_REGSIZE_DMAW>;
+			reg = <DMAW5_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 125 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <21 4>; */
@@ -334,7 +351,8 @@
 
 		dmaw6: dmaw@20c05c00 {
 			compatible = "nexell,dmaw-nxs-1.0";
-			reg = <NXS_REGBASE_DMAW(6) NXS_REGSIZE_DMAW>;
+			reg = <DMAW6_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 126 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <22 4>; */
@@ -349,7 +367,8 @@
 
 		dmaw7: dmaw@20c05e00 {
 			compatible = "nexell,dmaw-nxs-1.0";
-			reg = <NXS_REGBASE_DMAW(7) NXS_REGSIZE_DMAW>;
+			reg = <DMAW7_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 127 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <23 4>; */
@@ -364,7 +383,8 @@
 
 		dmaw8: dmaw@20c06000 {
 			compatible = "nexell,dmaw-nxs-1.0";
-			reg = <NXS_REGBASE_DMAW(8) NXS_REGSIZE_DMAW>;
+			reg = <DMAW8_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 128 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <24 4>; */
@@ -379,7 +399,8 @@
 
 		dmaw9: dmaw@20c06200 {
 			compatible = "nexell,dmaw-nxs-1.0";
-			reg = <NXS_REGBASE_DMAW(9) NXS_REGSIZE_DMAW>;
+			reg = <DMAW9_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 129 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <25 4>; */
@@ -394,7 +415,8 @@
 
 		dmaw10: dmaw@20c06400 {
 			compatible = "nexell,dmaw-nxs-1.0";
-			reg = <NXS_REGBASE_DMAW(10) NXS_REGSIZE_DMAW>;
+			reg = <DMAW10_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 130 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <26 4>; */
@@ -409,7 +431,8 @@
 
 		dmaw11: dmaw@20c06600 {
 			compatible = "nexell,dmaw-nxs-1.0";
-			reg = <NXS_REGBASE_DMAW(11) NXS_REGSIZE_DMAW>;
+			reg = <DMAW11_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 131 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <27 4>; */
@@ -422,7 +445,6 @@
 			status = "disabled";
 		};
 
-		/* FPGA doesn't have vip */
 		vip0: vip@20c40000 {
 			compatible = "nexell,vip-nxs-1.0";
 			reg = <NXS_REGBASE_VIP(0) NXS_REGSIZE_VIP>,
@@ -487,10 +509,10 @@
 			status = "disabled";
 		};
 
-		/* FPGA doesn't have mipi csi */
-		mipi_csi0: mipi_csi@20e20000 {
+		mipi_csi: mipi_csi@20e20000 {
 			compatible = "nexell,mipi_csi-nxs-1.0";
-			reg = <NXS_REGBASE_MIPICSI(0) NXS_REGSIZE_MIPICSI>;
+			reg = <CSI2NXS_OFFSET CSI2NXS_SIZE>,
+			      <NXS_REGBASE_MIPICSI(0) NXS_REGSIZE_MIPICSI>;
 			/* interrupts = <0 104 0>; */
 			module = <0>;
 			version = <0x0100>;
@@ -503,42 +525,10 @@
 			status = "disabled";
 		};
 
-/* TODO */
-#if 0
-		isp2disp0: isp2disp@c0009000 {
-			compatible = "nexell,isp2disp-nxs-1.0";
-			reg = <NXS_REGBASE_ISP2DISP(0) NXS_REGSIZE_ISP2DISP>;
-			/* interrupts = <0 105 0>; */
-			module = <0>;
-			version = <0x0100>;
-			function = <NXS_FUNCTION_ISP2DISP>;
-			tid = <NXS_TID_ISP>;
-			max_refcount = <1>;
-			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
-			status = "disabled";
-		};
-
-		isp2disp1: isp2disp@c000a000 {
-			compatible = "nexell,isp2disp-nxs-1.0";
-			reg = <NXS_REGBASE_ISP2DISP(1) NXS_REGSIZE_ISP2DISP>;
-			/* interrupts = <0 106 0>; */
-			module = <1>;
-			version = <0x0100>;
-			function = <NXS_FUNCTION_ISP2DISP>;
-			tid = <NXS_TID_ISP>;
-			max_refcount = <1>;
-			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
-			status = "disabled";
-		};
-#endif
-
 		cropper0: cropper@20c00a00 {
 			compatible = "nexell,cropper-nxs-1.0";
-			reg = <NXS_REGBASE_CROPPER(0) NXS_REGSIZE_CROPPER>;
+			reg = <CROPPER0_OFFSET CROPPER_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 107 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <28 4>; */
@@ -553,7 +543,8 @@
 
 		cropper1: cropper@20c00a20 {
 			compatible = "nexell,cropper-nxs-1.0";
-			reg = <NXS_REGBASE_CROPPER(1) NXS_REGSIZE_CROPPER>;
+			reg = <CROPPER1_OFFSET CROPPER_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 108 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <29 4>; */
@@ -568,7 +559,8 @@
 
 		multitap0: multitap@20c01500 {
 			compatible = "nexell,multitap-nxs-1.0";
-			reg = <NXS_REGBASE_MULTITAP(0) NXS_REGSIZE_MULTITAP>;
+			reg = <MULTITAP0_OFFSET MULTITAP_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 140 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <6 4>; */
@@ -584,7 +576,8 @@
 
 		multitap1: multitap@20c01520 {
 			compatible = "nexell,multitap-nxs-1.0";
-			reg = <NXS_REGBASE_MULTITAP(1) NXS_REGSIZE_MULTITAP>;
+			reg = <MULTITAP1_OFFSET MULTITAP_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 141 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <7 4>; */
@@ -600,7 +593,8 @@
 
 		multitap2: multitap@20c01540 {
 			compatible = "nexell,multitap-nxs-1.0";
-			reg = <NXS_REGBASE_MULTITAP(2) NXS_REGSIZE_MULTITAP>;
+			reg = <MULTITAP2_OFFSET MULTITAP_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 142 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <8 4>; */
@@ -616,7 +610,8 @@
 
 		multitap3: multitap@20c01560 {
 			compatible = "nexell,multitap-nxs-1.0";
-			reg = <NXS_REGBASE_MULTITAP(3) NXS_REGSIZE_MULTITAP>;
+			reg = <MULTITAP3_OFFSET MULTITAP_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 143 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <9 4>; */
@@ -632,7 +627,8 @@
 
 		scaler_4096_0: scaler_4096@20c00c00 {
 			compatible = "nexell,scaler-nxs-1.0";
-			reg = <NXS_REGBASE_SCALER(0) NXS_REGSIZE_SCALER>;
+			reg = <SCALER0_OFFSET SCALER_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 144 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <10 4>; */
@@ -650,7 +646,8 @@
 
 		scaler_4096_1: scaler_4096@20c00f00 {
 			compatible = "nexell,scaler_4096-nxs-1.0";
-			reg = <NXS_REGBASE_SCALER(1) NXS_REGSIZE_SCALER>;
+			reg = <SCALER1_OFFSET SCALER_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 145 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <11 4>; */
@@ -668,7 +665,8 @@
 
 		scaler_5376_0: scaler_5376@20c01200 {
 			compatible = "nexell,scaler_5376-nxs-1.0";
-			reg = <NXS_REGBASE_SCALER(2) NXS_REGSIZE_SCALER>;
+			reg = <SCALER2_OFFSET SCALER_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 146 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <12 4>; */
@@ -686,7 +684,8 @@
 
 		mlc_bottom0: mlc_bottom@20c04000 {
 			compatible = "nexell,mlc_bottom-nxs-1.0";
-			reg = <NXS_REGBASE_MLC_BOTTOM(0) NXS_REGSIZE_MLC_BOTTOM>;
+			reg = <BOTTOM0_OFFSET BOTTOM_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 147 0>; */
 			module = <0>;
 			version = <0x0100>;
@@ -701,7 +700,8 @@
 
 		mlc_bottom1: mlc_bottom@20c04020 {
 			compatible = "nexell,mlc_bottom-nxs-1.0";
-			reg = <NXS_REGBASE_MLC_BOTTOM(1) NXS_REGSIZE_MLC_BOTTOM>;
+			reg = <BOTTOM1_OFFSET BOTTOM_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 148 0>; */
 			module = <1>;
 			version = <0x0100>;
@@ -716,7 +716,8 @@
 
 		tpgen: tpgen@20c03e00 {
 			compatible = "nexell,tpgen-nxs-1.0";
-			reg = <NXS_REGBASE_TPGEN(0) NXS_REGSIZE_TPGEN>;
+			reg = <TPGEN_OFFSET TPGEN_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 148 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <14 4>; */
@@ -733,7 +734,8 @@
 
 		mlc_blender0: mlc_blender@20c04080 {
 			compatible = "nexell,mlc_blender-nxs-1.0";
-			reg = <NXS_REGBASE_MLC_BLENDER(0) NXS_REGSIZE_MLC_BLENDER>;
+			reg = <BLENDER0_OFFSET BLENDER_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 140 0>; */
 			module = <0>;
 			version = <0x0100>;
@@ -748,7 +750,8 @@
 
 		mlc_blender1: mlc_blender@20c04100 {
 			compatible = "nexell,mlc_blender-nxs-1.0";
-			reg = <NXS_REGBASE_MLC_BLENDER(1) NXS_REGSIZE_MLC_BLENDER>;
+			reg = <BLENDER1_OFFSET BLENDER_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 141 0>; */
 			module = <1>;
 			version = <0x0100>;
@@ -763,7 +766,8 @@
 
 		mlc_blender2: mlc_blender@20c04180 {
 			compatible = "nexell,mlc_blender-nxs-1.0";
-			reg = <NXS_REGBASE_MLC_BLENDER(2) NXS_REGSIZE_MLC_BLENDER>;
+			reg = <BLENDER2_OFFSET BLENDER_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 142 0>; */
 			module = <2>;
 			version = <0x0100>;
@@ -778,7 +782,8 @@
 
 		mlc_blender3: mlc_blender@20c04200 {
 			compatible = "nexell,mlc_blender-nxs-1.0";
-			reg = <NXS_REGBASE_MLC_BLENDER(3) NXS_REGSIZE_MLC_BLENDER>;
+			reg = <BLENDER3_OFFSET BLENDER_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 143 0>; */
 			module = <3>;
 			version = <0x0100>;
@@ -793,7 +798,8 @@
 
 		mlc_blender4: mlc_blender@20c04280 {
 			compatible = "nexell,mlc_blender-nxs-1.0";
-			reg = <NXS_REGBASE_MLC_BLENDER(4) NXS_REGSIZE_MLC_BLENDER>;
+			reg = <BLENDER4_OFFSET BLENDER_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 144 0>; */
 			module = <4>;
 			version = <0x0100>;
@@ -808,7 +814,8 @@
 
 		mlc_blender5: mlc_blender@20c04300 {
 			compatible = "nexell,mlc_blender-nxs-1.0";
-			reg = <NXS_REGBASE_MLC_BLENDER(5) NXS_REGSIZE_MLC_BLENDER>;
+			reg = <BLENDER5_OFFSET BLENDER_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 145 0>; */
 			module = <5>;
 			version = <0x0100>;
@@ -823,7 +830,8 @@
 
 		mlc_blender6: mlc_blender@20c04380 {
 			compatible = "nexell,mlc_blender-nxs-1.0";
-			reg = <NXS_REGBASE_MLC_BLENDER(6) NXS_REGSIZE_MLC_BLENDER>;
+			reg = <BLENDER6_OFFSET BLENDER_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 146 0>; */
 			module = <6>;
 			version = <0x0100>;
@@ -838,7 +846,8 @@
 
 		mlc_blender7: mlc_blender@20c04400 {
 			compatible = "nexell,mlc_blender-nxs-1.0";
-			reg = <NXS_REGBASE_MLC_BLENDER(7) NXS_REGSIZE_MLC_BLENDER>;
+			reg = <BLENDER7_OFFSET BLENDER_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 147 0>; */
 			module = <7>;
 			version = <0x0100>;
@@ -853,7 +862,8 @@
 
 		hue0: hue@20c01580 {
 			compatible = "nexell,hue-nxs-1.0";
-			reg = <NXS_REGBASE_HUE(0) NXS_REGSIZE_HUE>;
+			reg = <HUE0_OFFSET HUE_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 148 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <4 4>; */
@@ -870,7 +880,8 @@
 
 		hue1: hue@20c01600 {
 			compatible = "nexell,hue-nxs-1.0";
-			reg = <NXS_REGBASE_HUE(1) NXS_REGSIZE_HUE>;
+			reg = <HUE1_OFFSET HUE_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 149 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <5 4>; */
@@ -887,7 +898,8 @@
 
 		gamma0: gamma@20c01680 {
 			compatible = "nexell,gamma-nxs-1.0";
-			reg = <NXS_REGBASE_GAMMA(0) NXS_REGSIZE_GAMMA>;
+			reg = <GAMMA0_OFFSET GAMMA_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 150 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <2 4>; */
@@ -904,7 +916,8 @@
 
 		gamma1: gamma@20c01700 {
 			compatible = "nexell,gamma-nxs-1.0";
-			reg = <NXS_REGBASE_GAMMA(1) NXS_REGSIZE_GAMMA>;
+			reg = <GAMMA1_OFFSET GAMMA_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 151 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <3 4>; */
@@ -921,7 +934,8 @@
 
 		fifo0: fifo@20c03d00 {
 			compatible = "nexell,fifo-nxs-1.0";
-			reg = <NXS_REGBASE_FIFO(0) NXS_REGSIZE_FIFO>;
+			reg = <FIFO0_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 160 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <15 4>; */
@@ -938,7 +952,8 @@
 
 		fifo1: fifo@20c03d10 {
 			compatible = "nexell,fifo-nxs-1.0";
-			reg = <NXS_REGBASE_FIFO(1) NXS_REGSIZE_FIFO>;
+			reg = <FIFO1_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 161 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <16 4>; */
@@ -955,7 +970,8 @@
 
 		fifo2: fifo@20c03d20 {
 			compatible = "nexell,fifo-nxs-1.0";
-			reg = <NXS_REGBASE_FIFO(2) NXS_REGSIZE_FIFO>;
+			reg = <FIFO2_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 162 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <17 4>; */
@@ -972,7 +988,8 @@
 
 		fifo3: fifo@20c03d30 {
 			compatible = "nexell,fifo-nxs-1.0";
-			reg = <NXS_REGBASE_FIFO(3) NXS_REGSIZE_FIFO>;
+			reg = <FIFO3_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 163 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <18 4>; */
@@ -989,7 +1006,8 @@
 
 		fifo4: fifo@20c03d40 {
 			compatible = "nexell,fifo-nxs-1.0";
-			reg = <NXS_REGBASE_FIFO(4) NXS_REGSIZE_FIFO>;
+			reg = <FIFO4_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 164 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <19 4>; */
@@ -1006,7 +1024,8 @@
 
 		fifo5: fifo@20c03d50 {
 			compatible = "nexell,fifo-nxs-1.0";
-			reg = <NXS_REGBASE_FIFO(5) NXS_REGSIZE_FIFO>;
+			reg = <FIFO5_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 165 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <20 4>; */
@@ -1023,7 +1042,8 @@
 
 		fifo6: fifo@20c03d60 {
 			compatible = "nexell,fifo-nxs-1.0";
-			reg = <NXS_REGBASE_FIFO(6) NXS_REGSIZE_FIFO>;
+			reg = <FIFO6_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 166 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <21 4>; */
@@ -1040,7 +1060,8 @@
 
 		fifo7: fifo@20c03d70 {
 			compatible = "nexell,fifo-nxs-1.0";
-			reg = <NXS_REGBASE_FIFO(7) NXS_REGSIZE_FIFO>;
+			reg = <FIFO7_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 167 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <22 4>; */
@@ -1057,7 +1078,8 @@
 
 		fifo8: fifo@20c03d80 {
 			compatible = "nexell,fifo-nxs-1.0";
-			reg = <NXS_REGBASE_FIFO(8) NXS_REGSIZE_FIFO>;
+			reg = <FIFO8_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 167 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <23 4>; */
@@ -1074,7 +1096,8 @@
 
 		fifo9: fifo@20c03e00 {
 			compatible = "nexell,fifo-nxs-1.0";
-			reg = <NXS_REGBASE_FIFO(9) NXS_REGSIZE_FIFO>;
+			reg = <FIFO9_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 167 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <24 4>; */
@@ -1091,7 +1114,8 @@
 
 		fifo10: fifo@20c03e80 {
 			compatible = "nexell,fifo-nxs-1.0";
-			reg = <NXS_REGBASE_FIFO(10) NXS_REGSIZE_FIFO>;
+			reg = <FIFO10_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 167 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <25 4>; */
@@ -1108,7 +1132,8 @@
 
 		fifo11: fifo@20c03f00 {
 			compatible = "nexell,fifo-nxs-1.0";
-			reg = <NXS_REGBASE_FIFO(11) NXS_REGSIZE_FIFO>;
+			reg = <FIFO11_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 167 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <26 4>; */
@@ -1139,24 +1164,10 @@
 			status = "disabled";
 		};
 
-		/* TODO */
-#if 0
-		disp2isp: disp2isp@c600a000 {
-			compatible = "nexell,disp2isp-nxs-1.0";
-			reg = <NXS_REGBASE_DISP2ISP(0) NXS_REGSIZE_DISP2ISP>;
-			/* interrupts = <0 170 0>; */
-			module = <0>;
-			version = <0x0100>;
-			function = <NXS_FUNCTION_DISP2ISP>;
-			/* reset */
-			/* clock */
-			status = "disabled";
-		};
-#endif
-
 		csc0: csc@20c00200 {
 			compatible = "nexell,csc-nxs-1.0";
-			reg = <NXS_REGBASE_CSC(0) NXS_REGSIZE_CSC>;
+			reg = <CSC0_OFFSET CSC_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 171 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <30 4>; */
@@ -1173,7 +1184,8 @@
 
 		csc1: csc@20c00240 {
 			compatible = "nexell,csc-nxs-1.0";
-			reg = <NXS_REGBASE_CSC(1) NXS_REGSIZE_CSC>;
+			reg = <CSC1_OFFSET CSC_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 172 0>; */
 			/* interrupt-parent = <&xps_intc_0>; */
 			/* interrupts = <31 4>; */
@@ -1190,7 +1202,8 @@
 
 		csc2: csc@20c00280 {
 			compatible = "nexell,csc-nxs-1.0";
-			reg = <NXS_REGBASE_CSC(2) NXS_REGSIZE_CSC>;
+			reg = <CSC2_OFFSET CSC_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 173 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <0 4>; */
@@ -1207,7 +1220,8 @@
 
 		csc3: csc@20c002c0 {
 			compatible = "nexell,csc-nxs-1.0";
-			reg = <NXS_REGBASE_CSC(3) NXS_REGSIZE_CSC>;
+			reg = <CSC3_OFFSET CSC_SIZE>;
+			syscon = <&nxstream>;
 			/* interrupts = <0 174 0>; */
 			/* interrupt-parent = <&xps_intc_1>; */
 			/* interrupts = <1 4>; */
@@ -1250,7 +1264,7 @@
 		};
 
 		/* FPGA doesn't have lvds module */
-		lvds: lvds@20cc0000 {
+		lvds0: lvds@20cc0000 {
 			compatible = "nexell,lvds-nxs-1.0";
 			reg = <NXS_REGBASE_LVDS(0) NXS_REGSIZE_LVDS>;
 			/* interrupts = <0 177 0>; */
@@ -1263,10 +1277,25 @@
 			status = "disabled";
 		};
 
-		/* FPGA doesn't have mipi_dsi module */
+		lvds1: lvds@20ce0000 {
+			compatible = "nexell,lvds-nxs-1.0";
+			reg = <NXS_REGBASE_LVDS(1) NXS_REGSIZE_LVDS>;
+			/* interrupts = <0 177 0>; */
+			module = <1>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_LVDS>;
+			tid = <NXS_TID_LVDS1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
 		mipi_dsi: mipi_dsi@20e50000 {
 			compatible = "nexell,mipi_dsi-nxs-1.0";
-			reg = <NXS_REGBASE_MIPIDSI(0) NXS_REGSIZE_MIPIDSI>;
+			reg = <NXS2DSI_REGBASE NXS2DSI_SIZE>,
+			      <NXS2DSI0_I80_REGBASE NXS2DSI_I80_SIZE>,
+			      <NXS2DSI1_I80_REGBASE NXS2DSI_I80_SIZE>,
+			      <NXS_REGBASE_MIPIDSI(0) NXS_REGSIZE_MIPIDSI>;
 			/* interrupts = <0 178 0>; */
 			module = <0>;
 			version = <0x0100>;
@@ -1277,10 +1306,12 @@
 			status = "disabled";
 		};
 
-		/* FPGA doesn't have hdmi module */
 		hdmi: hdmi@c6040000 {
 			compatible = "nexell,hdmi-nxs-1.0";
-			reg = <NXS_REGBASE_HDMI(0) NXS_REGSIZE_HDMI>;
+			reg = <NXS2HDMI_REGBASE NXS2HDMI_SIZE>,
+			      <HDMICEC_REGBASE HDMICEC_SIZE>,
+			      <HDMIPHY_REGBASE HDMIPHY_SIZE>,
+			      <HDMILINK_REGBASE HDMILINK_SIZE>;
 			/* interrupts = <0 179 0>; */
 			module = <0>;
 			version = <0x0100>;
