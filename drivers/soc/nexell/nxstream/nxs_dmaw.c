@@ -22,12 +22,29 @@
 #include <linux/of.h>
 #include <linux/clk.h>
 #include <linux/reset.h>
+#include <linux/regmap.h>
 #include <linux/interrupt.h>
+#include <linux/mfd/syscon.h>
 #include <linux/platform_device.h>
 
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
+
+#define DMAW_DIRTYSET_OFFSET	0x0008
+#define DMAW_DIRTYCLR_OFFSET	0x0018
+#define DMAW0_DIRTY		BIT(4)
+#define DMAW1_DIRTY		BIT(5)
+#define DMAW2_DIRTY		BIT(6)
+#define DMAW3_DIRTY		BIT(7)
+#define DMAW4_DIRTY		BIT(8)
+#define DMAW5_DIRTY		BIT(9)
+#define DMAW6_DIRTY		BIT(10)
+#define DMAW7_DIRTY		BIT(11)
+#define DMAW8_DIRTY		BIT(12)
+#define DMAW9_DIRTY		BIT(13)
+#define DMAW10_DIRTY		BIT(14)
+#define DMAW11_DIRTY		BIT(15)
 
 #define SIMULATE_INTERRUPT
 
@@ -35,8 +52,9 @@ struct nxs_dmaw {
 #ifdef SIMULATE_INTERRUPT
 	struct timer_list timer;
 #endif
-
 	struct nxs_dev nxs_dev;
+	struct regmap *reg;
+	u32 offset;
 };
 
 #ifdef SIMULATE_INTERRUPT
@@ -56,7 +74,7 @@ static void int_timer_func(unsigned long priv)
 }
 #endif
 
-#define nxs_dev_to_dmaw(dev)	container_of(dev, struct nxs_dmaw, nxs_dev)
+#define nxs_to_dmaw(dev)	container_of(dev, struct nxs_dmaw, nxs_dev)
 
 static void dmaw_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 				     bool enable)
@@ -89,13 +107,58 @@ static int dmaw_close(const struct nxs_dev *pthis)
 
 static int dmaw_set_dirty(const struct nxs_dev *pthis)
 {
-	return 0;
+	struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
+	u32 dirty_val;
+
+	switch (pthis->dev_inst_index) {
+	case 0:
+		dirty_val = DMAW0_DIRTY;
+		break;
+	case 1:
+		dirty_val = DMAW1_DIRTY;
+		break;
+	case 2:
+		dirty_val = DMAW2_DIRTY;
+		break;
+	case 3:
+		dirty_val = DMAW3_DIRTY;
+		break;
+	case 4:
+		dirty_val = DMAW4_DIRTY;
+		break;
+	case 5:
+		dirty_val = DMAW5_DIRTY;
+		break;
+	case 6:
+		dirty_val = DMAW6_DIRTY;
+		break;
+	case 7:
+		dirty_val = DMAW7_DIRTY;
+		break;
+	case 8:
+		dirty_val = DMAW8_DIRTY;
+		break;
+	case 9:
+		dirty_val = DMAW9_DIRTY;
+		break;
+	case 10:
+		dirty_val = DMAW10_DIRTY;
+		break;
+	case 11:
+		dirty_val = DMAW11_DIRTY;
+		break;
+	default:
+		dev_err(pthis->dev, "invalid inst %d\n", pthis->dev_inst_index);
+		return -ENODEV;
+	}
+
+	return regmap_write(dmaw->reg, DMAW_DIRTYSET_OFFSET, dirty_val);
 }
 
 static int dmaw_start(const struct nxs_dev *pthis)
 {
 #ifdef SIMULATE_INTERRUPT
-	struct nxs_dmaw *dmaw = nxs_dev_to_dmaw(pthis);
+	struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
 
 	mod_timer(&dmaw->timer, jiffies + msecs_to_jiffies(INT_TIMEOUT_MS));
 #endif
@@ -106,7 +169,7 @@ static int dmaw_start(const struct nxs_dev *pthis)
 static int dmaw_stop(const struct nxs_dev *pthis)
 {
 #ifdef SIMULATE_INTERRUPT
-	struct nxs_dmaw *dmaw = nxs_dev_to_dmaw(pthis);
+	struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
 
 	del_timer(&dmaw->timer);
 #endif
@@ -131,16 +194,30 @@ static int nxs_dmaw_probe(struct platform_device *pdev)
 	int ret;
 	struct nxs_dmaw *dmaw;
 	struct nxs_dev *nxs_dev;
+	struct resource *res;
 
 	dmaw = devm_kzalloc(&pdev->dev, sizeof(*dmaw), GFP_KERNEL);
 	if (!dmaw)
 		return -ENOMEM;
 
 	nxs_dev = &dmaw->nxs_dev;
-
 	ret = nxs_dev_parse_dt(pdev, nxs_dev);
 	if (ret)
 		return ret;
+
+	dmaw->reg = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+						    "syscon");
+	if (IS_ERR(dmaw->reg)) {
+		dev_err(&pdev->dev, "unable to get syscon\n");
+		return PTR_ERR(dmaw->reg);
+	}
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res) {
+		dev_err(&pdev->dev, "missing IO resource\n");
+		return -ENODEV;
+	}
+	dmaw->offset = res->start;
 
 	nxs_dev->set_interrupt_enable = dmaw_set_interrupt_enable;
 	nxs_dev->get_interrupt_enable = dmaw_get_interrupt_enable;
