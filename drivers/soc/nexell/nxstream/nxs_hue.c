@@ -22,16 +22,45 @@
 #include <linux/of.h>
 #include <linux/clk.h>
 #include <linux/reset.h>
+#include <linux/regmap.h>
 #include <linux/interrupt.h>
+#include <linux/mfd/syscon.h>
 #include <linux/platform_device.h>
 
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
+#define HUE_DIRTYSET_OFFSET	0x0004
+#define HUE_DIRTYCLR_OFFSET	0x0014
+#define HUE0_DIRTY		BIT(8)
+#define HUE1_DIRTY		BIT(9)
+
+#define HUE_CTRL		0x0000
+
+/* HUE CTRL */
+#define HUE_REG_CLEAR_SHIFT	31
+#define HUE_REG_CLEAR_MASK	BIT(31)
+#define HUE_TZPROT_SHIFT	30
+#define HUE_TZPROT_MASK		BIT(30)
+#define HUE_IDLE_SHIFT		29
+#define HUE_IDLE_MASK		BIT(29)
+#define HUE_ENABLE_SHIFT	24
+#define HUE_ENABLE_MASK		BIT(24)
+#define HUE_CB_COMP_INDEX_SHIFT	18
+#define HUE_CB_COMP_INDEX_MASK	GENMASK(19, 18)
+#define HUE_CR_COMP_INDEX_SHIFT	16
+#define	HUE_CR_COMP_INDEX_MASK	GENMASK(17, 16)
+#define HUE_TID_SHIFT		0
+#define HUE_TID_MASK		GENMASK(13, 0)
+
 struct nxs_hue {
 	struct nxs_dev nxs_dev;
+	struct regmap *reg;
+	u32 offset;
 };
+
+#define nxs_to_hue(dev)       container_of(dev, struct nxs_hue, nxs_dev)
 
 static void hue_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 				     bool enable)
@@ -74,12 +103,27 @@ static int hue_stop(const struct nxs_dev *pthis)
 
 static int hue_set_dirty(const struct nxs_dev *pthis)
 {
-	return 0;
+	struct nxs_hue *hue = nxs_to_hue(pthis);
+	u32 dirty_val;
+
+	if (pthis->dev_inst_index == 0)
+		dirty_val = HUE0_DIRTY;
+	else if (pthis->dev_inst_index == 1)
+		dirty_val = HUE1_DIRTY;
+	else {
+		dev_err(pthis->dev, "invalid inst %d\n", pthis->dev_inst_index);
+		return -ENODEV;
+	}
+
+	return regmap_write(hue->reg, HUE_DIRTYSET_OFFSET, dirty_val);
 }
 
 static int hue_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
 {
-	return 0;
+	struct nxs_hue *hue = nxs_to_hue(pthis);
+
+	return regmap_update_bits(hue->reg, hue->offset + HUE_CTRL,
+				  HUE_TID_MASK, tid1 << HUE_TID_SHIFT);
 }
 
 static int hue_set_syncinfo(const struct nxs_dev *pthis,
@@ -99,16 +143,29 @@ static int nxs_hue_probe(struct platform_device *pdev)
 	int ret;
 	struct nxs_hue *hue;
 	struct nxs_dev *nxs_dev;
+	struct resource *res;
 
 	hue = devm_kzalloc(&pdev->dev, sizeof(*hue), GFP_KERNEL);
 	if (!hue)
 		return -ENOMEM;
 
 	nxs_dev = &hue->nxs_dev;
-
 	ret = nxs_dev_parse_dt(pdev, nxs_dev);
 	if (ret)
 		return ret;
+
+	hue->reg = syscon_regmap_lookup_by_phandle(pdev->dev.of_node, "syscon");
+	if (IS_ERR(hue->reg)) {
+		dev_err(&pdev->dev, "unable to get syscon\n");
+		return PTR_ERR(hue->reg);
+	}
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res) {
+		dev_err(&pdev->dev, "missing IO resource\n");
+		return -ENODEV;
+	}
+	hue->offset = res->start;
 
 	nxs_dev->set_interrupt_enable = hue_set_interrupt_enable;
 	nxs_dev->get_interrupt_enable = hue_get_interrupt_enable;
