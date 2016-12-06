@@ -20,14 +20,23 @@
 #include <linux/module.h>
 
 #include <linux/of.h>
+#include <linux/io.h>
 #include <linux/clk.h>
 #include <linux/reset.h>
 #include <linux/interrupt.h>
+#include <linux/of_address.h>
 #include <linux/platform_device.h>
 
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
+
+/* NXS2LVDS */
+#define LVDS_DPC_CTRL0		0x0020
+
+/* LVDS DPC CTRL0 */
+#define DIRTYFLAG_TOP_SHIFT	12
+#define DIRTYFLAG_TOP_MASK	BIT(12)
 
 #define SIMULATE_INTERRUPT
 
@@ -36,9 +45,10 @@ struct nxs_lvds {
 	struct timer_list timer;
 #endif
 	struct nxs_dev nxs_dev;
+	u8 *base;
 };
 
-#define nxs_dev_to_lvds(dev)	container_of(dev, struct nxs_lvds, nxs_dev)
+#define nxs_to_lvds(dev)	container_of(dev, struct nxs_lvds, nxs_dev)
 
 #ifdef SIMULATE_INTERRUPT
 #include <linux/timer.h>
@@ -89,7 +99,7 @@ static int lvds_close(const struct nxs_dev *pthis)
 static int lvds_start(const struct nxs_dev *pthis)
 {
 #ifdef SIMULATE_INTERRUPT
-	struct nxs_lvds *lvds = nxs_dev_to_lvds(pthis);
+	struct nxs_lvds *lvds = nxs_to_lvds(pthis);
 
 	mod_timer(&lvds->timer, jiffies + msecs_to_jiffies(INT_TIMEOUT_MS));
 #endif
@@ -100,7 +110,7 @@ static int lvds_start(const struct nxs_dev *pthis)
 static int lvds_stop(const struct nxs_dev *pthis)
 {
 #ifdef SIMULATE_INTERRUPT
-	struct nxs_lvds *lvds = nxs_dev_to_lvds(pthis);
+	struct nxs_lvds *lvds = nxs_to_lvds(pthis);
 
 	del_timer(&lvds->timer);
 #endif
@@ -110,6 +120,16 @@ static int lvds_stop(const struct nxs_dev *pthis)
 
 static int lvds_set_dirty(const struct nxs_dev *pthis)
 {
+	struct nxs_lvds *lvds = nxs_to_lvds(pthis);
+	u32 val;
+	u8 *reg;
+
+	reg = lvds->base + LVDS_DPC_CTRL0;
+	val = readl(reg);
+	val &= ~DIRTYFLAG_TOP_MASK;
+	val |= 1 << DIRTYFLAG_TOP_SHIFT;
+	writel(val, reg);
+
 	return 0;
 }
 
@@ -130,16 +150,35 @@ static int nxs_lvds_probe(struct platform_device *pdev)
 	int ret;
 	struct nxs_lvds *lvds;
 	struct nxs_dev *nxs_dev;
+	struct resource res;
 
 	lvds = devm_kzalloc(&pdev->dev, sizeof(*lvds), GFP_KERNEL);
 	if (!lvds)
 		return -ENOMEM;
 
 	nxs_dev = &lvds->nxs_dev;
-
 	ret = nxs_dev_parse_dt(pdev, nxs_dev);
 	if (ret)
 		return ret;
+
+	ret = of_address_to_resource(pdev->dev.of_node, 0, &res);
+	if (ret) {
+		dev_err(&pdev->dev,
+			"[%s:%d] failed to get lvds base address\n",
+			nxs_function_to_str(nxs_dev->dev_function),
+			nxs_dev->dev_inst_index);
+		return -ENXIO;
+	}
+
+	lvds->base = devm_ioremap_nocache(nxs_dev->dev, res.start,
+					  resource_size(&res));
+	if (!lvds->base) {
+		dev_err(&pdev->dev,
+			"[%s:%d] failed to ioremap for lvds\n",
+			nxs_function_to_str(nxs_dev->dev_function),
+			nxs_dev->dev_inst_index);
+			return -EBUSY;
+	}
 
 	nxs_dev->set_interrupt_enable = lvds_set_interrupt_enable;
 	nxs_dev->get_interrupt_enable = lvds_get_interrupt_enable;
