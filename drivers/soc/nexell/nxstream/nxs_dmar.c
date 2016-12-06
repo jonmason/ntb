@@ -22,16 +22,35 @@
 #include <linux/of.h>
 #include <linux/clk.h>
 #include <linux/reset.h>
+#include <linux/regmap.h>
 #include <linux/interrupt.h>
+#include <linux/mfd/syscon.h>
 #include <linux/platform_device.h>
 
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
+#define DMAR_DIRTYSET_OFFSET	0x0000
+#define DMAR_DIRTYCLR_OFFSET	0x0010
+#define DMAR0_DIRTY		BIT(0)
+#define DMAR1_DIRTY		BIT(1)
+#define DMAR2_DIRTY		BIT(2)
+#define DMAR3_DIRTY		BIT(3)
+#define DMAR4_DIRTY		BIT(4)
+#define DMAR5_DIRTY		BIT(5)
+#define DMAR6_DIRTY		BIT(6)
+#define DMAR7_DIRTY		BIT(7)
+#define DMAR8_DIRTY		BIT(8)
+#define DMAR9_DIRTY		BIT(9)
+
 struct nxs_dmar {
 	struct nxs_dev nxs_dev;
+	struct regmap *reg;
+	u32 offset;
 };
+
+#define nxs_to_dmar(dev)	container_of(dev, struct nxs_dmar, nxs_dev)
 
 static void dmar_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 				     bool enable)
@@ -74,7 +93,46 @@ static int dmar_stop(const struct nxs_dev *pthis)
 
 static int dmar_set_dirty(const struct nxs_dev *pthis)
 {
-	return 0;
+	struct nxs_dmar *dmar = nxs_to_dmar(pthis);
+	u32 dirty_val;
+
+	switch (pthis->dev_inst_index) {
+	case 0:
+		dirty_val = DMAR0_DIRTY;
+		break;
+	case 1:
+		dirty_val = DMAR1_DIRTY;
+		break;
+	case 2:
+		dirty_val = DMAR2_DIRTY;
+		break;
+	case 3:
+		dirty_val = DMAR3_DIRTY;
+		break;
+	case 4:
+		dirty_val = DMAR4_DIRTY;
+		break;
+	case 5:
+		dirty_val = DMAR5_DIRTY;
+		break;
+	case 6:
+		dirty_val = DMAR6_DIRTY;
+		break;
+	case 7:
+		dirty_val = DMAR7_DIRTY;
+		break;
+	case 8:
+		dirty_val = DMAR8_DIRTY;
+		break;
+	case 9:
+		dirty_val = DMAR9_DIRTY;
+		break;
+	default:
+		dev_err(pthis->dev, "invalid inst %d\n", pthis->dev_inst_index);
+		return -ENODEV;
+	}
+
+	return regmap_write(dmar->reg, DMAR_DIRTYSET_OFFSET, dirty_val);
 }
 
 static int dmar_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
@@ -99,16 +157,30 @@ static int nxs_dmar_probe(struct platform_device *pdev)
 	int ret;
 	struct nxs_dmar *dmar;
 	struct nxs_dev *nxs_dev;
+	struct resource *res;
 
 	dmar = devm_kzalloc(&pdev->dev, sizeof(*dmar), GFP_KERNEL);
 	if (!dmar)
 		return -ENOMEM;
 
 	nxs_dev = &dmar->nxs_dev;
-
 	ret = nxs_dev_parse_dt(pdev, nxs_dev);
 	if (ret)
 		return ret;
+
+	dmar->reg = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+						    "syscon");
+	if (IS_ERR(dmar->reg)) {
+		dev_err(&pdev->dev, "unable to get syscon\n");
+		return PTR_ERR(dmar->reg);
+	}
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res) {
+		dev_err(&pdev->dev, "missing IO resource\n");
+		return -ENODEV;
+	}
+	dmar->offset = res->start;
 
 	nxs_dev->set_interrupt_enable = dmar_set_interrupt_enable;
 	nxs_dev->get_interrupt_enable = dmar_get_interrupt_enable;
