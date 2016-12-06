@@ -22,16 +22,37 @@
 #include <linux/of.h>
 #include <linux/clk.h>
 #include <linux/reset.h>
+#include <linux/regmap.h>
 #include <linux/interrupt.h>
+#include <linux/mfd/syscon.h>
 #include <linux/platform_device.h>
 
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
+#define CSC_DIRTYSET_OFFSET	0x0000
+#define CSC_DIRTYCLR_OFFSET	0x0010
+#define CSC0_DIRTY		BIT(14)
+#define CSC1_DIRTY		BIT(13)
+#define CSC2_DIRTY		BIT(12)
+#define CSC3_DIRTY		BIT(11)
+
+#define CSC_TID_CTRL		0x0004
+
+/* CSC TID CTRL */
+#define CSC_IMGTYPE_SHIFT	14
+#define CSC_IMGTYPE_MASK	GENMASK(15, 14)
+#define CSC_TID_SHIFT		0
+#define CSC_TID_MASK		GENMASK(13, 0)
+
 struct nxs_csc {
 	struct nxs_dev nxs_dev;
+	struct regmap *reg;
+	u32 offset;
 };
+
+#define nxs_to_csc(dev)		container_of(dev, struct nxs_csc, nxs_dev)
 
 static void csc_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 				     bool enable)
@@ -74,12 +95,36 @@ static int csc_stop(const struct nxs_dev *pthis)
 
 static int csc_set_dirty(const struct nxs_dev *pthis)
 {
-	return 0;
+	struct nxs_csc *csc = nxs_to_csc(pthis);
+	u32 dirty_val;
+
+	switch (pthis->dev_inst_index) {
+	case 0:
+		dirty_val = CSC0_DIRTY;
+		break;
+	case 1:
+		dirty_val = CSC1_DIRTY;
+		break;
+	case 2:
+		dirty_val = CSC2_DIRTY;
+		break;
+	case 3:
+		dirty_val = CSC3_DIRTY;
+		break;
+	default:
+		dev_err(pthis->dev, "invalid inst %d\n", pthis->dev_inst_index);
+		return -ENODEV;
+	}
+
+	return regmap_write(csc->reg, CSC_DIRTYSET_OFFSET, dirty_val);
 }
 
 static int csc_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
 {
-	return 0;
+	struct nxs_csc *csc = nxs_to_csc(pthis);
+
+	return regmap_update_bits(csc->reg, csc->offset + CSC_TID_CTRL,
+				  CSC_TID_MASK, tid1 << CSC_TID_SHIFT);
 }
 
 static int csc_set_syncinfo(const struct nxs_dev *pthis,
@@ -99,16 +144,30 @@ static int nxs_csc_probe(struct platform_device *pdev)
 	int ret;
 	struct nxs_csc *csc;
 	struct nxs_dev *nxs_dev;
+	struct resource *res;
 
 	csc = devm_kzalloc(&pdev->dev, sizeof(*csc), GFP_KERNEL);
 	if (!csc)
 		return -ENOMEM;
 
 	nxs_dev = &csc->nxs_dev;
-
 	ret = nxs_dev_parse_dt(pdev, nxs_dev);
 	if (ret)
 		return ret;
+
+	csc->reg = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+						   "syscon");
+	if (IS_ERR(csc->reg)) {
+		dev_err(&pdev->dev, "unable to get syscon\n");
+		return PTR_ERR(csc->reg);
+	}
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res) {
+		dev_err(&pdev->dev, "missing IO resource\n");
+		return -ENODEV;
+	}
+	csc->offset = res->start;
 
 	nxs_dev->set_interrupt_enable = csc_set_interrupt_enable;
 	nxs_dev->get_interrupt_enable = csc_get_interrupt_enable;
