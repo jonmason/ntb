@@ -20,18 +20,44 @@
 #include <linux/module.h>
 
 #include <linux/of.h>
+#include <linux/io.h>
 #include <linux/clk.h>
 #include <linux/reset.h>
+#include <linux/regmap.h>
 #include <linux/interrupt.h>
+#include <linux/of_address.h>
+#include <linux/mfd/syscon.h>
 #include <linux/platform_device.h>
 
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
+#define CSI_DIRTYSET_OFFSET	0x0000
+#define CSI_DIRTYCLR_OFFSET	0x0008
+#define CSI_CH0_DIRTY		BIT(19)
+#define CSI_CH1_DIRTY		BIT(20)
+#define CSI_CH2_DIRTY		BIT(21)
+#define CSI_CH3_DIRTY		BIT(22)
+
+#define CSI2NXS0_CTRL1		0x0040
+#define CSI2NXS1_CTRL1		0x0060
+#define CSI2NXS2_CTRL1		0x0080
+#define CSI2NXS3_CTRL1		0x00a0
+
+/* CSI2NXS CTRL1 */
+#define CSI2NXS_TID_SHIFT	0
+#define CSI2NXS_TID_MASK	GENMASK(13, 0)
+
 struct nxs_csi {
 	struct nxs_dev nxs_dev;
+	u8 *base;
+	struct regmap *reg_csi2nxs;
+	u32 offset_csi2nxs;
+	u32 channel; /* TODO: how to set channel */
 };
+
+#define nxs_to_csi(dev)		container_of(dev, struct nxs_csi, nxs_dev)
 
 static void mipi_csi_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 					  bool enable)
@@ -75,11 +101,52 @@ static int mipi_csi_stop(const struct nxs_dev *pthis)
 
 static int mipi_csi_set_dirty(const struct nxs_dev *pthis)
 {
-	return 0;
+	struct nxs_csi *csi = nxs_to_csi(pthis);
+	u32 dirty_val = 0;
+
+	switch (csi->channel) {
+	case 4:
+		dirty_val |= CSI_CH3_DIRTY;
+	case 3:
+		dirty_val |= CSI_CH2_DIRTY;
+	case 2:
+		dirty_val |= CSI_CH1_DIRTY;
+	case 1:
+		dirty_val |= CSI_CH0_DIRTY;
+		break;
+	default:
+		return -ENODEV;
+	}
+
+	return regmap_write(csi->reg_csi2nxs, CSI_DIRTYSET_OFFSET, dirty_val);
 }
 
 static int mipi_csi_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
 {
+	struct nxs_csi *csi = nxs_to_csi(pthis);
+
+	switch (csi->channel) {
+	case 4:
+		regmap_update_bits(csi->reg_csi2nxs,
+				   csi->offset_csi2nxs + CSI2NXS3_CTRL1,
+				   CSI2NXS_TID_MASK, tid1 << CSI2NXS_TID_SHIFT);
+	case 3:
+		regmap_update_bits(csi->reg_csi2nxs,
+				   csi->offset_csi2nxs + CSI2NXS2_CTRL1,
+				   CSI2NXS_TID_MASK, tid1 << CSI2NXS_TID_SHIFT);
+	case 2:
+		regmap_update_bits(csi->reg_csi2nxs,
+				   csi->offset_csi2nxs + CSI2NXS1_CTRL1,
+				   CSI2NXS_TID_MASK, tid1 << CSI2NXS_TID_SHIFT);
+	case 1:
+		regmap_update_bits(csi->reg_csi2nxs,
+				   csi->offset_csi2nxs + CSI2NXS0_CTRL1,
+				   CSI2NXS_TID_MASK, tid1 << CSI2NXS_TID_SHIFT);
+		break;
+	default:
+		return -ENODEV;
+	}
+
 	return 0;
 }
 
@@ -100,16 +167,49 @@ static int nxs_mipi_csi_probe(struct platform_device *pdev)
 	int ret;
 	struct nxs_csi *csi;
 	struct nxs_dev *nxs_dev;
+	struct resource res;
 
 	csi = devm_kzalloc(&pdev->dev, sizeof(*csi), GFP_KERNEL);
 	if (!csi)
 		return -ENOMEM;
 
 	nxs_dev = &csi->nxs_dev;
-
 	ret = nxs_dev_parse_dt(pdev, nxs_dev);
 	if (ret)
 		return ret;
+
+	csi->reg_csi2nxs = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+							   "syscon");
+	if (IS_ERR(csi->reg_csi2nxs)) {
+		dev_err(&pdev->dev, "unable to get syscon\n");
+		return PTR_ERR(csi->reg_csi2nxs);
+	}
+
+	ret = of_address_to_resource(pdev->dev.of_node, 0, &res);
+	if (ret) {
+		dev_err(&pdev->dev, "missing IO resource\n");
+		return -ENODEV;
+	}
+	csi->offset_csi2nxs = res.start;
+
+	ret = of_address_to_resource(pdev->dev.of_node, 1, &res);
+	if (ret) {
+		dev_err(&pdev->dev,
+			"[%s:%d] failed to get csi base address\n",
+			nxs_function_to_str(nxs_dev->dev_function),
+			nxs_dev->dev_inst_index);
+		return -ENXIO;
+	}
+
+	csi->base = devm_ioremap_nocache(nxs_dev->dev, res.start,
+					 resource_size(&res));
+	if (!csi->base) {
+		dev_err(&pdev->dev,
+			"[%s:%d] failed to ioremap for csi\n",
+			nxs_function_to_str(nxs_dev->dev_function),
+			nxs_dev->dev_inst_index);
+			return -EBUSY;
+	}
 
 	nxs_dev->set_interrupt_enable = mipi_csi_set_interrupt_enable;
 	nxs_dev->get_interrupt_enable = mipi_csi_get_interrupt_enable;
