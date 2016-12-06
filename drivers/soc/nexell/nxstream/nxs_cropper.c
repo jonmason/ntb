@@ -22,16 +22,41 @@
 #include <linux/of.h>
 #include <linux/clk.h>
 #include <linux/reset.h>
+#include <linux/regmap.h>
 #include <linux/interrupt.h>
+#include <linux/mfd/syscon.h>
 #include <linux/platform_device.h>
 
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
+#define CROPPER_DIRTYSET_OFFSET	0x0004
+#define CROPPER_DIRTYCLR_OFFSET	0x0014
+#define CROPPER0_DIRTY		BIT(1)
+#define CROPPER1_DIRTY		BIT(0)
+
+#define CROP_CTRL		0x0000
+
+/* CROPPER CTRL */
+#define CROP_REG_CLEAR_SHIFT	31
+#define CROP_REG_CLEAR_MASK	BIT(31)
+#define CROP_TZPROT_SHIFT	30
+#define CROP_TZPROT_MASK	BIT(30)
+#define CROP_TID_SHIFT		16
+#define CROP_TID_MASK		GENMASK(29, 16)
+#define CROP_BYPASS_SHIFT	1
+#define CROP_BYPASS_MASK	BIT(1)
+#define CROP_ENABLE_SHIFT	0
+#define CROP_ENABLE_MASK	BIT(0)
+
 struct nxs_cropper {
 	struct nxs_dev nxs_dev;
+	struct regmap *reg;
+	u32 offset;
 };
+
+#define nxs_to_cropper(dev)       container_of(dev, struct nxs_cropper, nxs_dev)
 
 static void cropper_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 				     bool enable)
@@ -75,12 +100,27 @@ static int cropper_stop(const struct nxs_dev *pthis)
 
 static int cropper_set_dirty(const struct nxs_dev *pthis)
 {
-	return 0;
+	struct nxs_cropper *cropper = nxs_to_cropper(pthis);
+	u32 dirty_val;
+
+	if (pthis->dev_inst_index == 0)
+		dirty_val = CROPPER0_DIRTY;
+	else if (pthis->dev_inst_index == 1)
+		dirty_val = CROPPER1_DIRTY;
+	else {
+		dev_err(pthis->dev, "invalid inst %d\n", pthis->dev_inst_index);
+		return -ENODEV;
+	}
+
+	return regmap_write(cropper->reg, CROPPER_DIRTYSET_OFFSET, dirty_val);
 }
 
 static int cropper_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
 {
-	return 0;
+	struct nxs_cropper *cropper = nxs_to_cropper(pthis);
+
+	return regmap_update_bits(cropper->reg, cropper->offset + CROP_CTRL,
+				  CROP_TID_MASK, tid1 << CROP_TID_SHIFT);
 }
 
 static int cropper_set_syncinfo(const struct nxs_dev *pthis,
@@ -100,16 +140,30 @@ static int nxs_cropper_probe(struct platform_device *pdev)
 	int ret;
 	struct nxs_cropper *cropper;
 	struct nxs_dev *nxs_dev;
+	struct resource *res;
 
 	cropper = devm_kzalloc(&pdev->dev, sizeof(*cropper), GFP_KERNEL);
 	if (!cropper)
 		return -ENOMEM;
 
 	nxs_dev = &cropper->nxs_dev;
-
 	ret = nxs_dev_parse_dt(pdev, nxs_dev);
 	if (ret)
 		return ret;
+
+	cropper->reg = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+						       "syscon");
+	if (IS_ERR(cropper->reg)) {
+		dev_err(&pdev->dev, "unable to get syscon\n");
+		return PTR_ERR(cropper->reg);
+	}
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res) {
+		dev_err(&pdev->dev, "missing IO resource\n");
+		return -ENODEV;
+	}
+	cropper->offset = res->start;
 
 	nxs_dev->set_interrupt_enable = cropper_set_interrupt_enable;
 	nxs_dev->get_interrupt_enable = cropper_get_interrupt_enable;
