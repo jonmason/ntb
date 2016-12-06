@@ -22,122 +22,116 @@
 #include <linux/of.h>
 #include <linux/clk.h>
 #include <linux/reset.h>
+#include <linux/regmap.h>
 #include <linux/interrupt.h>
+#include <linux/mfd/syscon.h>
 #include <linux/platform_device.h>
 
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
+#define TPGEN_DIRTYSET_OFFSET	0x0004
+#define TPGEN_DIRTYCLR_OFFSET	0x0014
+#define TPGEN_DIRTY		BIT(31)
+
 /* regmap: base 0x20c03e00 */
-#define TPGEN_CONTROL0		0x3e00
-#define TPGEN_INT_CONTROL	0x3e04
-#define TPGEN_CONTROL1		0x3e08
-#define TPGEN_CONTROL2		0x3e0c
-#define TPGEN_CONTROL3		0x3e10
-#define TPGEN_CONTROL4		0x3e14
-#define TPGEN_CONTROL5		0x3e18
-#define TPGEN_CONTROL6		0x3e1c
-#define TPGEN_CONTROL7		0x3e20
-#define TPGEN_CONTROL8		0x3e24
-#define TPGEN_CONTROL9		0x3e28
-#define TPGEN_CONTROL10		0x3e2c
+#define TPGEN_BASIC_CTRL	0x0000
+#define TPGEN_INTERRUPT		0x0004
+#define TPGEN_USERDEF_HEADER0	0x0008
+#define TPGEN_USERDEF_HEADER1	0x000c
+#define TPGEN_USERDEF_HEADER2	0x0010
+#define TPGEN_USERDEF_HEADER3	0x0014
+#define TPGEN_IMG_SIZE		0x0018
+#define TPGEN_CTRL		0x001c
+#define TPGEN_V2H_DLY_CTRL	0x0020
+#define TPGEN_H2H_DLY_CTRL	0x0024
+#define TPGEN_H2V_DLY_CTRL	0x0028
+#define TPGEN_V2V_DLY_CTRL	0x002c
 
-/* TPGEN_CONTROL0 */
-#define REG_CLEAR_BIT_OFFSET	17
-#define REG_CLEAR_BIT_MASK	0x1
-#define TZPROT_BIT_OFFSET	16
-#define TZPROT_BIT_MASK		0x1
-#define NCLK_PER_TWOPIX_BIT_OFFSET	8
-#define NCLK_PER_TWOPIX_BIT_MASK	0xff
-#define REALTIME_MODE_BIT_OFFSET	7
-#define REALTIME_MODE_BIT_MASK		0x1
-#define TPGEN_MODE_BIT_OFFSET		4
-#define TPGEN_MODE_BIT_MASK		0x7
-#define TPGEN_IDLE_BIT_OFFSET		1
-#define TPGEN_IDLE_BIT_MASK		0x1
-#define TPGEN_ENABLE_BIT_OFFSET		0
-#define TPGEN_ENABLE_BIT_MASK		0x1
+/* TPGEN BASIC CTRL */
+#define TPGEN_REG_CLEAR_SHIFT		17
+#define TPGEN_REG_CLEAR_MASK		BIT(17)
+#define TPGEN_TZPROT_SHIFT		16
+#define TPGEN_TZPROT_MASK		BIT(16)
+#define TPGEN_NCLK_PER_TWOPIX_SHIFT	8
+#define TPGEN_NCLK_PER_TWOPIX_MASK	GENMASK(15, 8)
+#define TPGEN_REALTIME_MODE_SHIFT	7
+#define TPGEN_REALTIME_MODE_MASK	BIT(7)
+#define TPGEN_TPGEN_MODE_SHIFT		4
+#define TPGEN_TPGEN_MODE_MASK		GENMASK(6, 4)
+#define TPGEN_IDLE_SHIFT		1
+#define TPGEN_IDLE_MASK			BIT(1)
+#define TPGEN_TPGEN_ENABLE_SHIFT	0
+#define TPGEN_TPGEN_ENABLE_MASK		BIT(0)
 
-/* TPGEN_INT_CONTROL */
-#define UPDATE_INTDISABLE_BIT_OFFSET	14
-#define UPDATE_INTDISABLE_BIT_MASK	0x1
-#define UPDATE_INTENB_BIT_OFFSET	13
-#define UPDATE_INTENB_BIT_MASK		0x1
-#define UPDATE_INTPEND_BIT_OFFSET	12
-#define UPDATE_INTPEND_BIT_MASK		0x1
-#define IRQ_OVF_INTDISABLE_BIT_OFFSET	10
-#define IRQ_OVF_INTDISABLE_BIT_MASK	0x1
-#define IRQ_OVF_INTENB_BIT_OFFSET	9
-#define IRQ_OVF_INTENB_BIT_MASK		0x1
-#define IRQ_OVF_INTPEND_BIT_OFFSET	8
-#define IRQ_OVF_INTPEND_BIT_MASK	0x1
-#define IDLE_INTDISABLE_BIT_OFFSET	6
-#define IDLE_INTDISABLE_BIT_MASK	0x1
-#define IDLE_INTENB_BIT_OFFSET		5
-#define IDLE_INTENB_BIT_MASK		0x1
-#define IDLE_INTPEND_BIT_OFFSET		4
-#define IDLE_INTPEND_BIT_MASK		0x1
-#define IRQ_DONE_INTDISABLE_BIT_OFFSET	2
-#define IRQ_DONE_INTDISABLE_BIT_MASK	0x1
-#define IRQ_DONE_INTENB_BIT_OFFSET	1
-#define IRQ_DONE_INTENB_BIT_MASK	0x1
-#define IRQ_DONE_INTPEND_BIT_OFFSET	0
-#define IRQ_DONE_INTPEND_BIT_MASK	0x1
+/* TPGEN INTERRUPT */
+#define TPGEN_UPDATE_INTDISABLE_SHIFT	14
+#define TPGEN_UPDATE_INTDISABLE_MASK	BIT(14)
+#define TPGEN_UPDATE_INTENB_SHIFT	13
+#define TPGEN_UPDATE_INTENB_MASK	BIT(13)
+#define TPGEN_UPDATE_INTPEND_CLR_SHIFT	12
+#define TPGEN_UPDATE_INTPEND_CLR_MASK	BIT(12)
+#define TPGEN_IRQ_OVF_INTDISABLE_SHIFT	10
+#define TPGEN_IRQ_OVF_INTDISABLE_MASK	BIT(10)
+#define TPGEN_IRQ_OVF_INTENB_SHIFT	9
+#define TPGEN_IRQ_OVF_INTENB_MASK	BIT(9)
+#define TPGEN_IRQ_OVF_INTPEND_SHIFT	8
+#define TPGEN_IRQ_OVF_INTPEND_MASK	BIT(8)
+#define TPGEN_IRQ_IDLE_INTDISABLE_SHIFT 6
+#define TPGEN_IRQ_IDLE_INTDISABLE_MASK	BIT(6)
+#define TPGEN_IRQ_IDLE_INTENB_SHIFT	5
+#define TPGEN_IRQ_IDLE_INTENB_MASK	BIT(5)
+#define TPGEN_IRQ_IDLE_INTPEND_SHIFT	4
+#define TPGEN_IRQ_IDLE_INTPEND_MASK	BIT(4)
+#define TPGEN_IRQ_DONE_INTDISABLE_SHIFT 2
+#define TPGEN_IRQ_DONE_INTDISABLE_MASK	BIT(2)
+#define TPGEN_IRQ_DONE_INTENB_SHIFT	1
+#define TPGEN_IRQ_DONE_INTENB_MASK	BIT(1)
+#define TPGEN_IRQ_DONE_INTPEND_SHIFT	0
+#define TPGEN_IRQ_DONE_INTPEND_MASK	BIT(0)
 
-/* TPGEN_CONTROL1 */
-#define ENC_HEADER_0_BIT_OFFSET		0
-#define ENC_HEADER_0_BIT_MASK		0xffffffff
+/* TPGEN USER DEF HEADER 0 */
+#define TPGEN_ENC_HEADER_0_SHIFT	0
+#define TPGEN_ENC_HEADER_0_MASK		GENMASK(31, 0)
 
-/* TPGEN_CONTROL2 */
-#define ENC_HEADER_1_BIT_OFFSET		0
-#define ENC_HEADER_1_BIT_MASK		0xffffffff
+/* TPGEN USER DEF HEADER 1 */
+#define TPGEN_ENC_HEADER_1_SHIFT	0
+#define TPGEN_ENC_HEADER_1_MASK		GENMASK(31, 0)
 
-/* TPGEN_CONTROL3 */
-#define ENC_HEADER_2_BIT_OFFSET		0
-#define ENC_HEADER_2_BIT_MASK		0xffffffff
+/* TPGEN USER DEF HEADER 2 */
+#define TPGEN_ENC_HEADER_2_SHIFT	0
+#define TPGEN_ENC_HEADER_2_MASK		GENMASK(31, 0)
 
-/* TPGEN_CONTROL4 */
-#define ENC_HEADER_3_BIT_OFFSET		0
-#define ENC_HEADER_3_BIT_MASK		0xffffffff
+/* TPGEN USER DEF HEADER 3 */
+#define TPGEN_ENC_HEADER_3_SHIFT	0
+#define TPGEN_ENC_HEADER_3_MASK		GENMASK(31, 0)
 
-/* TPGEN_CONTROL5 */
-#define ENC_WIDTH_BIT_OFFSET		16
-#define ENC_WIDTH_BIT_MASK		0xffff
-#define ENC_HEIGHT_BIT_OFFSET		0
-#define ENC_HEIGHT_BIT_MASK		0xffff
+/* TPGEN IMG SIZE */
+#define TPGEN_ENC_WIDTH_SHIFT		16
+#define TPGEN_ENC_WIDTH_MASK		GENMASK(31, 16)
+#define TPGEN_ENC_HEIGHT_SHIFT		0
+#define TPGEN_ENC_HEIGHT_MASK		GENMASK(15, 0)
 
-/* TPGEN_CONTROL6 */
-#define ENC_IMG_TYPE_BIT_OFFSET		18
-#define ENC_IMG_TYPE_BIT_MASK		0x3
-#define ENC_FIELD_BIT_OFFSET		16
-#define ENC_FIELD_BIT_MASK		0x3
-#define ENC_SECURE_BIT_OFFSET		15
-#define ENC_SECURE_BIT_MASK		0x1
-#define ENC_REG_FIRE_BIT_OFFSET		14
-#define ENC_REG_FIRE_BIT_MASK		0x1
-#define ENC_TID_BIT_OFFSET		0
-#define ENC_TID_BIT_MASK		0x3fff
-
-/* TPGEN_CONTROL7 */
-#define V2H_DELAY_BIT_OFFSET		0
-#define V2H_DELAY_BIT_MASK		0xffffffff
-
-/* TPGEN_CONTROL8 */
-#define H2H_DELAY_BIT_OFFSET		0
-#define H2H_DELAY_BIT_MASK		0xffffffff
-
-/* TPGEN_CONTROL9 */
-#define H2V_DELAY_BIT_OFFSET		0
-#define H2V_DELAY_BIT_MASK		0xffffffff
-
-/* TPGEN_CONTROL10 */
-#define V2V_DELAY_BIT_OFFSET		0
-#define V2V_DELAY_BIT_MASK		0xffffffff
+/* TPGEN CTRL */
+#define TPGEN_ENC_IMG_TYPE_SHIFT	18
+#define TPGEN_ENC_IMG_TYPE_MASK		GENMASK(19, 18)
+#define TPGEN_ENC_FIELD_SHIFT		16
+#define TPGEN_ENC_FIELD_MASK		GENMASK(17, 16)
+#define TPGEN_ENC_SECURE_SHIFT		15
+#define TPGEN_ENC_SECURE_MASK		BIT(15)
+#define TPGEN_ENC_REG_FIRE_SHIFT	14
+#define TPGEN_ENC_REG_FIRE_MASK		BIT(14)
+#define TPGEN_ENC_TID_SHIFT		0
+#define TPGEN_ENC_TID_MASK		GENMASK(13, 0)
 
 struct nxs_tpgen {
 	struct nxs_dev nxs_dev;
+	struct regmap *reg;
+	u32 offset;
 };
+
+#define nxs_to_tpgen(dev)	container_of(dev, struct nxs_tpgen, nxs_dev)
 
 static void tpgen_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 				     bool enable)
@@ -180,12 +174,19 @@ static int tpgen_stop(const struct nxs_dev *pthis)
 
 static int tpgen_set_dirty(const struct nxs_dev *pthis)
 {
-	return 0;
+	struct nxs_tpgen *tpgen = nxs_to_tpgen(pthis);
+
+	return regmap_write(tpgen->reg, TPGEN_DIRTYSET_OFFSET,
+			    TPGEN_DIRTY);
 }
 
 static int tpgen_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
 {
-	return 0;
+	struct nxs_tpgen *tpgen = nxs_to_tpgen(pthis);
+
+	return regmap_update_bits(tpgen->reg, tpgen->offset + TPGEN_CTRL,
+				  TPGEN_ENC_TID_MASK,
+				  tid1 << TPGEN_ENC_TID_SHIFT);
 }
 
 static int tpgen_set_syncinfo(const struct nxs_dev *pthis,
@@ -205,16 +206,30 @@ static int nxs_tpgen_probe(struct platform_device *pdev)
 	int ret;
 	struct nxs_tpgen *tpgen;
 	struct nxs_dev *nxs_dev;
+	struct resource *res;
 
 	tpgen = devm_kzalloc(&pdev->dev, sizeof(*tpgen), GFP_KERNEL);
 	if (!tpgen)
 		return -ENOMEM;
 
 	nxs_dev = &tpgen->nxs_dev;
-
 	ret = nxs_dev_parse_dt(pdev, nxs_dev);
 	if (ret)
 		return ret;
+
+	tpgen->reg = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+						     "syscon");
+	if (IS_ERR(tpgen->reg)) {
+		dev_err(&pdev->dev, "unable to get syscon\n");
+		return PTR_ERR(tpgen->reg);
+	}
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res) {
+		dev_err(&pdev->dev, "missing IO resource\n");
+		return -ENODEV;
+	}
+	tpgen->offset = res->start;
 
 	nxs_dev->set_interrupt_enable = tpgen_set_interrupt_enable;
 	nxs_dev->get_interrupt_enable = tpgen_get_interrupt_enable;
