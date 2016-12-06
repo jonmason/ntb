@@ -63,7 +63,6 @@ int nxs_dev_parse_dt(struct platform_device *pdev, struct nxs_dev *pthis)
 	int ret;
 	struct device *dev = &pdev->dev;
 	struct device_node *np = dev->of_node;
-	struct resource res;
 
 	if (of_property_read_u32(np, "module", &pthis->dev_inst_index)) {
 		dev_err(dev, "failed to get module\n");
@@ -86,22 +85,6 @@ int nxs_dev_parse_dt(struct platform_device *pdev, struct nxs_dev *pthis)
 	if (of_property_read_u32(np, "can_multitap_follow",
 				 &pthis->can_multitap_follow))
 		pthis->can_multitap_follow = 0;
-
-	ret = of_address_to_resource(np, 0, &res);
-	if (ret) {
-		dev_err(dev, "[%s:%d] failed to get base address\n",
-			nxs_function_to_str(pthis->dev_function),
-			pthis->dev_inst_index);
-		return -ENXIO;
-	}
-
-	pthis->base = devm_ioremap_nocache(dev, res.start, resource_size(&res));
-	if (!pthis->base) {
-		dev_err(dev, "[%s:%d] failed to ioremap\n",
-			nxs_function_to_str(pthis->dev_function),
-			pthis->dev_inst_index);
-		return -EBUSY;
-	}
 
 	ret = platform_get_irq(pdev, 0);
 	if (ret >= 0)

@@ -148,9 +148,7 @@ struct nxs_dev {
 
 	void *priv;
 
-	void *base;
 	int irq;
-
 	struct reset_control *resets;
 	int reset_num;
 
