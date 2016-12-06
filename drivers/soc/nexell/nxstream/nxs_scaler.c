@@ -22,17 +22,35 @@
 #include <linux/of.h>
 #include <linux/clk.h>
 #include <linux/reset.h>
+#include <linux/regmap.h>
 #include <linux/interrupt.h>
+#include <linux/mfd/syscon.h>
 #include <linux/platform_device.h>
 
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
+#define SCALER_DIRTYSET_OFFSET	0x0004
+#define SCALER_DIRTYCLR_OFFSET	0x0014
+#define SCALER0_DIRTY		BIT(30)
+#define SCALER1_DIRTY		BIT(29)
+#define SCALER2_DIRTY		BIT(28)
+
+#define SCALER_CFG_TID		0x0c20
+
+/* SCALER CFG ENC TID */
+#define SCALER_TID_SHIFT	0
+#define SCALER_TID_MASK		GENMASK(13, 0)
+
 struct nxs_scaler {
 	struct nxs_dev nxs_dev;
 	u32 line_buffer_size;
+	struct regmap *reg;
+	u32 offset;
 };
+
+#define nxs_to_scaler(dev)	container_of(dev, struct nxs_scaler, nxs_dev)
 
 static void scaler_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 				     bool enable)
@@ -76,12 +94,33 @@ static int scaler_stop(const struct nxs_dev *pthis)
 
 static int scaler_set_dirty(const struct nxs_dev *pthis)
 {
-	return 0;
+	struct nxs_scaler *scaler = nxs_to_scaler(pthis);
+	u32 dirty_val;
+
+	switch (pthis->dev_inst_index) {
+	case 0:
+		dirty_val = SCALER0_DIRTY;
+		break;
+	case 1:
+		dirty_val = SCALER1_DIRTY;
+		break;
+	case 2:
+		dirty_val = SCALER2_DIRTY;
+		break;
+	default:
+		dev_err(pthis->dev, "invalid inst %d\n", pthis->dev_inst_index);
+		return -ENODEV;
+	}
+
+	return regmap_write(scaler->reg, SCALER_DIRTYSET_OFFSET, dirty_val);
 }
 
 static int scaler_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
 {
-	return 0;
+	struct nxs_scaler *scaler = nxs_to_scaler(pthis);
+
+	return regmap_update_bits(scaler->reg, scaler->offset + SCALER_CFG_TID,
+				  SCALER_TID_MASK, tid1 << SCALER_TID_SHIFT);
 }
 
 static int scaler_set_syncinfo(const struct nxs_dev *pthis,
@@ -116,13 +155,13 @@ static int nxs_scaler_probe(struct platform_device *pdev)
 	int ret;
 	struct nxs_scaler *scaler;
 	struct nxs_dev *nxs_dev;
+	struct resource *res;
 
 	scaler = devm_kzalloc(&pdev->dev, sizeof(*scaler), GFP_KERNEL);
 	if (!scaler)
 		return -ENOMEM;
 
 	nxs_dev = &scaler->nxs_dev;
-
 	ret = nxs_dev_parse_dt(pdev, nxs_dev);
 	if (ret)
 		return ret;
@@ -130,6 +169,20 @@ static int nxs_scaler_probe(struct platform_device *pdev)
 	ret = nxs_scaler_parse_dt(pdev, scaler);
 	if (ret)
 		return ret;
+
+	scaler->reg = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+						      "syscon");
+	if (IS_ERR(scaler->reg)) {
+		dev_err(&pdev->dev, "unable to get syscon\n");
+		return PTR_ERR(scaler->reg);
+	}
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res) {
+		dev_err(&pdev->dev, "missing IO resource\n");
+		return -ENODEV;
+	}
+	scaler->offset = res->start;
 
 	nxs_dev->set_interrupt_enable = scaler_set_interrupt_enable;
 	nxs_dev->get_interrupt_enable = scaler_get_interrupt_enable;
