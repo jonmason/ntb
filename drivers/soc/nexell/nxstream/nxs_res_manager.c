@@ -157,7 +157,7 @@ struct nxs_dev *get_nxs_dev(u32 function, u32 index, u32 user,
 					atomic_inc(&entry->connect_count);
 					break;
 				}
-				dev_warn(res_manager->dev,
+				dev_dbg(res_manager->dev,
 				  "[%s:%d] refcount(%d) over max_refcount(%d)\n",
 				  nxs_function_to_str(entry->dev_function),
 				  entry->dev_inst_index,
