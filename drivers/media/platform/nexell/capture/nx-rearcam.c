@@ -2988,6 +2988,9 @@ static void _disable_gpio_irq_ctx(struct nx_rearcam *me)
 		disable_irq(me->irq_event);
 		devm_free_irq(dev, me->irq_event, me);
 
+		if (gpio_is_valid(me->event_gpio))
+			devm_gpio_free(dev, me->event_gpio);
+
 		me->is_enable_gpio_irq = false;
 	}
 }
@@ -3111,10 +3114,13 @@ static void _init_sensor_worker(struct nx_rearcam *me)
 
 static void _deinit_sensor_worker(struct nx_rearcam *me)
 {
-	cancel_work_sync(&me->work_sensor_init);
-	flush_workqueue(me->wq_sensor_init);
+	if (me->wq_sensor_init != NULL) {
+		cancel_work_sync(&me->work_sensor_init);
+		flush_workqueue(me->wq_sensor_init);
+		destroy_workqueue(me->wq_sensor_init);
 
-	destroy_workqueue(me->wq_sensor_init);
+		me->wq_sensor_init = NULL;
+	}
 }
 
 static void _init_gpio_event_worker(struct nx_rearcam *me)
@@ -3135,8 +3141,9 @@ static void _deinit_gpio_event_worker(struct nx_rearcam *me)
 	if (me->wq_gpio_event != NULL) {
 		cancel_work_sync(&me->work_gpio_event);
 		flush_workqueue(me->wq_gpio_event);
-
 		destroy_workqueue(me->wq_gpio_event);
+
+		me->wq_gpio_event = NULL;
 	}
 }
 
@@ -3697,6 +3704,7 @@ static void _init_context(struct nx_rearcam *me)
 	INIT_DELAYED_WORK(&me->work, _work_handler_reargear);
 	INIT_WORK(&me->work_sensor_init, _sensor_init_worker);
 
+	me->wq_gpio_event = NULL;
 	me->wq_sensor_init = NULL;
 	me->wq_display = NULL;
 
@@ -3931,11 +3939,15 @@ static int init_me(struct nx_rearcam *me)
 
 static int deinit_me(struct nx_rearcam *me)
 {
-	if (me->init_data != NULL)
+	if (me->init_data != NULL) {
 		kfree(me->init_data);
+		me->init_data = NULL;
+	}
 
-	if (me->base_addr != NULL)
+	if (me->base_addr != NULL) {
 		kfree(me->base_addr);
+		me->base_addr = NULL;
+	}
 
 	if (me->removed) {
 		/*	_set_vip_interrupt(me, false);	*/
@@ -3956,6 +3968,7 @@ static int deinit_me(struct nx_rearcam *me)
 	_deinit_gpio_event_worker(me);
 
 	_free_buffer(me);
+
 	me->removed = true;
 
 	return 0;
@@ -3977,6 +3990,7 @@ static ssize_t _stop_rearcam(struct kobject *kobj,
 		pr_debug("wait rearcam stopping...\n");
 		schedule_timeout_interruptible(HZ/5);
 	}
+
 	nx_rearcam_remove(me->pdev);
 
 	nx_mlc_set_layer_priority(me->mlc_module,
@@ -4123,16 +4137,24 @@ static int nx_rearcam_remove(struct platform_device *pdev)
 {
 	struct nx_rearcam *me = platform_get_drvdata(pdev);
 
+	if (me == NULL)
+		return 0;
+
 	if (unlikely(!me))
 		return 0;
 
 	deinit_me(me);
-	if (me->vendor_context != NULL)
-		kfree(me->vendor_context);
-	devm_kfree(&me->pdev->dev, me);
 
 	if (me->free_vendor_context)
 		me->free_vendor_context(me->vendor_context);
+
+	if (me->vendor_context != NULL) {
+		kfree(me->vendor_context);
+		me->vendor_context = NULL;
+	}
+
+	if (me != NULL)
+		platform_set_drvdata(pdev, NULL);
 
 	return 0;
 }
