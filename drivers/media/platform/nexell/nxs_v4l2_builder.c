@@ -20,6 +20,9 @@
 #include <linux/module.h>
 
 #include <linux/of.h>
+#include <linux/of_gpio.h>
+#include <linux/clk.h>
+#include <linux/delay.h>
 #include <linux/mutex.h>
 #include <linux/list.h>
 #include <linux/slab.h>
@@ -30,6 +33,7 @@
 #include <linux/spinlock.h>
 #include <linux/atomic.h>
 #include <linux/completion.h>
+#include <linux/regulator/consumer.h>
 
 #include <media/media-device.h>
 #include <media/v4l2-device.h>
@@ -41,7 +45,10 @@
 #include <media/videobuf2-core.h>
 #include <media/videobuf2-dma-contig.h>
 #include <media/v4l2-mem2mem.h>
+#include <media/v4l2-async.h>
+#include <media/v4l2-of.h>
 
+#include <dt-bindings/media/nexell-vip.h>
 #include <linux/nxs_ioctl.h>
 #include <linux/nxs_v4l2.h>
 #include <linux/soc/nexell/nxs_function.h>
@@ -70,6 +77,66 @@ struct nxs_subdev_ctx {
 	struct v4l2_crop crop;
 };
 
+/* below block must move to nxs_function.h */
+struct nxs_action_unit {
+	u32 value;
+	u32 delay_ms;
+};
+
+struct nxs_gpio_action {
+	u32 gpio_num;
+	u32 count;
+	struct nxs_action_unit *units;
+};
+
+struct nxs_action {
+	int type;
+	void *action;
+};
+
+struct nxs_action_seq {
+	int count;
+	struct nxs_action *actions;
+};
+
+struct nxs_capture_hw_vip_param {
+	u32 bus_width;
+	u32 bus_align;
+	u32 interlace;
+	u32 h_backporch;
+	u32 v_backporch;
+	u32 pclk_polarity;
+	u32 hsync_polarity;
+	u32 vsync_polarity;
+	u32 field_polarity;
+	u32 data_order;
+};
+
+struct nxs_capture_hw_csi_param {
+	u8 data_lanes[4];
+	u8 clock_lane;
+	u8 num_data_lanes;
+	u8 lane_polarities[5];
+	u64 link_frequency;
+};
+
+struct nxs_capture_ctx {
+	u32 bus_type;
+	union {
+		struct nxs_capture_hw_vip_param parallel;
+		struct nxs_capture_hw_csi_param csi;
+	} bus;
+	struct nxs_action_seq enable_seq;
+	struct nxs_action_seq disable_seq;
+	struct clk *clk;
+	u32 clock_freq;
+	u32 regulator_nr;
+	char **regulator_names;
+	u32 *regulator_voltages;
+	struct v4l2_subdev *sensor;
+	struct device *dev;
+};
+
 struct nxs_video {
 	char name[NXS_VIDEO_MAX_NAME_SIZE];
 	u32 type; /* enum nxs_video_type */
@@ -89,6 +156,9 @@ struct nxs_video {
 	struct media_pad pad;
 
 	struct nxs_function_instance *nxs_function;
+
+	struct v4l2_async_notifier notifier;
+	struct nxs_capture_ctx *capture;
 };
 
 #define vdev_to_nxs_video(vdev) container_of(vdev, struct nxs_video, video)
@@ -548,6 +618,19 @@ find_nxs_dev_by_function(struct nxs_function_instance *inst, u32 function)
 	return NULL;
 }
 
+static bool is_end_node(struct nxs_dev *dev)
+{
+	switch (dev->dev_function) {
+	case NXS_FUNCTION_LVDS:
+	case NXS_FUNCTION_MIPI_DSI:
+	case NXS_FUNCTION_HDMI:
+	case NXS_FUNCTION_DPC:
+		return true;
+	}
+
+	return false;
+}
+
 static int nxs_subdev_chain_config(struct nxs_function_instance *inst,
 				   struct nxs_subdev_ctx *ctx)
 {
@@ -576,6 +659,7 @@ static int nxs_subdev_chain_config(struct nxs_function_instance *inst,
 	/* set cropper */
 	nxs_dev_to = NULL;
 	nxs_dev_to = find_nxs_dev_by_function(inst, NXS_FUNCTION_CROPPER);
+	/* pr_info("FOR CROPPER ====> \n"); */
 	if (nxs_dev_to) {
 		if (ctx->crop.c.width > 0) {
 			c.crop.l = ctx->crop.c.left;
@@ -592,6 +676,8 @@ static int nxs_subdev_chain_config(struct nxs_function_instance *inst,
 
 		head = &inst->dev_list;
 		list_for_each_entry(nxs_dev_tmp, head, func_list) {
+			/* pr_info("function %s\n", */
+			/* 	nxs_function_to_str(nxs_dev_tmp->dev_function)); */
 			ret = nxs_set_control(nxs_dev_tmp, NXS_CONTROL_FORMAT,
 					      &f);
 			if (ret)
@@ -614,6 +700,7 @@ static int nxs_subdev_chain_config(struct nxs_function_instance *inst,
 	/* nxs_dev_from = get_next_nxs_dev(nxs_dev_to); */
 	nxs_dev_from = nxs_dev_to;
 	nxs_dev_to = find_nxs_dev_by_function(inst, NXS_FUNCTION_CSC);
+	/* pr_info("FOR CSC ====> \n"); */
 	if (nxs_dev_to) {
 		if (nxs_dev_from)
 			head = &nxs_dev_from->func_list;
@@ -621,6 +708,8 @@ static int nxs_subdev_chain_config(struct nxs_function_instance *inst,
 			head = &inst->dev_list;
 
 		list_for_each_entry(nxs_dev_tmp, head, func_list) {
+			/* pr_info("function %s\n", */
+			/* 	nxs_function_to_str(nxs_dev_tmp->dev_function)); */
 			ret = nxs_set_control(nxs_dev_tmp, NXS_CONTROL_FORMAT,
 					      &f);
 			if (ret)
@@ -644,6 +733,7 @@ static int nxs_subdev_chain_config(struct nxs_function_instance *inst,
 	if (!nxs_dev_to)
 		nxs_dev_to = find_nxs_dev_by_function(inst,
 						      NXS_FUNCTION_SCALER_5376);
+	/* pr_info("FOR SCALER ====> \n"); */
 	if (nxs_dev_to) {
 		if (nxs_dev_from)
 			head = &nxs_dev_from->func_list;
@@ -651,6 +741,8 @@ static int nxs_subdev_chain_config(struct nxs_function_instance *inst,
 			head = &inst->dev_list;
 
 		list_for_each_entry(nxs_dev_tmp, head, func_list) {
+			/* pr_info("function %s\n", */
+			/* 	nxs_function_to_str(nxs_dev_tmp->dev_function)); */
 			ret = nxs_set_control(nxs_dev_tmp, NXS_CONTROL_FORMAT,
 					      &f);
 			if (ret)
@@ -676,13 +768,26 @@ static int nxs_subdev_chain_config(struct nxs_function_instance *inst,
 	else
 		head = &inst->dev_list;
 
+	/* pr_info("FOR OTHERS ====> \n"); */
+	nxs_dev_tmp = NULL;
 	list_for_each_entry(nxs_dev_tmp, head, func_list) {
-		ret = nxs_set_control(nxs_dev_tmp, NXS_CONTROL_FORMAT,
-				      &f);
+		if (!nxs_dev_tmp || !nxs_dev_tmp->set_control)
+			break;
+		/* pr_info("function %s\n", */
+		/* 	nxs_function_to_str(nxs_dev_tmp->dev_function)); */
+		ret = nxs_set_control(nxs_dev_tmp, NXS_CONTROL_FORMAT, &f);
 		if (ret)
 			return ret;
+		/**
+		 * TODO
+		 * Sometimes kernel panic occured, I assume nxs_dev_tmp is
+		 * invalid, Currently workaround this by next code
+		 */
+		if (is_end_node(nxs_dev_tmp))
+			goto out;
 	}
 
+out:
 	return 0;
 }
 
@@ -805,6 +910,14 @@ static int nxs_chain_set_tid(struct nxs_function_instance *inst)
 				return ret;
 		}
 
+		/* BLENDING_TO_MINE */
+		if ((inst->req->flags & BLENDING_TO_MINE) &&
+		    (cur->dev_function == NXS_FUNCTION_MLC_BLENDER)) {
+			ret = inst->top->set_tid(inst->top, cur->tid, 0);
+			if (ret)
+				return ret;
+		}
+
 		prev = cur;
 	}
 
@@ -813,16 +926,23 @@ static int nxs_chain_set_tid(struct nxs_function_instance *inst)
 
 static int nxs_chain_run(struct nxs_function_instance *inst)
 {
-	struct nxs_dev *nxs_dev;
+	struct nxs_dev *nxs_dev, *first;
 	int ret;
 
 	ret = nxs_chain_set_tid(inst);
 	if (ret)
 		return ret;
 
+	first = list_first_entry(&inst->dev_list, struct nxs_dev, func_list);
 	list_for_each_entry_reverse(nxs_dev, &inst->dev_list, func_list) {
 		if (nxs_dev->set_dirty) {
 			ret = nxs_dev->set_dirty(nxs_dev);
+			if (ret)
+				return ret;
+		}
+
+		if (nxs_dev == first && inst->top) {
+			ret = inst->top->set_dirty(inst->top);
 			if (ret)
 				return ret;
 		}
@@ -2081,6 +2201,10 @@ static void nxs_vb2_buf_queue(struct vb2_buffer *buf)
 	spin_unlock_irqrestore(&vfh->bufq_lock, flags);
 }
 
+static bool need_camera_sensor(struct nxs_video *video);
+static int capture_on(struct nxs_video *video);
+static int capture_off(struct nxs_video *video);
+
 static int nxs_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 {
 	struct nxs_video_fh *vfh = vb2_get_drv_priv(q);
@@ -2111,8 +2235,8 @@ static int nxs_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 	if (ret)
 		return ret;
 
-	/* TODO */
-	/* when using camera sensor, subdev ops needed here */
+	if (need_camera_sensor(video))
+		return capture_on(video);
 
 	return 0;
 }
@@ -2125,8 +2249,8 @@ static void nxs_vb2_stop_streaming(struct vb2_queue *q)
 	nxs_chain_stop(video->nxs_function);
 	nxs_chain_unregister_irqcallback(video->nxs_function);
 
-	/* TODO */
-	/* when using camera sensor, subdev ops needed here */
+	if (need_camera_sensor(video))
+		capture_off(video);
 }
 
 static struct vb2_ops nxs_vb2_ops = {
@@ -2377,7 +2501,14 @@ static int nxs_subdev_start(struct v4l2_subdev *sd)
 	if (ret)
 		return ret;
 
-	return nxs_chain_run(video->nxs_function);
+	ret = nxs_chain_run(video->nxs_function);
+	if (ret)
+		return ret;
+
+	if (need_camera_sensor(video))
+		ret = capture_on(video);
+
+	return ret;
 }
 
 static int nxs_subdev_stop(struct v4l2_subdev *sd)
@@ -2385,6 +2516,9 @@ static int nxs_subdev_stop(struct v4l2_subdev *sd)
 	struct nxs_video *video = v4l2_get_subdevdata(sd);
 
 	nxs_chain_stop(video->nxs_function);
+	if (need_camera_sensor(video))
+		return capture_off(video);
+
 	return 0;
 }
 
@@ -2486,6 +2620,16 @@ static int init_nxs_vdev(struct nxs_v4l2_builder *builder,
 			 struct nxs_video *nxs_video)
 {
 	int ret;
+	struct media_pad *pad = &nxs_video->pad;
+	struct media_entity *entity = &nxs_video->vdev.entity;
+
+	pad->flags = MEDIA_PAD_FL_SINK;
+	ret = media_entity_init(entity, 1, pad, 0);
+	if (ret) {
+		dev_err(builder->dev, "failed to media_entity_init(name: %s)\n",
+			nxs_video->name);
+		return ret;
+	}
 
 	/* snprintf(nxs_video->vdev.name, sizeof(nxs_video->vdev.name), */
 	/* 	 "%s", nxs_video->name); */
@@ -2577,6 +2721,770 @@ static int init_nxs_subdev(struct nxs_v4l2_builder *builder,
 	return 0;
 }
 
+static bool need_camera_sensor(struct nxs_video *video)
+{
+	struct nxs_function_instance *inst = video->nxs_function;
+	struct nxs_dev *nxs_dev;
+
+	nxs_dev = list_first_entry(&inst->dev_list, struct nxs_dev, func_list);
+
+	if (nxs_dev->dev_function == NXS_FUNCTION_VIP_CLIPPER ||
+	    nxs_dev->dev_function == NXS_FUNCTION_VIP_DECIMATOR ||
+	    nxs_dev->dev_function == NXS_FUNCTION_MIPI_CSI)
+		return true;
+
+	return false;
+}
+
+static int apply_ep_to_capture(struct device *dev, struct v4l2_of_endpoint *sep,
+			       struct nxs_capture_ctx *capture)
+{
+	capture->bus_type = sep->bus_type;
+
+	if (sep->bus_type == V4L2_MBUS_PARALLEL ||
+	    sep->bus_type == V4L2_MBUS_BT656) {
+		struct nxs_capture_hw_vip_param *param = &capture->bus.parallel;
+		struct v4l2_of_bus_parallel *sep_param = &sep->bus.parallel;
+
+		param->bus_width = sep_param->bus_width;
+		param->interlace = sep_param->flags &
+			(V4L2_MBUS_FIELD_EVEN_HIGH | V4L2_MBUS_FIELD_EVEN_LOW) ?
+			1 : 0;
+		param->pclk_polarity = sep_param->flags &
+			V4L2_MBUS_PCLK_SAMPLE_RISING ? 1 : 0;
+		param->hsync_polarity = sep_param->flags &
+			V4L2_MBUS_HSYNC_ACTIVE_HIGH ? 1 : 0;
+		param->vsync_polarity = sep_param->flags &
+			V4L2_MBUS_VSYNC_ACTIVE_HIGH ? 1 : 0;
+		param->field_polarity = sep_param->flags &
+			V4L2_MBUS_FIELD_EVEN_HIGH ? 1 : 0;
+	} else if (sep->bus_type == V4L2_MBUS_CSI2) {
+		struct nxs_capture_hw_csi_param *param = &capture->bus.csi;
+		struct v4l2_of_bus_mipi_csi2 *sep_param = &sep->bus.mipi_csi2;
+		int i;
+
+		param->num_data_lanes = sep_param->num_data_lanes;
+		for (i = 0; i < param->num_data_lanes; i++)
+			param->data_lanes[i] = sep_param->data_lanes[i];
+		param->clock_lane = sep_param->clock_lane;
+		for (i = 0; i < 5; i++)
+			param->lane_polarities[i] =
+				sep_param->lane_polarities[i];
+		if (sep->nr_of_link_frequencies)
+			param->link_frequency = sep->link_frequencies[0];
+	} else {
+		dev_err(dev, "%s: invalid bus type %d\n", __func__,
+			sep->bus_type);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int find_action_mark(u32 *p, int length, u32 mark)
+{
+	int i;
+
+	for (i = 0; i < length; i++) {
+		if (p[i] == mark)
+			return i;
+	}
+	return -1;
+}
+
+static int find_action_start(u32 *p, int length)
+{
+	return find_action_mark(p, length, NX_ACTION_START);
+}
+
+static int find_action_end(u32 *p, int length)
+{
+	return find_action_mark(p, length, NX_ACTION_END);
+}
+
+static int get_num_of_action(struct device *dev, u32 *array, int count)
+{
+	u32 *p = array;
+	int action_num = 0;
+	int next_index = 0;
+	int length = count;
+
+	while (length > 0) {
+		next_index = find_action_start(p, length);
+		if (next_index < 0)
+			break;
+		p += next_index;
+		length -= next_index;
+		if (length <= 0)
+			break;
+
+		next_index = find_action_end(p, length);
+		if (next_index <= 0) {
+			dev_err(dev, "failed to find_action_end\n");
+			return 0;
+		}
+
+		p += next_index;
+		length -= next_index;
+		action_num++;
+	}
+
+	return action_num;
+}
+
+static u32 *get_next_action(u32 *array, int count)
+{
+	u32 *p = array;
+	int next_index = find_action_start(p, count);
+
+	if (next_index >= 0)
+		return p + next_index;
+	return NULL;
+}
+
+static u32 get_action_type(u32 *array)
+{
+	return array[1];
+}
+
+static void free_action_seq(struct nxs_action_seq *seq)
+{
+	int i;
+	struct nxs_action *action;
+
+	for (i = 0; i < seq->count; i++) {
+		action = &seq->actions[i];
+		if (action->action) {
+			if (action->type == NX_ACTION_TYPE_GPIO) {
+				struct nxs_gpio_action *gpio_action =
+					action->action;
+
+				if (gpio_action->units)
+					kfree(gpio_action->units);
+			}
+			kfree(action->action);
+		}
+	}
+
+	kfree(seq->actions);
+	seq->count = 0;
+	seq->actions = NULL;
+}
+
+static int make_gpio_action(struct device *dev, u32 *start, u32 *end,
+			    struct nxs_action *action)
+{
+	struct nxs_gpio_action *gpio_action;
+	struct nxs_action_unit *unit;
+	int i;
+	u32 *p;
+	/* start_marker, type, gpio num */
+	int unit_count = end - start - 1 - 1 - 1;
+
+	if ((unit_count <= 0) || (unit_count % 2)) {
+		dev_err(dev, "%s: invalid unit_count %d\n", __func__,
+			unit_count);
+		return -EINVAL;
+	}
+	unit_count /= 2;
+
+	gpio_action = kzalloc(sizeof(*gpio_action), GFP_KERNEL);
+	if (!gpio_action) {
+		WARN_ON(1);
+		return -ENOMEM;
+	}
+
+	gpio_action->count = unit_count;
+	gpio_action->units = kcalloc(unit_count, sizeof(*unit), GFP_KERNEL);
+	if (!gpio_action->units) {
+		WARN_ON(1);
+		kfree(gpio_action);
+		return -ENOMEM;
+	}
+
+	gpio_action->gpio_num = start[2];
+	p = &start[3];
+	for (i = 0; i < unit_count; i++) {
+		unit = &gpio_action->units[i];
+		unit->value = *p;
+		p++;
+		unit->delay_ms = *p;
+		p++;
+	}
+
+	action->type = start[1];
+	action->action = gpio_action;
+
+	return 0;
+}
+
+static int make_generic_action(struct device *dev, u32 *start, u32 *end,
+			       struct nxs_action *action)
+{
+	struct nxs_action_unit *unit;
+	/* start_marker, type */
+	int unit_count = end - start - 1 - 1;
+
+	if ((unit_count <= 0) || (unit_count % 2)) {
+		dev_err(dev, "%s: invalid unit_count %d\n", __func__,
+			unit_count);
+		return -EINVAL;
+	}
+
+	unit = kzalloc(sizeof(*unit), GFP_KERNEL);
+	if (!unit) {
+		WARN_ON(1);
+		return -ENOMEM;
+	}
+
+	unit->value = start[2];
+	unit->delay_ms = start[3];
+
+	action->type = start[1];
+	action->action = unit;
+
+	return 0;
+}
+
+static int make_nxs_action(struct device *dev, u32 *array, int count,
+			   struct nxs_action *action)
+{
+	u32 *p = array;
+	int end_index = find_action_end(p, count);
+
+	if (end_index <= 0) {
+		dev_err(dev, "%s: can't find action end\n", __func__);
+		return -EINVAL;
+	}
+
+	switch (get_action_type(p)) {
+	case NX_ACTION_TYPE_GPIO:
+		return make_gpio_action(dev, p, p + end_index, action);
+	case NX_ACTION_TYPE_PMIC:
+	case NX_ACTION_TYPE_CLOCK:
+		return make_generic_action(dev, p, p + end_index, action);
+	default:
+		dev_err(dev, "%s: incalid type 0x%x\n", __func__,
+			get_action_type(p));
+		break;
+	}
+
+	return -EINVAL;
+}
+
+static int parse_power_seq(struct device *dev, struct device_node *node,
+			   char *node_name, struct nxs_action_seq *seq)
+{
+	int count = of_property_count_elems_of_size(node, node_name, 4);
+
+	if (count > 0) {
+		u32 *p;
+		int ret = 0;
+		struct nxs_action *action;
+		int action_nums;
+		u32 *array = kcalloc(count, sizeof(u32), GFP_KERNEL);
+
+		if (!array) {
+			WARN_ON(1);
+			return -ENOMEM;
+		}
+
+		of_property_read_u32_array(node, node_name, array, count);
+		action_nums = get_num_of_action(dev, array, count);
+		if (action_nums <= 0) {
+			dev_err(dev, "%s: no actions in %s\n", __func__,
+				node_name);
+			return -ENOENT;
+		}
+
+		seq->actions = kcalloc(count, sizeof(*action), GFP_KERNEL);
+		if (!seq->actions) {
+			WARN_ON(1);
+			return -ENOMEM;
+		}
+		seq->count = action_nums;
+
+		p = array;
+		action = seq->actions;
+		while (action_nums--) {
+			p = get_next_action(p, count - (p - array));
+			if (!p) {
+				dev_err(dev, "failed to get_next_action(%d/%d)\n",
+					seq->count, action_nums);
+				free_action_seq(seq);
+				return -EINVAL;
+			}
+
+			ret = make_nxs_action(dev, p, count - (p - array),
+					      action);
+			if (ret != 0) {
+				free_action_seq(seq);
+				return ret;
+			}
+
+			p++;
+			action++;
+		}
+	}
+
+	return 0;
+}
+
+static int parse_capture_dts(struct device *dev,
+			     struct nxs_capture_ctx *capture,
+			     struct device_node *node)
+{
+	int ret;
+
+	if (capture->bus_type == V4L2_MBUS_PARALLEL ||
+	    capture->bus_type == V4L2_MBUS_BT656) {
+		struct nxs_capture_hw_vip_param *param = &capture->bus.parallel;
+
+		if (of_property_read_u32(node, "data_order",
+					 &param->data_order)) {
+			dev_err(dev, "failed to get dt data_order\n");
+			return -EINVAL;
+		}
+
+		if (param->bus_width > 8) {
+			/* bus_align must be exist: LSB 1, MSB 0 */
+			if (of_property_read_u32(node, "bus_align",
+						 &param->bus_align)) {
+				dev_err(dev, "failed to get dt bus_align\n");
+				return -EINVAL;
+			}
+		}
+
+		if (capture->bus_type == V4L2_MBUS_PARALLEL) {
+			if (of_property_read_u32(node, "h_backporch",
+						 &param->h_backporch)) {
+				dev_err(dev, "failed to get dt h_backporch\n");
+				return -EINVAL;
+			}
+
+			if (of_property_read_u32(node, "v_backporch",
+						 &param->v_backporch)) {
+				dev_err(dev, "failed to get dt v_backporch\n");
+				return -EINVAL;
+			}
+		}
+	}
+
+	/* regulator */
+	capture->regulator_nr = of_property_count_strings(node, "regulator_names");
+	if (capture->regulator_nr > 0) {
+		int i;
+		const char *name;
+
+		capture->regulator_names = kcalloc(capture->regulator_nr,
+						   sizeof(char *),
+						   GFP_KERNEL);
+		if (!capture->regulator_names) {
+			WARN_ON(1);
+			return -ENOMEM;
+		}
+
+		capture->regulator_voltages = kcalloc(capture->regulator_nr,
+						      sizeof(u32),
+						      GFP_KERNEL);
+		if (!capture->regulator_voltages) {
+			WARN_ON(1);
+			return -ENOMEM;
+		}
+
+		for (i = 0; i < capture->regulator_nr; i++) {
+			if (of_property_read_string_index(node, "regulator_names",
+							  i, &name)) {
+				dev_err(dev, "failed to read regulator %d name\n", i);
+				return -EINVAL;
+			}
+			capture->regulator_names[i] = (char *)name;
+		}
+
+		of_property_read_u32_array(node, "regulator_voltages",
+					   capture->regulator_voltages,
+					   capture->regulator_nr);
+	}
+
+	/* clock */
+	capture->clk = clk_get(dev, "vclkout");
+	if (!IS_ERR(capture->clk)) {
+		if (of_property_read_u32(node, "clock-frequency",
+					 &capture->clock_freq)) {
+			dev_err(dev, "failed to get clock-frequency\n");
+			return -EINVAL;
+		}
+	}
+
+	/* enable seq */
+	if (of_find_property(node, "enable_seq", NULL)) {
+		ret = parse_power_seq(dev, node, "enable_seq",
+				      &capture->enable_seq);
+		if (ret)
+			return ret;
+	}
+
+	/* disable seq */
+	if (of_find_property(node, "disable_seq", NULL)) {
+		ret = parse_power_seq(dev, node, "disable_seq",
+				      &capture->enable_seq);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+int nxs_capture_bind_sensor(struct device *dev, struct nxs_dev *nxs_dev,
+			    struct v4l2_async_subdev *asd,
+			    struct nxs_capture_ctx *capture)
+{
+	struct device_node *node = NULL;
+	struct device_node *remote_parent_node = NULL, *remote_node = NULL;
+	struct v4l2_of_endpoint vep, sep;
+	int ret;
+
+	node = of_graph_get_next_endpoint(nxs_dev->dev->of_node, NULL);
+	if (!node) {
+		dev_err(dev, "%s: can't find endpoint node\n", __func__);
+		ret = -ENOENT;
+		goto err_out;
+	}
+
+	ret = v4l2_of_parse_endpoint(node, &vep);
+	if (ret) {
+		dev_err(dev, "%s: failed to v4l2_of_parse_endpoint\n",
+			__func__);
+		goto err_out;
+	}
+
+	remote_parent_node = of_graph_get_remote_port_parent(node);
+	if (!remote_parent_node) {
+		dev_err(dev, "%s: can't find remote parent node\n", __func__);
+		ret = -ENOENT;
+		goto err_out;
+	}
+
+	remote_node = of_graph_get_next_endpoint(remote_parent_node, NULL);
+	if (!remote_node) {
+		dev_err(dev, "%s: can't find remote node\n", __func__);
+		ret = -ENOENT;
+		goto err_out;
+	}
+
+	ret = v4l2_of_parse_endpoint(remote_node, &sep);
+	if (ret) {
+		dev_err(dev,
+			"%s: failed to v4l2_of_parse_endpoint for remote\n",
+			__func__);
+		goto err_out;
+	}
+
+	ret = apply_ep_to_capture(dev, &sep, capture);
+	if (ret) {
+		dev_err(dev, "%s: failed to apply_ep_to_capture\n", __func__);
+		goto err_out;
+	}
+
+	ret = parse_capture_dts(dev, capture, node);
+	if (ret)
+		dev_err(dev, "%s: failed to parse_capture_dts\n", __func__);
+
+	capture->dev = nxs_dev->dev;
+
+err_out:
+	if (remote_node)
+		of_node_put(remote_node);
+
+	if (remote_parent_node)
+		of_node_put(remote_parent_node);
+
+	if (node)
+		of_node_put(node);
+
+	return ret;
+}
+
+static int apply_gpio_action(struct device *dev, int gpio_num,
+			     struct nxs_action_unit *unit)
+{
+	int ret;
+	char label[64] = {0, };
+	struct device_node *node;
+	int gpio;
+
+	node = dev->of_node;
+	gpio = of_get_named_gpio(node, "gpios", gpio_num);
+
+	sprintf(label, "nxs-v4l2 camera #pwr gpio %d", gpio);
+	if (!gpio_is_valid(gpio)) {
+		dev_err(dev, "%s: invalid gpio %d\n", __func__, gpio);
+		return -EINVAL;
+	}
+
+	ret = devm_gpio_request_one(dev, gpio, unit->value ?
+				    GPIOF_OUT_INIT_HIGH : GPIOF_OUT_INIT_LOW,
+				    label);
+	if (ret < 0) {
+		dev_err(dev, "%s: failed to set gpio %d to %d\n",
+			__func__, gpio, unit->value);
+		return ret;
+	}
+
+	if (unit->delay_ms > 0)
+		mdelay(unit->delay_ms);
+
+	devm_gpio_free(dev, gpio);
+
+	return 0;
+}
+
+static int do_gpio_action(struct device *dev, struct nxs_capture_ctx *capture,
+			  struct nxs_gpio_action *action)
+{
+	int ret;
+	struct nxs_action_unit *unit;
+	int i;
+
+	for (i = 0; i < action->count; i++) {
+		unit = &action->units[i];
+		ret = apply_gpio_action(dev, action->gpio_num, unit);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+static int do_pmic_action(struct device *dev, struct nxs_capture_ctx *capture,
+			  struct nxs_action_unit *unit)
+{
+	int ret;
+	int i;
+	struct regulator *power;
+
+	for (i = 0; i < capture->regulator_nr; i++) {
+		power = devm_regulator_get(dev, capture->regulator_names[i]);
+		if (IS_ERR(power)) {
+			dev_err(dev, "%s: failed to get power %s\n",
+				__func__, capture->regulator_names[i]);
+			return -ENODEV;
+		}
+
+		if (regulator_can_change_voltage(power)) {
+			ret = regulator_set_voltage(power,
+						capture->regulator_voltages[i],
+						capture->regulator_voltages[i]);
+			if (ret) {
+				devm_regulator_put(power);
+				dev_err(dev, "%s: failed to set voltages for %s\n",
+					__func__, capture->regulator_names[i]);
+			}
+		}
+
+		ret = 0;
+		if (unit->value && !regulator_is_enabled(power))
+			ret = regulator_enable(power);
+		else if (!unit->value && regulator_is_enabled(power))
+			ret = regulator_disable(power);
+
+		devm_regulator_put(power);
+		if (ret) {
+			dev_err(dev, "%s: failed to power %s to %s\n",
+				__func__, capture->regulator_names[i],
+				unit->value ? "enable" : "disable");
+			return ret;
+		}
+
+		if (unit->delay_ms > 0)
+			mdelay(unit->delay_ms);
+	}
+
+	return 0;
+}
+
+static int do_clock_action(struct device *dev, struct nxs_capture_ctx *capture,
+			   struct nxs_action_unit *unit)
+{
+	int ret = 0;
+
+	if (capture->clk) {
+		if (unit->value)
+			ret = clk_prepare_enable(capture->clk);
+		else
+			clk_disable_unprepare(capture->clk);
+
+		if (ret) {
+			dev_err(dev, "%s: failed to clk control\n", __func__);
+			return ret;
+		}
+
+		if (unit->delay_ms > 0)
+			mdelay(unit->delay_ms);
+	}
+
+	return 0;
+}
+
+int nxs_capture_power(struct nxs_capture_ctx *capture, bool enable)
+{
+	struct nxs_action_seq *seq;
+	int i;
+	struct nxs_action *act;
+	struct device *dev = capture->dev;
+	int ret = 0;
+
+	if (enable)
+		seq = &capture->enable_seq;
+	else
+		seq = &capture->disable_seq;
+
+	for (i = 0; i < seq->count; i++) {
+		act = &seq->actions[i];
+		switch (act->type) {
+		case NX_ACTION_TYPE_GPIO:
+			ret = do_gpio_action(dev, capture, act->action);
+			if (ret)
+				return ret;
+			break;
+		case NX_ACTION_TYPE_PMIC:
+			ret = do_pmic_action(dev, capture, act->action);
+			if (ret)
+				return ret;
+			break;
+		case NX_ACTION_TYPE_CLOCK:
+			ret = do_clock_action(dev, capture, act->action);
+			if (ret)
+				return ret;
+			break;
+		default:
+			dev_err(dev, "unknown action type 0x%x\n", act->type);
+			break;
+		}
+	}
+
+	return ret;
+}
+
+static int capture_on(struct nxs_video *video)
+{
+	int ret;
+
+	if (!video->capture) {
+		dev_err(&video->vdev.dev,
+			"%s: capture context is NULL\n", __func__);
+		return -ENODEV;
+	}
+	ret = nxs_capture_power(video->capture, true);
+	if (ret)
+		return ret;
+
+	ret = v4l2_subdev_call(video->capture->sensor, video, s_stream, 1);
+	if (ret)
+		dev_err(&video->vdev.dev,
+			"%s: failed to s_stream of sensor\n", __func__);
+
+	return ret;
+}
+
+static int capture_off(struct nxs_video *video)
+{
+	int ret;
+
+	if (!video->capture) {
+		dev_err(&video->vdev.dev,
+			"%s: capture context is NULL\n", __func__);
+		return -ENODEV;
+	}
+
+	ret = v4l2_subdev_call(video->capture->sensor, video, s_stream, 0);
+	if (ret) {
+		dev_err(&video->vdev.dev,
+			"%s: failed to s_stream of sensor\n", __func__);
+		return ret;
+	}
+
+	return nxs_capture_power(video->capture, false);
+}
+
+static int capture_sensor_notifier_bound(struct v4l2_async_notifier *async,
+					 struct v4l2_subdev *sd,
+					 struct v4l2_async_subdev *asd)
+{
+	struct nxs_video *video =
+		container_of(async, struct nxs_video, notifier);
+
+	dev_info(&video->vdev.dev, "%s: sd %p\n", __func__, sd);
+	video->capture->sensor = sd;
+	return 0;
+}
+
+static int capture_sensor_notifier_complete(struct v4l2_async_notifier *async)
+{
+	struct nxs_video *video =
+		container_of(async, struct nxs_video, notifier);
+
+	return v4l2_device_register_subdev(video->v4l2_dev,
+					   video->capture->sensor);
+}
+
+static int bind_sensor(struct nxs_video *video)
+{
+	struct nxs_function_instance *inst = video->nxs_function;
+	struct nxs_capture_ctx *capture = NULL;
+	struct v4l2_async_notifier *notifier = &video->notifier;
+	struct v4l2_async_subdev *asd = NULL;
+	struct nxs_dev *nxs_dev;
+	int ret;
+
+	capture = kzalloc(sizeof(*capture), GFP_KERNEL);
+	if (!capture) {
+		ret = -ENOMEM;
+		goto err_out;
+	}
+
+	notifier->num_subdevs = 1;
+	notifier->subdevs = kzalloc(sizeof(*notifier->subdevs), GFP_KERNEL);
+	if (!notifier->subdevs) {
+		ret = -ENOMEM;
+		goto err_out;
+	}
+
+	asd = kzalloc(sizeof(*asd), GFP_KERNEL);
+	if (!asd) {
+		ret = -ENOMEM;
+		goto err_out;
+	}
+	*notifier->subdevs = asd;
+
+	nxs_dev = list_first_entry(&inst->dev_list, struct nxs_dev, func_list);
+	ret = nxs_capture_bind_sensor(&video->vdev.dev, nxs_dev, asd, capture);
+	if (ret)
+		goto err_out;
+
+	video->capture = capture;
+
+	notifier->bound = capture_sensor_notifier_bound;
+	notifier->complete = capture_sensor_notifier_complete;
+
+	return v4l2_async_notifier_register(video->v4l2_dev, notifier);
+
+err_out:
+	if (asd)
+		kfree(asd);
+	if (notifier->num_subdevs) {
+		if (notifier->subdevs)
+			kfree(notifier->subdevs);
+	}
+	if (capture) {
+		free_action_seq(&capture->enable_seq);
+		free_action_seq(&capture->disable_seq);
+		kfree(capture);
+	}
+
+	return ret;
+}
+
 static struct nxs_video *build_nxs_video(struct nxs_v4l2_builder *builder,
 					 const char *name,
 					 struct nxs_function_instance *inst)
@@ -2612,6 +3520,11 @@ static struct nxs_video *build_nxs_video(struct nxs_v4l2_builder *builder,
 		goto free_nxs_video;
 
 	nxs_video->nxs_function = inst;
+	if (need_camera_sensor(nxs_video)) {
+		ret = bind_sensor(nxs_video);
+		if (ret)
+			goto free_nxs_video;
+	}
 	dump_nxs_function_inst(inst);
 
 	return nxs_video;
@@ -2624,6 +3537,18 @@ free_nxs_video:
 static int cleanup_nxs_video(struct nxs_video *video)
 {
 	video_unregister_device(&video->vdev);
+	if (video->capture) {
+		if (video->capture->sensor)
+			v4l2_device_unregister_subdev(video->capture->sensor);
+		free_action_seq(&video->capture->enable_seq);
+		free_action_seq(&video->capture->disable_seq);
+		kfree(video->capture);
+	}
+	if (video->notifier.num_subdevs) {
+		v4l2_async_notifier_unregister(&video->notifier);
+		kfree(video->notifier.subdevs[0]);
+		kfree(video->notifier.subdevs);
+	}
 	/* vb2_queue_release(video->vbq); */
 	/* kfree(video->vbq); */
 	mutex_destroy(&video->queue_lock);
@@ -2638,8 +3563,8 @@ static void free_function_instance(struct nxs_function_instance *inst)
 {
 	struct nxs_dev *nxs_dev;
 
-	pr_info("%s: inst %p\n", __func__, inst);
-	pr_info("%s: free sibling_list start\n", __func__);
+	/* TODO: refactoring */
+#if 0
 	while (!list_empty(&inst->dev_sibling_list)) {
 		nxs_dev = list_first_entry(&inst->dev_sibling_list,
 					   struct nxs_dev, sibling_list);
@@ -2649,33 +3574,25 @@ static void free_function_instance(struct nxs_function_instance *inst)
 		list_del_init(&nxs_dev->sibling_list);
 		put_nxs_dev(nxs_dev);
 	}
-	/* list_for_each_entry(nxs_dev, &inst->dev_sibling_list, sibling_list) { */
-	/* 	pr_info("sibling: put %p, function %s, index %d\n", __func__, */
-	/* 		nxs_dev, nxs_function_to_str(nxs_dev->dev_function), */
-	/* 		nxs_dev->dev_inst_index); */
-	/* 	put_nxs_dev(nxs_dev); */
-	/* 	#<{(| list_del_init(&nxs_dev->sibling_list); |)}># */
-	/* } */
-	pr_info("%s: free sibling_list end\n", __func__);
+#endif
 
-	pr_info("%s: free dev_list start\n", __func__);
 	while (!list_empty(&inst->dev_list)) {
 		nxs_dev = list_first_entry(&inst->dev_list,
 					   struct nxs_dev, func_list);
-		pr_info("dev: put %p, function %s, index %d\n",
-			nxs_dev, nxs_function_to_str(nxs_dev->dev_function),
-			nxs_dev->dev_inst_index);
+		/* pr_info("dev: put %p, function %s, index %d\n", */
+		/* 	nxs_dev, nxs_function_to_str(nxs_dev->dev_function), */
+		/* 	nxs_dev->dev_inst_index); */
 		list_del_init(&nxs_dev->func_list);
 		put_nxs_dev(nxs_dev);
 	}
-	/* list_for_each_entry(nxs_dev, &inst->dev_list, func_list) { */
-	/* 	pr_info("dev: put %p, function %s, index %d\n", __func__, */
-	/* 		nxs_dev, nxs_function_to_str(nxs_dev->dev_function), */
-	/* 		nxs_dev->dev_inst_index); */
-	/* 	put_nxs_dev(nxs_dev); */
-	/* 	#<{(| list_del_init(&nxs_dev->func_list); |)}># */
-	/* } */
-	pr_info("%s: free dev_list end\n", __func__);
+	/* pr_info("%s: free dev_list end\n", __func__); */
+
+	if (inst->top)
+		put_nxs_dev(inst->top);
+	if (inst->cur_blender)
+		put_nxs_dev(inst->cur_blender);
+	if (inst->blender_next)
+		put_nxs_dev(inst->blender_next);
 
 	free_function_request(inst->req);
 
@@ -2724,6 +3641,8 @@ nxs_v4l2_build(struct nxs_function_builder *pthis,
 			 nxs_dev->user,
 			 nxs_dev->multitap_connected);
 
+		/* TODO: need refactoring */
+#if 0
 		if ((nxs_dev->dev_function == NXS_FUNCTION_MULTITAP &&
 		     atomic_read(&nxs_dev->refcount) > 1) ||
 		    (nxs_dev->multitap_connected &&
@@ -2735,10 +3654,25 @@ nxs_v4l2_build(struct nxs_function_builder *pthis,
 				      &inst->dev_sibling_list);
 		}
 		else
+#endif
 			list_add_tail(&nxs_dev->func_list, &inst->dev_list);
 	}
 
 	inst->req = req;
+
+	if (req->flags & BLENDING_TO_MINE) {
+		inst->top = get_nxs_dev(NXS_FUNCTION_MLC_BOTTOM,
+					req->option.bottom_id,
+					NXS_FUNCTION_USER_APP,
+					0);
+		if (!inst->top) {
+			dev_err(me->dev, "%s: failed to bottom dev(inst %d)\n",
+				__func__, req->option.bottom_id);
+			goto error_out;
+		}
+	}
+
+	/* TODO: BLENDING_TO_OTHER, MULTI_PATH */
 
 	nxs_video = build_nxs_video(me, name, inst);
 	if (!nxs_video) {
