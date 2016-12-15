@@ -668,6 +668,13 @@ config VIDEO_S5C73M3
 	  This is a V4L2 sensor-level driver for Samsung S5C73M3
 	  8 Mpixel camera.
 
+config VIDEO_NXS_EXAMPLE_SENSOR
+       tristate "NexellStream example sensor support"
+       depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+       ---help---
+         This is a V4L2 example sensor driver for Nexell Stream Bus.
+	 This driver is not for real hardware, only for reference.
+
 comment "Flash devices"
 
 config VIDEO_ADP1653
