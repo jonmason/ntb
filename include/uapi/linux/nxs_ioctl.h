@@ -4,13 +4,25 @@
 #include <linux/types.h>
 
 #define NXS_MAX_FUNCTION_COUNT	16
-#define NXS_MAX_REQ_NAME_SIZE	32
+#define NXS_MAX_REQ_NAME_SIZE	64
+
+#define BLENDING_TO_OTHER	(1 << 0)
+#define BLENDING_TO_MINE	(1 << 1)
+#define MULTI_PATH		(1 << 2)
+
 struct nxs_request_function {
 	char name[NXS_MAX_REQ_NAME_SIZE];
 	int count;
-	uint32_t array[NXS_MAX_FUNCTION_COUNT];
-	/* for multitap */
-	int sibling_handle;
+	uint32_t array[NXS_MAX_FUNCTION_COUNT * 2];
+	uint32_t flags;
+	struct {
+		/* for multitap: MULTI_PATH */
+		int sibling_handle;
+		/* for blending: BLENDING_TO_OTHER */
+		uint32_t display_id;
+		/* for complete display: BLENDING_TO_MINE */
+		uint32_t bottom_id;
+	} option;
 	int handle;
 };
 

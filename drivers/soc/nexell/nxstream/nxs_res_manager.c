@@ -50,9 +50,6 @@ int register_nxs_dev(struct nxs_dev *nxs_dev)
 	if (!res_manager)
 		BUG();
 
-	/* pr_info("%s: dev %p, function %s, index %d\n", __func__, */
-	/* 	nxs_dev, nxs_function_to_str(nxs_dev->dev_function), */
-	/* 	nxs_dev->dev_inst_index); */
 	mutex_lock(&res_manager->lock);
 	list_add_tail(&nxs_dev->list, &res_manager->dev_list);
 	mutex_unlock(&res_manager->lock);
@@ -98,10 +95,8 @@ void mark_multitap_follow(struct list_head *head)
 {
 	struct nxs_function *func;
 
-	pr_info("%s entered\n", __func__);
 	list_for_each_entry(func, head, list)
 		func->multitap_follow = true;
-	pr_info("%s exit\n", __func__);
 }
 EXPORT_SYMBOL_GPL(mark_multitap_follow);
 
@@ -273,7 +268,6 @@ static int handle_multitap(struct nxs_res_manager *manager,
 	struct nxs_function *func;
 	int index;
 
-	pr_info("%s: sibling_inst %p\n", __func__, sibling_inst);
 	list_for_each_entry(func, &req->head, list) {
 		index = get_function_index(sibling_inst, func->function);
 		if (index < 0) {
@@ -286,19 +280,32 @@ static int handle_multitap(struct nxs_res_manager *manager,
 		dev_info(manager->dev, "%s: func %s index set to %d\n",
 			 __func__, nxs_function_to_str(func->function), index);
 	}
-	pr_info("%s: exit\n", __func__);
 
 	return 0;
 }
 
 static struct nxs_function_request *
 make_function_request(struct nxs_res_manager *manager,
-		      struct nxs_request_function *req,
-		      struct nxs_function_instance *sibling_inst)
+		      struct nxs_request_function *req)
 {
 	int i;
 	struct nxs_function_request *func_req;
+	/* TODO: refactoring */
+#if 0
 	int ret;
+	struct nxs_function_instance *sibling_inst = NULL;
+
+	if (req->flags & MULTI_PATH && req->option.sibling_handle > 0) {
+		sibling_inst = manager->builder->get(manager->builder,
+						req->option.sibling_handle);
+		if (!sibling_inst) {
+			dev_err(manager->dev,
+				"%s: failed to get sibling function instance\n",
+				__func__);
+			return NULL;
+		}
+	}
+#endif
 
 	func_req = kzalloc(sizeof(*func_req), GFP_KERNEL);
 	if (!func_req) {
@@ -307,8 +314,10 @@ make_function_request(struct nxs_res_manager *manager,
 	}
 	INIT_LIST_HEAD(&func_req->head);
 
-	pr_info("%s entered\n", __func__);
-	for (i = 0; i < req->count; i++) {
+	func_req->flags = req->flags;
+	memcpy(&func_req->option, &req->option, sizeof(func_req->option));
+
+	for (i = 0; i < req->count * 2; i += 2) {
 		struct nxs_function *func;
 
 		func = kzalloc(sizeof(*func), GFP_KERNEL);
@@ -318,18 +327,20 @@ make_function_request(struct nxs_res_manager *manager,
 		}
 
 		func->function = req->array[i];
-		func->index = NXS_FUNCTION_ANY;
+		func->index = req->array[i+1];
 		func->user = NXS_FUNCTION_USER_APP;
 
-		/* dev_info(manager->dev, "func %s, index %d, user %d\n", */
-		/* 	 nxs_function_to_str(func->function), func->index, */
-		/* 	 func->user); */
+		/* TODO: refactoring */
+#if 0
 		if (func->function == NXS_FUNCTION_MULTITAP)
 			mark_multitap_follow(&func_req->head);
+#endif
 
 		list_add_tail(&func->list, &func_req->head);
 		func_req->nums_of_function++;
 
+		/* TODO: refactoring */
+#if 0
 		if (func->function == NXS_FUNCTION_MULTITAP && sibling_inst) {
 			ret = handle_multitap(manager, func_req, sibling_inst);
 			if (ret < 0) {
@@ -339,8 +350,8 @@ make_function_request(struct nxs_res_manager *manager,
 				goto error_out;
 			}
 		}
+#endif
 	}
-	pr_info("%s exit\n", __func__);
 
 	return func_req;
 
@@ -354,26 +365,12 @@ static int handle_request_function(struct nxs_res_manager *manager,
 {
 	struct nxs_request_function req;
 	struct nxs_function_request *func_req = NULL;
-	struct nxs_function_instance *inst, *sibling_inst;
-
-	pr_info("%s entered\n", __func__);
+	struct nxs_function_instance *inst;
 
 	if (copy_from_user(&req, (void __user *)arg, sizeof(req)))
 		return -EFAULT;
 
-	sibling_inst = NULL;
-	if (req.sibling_handle > 0) {
-		sibling_inst = manager->builder->get(manager->builder,
-						     req.sibling_handle);
-		if (!sibling_inst) {
-			dev_err(manager->dev,
-				"%s: failed to get sibling function instance\n",
-				__func__);
-			return -EINVAL;
-		}
-	}
-
-	func_req = make_function_request(manager, &req, sibling_inst);
+	func_req = make_function_request(manager, &req);
 	if (!func_req) {
 		dev_err(manager->dev,
 			"%s: failed to make_function_request for %s\n",
@@ -383,7 +380,8 @@ static int handle_request_function(struct nxs_res_manager *manager,
 
 	inst = request_nxs_function(req.name, func_req);
 	if (!inst) {
-		pr_info("failed to request_nxs_function\n");
+		dev_err(manager->dev, "%s: failed to request_nxs_function\n",
+			__func__);
 		free_function_request(func_req);
 		return -ENOENT;
 	}
@@ -394,7 +392,6 @@ static int handle_request_function(struct nxs_res_manager *manager,
 		return -EFAULT;
 	}
 
-	pr_info("%s exit\n", __func__);
 	return 0;
 }
 

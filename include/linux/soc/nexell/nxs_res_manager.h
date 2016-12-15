@@ -40,6 +40,15 @@ struct nxs_function {
 struct nxs_function_request {
 	int nums_of_function;
 	struct list_head head;
+	uint32_t flags;
+	struct {
+		/* for multitap: MULTI_PATH */
+		int sibling_handle;
+		/* for blending: BLENDING_TO_OTHER */
+		uint32_t display_id;
+		/* for complete display: BLENDING_TO_MINE */
+		uint32_t bottom_id;
+	} option;
 };
 
 struct nxs_function_instance {
@@ -51,6 +60,10 @@ struct nxs_function_instance {
 	int type;
 	void *priv;
 	u32 id;
+	/* for display */
+	struct nxs_dev *top; /* top(first) dev for blender path or multitap path */
+	struct nxs_dev *cur_blender;
+	struct nxs_dev *blender_next;
 };
 
 struct nxs_query_function;
