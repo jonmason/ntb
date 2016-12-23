@@ -708,3 +708,19 @@ void nxs_capture_free(struct nxs_capture_ctx *capture)
 	kfree(capture);
 }
 EXPORT_SYMBOL_GPL(nxs_capture_free);
+
+void nxs_free_function_request(struct nxs_function_request *req)
+{
+	if (req) {
+		struct nxs_function *func;
+
+		while (!list_empty(&req->head)) {
+			func = list_first_entry(&req->head, struct nxs_function,
+						list);
+			list_del_init(&func->list);
+			kfree(func);
+		}
+		kfree(req);
+	}
+}
+EXPORT_SYMBOL_GPL(nxs_free_function_request);

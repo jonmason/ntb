@@ -2899,7 +2899,7 @@ static void free_function_instance(struct nxs_function_instance *inst)
 	if (inst->blender_next)
 		put_nxs_dev(inst->blender_next);
 
-	free_function_request(inst->req);
+	nxs_free_function_request(inst->req);
 
 	kfree(inst);
 }

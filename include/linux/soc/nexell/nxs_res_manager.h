@@ -22,66 +22,6 @@
 struct nxs_dev;
 struct list_head;
 
-#define NXS_FUNCTION_ANY	255
-enum {
-	NXS_FUNCTION_USER_NONE	 = 0,
-	NXS_FUNCTION_USER_KERNEL = 1,
-	NXS_FUNCTION_USER_APP,
-};
-
-struct nxs_function {
-	struct list_head list;
-	u32 function;
-	u32 index;
-	u32 user;
-	bool multitap_follow;
-};
-
-struct nxs_function_request {
-	int nums_of_function;
-	struct list_head head;
-	uint32_t flags;
-	struct {
-		/* for multitap: MULTI_PATH */
-		int sibling_handle;
-		/* for blending: BLENDING_TO_OTHER */
-		uint32_t display_id;
-		/* for complete display: BLENDING_TO_MINE */
-		uint32_t bottom_id;
-	} option;
-};
-
-struct nxs_function_instance {
-	struct list_head dev_list;
-	/* for multitap */
-	struct list_head dev_sibling_list;
-	struct list_head sibling_list;
-	struct nxs_function_request *req;
-	int type;
-	void *priv;
-	u32 id;
-	/* for display */
-	struct nxs_dev *top; /* top(first) dev for blender path or multitap path */
-	struct nxs_dev *cur_blender;
-	struct nxs_dev *blender_next;
-};
-
-struct nxs_query_function;
-struct nxs_function_builder {
-	void *priv;
-	struct nxs_function_instance *
-		(*build)(struct nxs_function_builder *pthis,
-			 const char *name,
-			 struct nxs_function_request *);
-	int (*free)(struct nxs_function_builder *pthis,
-		    struct nxs_function_instance *);
-	struct nxs_function_instance *
-		(*get)(struct nxs_function_builder *pthis,
-		       int handle);
-	int (*query)(struct nxs_function_builder *pthis,
-		     struct nxs_query_function *query);
-};
-
 int  register_nxs_dev(struct nxs_dev *);
 void unregister_nxs_dev(struct nxs_dev *);
 struct nxs_function_instance *
@@ -93,6 +33,5 @@ void put_nxs_dev(struct nxs_dev *);
 int register_nxs_function_builder(struct nxs_function_builder *);
 void unregister_nxs_function_builder(struct nxs_function_builder *);
 void mark_multitap_follow(struct list_head *);
-void free_function_request(struct nxs_function_request *req);
 
 #endif

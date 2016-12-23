@@ -100,22 +100,6 @@ void mark_multitap_follow(struct list_head *head)
 }
 EXPORT_SYMBOL_GPL(mark_multitap_follow);
 
-void free_function_request(struct nxs_function_request *req)
-{
-	if (req) {
-		struct nxs_function *func;
-
-		while (!list_empty(&req->head)) {
-			func = list_first_entry(&req->head, struct nxs_function,
-						list);
-			list_del_init(&func->list);
-			kfree(func);
-		}
-		kfree(req);
-	}
-}
-EXPORT_SYMBOL_GPL(free_function_request);
-
 struct nxs_dev *get_nxs_dev(u32 function, u32 index, u32 user,
 			    bool multitap_follow)
 {
@@ -356,7 +340,7 @@ make_function_request(struct nxs_res_manager *manager,
 	return func_req;
 
 error_out:
-	free_function_request(func_req);
+	nxs_free_function_request(func_req);
 	return NULL;
 }
 
@@ -382,7 +366,7 @@ static int handle_request_function(struct nxs_res_manager *manager,
 	if (!inst) {
 		dev_err(manager->dev, "%s: failed to request_nxs_function\n",
 			__func__);
-		free_function_request(func_req);
+		nxs_free_function_request(func_req);
 		return -ENOENT;
 	}
 

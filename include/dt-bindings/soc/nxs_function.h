@@ -45,4 +45,6 @@
 #define	NXS_FUNCTION_HDMI		23
 #define	NXS_FUNCTION_MAX		24
 
+#define NXS_FUNCTION_ANY		255
+
 #endif

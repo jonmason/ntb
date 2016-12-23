@@ -88,7 +88,7 @@ make_nxs_function_request(struct device *dev, struct device_node *np, int index)
 	return req;
 
 fail_return:
-	free_function_request(req);
+	nxs_free_function_request(req);
 	return NULL;
 }
 
