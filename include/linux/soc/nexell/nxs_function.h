@@ -21,6 +21,73 @@
 
 #include <dt-bindings/soc/nxs_function.h>
 
+struct v4l2_async_subdev;
+struct nxs_dev;
+
+struct nxs_action_unit {
+	u32 value;
+	u32 delay_ms;
+};
+
+struct nxs_gpio_action {
+	u32 gpio_num;
+	u32 count;
+	struct nxs_action_unit *units;
+};
+
+struct nxs_action {
+	int type;
+	void *action;
+};
+
+struct nxs_action_seq {
+	int count;
+	struct nxs_action *actions;
+};
+
+struct nxs_capture_hw_vip_param {
+	u32 bus_width;
+	u32 bus_align;
+	u32 interlace;
+	u32 h_backporch;
+	u32 v_backporch;
+	u32 pclk_polarity;
+	u32 hsync_polarity;
+	u32 vsync_polarity;
+	u32 field_polarity;
+	u32 data_order;
+};
+
+struct nxs_capture_hw_csi_param {
+	u8 data_lanes[4];
+	u8 clock_lane;
+	u8 num_data_lanes;
+	u8 lane_polarities[5];
+	u64 link_frequency;
+};
+
+struct nxs_capture_ctx {
+	u32 bus_type;
+	union {
+		struct nxs_capture_hw_vip_param parallel;
+		struct nxs_capture_hw_csi_param csi;
+	} bus;
+	struct nxs_action_seq enable_seq;
+	struct nxs_action_seq disable_seq;
+	struct clk *clk;
+	u32 clock_freq;
+	u32 regulator_nr;
+	char **regulator_names;
+	u32 *regulator_voltages;
+	struct v4l2_subdev *sensor;
+	struct device *dev;
+};
+
 const char *nxs_function_to_str(int function);
+int nxs_capture_bind_sensor(struct device *dev, struct nxs_dev *nxs_dev,
+			    struct v4l2_async_subdev *asd,
+			    struct nxs_capture_ctx *capture);
+int nxs_capture_power(struct nxs_capture_ctx *capture, bool enable);
+void nxs_capture_free(struct nxs_capture_ctx *capture);
 
 #endif
