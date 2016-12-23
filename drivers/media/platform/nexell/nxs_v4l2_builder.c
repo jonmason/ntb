@@ -2864,120 +2864,22 @@ static int cleanup_nxs_video(struct nxs_video *video)
 	return 0;
 }
 
-static void free_function_instance(struct nxs_function_instance *inst)
-{
-	struct nxs_dev *nxs_dev;
-
-	/* TODO: refactoring */
-#if 0
-	while (!list_empty(&inst->dev_sibling_list)) {
-		nxs_dev = list_first_entry(&inst->dev_sibling_list,
-					   struct nxs_dev, sibling_list);
-		pr_info("sibling: put %p, function %s, index %d\n",
-			nxs_dev, nxs_function_to_str(nxs_dev->dev_function),
-			nxs_dev->dev_inst_index);
-		list_del_init(&nxs_dev->sibling_list);
-		put_nxs_dev(nxs_dev);
-	}
-#endif
-
-	while (!list_empty(&inst->dev_list)) {
-		nxs_dev = list_first_entry(&inst->dev_list,
-					   struct nxs_dev, func_list);
-		/* pr_info("dev: put %p, function %s, index %d\n", */
-		/* 	nxs_dev, nxs_function_to_str(nxs_dev->dev_function), */
-		/* 	nxs_dev->dev_inst_index); */
-		list_del_init(&nxs_dev->func_list);
-		put_nxs_dev(nxs_dev);
-	}
-	/* pr_info("%s: free dev_list end\n", __func__); */
-
-	if (inst->top)
-		put_nxs_dev(inst->top);
-	if (inst->cur_blender)
-		put_nxs_dev(inst->cur_blender);
-	if (inst->blender_next)
-		put_nxs_dev(inst->blender_next);
-
-	nxs_free_function_request(inst->req);
-
-	kfree(inst);
-}
-
 static struct nxs_function_instance *
 nxs_v4l2_build(struct nxs_function_builder *pthis,
 	       const char *name,
 	       struct nxs_function_request *req)
 {
-	struct nxs_function *func;
-	struct nxs_dev *nxs_dev;
 	struct nxs_function_instance *inst = NULL;
 	struct nxs_v4l2_builder *me;
 	struct nxs_video *nxs_video;
 
 	me = pthis->priv;
 
-	inst = kzalloc(sizeof(*inst), GFP_KERNEL);
+	inst = nxs_generic_build(req);
 	if (!inst) {
 		WARN_ON(1);
 		return NULL;
 	}
-
-	INIT_LIST_HEAD(&inst->dev_list);
-	INIT_LIST_HEAD(&inst->dev_sibling_list);
-
-	list_for_each_entry(func, &req->head, list) {
-		if (func)
-			dev_info(me->dev, "REQ: function %s, index %d, user %d\n",
-				nxs_function_to_str(func->function),
-				func->index, func->user);
-		nxs_dev = get_nxs_dev(func->function, func->index, func->user,
-				      func->multitap_follow);
-		if (!nxs_dev) {
-			dev_err(me->dev, "can't get nxs_dev for func %s, index 0x%x\n",
-				nxs_function_to_str(func->function),
-				func->index);
-			goto error_out;
-		}
-
-		dev_info(me->dev, "GET: fuction %s, index %d, user %d, multitap_connected %d\n",
-			 nxs_function_to_str(nxs_dev->dev_function),
-			 nxs_dev->dev_inst_index,
-			 nxs_dev->user,
-			 nxs_dev->multitap_connected);
-
-		/* TODO: need refactoring */
-#if 0
-		if ((nxs_dev->dev_function == NXS_FUNCTION_MULTITAP &&
-		     atomic_read(&nxs_dev->refcount) > 1) ||
-		    (nxs_dev->multitap_connected &&
-		     atomic_read(&nxs_dev->connect_count) > 1)) {
-			pr_info("function %s, index %d added to sibling_list\n",
-				nxs_function_to_str(nxs_dev->dev_function),
-				nxs_dev->dev_inst_index);
-			list_add_tail(&nxs_dev->sibling_list,
-				      &inst->dev_sibling_list);
-		}
-		else
-#endif
-			list_add_tail(&nxs_dev->func_list, &inst->dev_list);
-	}
-
-	inst->req = req;
-
-	if (req->flags & BLENDING_TO_MINE) {
-		inst->top = get_nxs_dev(NXS_FUNCTION_MLC_BOTTOM,
-					req->option.bottom_id,
-					NXS_FUNCTION_USER_APP,
-					0);
-		if (!inst->top) {
-			dev_err(me->dev, "%s: failed to bottom dev(inst %d)\n",
-				__func__, req->option.bottom_id);
-			goto error_out;
-		}
-	}
-
-	/* TODO: BLENDING_TO_OTHER, MULTI_PATH */
 
 	nxs_video = build_nxs_video(me, name, inst);
 	if (!nxs_video) {
@@ -2997,7 +2899,7 @@ nxs_v4l2_build(struct nxs_function_builder *pthis,
 
 error_out:
 	if (inst)
-		free_function_instance(inst);
+		nxs_free_function_instance(inst);
 
 	return NULL;
 }
@@ -3029,7 +2931,7 @@ static int nxs_v4l2_free(struct nxs_function_builder *pthis,
 	}
 	mutex_unlock(&me->lock);
 
-	free_function_instance(inst);
+	nxs_free_function_instance(inst);
 
 	return 0;
 }
