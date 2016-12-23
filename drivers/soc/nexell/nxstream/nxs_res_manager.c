@@ -74,22 +74,28 @@ void unregister_nxs_dev(struct nxs_dev *nxs_dev)
 EXPORT_SYMBOL_GPL(unregister_nxs_dev);
 
 struct nxs_function_instance *
-request_nxs_function(const char *name, struct nxs_function_request *req)
+request_nxs_function(const char *name, struct nxs_function_request *req,
+		     bool use_builder)
 {
-	if (res_manager->builder)
-		return res_manager->builder->build(res_manager->builder,
-						   name, req);
-	return NULL;
+	if (use_builder) {
+		if (res_manager->builder)
+			return res_manager->builder->build(res_manager->builder,
+							   name, req);
+		return NULL;
+	} else
+		return nxs_function_build(req);
 }
 EXPORT_SYMBOL_GPL(request_nxs_function);
 
-void remove_nxs_function(struct nxs_function_instance *inst)
+void remove_nxs_function(struct nxs_function_instance *inst, bool use_builder)
 {
-	if (res_manager->builder)
-		res_manager->builder->free(res_manager->builder, inst);
+	if (use_builder) {
+		if (res_manager->builder)
+			res_manager->builder->free(res_manager->builder, inst);
+	} else
+		nxs_function_destroy(inst);
 }
 EXPORT_SYMBOL_GPL(remove_nxs_function);
-
 
 void mark_multitap_follow(struct list_head *head)
 {
@@ -362,7 +368,7 @@ static int handle_request_function(struct nxs_res_manager *manager,
 		return -EINVAL;
 	}
 
-	inst = request_nxs_function(req.name, func_req);
+	inst = request_nxs_function(req.name, func_req, true);
 	if (!inst) {
 		dev_err(manager->dev, "%s: failed to request_nxs_function\n",
 			__func__);
@@ -372,7 +378,7 @@ static int handle_request_function(struct nxs_res_manager *manager,
 
 	req.handle = inst->id;
 	if (copy_to_user((void __user *)arg, &req, sizeof(req))) {
-		remove_nxs_function(inst);
+		remove_nxs_function(inst, true);
 		return -EFAULT;
 	}
 

@@ -155,7 +155,8 @@ int nxs_capture_power(struct nxs_capture_ctx *capture, bool enable);
 void nxs_capture_free(struct nxs_capture_ctx *capture);
 void nxs_free_function_request(struct nxs_function_request *req);
 struct nxs_function_instance *
-nxs_generic_build(struct nxs_function_request *req);
-void nxs_free_function_instance(struct nxs_function_instance *inst);
+nxs_function_build(struct nxs_function_request *req);
+void nxs_function_destroy(struct nxs_function_instance *inst);
+struct nxs_function_instance *nxs_function_get(int handle);
 
 #endif

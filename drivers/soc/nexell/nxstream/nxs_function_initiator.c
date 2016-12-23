@@ -116,7 +116,7 @@ static int nxs_function_initiator_probe(struct platform_device *pdev)
 		if (req) {
 			char name[32] = {0, };
 			sprintf(name, "nxs_function%d", i);
-			request_nxs_function(name, req);
+			request_nxs_function(name, req, true);
 		}
 	}
 

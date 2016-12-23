@@ -21,6 +21,8 @@
 #include <linux/of_gpio.h>
 #include <linux/clk.h>
 #include <linux/slab.h>
+#include <linux/list.h>
+#include <linux/mutex.h>
 #include <linux/device.h>
 #include <linux/delay.h>
 #include <linux/v4l2-mediabus.h>
@@ -33,6 +35,10 @@
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
+
+static LIST_HEAD(func_inst_list);
+static DEFINE_MUTEX(func_inst_lock);
+static int func_inst_seq;
 
 static const char *nxs_function_str[] = {
 	"NONE",
@@ -727,7 +733,7 @@ void nxs_free_function_request(struct nxs_function_request *req)
 EXPORT_SYMBOL_GPL(nxs_free_function_request);
 
 struct nxs_function_instance *
-nxs_generic_build(struct nxs_function_request *req)
+nxs_function_build(struct nxs_function_request *req)
 {
 	struct nxs_function *func;
 	struct nxs_dev *nxs_dev;
@@ -785,17 +791,23 @@ nxs_generic_build(struct nxs_function_request *req)
 
 	/* TODO: BLENDING_TO_OTHER, MULTI_PATH */
 
+	mutex_lock(&func_inst_lock);
+	func_inst_seq++;
+	inst->id = func_inst_seq;
+	list_add_tail(&inst->sibling_list, &func_inst_list);
+	mutex_unlock(&func_inst_lock);
+
 	return inst;
 
 error_out:
 	if (inst)
-		nxs_free_function_instance(inst);
+		nxs_function_destroy(inst);
 
 	return NULL;
 }
-EXPORT_SYMBOL_GPL(nxs_generic_build);
+EXPORT_SYMBOL_GPL(nxs_function_build);
 
-void nxs_free_function_instance(struct nxs_function_instance *inst)
+void nxs_function_destroy(struct nxs_function_instance *inst)
 {
 	struct nxs_dev *nxs_dev;
 
@@ -811,6 +823,10 @@ void nxs_free_function_instance(struct nxs_function_instance *inst)
 		put_nxs_dev(nxs_dev);
 	}
 #endif
+
+	mutex_lock(&func_inst_lock);
+	list_del_init(&inst->sibling_list);
+	mutex_unlock(&func_inst_lock);
 
 	while (!list_empty(&inst->dev_list)) {
 		nxs_dev = list_first_entry(&inst->dev_list,
@@ -834,4 +850,24 @@ void nxs_free_function_instance(struct nxs_function_instance *inst)
 
 	kfree(inst);
 }
-EXPORT_SYMBOL_GPL(nxs_free_function_instance);
+EXPORT_SYMBOL_GPL(nxs_function_destroy);
+
+struct nxs_function_instance *nxs_function_get(int handle)
+{
+	struct nxs_function_instance *inst;
+	bool found = false;
+
+	mutex_lock(&func_inst_lock);
+	list_for_each_entry(inst, &func_inst_list, sibling_list) {
+		if (inst->id == handle) {
+			found = true;
+			break;
+		}
+	}
+	if (!found)
+		inst = NULL;
+	mutex_unlock(&func_inst_lock);
+
+	return inst;
+}
+EXPORT_SYMBOL_GPL(nxs_function_get);

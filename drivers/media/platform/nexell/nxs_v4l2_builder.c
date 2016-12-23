@@ -163,17 +163,10 @@ struct nxs_address_info {
 
 struct nxs_v4l2_builder {
 	struct nxs_function_builder *builder;
-
 	struct device *dev;
-
-	struct mutex lock; /* protect function_list */
-	struct list_head function_list;
-
 	struct media_device media_dev;
 	struct v4l2_device v4l2_dev;
 	void  *vb2_alloc_ctx;
-
-	int seq;
 };
 
 struct nxs_video_format {
@@ -2875,7 +2868,7 @@ nxs_v4l2_build(struct nxs_function_builder *pthis,
 
 	me = pthis->priv;
 
-	inst = nxs_generic_build(req);
+	inst = nxs_function_build(req);
 	if (!inst) {
 		WARN_ON(1);
 		return NULL;
@@ -2889,17 +2882,11 @@ nxs_v4l2_build(struct nxs_function_builder *pthis,
 
 	inst->priv = nxs_video;
 
-	mutex_lock(&me->lock);
-	me->seq++;
-	inst->id = me->seq;
-	list_add_tail(&inst->sibling_list, &me->function_list);
-	mutex_unlock(&me->lock);
-
 	return inst;
 
 error_out:
 	if (inst)
-		nxs_free_function_instance(inst);
+		nxs_function_destroy(inst);
 
 	return NULL;
 }
@@ -2909,7 +2896,6 @@ static int nxs_v4l2_free(struct nxs_function_builder *pthis,
 {
 	struct nxs_v4l2_builder *me;
 	struct nxs_video *nxs_video;
-	struct nxs_function_instance *entry;
 	int ret;
 
 	me = pthis->priv;
@@ -2922,16 +2908,7 @@ static int nxs_v4l2_free(struct nxs_function_builder *pthis,
 		return ret;
 	}
 
-	mutex_lock(&me->lock);
-	list_for_each_entry(entry, &me->function_list, sibling_list) {
-		if (entry == inst) {
-			list_del_init(&inst->sibling_list);
-			break;
-		}
-	}
-	mutex_unlock(&me->lock);
-
-	nxs_free_function_instance(inst);
+	nxs_function_destroy(inst);
 
 	return 0;
 }
@@ -2939,26 +2916,7 @@ static int nxs_v4l2_free(struct nxs_function_builder *pthis,
 static struct nxs_function_instance *
 nxs_v4l2_get(struct nxs_function_builder *pthis, int handle)
 {
-	struct nxs_v4l2_builder *me;
-	struct nxs_function_instance *entry;
-	bool found = false;
-
-	me = pthis->priv;
-
-	mutex_lock(&me->lock);
-	list_for_each_entry(entry, &me->function_list, sibling_list) {
-		if (entry->id == handle) {
-			found = true;
-			break;
-		}
-	}
-
-	if (!found)
-		entry = NULL;
-
-	mutex_unlock(&me->lock);
-
-	return entry;
+	return nxs_function_get(handle);
 }
 
 static inline char *get_vdev_name_base(struct video_device *vdev)
@@ -3076,9 +3034,6 @@ static int nxs_v4l2_builder_probe(struct platform_device *pdev)
 		WARN_ON(1);
 		return -ENOMEM;
 	}
-
-	INIT_LIST_HEAD(&builder->function_list);
-	mutex_init(&builder->lock);
 
 	builder->builder = &v4l2_builder;
 	v4l2_builder.priv = builder;
