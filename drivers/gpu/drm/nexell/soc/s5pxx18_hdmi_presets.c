@@ -2263,6 +2263,16 @@ static const struct hdmi_preset hdmi_conf_1080p30_tb = {
 	.vic = 34,
 };
 
+static const struct hdmi_preset hdmi_conf_768p60 = {
+	.mode = {
+		 .pixelclock = 65000000,
+		 .h_as = 1024, .h_sw = 136, .h_bp = 160, .h_fp = 24, .h_si = 0,
+		 .v_as = 768, .v_sw = 6, .v_bp = 29, .v_fp = 3, .v_si = 0,
+		 .refresh = 60,
+		 .name = "1024x768p@60",
+		 .flags = 0,
+		 },
+};
 /*
  * PHY preset data tables
  */
@@ -2306,6 +2316,13 @@ static const u8 hdmiphy_preset_54_054[32] = {
 	0xe8, 0x0e, 0xd9, 0x45, 0xa0, 0xac, 0x80, 0x0a,
 	0x80, 0x09, 0x84, 0x05, 0x22, 0x24, 0x86, 0x54,
 	0xe3, 0x24, 0x01, 0x00, 0x00, 0x01, 0x80, 0x10,
+};
+
+static const u8 hdmiphy_preset_65[32] = {
+	0xD1, 0x36, 0x34, 0x40, 0x0C, 0x04, 0xC8, 0x82,
+	0xE8, 0x45, 0xD9, 0x45, 0xA0, 0xAC, 0x80, 0x08,
+	0x80, 0x09, 0x84, 0x05, 0x02, 0x24, 0x66, 0x54,
+	0xBD, 0x24, 0x01, 0x00, 0x00, 0x01, 0x80, 0x10,
 };
 
 static const u8 hdmiphy_preset_74_175[32] = {
@@ -2408,6 +2425,12 @@ const struct hdmi_conf hdmi_conf[] = {
 	 .preset = &hdmi_conf_1080p60,
 	 .format = &_format_2d,
 	 .phy_data = hdmiphy_preset_148_5,
+	 .support = true,
+	},
+	{ /* 8 : 1024x768@60 */
+	 .preset = &hdmi_conf_768p60,
+	 .format = &_format_2d,
+	 .phy_data = hdmiphy_preset_65,
 	 .support = true,
 	},
 	{ /*  : 1920x1080p@24 */
