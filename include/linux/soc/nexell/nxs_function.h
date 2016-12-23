@@ -38,6 +38,11 @@ struct nxs_function {
 	bool multitap_follow;
 };
 
+/* below code must be synced with include/uapi/linux/nxs_ioctl.h */
+#define BLENDING_TO_OTHER       (1 << 0)
+#define BLENDING_TO_MINE        (1 << 1)
+#define MULTI_PATH              (1 << 2)
+
 struct nxs_function_request {
 	int nums_of_function;
 	struct list_head head;
@@ -149,5 +154,8 @@ int nxs_capture_bind_sensor(struct device *dev, struct nxs_dev *nxs_dev,
 int nxs_capture_power(struct nxs_capture_ctx *capture, bool enable);
 void nxs_capture_free(struct nxs_capture_ctx *capture);
 void nxs_free_function_request(struct nxs_function_request *req);
+struct nxs_function_instance *
+nxs_generic_build(struct nxs_function_request *req);
+void nxs_free_function_instance(struct nxs_function_instance *inst);
 
 #endif
