@@ -771,8 +771,10 @@ static int nx_video_set_format(struct file *file, void *fh,
 		}
 	}
 
-	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE)
+	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
 		set_plane_size_mmap(frame, &f->fmt.pix.sizeimage);
+		f->fmt.pix.bytesperline = frame->stride[0];
+	}
 
 	return 0;
 }
