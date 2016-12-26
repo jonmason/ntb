@@ -29,7 +29,7 @@
 #include <linux/soc/nexell/nxs_dev.h>
 
 int nxs_set_control(const struct nxs_dev *pthis, int type,
-		    const union nxs_control *pparam)
+		    const struct nxs_control *pparam)
 {
 	int i;
 	const struct nxs_dev_service *pservice;
@@ -44,7 +44,7 @@ int nxs_set_control(const struct nxs_dev *pthis, int type,
 }
 
 int nxs_get_control(const struct nxs_dev *pthis, int type,
-		    union nxs_control *pparam)
+		    struct nxs_control *pparam)
 {
 	int i;
 	const struct nxs_dev_service *pservice;

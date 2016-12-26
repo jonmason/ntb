@@ -98,13 +98,13 @@ static int dpc_set_dirty(const struct nxs_dev *pthis)
 }
 
 static int dpc_set_syncinfo(const struct nxs_dev *pthis,
-			    const union nxs_control *pparam)
+			    const struct nxs_control *pparam)
 {
 	return 0;
 }
 
 static int dpc_get_syncinfo(const struct nxs_dev *pthis,
-			    union nxs_control *pparam)
+			    struct nxs_control *pparam)
 {
 	return 0;
 }

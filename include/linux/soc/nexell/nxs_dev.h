@@ -84,24 +84,27 @@ struct nxs_control_buffer {
 	u32 strides[NXS_DEV_MAX_PLANES];
 };
 
-union nxs_control {
-	struct nxs_control_format format;
-	struct nxs_control_crop crop;
-	struct nxs_control_selection sel;
-	struct nxs_control_tpf tpf;
-	struct nxs_control_syncinfo sync_info;
-	struct nxs_control_buffer buffer;
-	/* struct nxs_control_tpgen tpgen; */
-	u32 gamma;
+struct nxs_control {
+	u32 type;
+	union {
+		struct nxs_control_format format;
+		struct nxs_control_crop crop;
+		struct nxs_control_selection sel;
+		struct nxs_control_tpf tpf;
+		struct nxs_control_syncinfo sync_info;
+		struct nxs_control_buffer buffer;
+		/* struct nxs_control_tpgen tpgen; */
+		u32 gamma;
+	} u;
 };
 
 struct nxs_dev;
 struct nxs_dev_service {
 	enum nxs_control_type type;
 	int (*set_control)(const struct nxs_dev *pthis,
-			   const union nxs_control *pparam);
+			   const struct nxs_control *pparam);
 	int (*get_control)(const struct nxs_dev *pthis,
-			   union nxs_control *pparam);
+			   struct nxs_control *pparam);
 };
 
 enum {
@@ -171,9 +174,9 @@ struct nxs_dev {
 	int (*start)(const struct nxs_dev *pthis);
 	int (*stop)(const struct nxs_dev *pthis);
 	int (*set_control)(const struct nxs_dev *pthis, int type,
-			   const union nxs_control *pparam);
+			   const struct nxs_control *pparam);
 	int (*get_control)(const struct nxs_dev *pthis, int type,
-			   union nxs_control *pparam);
+			   struct nxs_control *pparam);
 	int (*set_dirty)(const struct nxs_dev *pthis);
 	int (*set_tid)(const struct nxs_dev *pthis, u32 tid1, u32 tid2);
 	void (*dump_register)(const struct nxs_dev *pthis);
@@ -182,9 +185,9 @@ struct nxs_dev {
 };
 
 int nxs_set_control(const struct nxs_dev *pthis, int type,
-		    const union nxs_control *pparam);
+		    const struct nxs_control *pparam);
 int nxs_get_control(const struct nxs_dev *pthis, int type,
-		    union nxs_control *pparam);
+		    struct nxs_control *pparam);
 
 struct platform_device;
 int nxs_dev_parse_dt(struct platform_device *pdev, struct nxs_dev *pthis);

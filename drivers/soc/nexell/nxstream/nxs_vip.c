@@ -203,13 +203,13 @@ static int vip_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
 }
 
 static int vip_set_syncinfo(const struct nxs_dev *pthis,
-			    const union nxs_control *pparam)
+			    const struct nxs_control *pparam)
 {
 	return 0;
 }
 
 static int vip_get_syncinfo(const struct nxs_dev *pthis,
-			    union nxs_control *pparam)
+			    struct nxs_control *pparam)
 {
 	return 0;
 }
@@ -299,6 +299,7 @@ static int nxs_vip_probe(struct platform_device *pdev)
 	nxs_dev_decimator->dev_ver = nxs_dev_clipper->dev_ver;
 	nxs_dev_decimator->dev_function = NXS_FUNCTION_VIP_DECIMATOR;
 	nxs_dev_decimator->dev_inst_index = nxs_dev_clipper->dev_inst_index;
+	/* nxs_dev_decimator->base = nxs_dev_clipper->base; */
 	nxs_dev_decimator->irq = nxs_dev_clipper->irq;
 	nxs_dev_decimator->resets = nxs_dev_clipper->resets;
 	nxs_dev_decimator->reset_num = nxs_dev_clipper->reset_num;

@@ -123,14 +123,26 @@ static int cropper_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
 				  CROP_TID_MASK, tid1 << CROP_TID_SHIFT);
 }
 
-static int cropper_set_syncinfo(const struct nxs_dev *pthis,
-			    const union nxs_control *pparam)
+static int cropper_set_format(const struct nxs_dev *pthis,
+			      const struct nxs_control *pparam)
 {
 	return 0;
 }
 
-static int cropper_get_syncinfo(const struct nxs_dev *pthis,
-			    union nxs_control *pparam)
+static int cropper_get_format(const struct nxs_dev *pthis,
+			      struct nxs_control *pparam)
+{
+	return 0;
+}
+
+static int cropper_set_crop(const struct nxs_dev *pthis,
+			    const struct nxs_control *pparam)
+{
+	return 0;
+}
+
+static int cropper_get_crop(const struct nxs_dev *pthis,
+			    struct nxs_control *pparam)
 {
 	return 0;
 }
@@ -177,9 +189,12 @@ static int nxs_cropper_probe(struct platform_device *pdev)
 	nxs_dev->set_tid = cropper_set_tid;
 	nxs_dev->set_control = nxs_set_control;
 	nxs_dev->get_control = nxs_get_control;
-	nxs_dev->dev_services[0].type = NXS_CONTROL_SYNCINFO;
-	nxs_dev->dev_services[0].set_control = cropper_set_syncinfo;
-	nxs_dev->dev_services[0].get_control = cropper_get_syncinfo;
+	nxs_dev->dev_services[0].type = NXS_CONTROL_FORMAT;
+	nxs_dev->dev_services[0].set_control = cropper_set_format;
+	nxs_dev->dev_services[0].get_control = cropper_get_format;
+	nxs_dev->dev_services[1].type = NXS_CONTROL_CROP;
+	nxs_dev->dev_services[1].set_control = cropper_set_crop;
+	nxs_dev->dev_services[1].get_control = cropper_get_crop;
 
 	nxs_dev->dev = &pdev->dev;
 

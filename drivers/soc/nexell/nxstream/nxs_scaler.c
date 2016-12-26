@@ -123,14 +123,26 @@ static int scaler_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
 				  SCALER_TID_MASK, tid1 << SCALER_TID_SHIFT);
 }
 
-static int scaler_set_syncinfo(const struct nxs_dev *pthis,
-			    const union nxs_control *pparam)
+static int scaler_set_format(const struct nxs_dev *pthis,
+			     const struct nxs_control *pparam)
 {
 	return 0;
 }
 
-static int scaler_get_syncinfo(const struct nxs_dev *pthis,
-			    union nxs_control *pparam)
+static int scaler_get_format(const struct nxs_dev *pthis,
+			     struct nxs_control *pparam)
+{
+	return 0;
+}
+
+static int scaler_set_dstformat(const struct nxs_dev *pthis,
+				const struct nxs_control *pparam)
+{
+	return 0;
+}
+
+static int scaler_get_dstformat(const struct nxs_dev *pthis,
+				struct nxs_control *pparam)
 {
 	return 0;
 }
@@ -196,9 +208,12 @@ static int nxs_scaler_probe(struct platform_device *pdev)
 	nxs_dev->set_tid = scaler_set_tid;
 	nxs_dev->set_control = nxs_set_control;
 	nxs_dev->get_control = nxs_get_control;
-	nxs_dev->dev_services[0].type = NXS_CONTROL_SYNCINFO;
-	nxs_dev->dev_services[0].set_control = scaler_set_syncinfo;
-	nxs_dev->dev_services[0].get_control = scaler_get_syncinfo;
+	nxs_dev->dev_services[0].type = NXS_CONTROL_FORMAT;
+	nxs_dev->dev_services[0].set_control = scaler_set_format;
+	nxs_dev->dev_services[0].get_control = scaler_get_format;
+	nxs_dev->dev_services[0].type = NXS_CONTROL_DST_FORMAT;
+	nxs_dev->dev_services[0].set_control = scaler_set_dstformat;
+	nxs_dev->dev_services[0].get_control = scaler_get_dstformat;
 
 	nxs_dev->dev = &pdev->dev;
 

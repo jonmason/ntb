@@ -126,18 +126,6 @@ static int hue_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
 				  HUE_TID_MASK, tid1 << HUE_TID_SHIFT);
 }
 
-static int hue_set_syncinfo(const struct nxs_dev *pthis,
-			    const union nxs_control *pparam)
-{
-	return 0;
-}
-
-static int hue_get_syncinfo(const struct nxs_dev *pthis,
-			    union nxs_control *pparam)
-{
-	return 0;
-}
-
 static int nxs_hue_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -179,9 +167,6 @@ static int nxs_hue_probe(struct platform_device *pdev)
 	nxs_dev->set_tid = hue_set_tid;
 	nxs_dev->set_control = nxs_set_control;
 	nxs_dev->get_control = nxs_get_control;
-	nxs_dev->dev_services[0].type = NXS_CONTROL_SYNCINFO;
-	nxs_dev->dev_services[0].set_control = hue_set_syncinfo;
-	nxs_dev->dev_services[0].get_control = hue_get_syncinfo;
 
 	nxs_dev->dev = &pdev->dev;
 

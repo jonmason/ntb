@@ -140,14 +140,26 @@ static int dmar_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
 	return 0;
 }
 
-static int dmar_set_syncinfo(const struct nxs_dev *pthis,
-			    const union nxs_control *pparam)
+static int dmar_set_format(const struct nxs_dev *pthis,
+			   const struct nxs_control *pparam)
 {
 	return 0;
 }
 
-static int dmar_get_syncinfo(const struct nxs_dev *pthis,
-			    union nxs_control *pparam)
+static int dmar_get_format(const struct nxs_dev *pthis,
+			   struct nxs_control *pparam)
+{
+	return 0;
+}
+
+static int dmar_set_buffer(const struct nxs_dev *pthis,
+			   const struct nxs_control *pparam)
+{
+	return 0;
+}
+
+static int dmar_get_buffer(const struct nxs_dev *pthis,
+			   struct nxs_control *pparam)
 {
 	return 0;
 }
@@ -194,9 +206,12 @@ static int nxs_dmar_probe(struct platform_device *pdev)
 	nxs_dev->set_tid = dmar_set_tid;
 	nxs_dev->set_control = nxs_set_control;
 	nxs_dev->get_control = nxs_get_control;
-	nxs_dev->dev_services[0].type = NXS_CONTROL_SYNCINFO;
-	nxs_dev->dev_services[0].set_control = dmar_set_syncinfo;
-	nxs_dev->dev_services[0].get_control = dmar_get_syncinfo;
+	nxs_dev->dev_services[0].type = NXS_CONTROL_FORMAT;
+	nxs_dev->dev_services[0].set_control = dmar_set_format;
+	nxs_dev->dev_services[0].get_control = dmar_get_format;
+	nxs_dev->dev_services[1].type = NXS_CONTROL_BUFFER;
+	nxs_dev->dev_services[1].set_control = dmar_set_buffer;
+	nxs_dev->dev_services[1].get_control = dmar_get_buffer;
 
 	nxs_dev->dev = &pdev->dev;
 

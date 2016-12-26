@@ -145,13 +145,13 @@ static int multitap_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
 }
 
 static int multitap_set_syncinfo(const struct nxs_dev *pthis,
-			    const union nxs_control *pparam)
+			    const struct nxs_control *pparam)
 {
 	return 0;
 }
 
 static int multitap_get_syncinfo(const struct nxs_dev *pthis,
-			    union nxs_control *pparam)
+			    struct nxs_control *pparam)
 {
 	return 0;
 }

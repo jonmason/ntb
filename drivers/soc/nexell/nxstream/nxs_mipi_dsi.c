@@ -103,13 +103,13 @@ static int mipi_dsi_set_dirty(const struct nxs_dev *pthis)
 }
 
 static int mipi_dsi_set_syncinfo(const struct nxs_dev *pthis,
-			    const union nxs_control *pparam)
+				 const struct nxs_control *pparam)
 {
 	return 0;
 }
 
 static int mipi_dsi_get_syncinfo(const struct nxs_dev *pthis,
-			    union nxs_control *pparam)
+				 struct nxs_control *pparam)
 {
 	return 0;
 }
@@ -167,7 +167,7 @@ static int nxs_mipi_dsi_probe(struct platform_device *pdev)
 			"[%s:%d] failed to ioremap for nxs2dsi0_i80\n",
 			nxs_function_to_str(nxs_dev->dev_function),
 			nxs_dev->dev_inst_index);
-		/* return -EBUSY; */
+		return -EBUSY;
 	}
 
 	/* NXS2DSI1_I80 base */

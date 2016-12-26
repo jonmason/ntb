@@ -134,13 +134,13 @@ static int lvds_set_dirty(const struct nxs_dev *pthis)
 }
 
 static int lvds_set_syncinfo(const struct nxs_dev *pthis,
-			    const union nxs_control *pparam)
+			     const struct nxs_control *pparam)
 {
 	return 0;
 }
 
 static int lvds_get_syncinfo(const struct nxs_dev *pthis,
-			    union nxs_control *pparam)
+			     struct nxs_control *pparam)
 {
 	return 0;
 }

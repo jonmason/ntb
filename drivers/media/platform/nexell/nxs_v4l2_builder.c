@@ -429,28 +429,28 @@ static int nxs_chain_config(struct nxs_function_instance *inst,
 			    struct nxs_video_fh *vfh)
 {
 	struct nxs_dev *nxs_dev;
-	union nxs_control f;
-	union nxs_control c;
-	union nxs_control s;
-	/* union nxs_control t; */
+	struct nxs_control f;
+	struct nxs_control c;
+	struct nxs_control s;
+	/* struct nxs_control t; */
 	int ret;
 
 	/* format */
-	f.format.width = vfh->width;
-	f.format.height = vfh->height;
-	f.format.pixelformat = vfh->pixelformat;
+	f.u.format.width = vfh->width;
+	f.u.format.height = vfh->height;
+	f.u.format.pixelformat = vfh->pixelformat;
 
 	/* crop */
-	c.crop.l = vfh->crop.c.left;
-	c.crop.t = vfh->crop.c.top;
-	c.crop.w = vfh->crop.c.width;
-	c.crop.h = vfh->crop.c.height;
+	c.u.crop.l = vfh->crop.c.left;
+	c.u.crop.t = vfh->crop.c.top;
+	c.u.crop.w = vfh->crop.c.width;
+	c.u.crop.h = vfh->crop.c.height;
 
 	/* selection */
-	s.sel.l = vfh->selection.r.left;
-	s.sel.t = vfh->selection.r.top;
-	s.sel.w = vfh->selection.r.width;
-	s.sel.h = vfh->selection.r.height;
+	s.u.sel.l = vfh->selection.r.left;
+	s.u.sel.t = vfh->selection.r.top;
+	s.u.sel.w = vfh->selection.r.width;
+	s.u.sel.h = vfh->selection.r.height;
 
 	/* timeperframe */
 	/* TODO */
@@ -479,17 +479,17 @@ static int nxs_m2m_chain_config(struct nxs_function_instance *inst,
 				struct nxs_video_fh *vfh)
 {
 	struct nxs_dev *nxs_dev;
-	union nxs_control src_f, dst_f;
+	struct nxs_control src_f, dst_f;
 	int ret;
 
 	/* format */
-	src_f.format.width = vfh->width;
-	src_f.format.height = vfh->height;
-	src_f.format.pixelformat = vfh->pixelformat;
+	src_f.u.format.width = vfh->width;
+	src_f.u.format.height = vfh->height;
+	src_f.u.format.pixelformat = vfh->pixelformat;
 
-	dst_f.format.width = vfh->dst_width;
-	dst_f.format.height = vfh->dst_height;
-	dst_f.format.pixelformat = vfh->dst_pixelformat;
+	dst_f.u.format.width = vfh->dst_width;
+	dst_f.u.format.height = vfh->dst_height;
+	dst_f.u.format.pixelformat = vfh->dst_pixelformat;
 
 	list_for_each_entry_reverse(nxs_dev, &inst->dev_list, func_list) {
 		ret = nxs_set_control(nxs_dev, NXS_CONTROL_FORMAT, &src_f);
@@ -535,23 +535,23 @@ static int nxs_subdev_chain_config(struct nxs_function_instance *inst,
 	struct nxs_dev *nxs_dev_from, *nxs_dev_to;
 	struct nxs_dev *nxs_dev_tmp;
 	struct list_head *head;
-	union nxs_control f;
-	union nxs_control df;
-	union nxs_control c;
+	struct nxs_control f;
+	struct nxs_control df;
+	struct nxs_control c;
 	int ret;
 
-	f.format.width = ctx->format.width;
-	f.format.height = ctx->format.height;
-	f.format.pixelformat = ctx->format.code;
+	f.u.format.width = ctx->format.width;
+	f.u.format.height = ctx->format.height;
+	f.u.format.pixelformat = ctx->format.code;
 
 	if (ctx->dst_format.width > 0) {
-		df.format.width = ctx->dst_format.width;
-		df.format.height = ctx->dst_format.height;
-		df.format.pixelformat = ctx->dst_format.code;
+		df.u.format.width = ctx->dst_format.width;
+		df.u.format.height = ctx->dst_format.height;
+		df.u.format.pixelformat = ctx->dst_format.code;
 	} else {
-		df.format.width = f.format.width;
-		df.format.height = f.format.height;
-		df.format.pixelformat = f.format.pixelformat;
+		df.u.format.width = f.u.format.width;
+		df.u.format.height = f.u.format.height;
+		df.u.format.pixelformat = f.u.format.pixelformat;
 	}
 
 	/* set cropper */
@@ -560,16 +560,16 @@ static int nxs_subdev_chain_config(struct nxs_function_instance *inst,
 	/* pr_info("FOR CROPPER ====> \n"); */
 	if (nxs_dev_to) {
 		if (ctx->crop.c.width > 0) {
-			c.crop.l = ctx->crop.c.left;
-			c.crop.t = ctx->crop.c.top;
-			c.crop.w = ctx->crop.c.width;
-			c.crop.h = ctx->crop.c.height;
+			c.u.crop.l = ctx->crop.c.left;
+			c.u.crop.t = ctx->crop.c.top;
+			c.u.crop.w = ctx->crop.c.width;
+			c.u.crop.h = ctx->crop.c.height;
 		} else {
 			/* set default */
-			c.crop.l = 0;
-			c.crop.t = 0;
-			c.crop.w = ctx->format.width;
-			c.crop.h = ctx->format.height;
+			c.u.crop.l = 0;
+			c.u.crop.t = 0;
+			c.u.crop.w = ctx->format.width;
+			c.u.crop.h = ctx->format.height;
 		}
 
 		head = &inst->dev_list;
@@ -590,8 +590,8 @@ static int nxs_subdev_chain_config(struct nxs_function_instance *inst,
 				break;
 		}
 
-		f.format.width = c.crop.w;
-		f.format.height = c.crop.h;
+		f.u.format.width = c.u.crop.w;
+		f.u.format.height = c.u.crop.h;
 	}
 
 	/* set csc */
@@ -622,7 +622,7 @@ static int nxs_subdev_chain_config(struct nxs_function_instance *inst,
 				break;
 		}
 
-		f.format.pixelformat = df.format.pixelformat;
+		f.u.format.pixelformat = df.u.format.pixelformat;
 	}
 
 	/* set scaler */
@@ -655,8 +655,8 @@ static int nxs_subdev_chain_config(struct nxs_function_instance *inst,
 				break;
 		}
 
-		f.format.width = df.format.width;
-		f.format.height = df.format.height;
+		f.u.format.width = df.u.format.width;
+		f.u.format.height = df.u.format.height;
 	}
 
 	/* others */
@@ -692,13 +692,13 @@ out:
 static int nxs_dev_set_buffer(struct nxs_dev *nxs_dev,
 			      struct nxs_address_info *info)
 {
-	union nxs_control control;
+	struct nxs_control control;
 	int i;
 
-	control.buffer.num_planes = info->num_planes;
+	control.u.buffer.num_planes = info->num_planes;
 	for (i = 0; i < info->num_planes; i++) {
-		control.buffer.address[i] = info->dma_addr[i];
-		control.buffer.strides[i] = info->strides[i];
+		control.u.buffer.address[i] = info->dma_addr[i];
+		control.u.buffer.strides[i] = info->strides[i];
 	}
 
 	return nxs_set_control(nxs_dev, NXS_CONTROL_BUFFER, &control);

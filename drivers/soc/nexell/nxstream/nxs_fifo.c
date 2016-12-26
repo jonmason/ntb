@@ -133,18 +133,6 @@ static int fifo_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
 				  tid1 << FIFO_TID_SHIFT);
 }
 
-static int fifo_set_syncinfo(const struct nxs_dev *pthis,
-			    const union nxs_control *pparam)
-{
-	return 0;
-}
-
-static int fifo_get_syncinfo(const struct nxs_dev *pthis,
-			    union nxs_control *pparam)
-{
-	return 0;
-}
-
 static int nxs_fifo_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -187,9 +175,6 @@ static int nxs_fifo_probe(struct platform_device *pdev)
 	nxs_dev->set_tid = fifo_set_tid;
 	nxs_dev->set_control = nxs_set_control;
 	nxs_dev->get_control = nxs_get_control;
-	nxs_dev->dev_services[0].type = NXS_CONTROL_SYNCINFO;
-	nxs_dev->dev_services[0].set_control = fifo_set_syncinfo;
-	nxs_dev->dev_services[0].get_control = fifo_get_syncinfo;
 
 	nxs_dev->dev = &pdev->dev;
 

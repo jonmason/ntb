@@ -145,14 +145,14 @@ static int gamma_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
 				  tid1 << GAMMA_TID_SHIFT);
 }
 
-static int gamma_set_syncinfo(const struct nxs_dev *pthis,
-			    const union nxs_control *pparam)
+static int gamma_set_gamma(const struct nxs_dev *pthis,
+			   const struct nxs_control *pparam)
 {
 	return 0;
 }
 
-static int gamma_get_syncinfo(const struct nxs_dev *pthis,
-			    union nxs_control *pparam)
+static int gamma_get_gamma(const struct nxs_dev *pthis,
+			   struct nxs_control *pparam)
 {
 	return 0;
 }
@@ -199,9 +199,9 @@ static int nxs_gamma_probe(struct platform_device *pdev)
 	nxs_dev->set_tid = gamma_set_tid;
 	nxs_dev->set_control = nxs_set_control;
 	nxs_dev->get_control = nxs_get_control;
-	nxs_dev->dev_services[0].type = NXS_CONTROL_SYNCINFO;
-	nxs_dev->dev_services[0].set_control = gamma_set_syncinfo;
-	nxs_dev->dev_services[0].get_control = gamma_get_syncinfo;
+	nxs_dev->dev_services[0].type = NXS_CONTROL_GAMMA;
+	nxs_dev->dev_services[0].set_control = gamma_set_gamma;
+	nxs_dev->dev_services[0].get_control = gamma_get_gamma;
 
 	nxs_dev->dev = &pdev->dev;
 
