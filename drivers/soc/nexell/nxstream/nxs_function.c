@@ -921,3 +921,143 @@ int nxs_function_unregister_irqcallback(struct nxs_function_instance *inst,
 	return 0;
 }
 EXPORT_SYMBOL_GPL(nxs_function_unregister_irqcallback);
+
+int nxs_function_config(struct nxs_function_instance *inst, bool dirty,
+			int count, ...)
+{
+	struct nxs_dev *nxs_dev;
+	va_list arg;
+	int ret;
+	int i;
+	struct nxs_control *c;
+
+	va_start(arg, count);
+	for (i = 0; i < count; i++) {
+		c = va_arg(arg, struct nxs_control *);
+
+		list_for_each_entry_reverse(nxs_dev,
+					    &inst->dev_list,
+					    func_list) {
+			ret = nxs_set_control(nxs_dev, c->type, c);
+			if (ret)
+				return ret;
+		}
+	}
+	va_end(arg);
+
+	if (dirty) {
+		list_for_each_entry_reverse(nxs_dev,
+					    &inst->dev_list,
+					    func_list) {
+			if (nxs_dev->set_dirty) {
+				ret = nxs_dev->set_dirty(nxs_dev);
+				if (ret)
+					return ret;
+			}
+		}
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(nxs_function_config);
+
+int nxs_function_connect(struct nxs_function_instance *inst)
+{
+	struct nxs_dev *prev, *cur;
+	int ret;
+
+	prev = NULL;
+	list_for_each_entry(cur, &inst->dev_list, func_list) {
+		if (prev) {
+			if (WARN(!prev->set_tid,
+				 "no set_tid func for [%s:%d]\n",
+				 nxs_function_to_str(prev->dev_function),
+				 prev->dev_inst_index))
+				return -EINVAL;
+
+			/* TODO: handle multitap */
+			ret = prev->set_tid(prev, cur->tid, 0);
+			if (ret)
+				return ret;
+		}
+
+		/* BLENDING_TO_MINE */
+		if ((inst->req->flags & BLENDING_TO_MINE) &&
+		    (cur->dev_function == NXS_FUNCTION_MLC_BLENDER)) {
+			/* TODO: tid must screen type */
+			ret = inst->top->set_tid(inst->top, cur->tid, 0);
+			if (ret)
+				return ret;
+		}
+
+		prev = cur;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(nxs_function_connect);
+
+int nxs_function_ready(struct nxs_function_instance *inst)
+{
+	struct nxs_dev *nxs_dev, *first;
+	int ret;
+
+	first = list_first_entry(&inst->dev_list, struct nxs_dev, func_list);
+	list_for_each_entry_reverse(nxs_dev, &inst->dev_list, func_list) {
+		if (nxs_dev->set_dirty) {
+			ret = nxs_dev->set_dirty(nxs_dev);
+			if (ret)
+				return ret;
+		}
+
+		if (nxs_dev == first && inst->top) {
+			ret = inst->top->set_dirty(inst->top);
+			if (ret)
+				return ret;
+		}
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(nxs_function_ready);
+
+int nxs_function_start(struct nxs_function_instance *inst)
+{
+	struct nxs_dev *nxs_dev;
+	int ret;
+
+	list_for_each_entry_reverse(nxs_dev, &inst->dev_list, func_list) {
+		if (nxs_dev->start) {
+			ret = nxs_dev->start(nxs_dev);
+			if (ret)
+				return ret;
+		}
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(nxs_function_start);
+
+void nxs_function_stop(struct nxs_function_instance *inst)
+{
+	struct nxs_dev *nxs_dev;
+
+	list_for_each_entry_reverse(nxs_dev, &inst->dev_list, func_list) {
+		if (nxs_dev->stop)
+			nxs_dev->stop(nxs_dev);
+	}
+}
+EXPORT_SYMBOL_GPL(nxs_function_stop);
+
+struct nxs_dev *nxs_function_find(struct nxs_function_instance *inst,
+				  u32 function)
+{
+	struct nxs_dev *nxs_dev;
+
+	list_for_each_entry(nxs_dev, &inst->dev_list, func_list)
+		if (nxs_dev->dev_function == function)
+			return nxs_dev;
+
+	return NULL;
+}
+EXPORT_SYMBOL_GPL(nxs_function_find);

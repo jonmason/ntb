@@ -167,5 +167,13 @@ nxs_function_register_irqcallback(struct nxs_function_instance *inst,
 				 );
 int nxs_function_unregister_irqcallback(struct nxs_function_instance *inst,
 					struct nxs_irq_callback *callback);
+int nxs_function_config(struct nxs_function_instance *inst, bool dirty,
+			int count, ...);
+int nxs_function_connect(struct nxs_function_instance *inst);
+int nxs_function_ready(struct nxs_function_instance *inst);
+int nxs_function_start(struct nxs_function_instance *inst);
+void nxs_function_stop(struct nxs_function_instance *inst);
+struct nxs_dev *nxs_function_find(struct nxs_function_instance *inst,
+				  u32 function);
 
 #endif
