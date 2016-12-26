@@ -428,92 +428,51 @@ static struct nxs_video_buffer *get_next_video_buffer(struct nxs_video_fh *vfh,
 static int nxs_chain_config(struct nxs_function_instance *inst,
 			    struct nxs_video_fh *vfh)
 {
-	struct nxs_dev *nxs_dev;
 	struct nxs_control f;
 	struct nxs_control c;
 	struct nxs_control s;
-	/* struct nxs_control t; */
-	int ret;
 
 	/* format */
+	f.type = NXS_CONTROL_FORMAT;
 	f.u.format.width = vfh->width;
 	f.u.format.height = vfh->height;
 	f.u.format.pixelformat = vfh->pixelformat;
 
 	/* crop */
+	c.type = NXS_CONTROL_CROP;
 	c.u.crop.l = vfh->crop.c.left;
 	c.u.crop.t = vfh->crop.c.top;
 	c.u.crop.w = vfh->crop.c.width;
 	c.u.crop.h = vfh->crop.c.height;
 
 	/* selection */
+	s.type = NXS_CONTROL_SELECTION;
 	s.u.sel.l = vfh->selection.r.left;
 	s.u.sel.t = vfh->selection.r.top;
 	s.u.sel.w = vfh->selection.r.width;
 	s.u.sel.h = vfh->selection.r.height;
 
-	/* timeperframe */
-	/* TODO */
-	/* if (vfh->video->type == NXS_VIDEO_TYPE_CAPTURE) { */
-	/* } else if (vfh->video->type == NXS_VIDEO_TYPE_RENDER) { */
-	/* } */
-
-	list_for_each_entry_reverse(nxs_dev, &inst->dev_list, func_list) {
-		ret = nxs_set_control(nxs_dev, NXS_CONTROL_FORMAT, &f);
-		if (ret)
-			return ret;
-
-		ret = nxs_set_control(nxs_dev, NXS_CONTROL_CROP, &c);
-		if (ret)
-			return ret;
-
-		ret = nxs_set_control(nxs_dev, NXS_CONTROL_SELECTION, &s);
-		if (ret)
-			return ret;
-	}
-
-	return 0;
+	/* TODO: other controls */
+	return nxs_function_config(inst, false, 3, &f, &c, &s);
 }
 
 static int nxs_m2m_chain_config(struct nxs_function_instance *inst,
 				struct nxs_video_fh *vfh)
 {
-	struct nxs_dev *nxs_dev;
 	struct nxs_control src_f, dst_f;
-	int ret;
 
 	/* format */
+	src_f.type = NXS_CONTROL_FORMAT;
 	src_f.u.format.width = vfh->width;
 	src_f.u.format.height = vfh->height;
 	src_f.u.format.pixelformat = vfh->pixelformat;
 
+	dst_f.type = NXS_CONTROL_DST_FORMAT;
 	dst_f.u.format.width = vfh->dst_width;
 	dst_f.u.format.height = vfh->dst_height;
 	dst_f.u.format.pixelformat = vfh->dst_pixelformat;
 
-	list_for_each_entry_reverse(nxs_dev, &inst->dev_list, func_list) {
-		ret = nxs_set_control(nxs_dev, NXS_CONTROL_FORMAT, &src_f);
-		if (ret)
-			return ret;
-
-		ret = nxs_set_control(nxs_dev, NXS_CONTROL_DST_FORMAT, &dst_f);
-		if (ret)
-			return ret;
-	}
-
-	return 0;
-}
-
-static struct nxs_dev *
-find_nxs_dev_by_function(struct nxs_function_instance *inst, u32 function)
-{
-	struct nxs_dev *nxs_dev;
-
-	list_for_each_entry(nxs_dev, &inst->dev_list, func_list)
-		if (nxs_dev->dev_function == function)
-			return nxs_dev;
-
-	return NULL;
+	return nxs_function_config(inst, false, 2, &src_f, &dst_f);
 }
 
 static bool is_end_node(struct nxs_dev *dev)
@@ -556,7 +515,7 @@ static int nxs_subdev_chain_config(struct nxs_function_instance *inst,
 
 	/* set cropper */
 	nxs_dev_to = NULL;
-	nxs_dev_to = find_nxs_dev_by_function(inst, NXS_FUNCTION_CROPPER);
+	nxs_dev_to = nxs_function_find(inst, NXS_FUNCTION_CROPPER);
 	/* pr_info("FOR CROPPER ====> \n"); */
 	if (nxs_dev_to) {
 		if (ctx->crop.c.width > 0) {
@@ -597,7 +556,7 @@ static int nxs_subdev_chain_config(struct nxs_function_instance *inst,
 	/* set csc */
 	/* nxs_dev_from = get_next_nxs_dev(nxs_dev_to); */
 	nxs_dev_from = nxs_dev_to;
-	nxs_dev_to = find_nxs_dev_by_function(inst, NXS_FUNCTION_CSC);
+	nxs_dev_to = nxs_function_find(inst, NXS_FUNCTION_CSC);
 	/* pr_info("FOR CSC ====> \n"); */
 	if (nxs_dev_to) {
 		if (nxs_dev_from)
@@ -627,10 +586,9 @@ static int nxs_subdev_chain_config(struct nxs_function_instance *inst,
 
 	/* set scaler */
 	nxs_dev_from = nxs_dev_to;
-	nxs_dev_to = find_nxs_dev_by_function(inst, NXS_FUNCTION_SCALER_4096);
+	nxs_dev_to = nxs_function_find(inst, NXS_FUNCTION_SCALER_4096);
 	if (!nxs_dev_to)
-		nxs_dev_to = find_nxs_dev_by_function(inst,
-						      NXS_FUNCTION_SCALER_5376);
+		nxs_dev_to = nxs_function_find(inst, NXS_FUNCTION_SCALER_5376);
 	/* pr_info("FOR SCALER ====> \n"); */
 	if (nxs_dev_to) {
 		if (nxs_dev_from)
@@ -777,92 +735,27 @@ static int nxs_m2m_chain_set_buffer(struct nxs_function_instance *inst,
 	if (WARN(!dst_nxs_dev, "dst nxs_dev non exist\n"))
 		return -ENODEV;
 
-	ret = nxs_dev_set_buffer(src_nxs_dev, src_addr_info);
-	if (WARN(ret, "failed to nxs_dev_set_buffer for src\n"))
-		return ret;
-
 	ret = nxs_dev_set_buffer(dst_nxs_dev, dst_addr_info);
 	if (WARN(ret, "failed to nxs_dev_set_buffer for dst\n"))
 		return ret;
 
-	return 0;
-}
-
-static int nxs_chain_set_tid(struct nxs_function_instance *inst)
-{
-	struct nxs_dev *prev, *cur;
-	int ret;
-
-	prev = NULL;
-	list_for_each_entry(cur, &inst->dev_list, func_list) {
-		if (prev) {
-			if (WARN(!prev->set_tid,
-				 "no set_tid func for [%s:%d]\n",
-				 nxs_function_to_str(prev->dev_function),
-				 prev->dev_inst_index))
-				return -EINVAL;
-
-			/* TODO: handle multitap */
-			ret = prev->set_tid(prev, cur->tid, 0);
-			if (ret)
-				return ret;
-		}
-
-		/* BLENDING_TO_MINE */
-		if ((inst->req->flags & BLENDING_TO_MINE) &&
-		    (cur->dev_function == NXS_FUNCTION_MLC_BLENDER)) {
-			ret = inst->top->set_tid(inst->top, cur->tid, 0);
-			if (ret)
-				return ret;
-		}
-
-		prev = cur;
+	if (dst_nxs_dev->set_dirty) {
+		ret = dst_nxs_dev->set_dirty(dst_nxs_dev);
+		if (WARN(ret, "failed to set_dirty for dst\n"))
+			return ret;
 	}
 
-	return 0;
-}
-
-static int nxs_chain_run(struct nxs_function_instance *inst)
-{
-	struct nxs_dev *nxs_dev, *first;
-	int ret;
-
-	ret = nxs_chain_set_tid(inst);
-	if (ret)
+	ret = nxs_dev_set_buffer(src_nxs_dev, src_addr_info);
+	if (WARN(ret, "failed to nxs_dev_set_buffer for src\n"))
 		return ret;
 
-	first = list_first_entry(&inst->dev_list, struct nxs_dev, func_list);
-	list_for_each_entry_reverse(nxs_dev, &inst->dev_list, func_list) {
-		if (nxs_dev->set_dirty) {
-			ret = nxs_dev->set_dirty(nxs_dev);
-			if (ret)
-				return ret;
-		}
-
-		if (nxs_dev == first && inst->top) {
-			ret = inst->top->set_dirty(inst->top);
-			if (ret)
-				return ret;
-		}
-
-		if (nxs_dev->start) {
-			ret = nxs_dev->start(nxs_dev);
-			if (ret)
-				return ret;
-		}
+	if (src_nxs_dev->set_dirty) {
+		ret = src_nxs_dev->set_dirty(src_nxs_dev);
+		if (WARN(ret, "failed to set_dirty for src\n"))
+			return ret;
 	}
 
 	return 0;
-}
-
-static void nxs_chain_stop(struct nxs_function_instance *inst)
-{
-	struct nxs_dev *nxs_dev;
-
-	list_for_each_entry_reverse(nxs_dev, &inst->dev_list, func_list) {
-		if (nxs_dev->stop)
-			nxs_dev->stop(nxs_dev);
-	}
 }
 
 /* irq callback */
@@ -888,7 +781,7 @@ static void nxs_video_irqcallback(struct nxs_dev *nxs_dev, void *data)
 	next_buffer = get_next_video_buffer(vfh, false);
 	if (!next_buffer) {
 		atomic_set(&vfh->underflow, 1);
-		nxs_chain_stop(video->nxs_function);
+		nxs_function_stop(video->nxs_function);
 	} else {
 		struct nxs_address_info info;
 
@@ -906,6 +799,11 @@ static void nxs_video_irqcallback(struct nxs_dev *nxs_dev, void *data)
 		 */
 		if (nxs_dev != first)
 			first->set_dirty(first);
+
+		if (atomic_read(&vfh->underflow)) {
+			nxs_function_start(video->nxs_function);
+			atomic_set(&vfh->underflow, 0);
+		}
 	}
 
 	v4l2_get_timestamp(&done_buffer->vb.timestamp);
@@ -1059,7 +957,7 @@ static void nxs_m2m_device_run(void *priv)
 
 	atomic_set(&vfh->running, 1);
 
-	nxs_chain_run(vfh->video->nxs_function);
+	nxs_function_start(vfh->video->nxs_function);
 }
 
 /* This callback may not be needed */
@@ -2130,7 +2028,15 @@ static int nxs_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 	if (ret)
 		return ret;
 
-	ret = nxs_chain_run(video->nxs_function);
+	ret = nxs_function_connect(video->nxs_function);
+	if (ret)
+		return ret;
+
+	ret = nxs_function_ready(video->nxs_function);
+	if (ret)
+		return ret;
+
+	ret = nxs_function_start(video->nxs_function);
 	if (ret)
 		return ret;
 
@@ -2145,7 +2051,7 @@ static void nxs_vb2_stop_streaming(struct vb2_queue *q)
 	struct nxs_video_fh *vfh = vb2_get_drv_priv(q);
 	struct nxs_video *video = vfh->video;
 
-	nxs_chain_stop(video->nxs_function);
+	nxs_function_stop(video->nxs_function);
 	nxs_function_unregister_irqcallback(video->nxs_function,
 					    video->irq_callback);
 	video->irq_callback = NULL;
@@ -2245,7 +2151,15 @@ static int nxs_m2m_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 	if (ret)
 		return ret;
 
-	return nxs_chain_run(video->nxs_function);
+	ret = nxs_function_connect(video->nxs_function);
+	if (ret)
+		return ret;
+
+	ret = nxs_function_ready(video->nxs_function);
+	if (ret)
+		return ret;
+
+	return nxs_function_start(video->nxs_function);
 }
 
 static void nxs_m2m_vb2_stop_streaming(struct vb2_queue *q)
@@ -2259,7 +2173,7 @@ static void nxs_m2m_vb2_stop_streaming(struct vb2_queue *q)
 
 	nxs_m2m_job_abort(vfh);
 
-	nxs_chain_stop(video->nxs_function);
+	nxs_function_stop(video->nxs_function);
 	nxs_function_unregister_irqcallback(video->nxs_function,
 					    video->irq_callback);
 }
@@ -2404,7 +2318,15 @@ static int nxs_subdev_start(struct v4l2_subdev *sd)
 	if (ret)
 		return ret;
 
-	ret = nxs_chain_run(video->nxs_function);
+	ret = nxs_function_connect(video->nxs_function);
+	if (ret)
+		return ret;
+
+	ret = nxs_function_ready(video->nxs_function);
+	if (ret)
+		return ret;
+
+	ret = nxs_function_start(video->nxs_function);
 	if (ret)
 		return ret;
 
@@ -2418,7 +2340,7 @@ static int nxs_subdev_stop(struct v4l2_subdev *sd)
 {
 	struct nxs_video *video = v4l2_get_subdevdata(sd);
 
-	nxs_chain_stop(video->nxs_function);
+	nxs_function_stop(video->nxs_function);
 	if (need_camera_sensor(video))
 		return capture_off(video);
 
