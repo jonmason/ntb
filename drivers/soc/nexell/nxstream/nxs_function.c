@@ -871,3 +871,53 @@ struct nxs_function_instance *nxs_function_get(int handle)
 	return inst;
 }
 EXPORT_SYMBOL_GPL(nxs_function_get);
+
+struct nxs_irq_callback *
+nxs_function_register_irqcallback(struct nxs_function_instance *inst,
+				  void *data,
+				  void (*handler)(struct nxs_dev *,
+						  void*)
+				 )
+{
+	struct nxs_dev *last;
+	struct nxs_irq_callback *callback;
+	int ret;
+
+	last = list_last_entry(&inst->dev_list, struct nxs_dev, func_list);
+	if (!last)
+		BUG();
+
+	callback = kzalloc(sizeof(*callback), GFP_KERNEL);
+	if (!callback)
+		return NULL;
+
+	callback->handler = handler;
+	callback->data = data;
+
+	ret = nxs_dev_register_irq_callback(last, NXS_DEV_IRQCALLBACK_TYPE_IRQ,
+					    callback);
+	if (ret) {
+		kfree(callback);
+		return NULL;
+	}
+
+	return callback;
+}
+EXPORT_SYMBOL_GPL(nxs_function_register_irqcallback);
+
+int nxs_function_unregister_irqcallback(struct nxs_function_instance *inst,
+					struct nxs_irq_callback *callback)
+{
+	struct nxs_dev *last;
+
+	last = list_last_entry(&inst->dev_list, struct nxs_dev, func_list);
+	if (!last)
+		BUG();
+
+	nxs_dev_unregister_irq_callback(last,
+					NXS_DEV_IRQCALLBACK_TYPE_IRQ);
+	kfree(callback);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(nxs_function_unregister_irqcallback);

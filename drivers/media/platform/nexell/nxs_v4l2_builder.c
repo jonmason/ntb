@@ -99,6 +99,8 @@ struct nxs_video {
 
 	struct v4l2_async_notifier notifier;
 	struct nxs_capture_ctx *capture;
+
+	struct nxs_irq_callback *irq_callback;
 };
 
 #define vdev_to_nxs_video(vdev) container_of(vdev, struct nxs_video, video)
@@ -421,43 +423,6 @@ static struct nxs_video_buffer *get_next_video_buffer(struct nxs_video_fh *vfh,
 	spin_unlock_irqrestore(&vfh->bufq_lock, flags);
 
 	return buffer;
-}
-
-/* chain functions */
-static int nxs_chain_register_irqcallback(struct nxs_function_instance *inst,
-					  struct nxs_video_fh *vfh,
-					  void (*handler)(struct nxs_dev *,
-							  void*)
-					  )
-{
-	struct nxs_dev *last;
-	struct nxs_irq_callback *callback;
-
-	last = list_last_entry(&inst->dev_list, struct nxs_dev, func_list);
-	if (!last)
-		BUG();
-
-	callback = kzalloc(sizeof(*callback), GFP_KERNEL);
-	if (!callback)
-		return -ENOMEM;
-
-	callback->handler = handler;
-	callback->data = vfh;
-
-	return nxs_dev_register_irq_callback(last, NXS_DEV_IRQCALLBACK_TYPE_IRQ,
-					     callback);
-}
-
-static int nxs_chain_unregister_irqcallback(struct nxs_function_instance *inst)
-{
-	struct nxs_dev *last;
-
-	last = list_last_entry(&inst->dev_list, struct nxs_dev, func_list);
-	if (!last)
-		BUG();
-
-	return nxs_dev_unregister_irq_callback(last,
-					       NXS_DEV_IRQCALLBACK_TYPE_IRQ);
 }
 
 static int nxs_chain_config(struct nxs_function_instance *inst,
@@ -2151,10 +2116,11 @@ static int nxs_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 		return -ENOMEM;
 	}
 
-	ret = nxs_chain_register_irqcallback(video->nxs_function, vfh,
-					     nxs_video_irqcallback);
-	if (ret)
-		return ret;
+	video->irq_callback =
+		nxs_function_register_irqcallback(video->nxs_function, vfh,
+						  nxs_video_irqcallback);
+	if (!video->irq_callback)
+		return -ENOENT;
 
 	ret = nxs_chain_config(video->nxs_function, vfh);
 	if (ret)
@@ -2180,7 +2146,9 @@ static void nxs_vb2_stop_streaming(struct vb2_queue *q)
 	struct nxs_video *video = vfh->video;
 
 	nxs_chain_stop(video->nxs_function);
-	nxs_chain_unregister_irqcallback(video->nxs_function);
+	nxs_function_unregister_irqcallback(video->nxs_function,
+					    video->irq_callback);
+	video->irq_callback = NULL;
 
 	if (need_camera_sensor(video))
 		capture_off(video);
@@ -2267,10 +2235,11 @@ static int nxs_m2m_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 	    q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT)
 		return 0;
 
-	ret = nxs_chain_register_irqcallback(video->nxs_function, vfh,
-					     nxs_video_m2m_irqcallback);
-	if (ret)
-		return ret;
+	video->irq_callback =
+		nxs_function_register_irqcallback(video->nxs_function, vfh,
+						  nxs_video_m2m_irqcallback);
+	if (!video->irq_callback)
+		return -ENOENT;
 
 	ret = nxs_m2m_chain_config(video->nxs_function, vfh);
 	if (ret)
@@ -2291,7 +2260,8 @@ static void nxs_m2m_vb2_stop_streaming(struct vb2_queue *q)
 	nxs_m2m_job_abort(vfh);
 
 	nxs_chain_stop(video->nxs_function);
-	nxs_chain_unregister_irqcallback(video->nxs_function);
+	nxs_function_unregister_irqcallback(video->nxs_function,
+					    video->irq_callback);
 }
 
 static struct vb2_ops nxs_m2m_vb2_ops = {

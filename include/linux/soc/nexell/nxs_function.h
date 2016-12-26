@@ -23,6 +23,7 @@
 
 struct v4l2_async_subdev;
 struct nxs_dev;
+struct nxs_irq_callback;
 
 enum {
 	NXS_FUNCTION_USER_NONE	 = 0,
@@ -158,5 +159,13 @@ struct nxs_function_instance *
 nxs_function_build(struct nxs_function_request *req);
 void nxs_function_destroy(struct nxs_function_instance *inst);
 struct nxs_function_instance *nxs_function_get(int handle);
+struct nxs_irq_callback *
+nxs_function_register_irqcallback(struct nxs_function_instance *inst,
+				  void *data,
+				  void (*handler)(struct nxs_dev *,
+						  void*)
+				 );
+int nxs_function_unregister_irqcallback(struct nxs_function_instance *inst,
+					struct nxs_irq_callback *callback);
 
 #endif
