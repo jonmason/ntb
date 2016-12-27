@@ -1256,6 +1256,13 @@ static int nx_clipper_s_crop(struct v4l2_subdev *sd,
 			     const struct v4l2_crop *crop)
 {
 	struct nx_clipper *me = v4l2_get_subdevdata(sd);
+
+	if (crop->c.left >= me->width || crop->c.top >= me->height)
+		return -EINVAL;
+	if ((crop->c.left + crop->c.width) > me->width ||
+		(crop->c.top + crop->c.height) > me->height)
+		return -EINVAL;
+
 	/* me->crop = crop->c; */
 	memcpy(&me->crop, &crop->c, sizeof(struct v4l2_rect));
 	return 0;
