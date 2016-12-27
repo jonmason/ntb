@@ -59,10 +59,10 @@ struct nxs_function_request {
 };
 
 struct nxs_function_instance {
-	struct list_head dev_list;
+	struct list_head dev_list; /* nxs_dev->func_list */
+	struct list_head list; /* nxs_function_instance->list */
 	/* for multitap */
 	struct list_head dev_sibling_list;
-	struct list_head sibling_list;
 	struct nxs_function_request *req;
 	int type;
 	void *priv;

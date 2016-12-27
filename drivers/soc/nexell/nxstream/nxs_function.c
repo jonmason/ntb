@@ -795,7 +795,7 @@ nxs_function_build(struct nxs_function_request *req)
 	mutex_lock(&func_inst_lock);
 	func_inst_seq++;
 	inst->id = func_inst_seq;
-	list_add_tail(&inst->sibling_list, &func_inst_list);
+	list_add_tail(&inst->list, &func_inst_list);
 	mutex_unlock(&func_inst_lock);
 
 	return inst;
@@ -858,7 +858,7 @@ void nxs_function_destroy(struct nxs_function_instance *inst)
 #endif
 
 	mutex_lock(&func_inst_lock);
-	list_del_init(&inst->sibling_list);
+	list_del_init(&inst->list);
 	mutex_unlock(&func_inst_lock);
 
 	while (!list_empty(&inst->dev_list)) {
@@ -891,7 +891,7 @@ struct nxs_function_instance *nxs_function_get(int handle)
 	bool found = false;
 
 	mutex_lock(&func_inst_lock);
-	list_for_each_entry(inst, &func_inst_list, sibling_list) {
+	list_for_each_entry(inst, &func_inst_list, list) {
 		if (inst->id == handle) {
 			found = true;
 			break;
