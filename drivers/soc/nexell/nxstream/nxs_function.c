@@ -65,6 +65,7 @@ static const char *nxs_function_str[] = {
 	"LVDS",
 	"MIPI_DSI",
 	"HDMI",
+	"ISP",
 	"INVALID",
 };
 
