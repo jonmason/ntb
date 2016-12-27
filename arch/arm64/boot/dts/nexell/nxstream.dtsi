@@ -1329,5 +1329,25 @@
 			/* clock */
 			status = "disabled";
 		};
+
+                isp: isp@20900000 {
+                        compatible = "nexell,isp-nxs-1.0";
+                        reg = <NXS_REGBASE_ISP NXS_REGSIZE_ISP>,
+                              <NXS_REGBASE_ISPCORE NXS_REGSIZE_ISPCORE>;
+                        /* interrupts = <148 32>, */
+                        /*             <149 32>,  */
+                        /*             <150 32>,  */
+                        /*             <151 32>,  */
+                        /*             <152 32>,  */
+                        /*             <147 32>;  */
+                        module = <0>;
+                        version = <0x0100>;
+                        function = <NXS_FUNCTION_ISP>;
+                        tid = <NXS_TID_ISP>;
+                        /* reset */
+                        /* clock */
+                        status = "disabled";
+                };
+
 	};
 };
