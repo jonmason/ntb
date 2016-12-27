@@ -808,6 +808,38 @@ error_out:
 }
 EXPORT_SYMBOL_GPL(nxs_function_build);
 
+struct nxs_function_instance *nxs_function_make(int dev_num, ...)
+{
+	int i;
+	va_list arg;
+	struct nxs_function *func;
+	struct nxs_function_request *req;
+	u32 func_num, func_index;
+
+	req = kzalloc(sizeof(*req), GFP_KERNEL);
+	INIT_LIST_HEAD(&req->head);
+
+	va_start(arg, dev_num);
+	for (i = 0; i < dev_num; i++) {
+		func_num = va_arg(arg, u32);
+		func_index = va_arg(arg, u32);
+
+		func = kzalloc(sizeof(*func), GFP_KERNEL);
+		if (WARN(!func, "failed to alloc nxs_function\n"))
+			return NULL;
+
+		func->function = func_num;
+		func->index = func_index;
+		func->user = NXS_FUNCTION_USER_KERNEL;
+		list_add_tail(&func->list, &req->head);
+		req->nums_of_function++;
+	}
+	va_end(arg);
+
+	return nxs_function_build(req);
+}
+EXPORT_SYMBOL_GPL(nxs_function_make);
+
 void nxs_function_destroy(struct nxs_function_instance *inst)
 {
 	struct nxs_dev *nxs_dev;
