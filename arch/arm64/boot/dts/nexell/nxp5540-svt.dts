@@ -286,6 +286,10 @@
 	status = "okay";
 };
 
+&isp {
+	status = "okay";
+};
+
 /* this is example of nxs_function_initator */
 /* default disabled */
 /* &nxs_function_initiator { */
@@ -315,6 +319,9 @@
 /* 	>; */
 /* 	function7 = < */
 /* 		NXS_FUNCTION_TPGEN 0 NXS_FUNCTION_MULTITAP 0 NXS_FUNCTION_SCALER_4096 1 NXS_FUNCTION_DMAW 0xff */
+/* 	>; */
+/* 	function8 = < */
+/* 		NXS_FUNCTION_TPGEN 0 NXS_FUNCTION_ISP 0 NXS_FUNCTION_DMAW 0xff */
 /* 	>; */
 /* }; */
 
