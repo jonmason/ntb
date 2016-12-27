@@ -985,8 +985,7 @@ int nxs_function_connect(struct nxs_function_instance *inst)
 		/* BLENDING_TO_MINE */
 		if ((inst->req->flags & BLENDING_TO_MINE) &&
 		    (cur->dev_function == NXS_FUNCTION_MLC_BLENDER)) {
-			/* TODO: tid must screen type */
-			ret = inst->top->set_tid(inst->top, cur->tid, 0);
+			ret = inst->top->set_tid(inst->top, cur->tid2, 0);
 			if (ret)
 				return ret;
 		}
