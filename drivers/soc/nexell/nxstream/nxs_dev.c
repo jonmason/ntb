@@ -25,6 +25,7 @@
 #include <linux/of_address.h>
 #include <linux/platform_device.h>
 
+#include <dt-bindings/soc/nxs_tid.h>
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
 
@@ -78,6 +79,14 @@ int nxs_dev_parse_dt(struct platform_device *pdev, struct nxs_dev *pthis)
 		dev_err(dev, "failed to get function\n");
 		return -EINVAL;
 	}
+
+	if (of_property_read_u16(np, "tid", &pthis->tid)) {
+		dev_err(dev, "failed to get tid\n");
+		return -EINVAL;
+	}
+
+	if (of_property_read_u16(np, "tid2", &pthis->tid2))
+		pthis->tid2 = NXS_TID_DEFAULT;
 
 	if (of_property_read_u32(np, "max_refcount", &pthis->max_refcount))
 		pthis->max_refcount = 1;

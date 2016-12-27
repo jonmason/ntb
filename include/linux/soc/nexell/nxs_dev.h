@@ -144,7 +144,8 @@ struct nxs_dev {
 	u32 dev_ver;
 	u32 dev_function;
 	u32 dev_inst_index;
-	u32 tid;
+	u16 tid;
+	u16 tid2; /* for blender */
 
 	atomic_t refcount;
 	u32 max_refcount;
