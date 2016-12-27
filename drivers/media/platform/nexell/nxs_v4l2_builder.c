@@ -2431,14 +2431,8 @@ static void dump_nxs_function_inst(struct nxs_function_instance *inst)
 	struct nxs_dev *nxs_dev;
 
 	pr_info("dump inst %p ==================> \n", inst);
-	pr_info("\tsibling list\n");
-	list_for_each_entry(nxs_dev, &inst->dev_sibling_list, sibling_list) {
+	list_for_each_entry(nxs_dev, &inst->dev_list, func_list)
 		dump_nxs_dev(nxs_dev);
-	}
-	pr_info("\tdev list\n");
-	list_for_each_entry(nxs_dev, &inst->dev_list, func_list) {
-		dump_nxs_dev(nxs_dev);
-	}
 }
 
 static int init_nxs_vdev(struct nxs_v4l2_builder *builder,

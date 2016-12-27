@@ -747,7 +747,6 @@ nxs_function_build(struct nxs_function_request *req)
 	}
 
 	INIT_LIST_HEAD(&inst->dev_list);
-	INIT_LIST_HEAD(&inst->dev_sibling_list);
 
 	list_for_each_entry(func, &req->head, list) {
 		nxs_dev = get_nxs_dev(func->function, func->index, func->user,
@@ -759,20 +758,6 @@ nxs_function_build(struct nxs_function_request *req)
 			goto error_out;
 		}
 
-		/* TODO: need refactoring */
-#if 0
-		if ((nxs_dev->dev_function == NXS_FUNCTION_MULTITAP &&
-		     atomic_read(&nxs_dev->refcount) > 1) ||
-		    (nxs_dev->multitap_connected &&
-		     atomic_read(&nxs_dev->connect_count) > 1)) {
-			pr_info("function %s, index %d added to sibling_list\n",
-				nxs_function_to_str(nxs_dev->dev_function),
-				nxs_dev->dev_inst_index);
-			list_add_tail(&nxs_dev->sibling_list,
-				      &inst->dev_sibling_list);
-		}
-		else
-#endif
 		list_add_tail(&nxs_dev->func_list, &inst->dev_list);
 	}
 
@@ -843,19 +828,6 @@ EXPORT_SYMBOL_GPL(nxs_function_make);
 void nxs_function_destroy(struct nxs_function_instance *inst)
 {
 	struct nxs_dev *nxs_dev;
-
-	/* TODO: refactoring */
-#if 0
-	while (!list_empty(&inst->dev_sibling_list)) {
-		nxs_dev = list_first_entry(&inst->dev_sibling_list,
-					   struct nxs_dev, sibling_list);
-		pr_info("sibling: put %p, function %s, index %d\n",
-			nxs_dev, nxs_function_to_str(nxs_dev->dev_function),
-			nxs_dev->dev_inst_index);
-		list_del_init(&nxs_dev->sibling_list);
-		put_nxs_dev(nxs_dev);
-	}
-#endif
 
 	mutex_lock(&func_inst_lock);
 	list_del_init(&inst->list);
