@@ -490,10 +490,6 @@ static void __init vic_init_st(void __iomem *base, void __iomem *base1,
 	unsigned int i;
 	int vic_2nd_block = ((unsigned long)base & ~PAGE_MASK) != 0;
 
-	/* Disable all interrupts initially. */
-	vic_disable(base);
-	vic_disable(base1);
-
 	/*
 	 * Make sure we clear all existing interrupts. The vector registers
 	 * in this cell are after the second block of general registers,
@@ -559,10 +555,6 @@ void __init __s5p4418_vic_init(void __iomem *base, void __iomem *base1,
 	case AMBA_VENDOR_ARM:
 		break;
 	}
-
-	/* Disable all interrupts initially. */
-	vic_disable(base);
-	vic_disable(base1);
 
 	/* Make sure we clear all existing interrupts */
 	vic_clear_interrupts(base);
