@@ -196,7 +196,11 @@ not_angel:
 		 * of this range.
 		 */
 		mov	r4, pc
+#ifdef CONFIG_ARCH_S5P4418
+		and	r4, r4, #0xff000000
+#else
 		and	r4, r4, #0xf8000000
+#endif
 		/* Determine final kernel image address. */
 		add	r4, r4, #TEXT_OFFSET
 #else
