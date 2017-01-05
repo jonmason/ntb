@@ -181,4 +181,10 @@
 #define NXS_REGBASE_HDMI(index)		(0x20ec0000 + \
 					 (NXS_REGSIZE_HDMI * index))
 
+#define NXS_REGBASE_ISP			0x20900000
+#define NXS_REGBASE_ISPCORE		0x20920000
+
+#define NXS_REGSIZE_ISP			0x104
+#define NXS_REGSIZE_ISPCORE		0x7480
+
 #endif
