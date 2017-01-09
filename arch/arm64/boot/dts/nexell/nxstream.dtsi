@@ -742,7 +742,7 @@
 			function = <NXS_FUNCTION_MLC_BLENDER>;
 			tid = <NXS_TID_BLENDER0_IMG>;
 			tid2 = <NXS_TID_BLENDER0_SCREEN>;
-			max_refcount = <2>;
+			max_refcount = <1>;
 			can_multitap_follow = <1>;
 			/* reset */
 			/* clock */
@@ -759,7 +759,7 @@
 			function = <NXS_FUNCTION_MLC_BLENDER>;
 			tid = <NXS_TID_BLENDER1_IMG>;
 			tid2 = <NXS_TID_BLENDER1_SCREEN>;
-			max_refcount = <2>;
+			max_refcount = <1>;
 			can_multitap_follow = <1>;
 			/* reset */
 			/* clock */
@@ -776,7 +776,7 @@
 			function = <NXS_FUNCTION_MLC_BLENDER>;
 			tid = <NXS_TID_BLENDER2_IMG>;
 			tid2 = <NXS_TID_BLENDER2_SCREEN>;
-			max_refcount = <2>;
+			max_refcount = <1>;
 			can_multitap_follow = <1>;
 			/* reset */
 			/* clock */
@@ -793,7 +793,7 @@
 			function = <NXS_FUNCTION_MLC_BLENDER>;
 			tid = <NXS_TID_BLENDER3_IMG>;
 			tid2 = <NXS_TID_BLENDER3_SCREEN>;
-			max_refcount = <2>;
+			max_refcount = <1>;
 			can_multitap_follow = <1>;
 			/* reset */
 			/* clock */
@@ -810,7 +810,7 @@
 			function = <NXS_FUNCTION_MLC_BLENDER>;
 			tid = <NXS_TID_BLENDER4_IMG>;
 			tid2 = <NXS_TID_BLENDER4_SCREEN>;
-			max_refcount = <2>;
+			max_refcount = <1>;
 			can_multitap_follow = <1>;
 			/* reset */
 			/* clock */
@@ -827,7 +827,7 @@
 			function = <NXS_FUNCTION_MLC_BLENDER>;
 			tid = <NXS_TID_BLENDER5_IMG>;
 			tid2 = <NXS_TID_BLENDER5_SCREEN>;
-			max_refcount = <2>;
+			max_refcount = <1>;
 			can_multitap_follow = <1>;
 			/* reset */
 			/* clock */
@@ -844,7 +844,7 @@
 			function = <NXS_FUNCTION_MLC_BLENDER>;
 			tid = <NXS_TID_BLENDER6_IMG>;
 			tid2 = <NXS_TID_BLENDER6_SCREEN>;
-			max_refcount = <2>;
+			max_refcount = <1>;
 			can_multitap_follow = <1>;
 			/* reset */
 			/* clock */
@@ -861,7 +861,7 @@
 			function = <NXS_FUNCTION_MLC_BLENDER>;
 			tid = <NXS_TID_BLENDER7_IMG>;
 			tid2 = <NXS_TID_BLENDER7_SCREEN>;
-			max_refcount = <2>;
+			max_refcount = <1>;
 			can_multitap_follow = <1>;
 			/* reset */
 			/* clock */
