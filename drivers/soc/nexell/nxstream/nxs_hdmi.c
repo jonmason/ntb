@@ -38,7 +38,12 @@
 #define DIRTYFLAG_TOP_SHIFT	12
 #define DIRTYFLAG_TOP_MASK	BIT(12)
 
+#define SIMULATE_INTERRUPT
+
 struct nxs_hdmi {
+#ifdef SIMULATE_INTERRUPT
+	struct timer_list timer;
+#endif
 	struct nxs_dev nxs_dev;
 	u8 *nxs2hdmi_base;
 	u8 *cec_base;
@@ -47,6 +52,26 @@ struct nxs_hdmi {
 };
 
 #define nxs_to_hdmi(dev)	container_of(dev, struct nxs_hdmi, nxs_dev)
+
+#ifdef SIMULATE_INTERRUPT
+#include <linux/timer.h>
+#define INT_TIMEOUT_MS		16
+
+static void int_timer_func(unsigned long priv)
+{
+	struct nxs_hdmi *hdmi = (struct nxs_hdmi *)priv;
+	struct nxs_dev *nxs_dev = &hdmi->nxs_dev;
+	struct nxs_irq_callback *callback;
+	unsigned long flags;
+
+	spin_lock_irqsave(&nxs_dev->irq_lock, flags);
+	list_for_each_entry(callback, &nxs_dev->irq_callback, list)
+		callback->handler(nxs_dev, callback->data);
+	spin_unlock_irqrestore(&nxs_dev->irq_lock, flags);
+
+	mod_timer(&hdmi->timer, jiffies + msecs_to_jiffies(INT_TIMEOUT_MS));
+}
+#endif
 
 static void hdmi_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 				     bool enable)
@@ -79,11 +104,24 @@ static int hdmi_close(const struct nxs_dev *pthis)
 
 static int hdmi_start(const struct nxs_dev *pthis)
 {
+#ifdef SIMULATE_INTERRUPT
+	struct nxs_hdmi *hdmi = nxs_to_hdmi(pthis);
+
+	mod_timer(&hdmi->timer, jiffies + msecs_to_jiffies(INT_TIMEOUT_MS));
+#endif
 	return 0;
 }
 
 static int hdmi_stop(const struct nxs_dev *pthis)
 {
+	if (list_empty(&pthis->irq_callback)) {
+#ifdef SIMULATE_INTERRUPT
+		struct nxs_hdmi *hdmi = nxs_to_hdmi(pthis);
+
+		del_timer(&hdmi->timer);
+#endif
+	}
+
 	return 0;
 }
 
@@ -206,6 +244,10 @@ static int nxs_hdmi_probe(struct platform_device *pdev)
 	nxs_dev->dev_services[0].get_control = hdmi_get_syncinfo;
 
 	nxs_dev->dev = &pdev->dev;
+
+#ifdef SIMULATE_INTERRUPT
+	setup_timer(&hdmi->timer, int_timer_func, (long)hdmi);
+#endif
 
 	ret = register_nxs_dev(nxs_dev);
 	if (ret)
