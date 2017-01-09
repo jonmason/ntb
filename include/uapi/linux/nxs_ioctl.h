@@ -7,7 +7,7 @@
 #define NXS_MAX_REQ_NAME_SIZE	64
 
 #define BLENDING_TO_OTHER	(1 << 0)
-#define BLENDING_TO_MINE	(1 << 1)
+#define BLENDING_TO_BOTTOM	(1 << 1)
 #define MULTI_PATH		(1 << 2)
 
 struct nxs_request_function {
@@ -20,7 +20,7 @@ struct nxs_request_function {
 		int sibling_handle;
 		/* for blending: BLENDING_TO_OTHER */
 		uint32_t display_id;
-		/* for complete display: BLENDING_TO_MINE */
+		/* for complete display: BLENDING_TO_BOTTOM */
 		uint32_t bottom_id;
 	} option;
 	int handle;
