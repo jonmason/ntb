@@ -1333,7 +1333,9 @@
                 isp: isp@20900000 {
                         compatible = "nexell,isp-nxs-1.0";
                         reg = <NXS_REGBASE_ISP NXS_REGSIZE_ISP>,
-                              <NXS_REGBASE_ISPCORE NXS_REGSIZE_ISPCORE>;
+                              <NXS_REGBASE_ISPCORE NXS_REGSIZE_ISPCORE>,
+			      <DISP2ISP_OFFSET DISP2ISP_SIZE>;
+			syscon = <&nxstream>;
                         /* interrupts = <148 32>, */
                         /*             <149 32>,  */
                         /*             <150 32>,  */
