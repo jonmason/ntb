@@ -136,6 +136,7 @@ struct list_head;
 struct nxs_dev {
 	struct list_head list; /* connected to nxs_res_manager dev_list */
 	struct list_head func_list; /* connected to nxs_function->dev_list */
+	struct list_head disp_list; /* connected to nxs_display->vert_list */
 	/* for multitap */
 	struct list_head sibling_list;
 

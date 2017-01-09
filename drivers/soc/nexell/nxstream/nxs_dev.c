@@ -107,6 +107,7 @@ int nxs_dev_parse_dt(struct platform_device *pdev, struct nxs_dev *pthis)
 	INIT_LIST_HEAD(&pthis->list);
 	INIT_LIST_HEAD(&pthis->func_list);
 	INIT_LIST_HEAD(&pthis->sibling_list);
+	INIT_LIST_HEAD(&pthis->disp_list);
 
 	INIT_LIST_HEAD(&pthis->irq_callback);
 	spin_lock_init(&pthis->irq_lock);
