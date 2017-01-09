@@ -107,52 +107,33 @@ int nxs_dev_parse_dt(struct platform_device *pdev, struct nxs_dev *pthis)
 	INIT_LIST_HEAD(&pthis->list);
 	INIT_LIST_HEAD(&pthis->func_list);
 	INIT_LIST_HEAD(&pthis->sibling_list);
+
+	INIT_LIST_HEAD(&pthis->irq_callback);
+	spin_lock_init(&pthis->irq_lock);
+
 	return 0;
 }
 
 int nxs_dev_register_irq_callback(struct nxs_dev *pthis, u32 type,
 				  struct nxs_irq_callback *callback)
 {
-	switch (type) {
-	case NXS_DEV_IRQCALLBACK_TYPE_IRQ:
-		if (pthis->irq_callback) {
-			dev_err(pthis->dev, "already irqcallback registered\n");
-			return -EBUSY;
-		}
-		pthis->irq_callback = callback;
-		break;
-	case NXS_DEV_IRQCALLBACK_TYPE_BOTTOM_HALF:
-		if (pthis->bottom_half) {
-			dev_err(pthis->dev, "already bottomhalf registered\n");
-			return -EBUSY;
-		}
-		pthis->bottom_half = callback;
-		break;
-	default:
-		dev_err(pthis->dev, "invalid type: %d\n", type);
-		return -EINVAL;
-	}
+	unsigned long flags;
+
+	spin_lock_irqsave(&pthis->irq_lock, flags);
+	list_add_tail(&callback->list, &pthis->irq_callback);
+	spin_unlock_irqrestore(&pthis->irq_lock, flags);
 
 	return 0;
 }
 
-int nxs_dev_unregister_irq_callback(struct nxs_dev *pthis, u32 type)
+int nxs_dev_unregister_irq_callback(struct nxs_dev *pthis, u32 type,
+				    struct nxs_irq_callback *callback)
 {
-	struct nxs_irq_callback *callback = NULL;
+	unsigned long flags;
 
-	switch (type) {
-	case NXS_DEV_IRQCALLBACK_TYPE_IRQ:
-		callback = pthis->irq_callback;
-		pthis->irq_callback = NULL;
-		break;
-	case NXS_DEV_IRQCALLBACK_TYPE_BOTTOM_HALF:
-		callback = pthis->bottom_half;
-		pthis->bottom_half = NULL;
-		break;
-	}
-
-	if (callback)
-		kfree(callback);
+	spin_lock_irqsave(&pthis->irq_lock, flags);
+	list_del_init(&callback->list);
+	spin_unlock_irqrestore(&pthis->irq_lock, flags);
 
 	return 0;
 }

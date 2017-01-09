@@ -58,10 +58,13 @@ static void int_timer_func(unsigned long priv)
 {
 	struct nxs_lvds *lvds = (struct nxs_lvds *)priv;
 	struct nxs_dev *nxs_dev = &lvds->nxs_dev;
+	struct nxs_irq_callback *callback;
+	unsigned long flags;
 
-	if (nxs_dev->irq_callback)
-		nxs_dev->irq_callback->handler(nxs_dev,
-					       nxs_dev->irq_callback->data);
+	spin_lock_irqsave(&nxs_dev->irq_lock, flags);
+	list_for_each_entry(callback, &nxs_dev->irq_callback, list)
+		callback->handler(nxs_dev, callback->data);
+	spin_unlock_irqrestore(&nxs_dev->irq_lock, flags);
 
 	mod_timer(&lvds->timer, jiffies + msecs_to_jiffies(INT_TIMEOUT_MS));
 }
@@ -109,11 +112,13 @@ static int lvds_start(const struct nxs_dev *pthis)
 
 static int lvds_stop(const struct nxs_dev *pthis)
 {
+	if (list_empty(&pthis->irq_callback)) {
 #ifdef SIMULATE_INTERRUPT
-	struct nxs_lvds *lvds = nxs_to_lvds(pthis);
+		struct nxs_lvds *lvds = nxs_to_lvds(pthis);
 
-	del_timer(&lvds->timer);
+		del_timer(&lvds->timer);
 #endif
+	}
 
 	return 0;
 }

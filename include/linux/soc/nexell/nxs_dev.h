@@ -19,6 +19,7 @@
 #define _NXS_DEV_H
 
 #include <linux/atomic.h>
+#include <linux/spinlock.h>
 
 #define NXS_DEV_MAX_PLANES	3
 
@@ -110,7 +111,7 @@ struct nxs_dev_service {
 enum {
 	NXS_DEV_IRQCALLBACK_TYPE_NONE,
 	NXS_DEV_IRQCALLBACK_TYPE_IRQ = 1,
-	NXS_DEV_IRQCALLBACK_TYPE_BOTTOM_HALF,
+	NXS_DEV_IRQCALLBACK_TYPE_BOTTOM_HALF, /* currently not used */
 	NXS_DEV_IRQCALLBACK_TYPE_INVALID
 };
 
@@ -120,6 +121,7 @@ enum {
 };
 
 struct nxs_irq_callback {
+	struct list_head list;
 	void (*handler)(struct nxs_dev *, void *);
 	void *data;
 };
@@ -132,8 +134,8 @@ struct list_head;
 #define NXS_MAX_SERVICES 8
 
 struct nxs_dev {
-	struct list_head list;
-	struct list_head func_list;
+	struct list_head list; /* connected to nxs_res_manager dev_list */
+	struct list_head func_list; /* connected to nxs_function->dev_list */
 	/* for multitap */
 	struct list_head sibling_list;
 
@@ -166,8 +168,8 @@ struct nxs_dev {
 
 	struct device *dev;
 
-	struct nxs_irq_callback *irq_callback;
-	struct nxs_irq_callback *bottom_half;
+	spinlock_t irq_lock;
+	struct list_head irq_callback;
 
 	void (*set_interrupt_enable)(const struct nxs_dev *pthis, int type,
 				     bool enable);
@@ -199,6 +201,7 @@ struct platform_device;
 int nxs_dev_parse_dt(struct platform_device *pdev, struct nxs_dev *pthis);
 int nxs_dev_register_irq_callback(struct nxs_dev *pthis, u32 type,
 				  struct nxs_irq_callback *callback);
-int nxs_dev_unregister_irq_callback(struct nxs_dev *pthis, u32 type);
+int nxs_dev_unregister_irq_callback(struct nxs_dev *pthis, u32 type,
+				    struct nxs_irq_callback *callback);
 
 #endif

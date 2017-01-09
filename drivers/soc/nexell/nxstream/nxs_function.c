@@ -920,7 +920,8 @@ int nxs_function_unregister_irqcallback(struct nxs_function_instance *inst,
 		BUG();
 
 	nxs_dev_unregister_irq_callback(last,
-					NXS_DEV_IRQCALLBACK_TYPE_IRQ);
+					NXS_DEV_IRQCALLBACK_TYPE_IRQ,
+					callback);
 	kfree(callback);
 
 	return 0;

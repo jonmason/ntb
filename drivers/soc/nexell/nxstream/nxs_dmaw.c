@@ -65,10 +65,13 @@ static void int_timer_func(unsigned long priv)
 {
 	struct nxs_dmaw *dmaw = (struct nxs_dmaw *)priv;
 	struct nxs_dev *nxs_dev = &dmaw->nxs_dev;
+	struct nxs_irq_callback *callback;
+	unsigned long flags;
 
-	if (nxs_dev->irq_callback)
-		nxs_dev->irq_callback->handler(nxs_dev,
-					       nxs_dev->irq_callback->data);
+	spin_lock_irqsave(&nxs_dev->irq_lock, flags);
+	list_for_each_entry(callback, &nxs_dev->irq_callback, list)
+		callback->handler(nxs_dev, callback->data);
+	spin_unlock_irqrestore(&nxs_dev->irq_lock, flags);
 
 	mod_timer(&dmaw->timer, jiffies + msecs_to_jiffies(INT_TIMEOUT_MS));
 }
@@ -171,11 +174,13 @@ static int dmaw_start(const struct nxs_dev *pthis)
 
 static int dmaw_stop(const struct nxs_dev *pthis)
 {
+	if (list_empty(&pthis->irq_callback)) {
 #ifdef SIMULATE_INTERRUPT
-	struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
+		struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
 
-	del_timer(&dmaw->timer);
+		del_timer(&dmaw->timer);
 #endif
+	}
 
 	return 0;
 }
