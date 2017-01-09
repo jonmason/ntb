@@ -204,5 +204,6 @@ int nxs_dev_register_irq_callback(struct nxs_dev *pthis, u32 type,
 				  struct nxs_irq_callback *callback);
 int nxs_dev_unregister_irq_callback(struct nxs_dev *pthis, u32 type,
 				    struct nxs_irq_callback *callback);
+void nxs_dev_print(const struct nxs_dev *pthis, char *prefix);
 
 #endif

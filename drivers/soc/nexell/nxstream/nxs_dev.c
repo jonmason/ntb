@@ -138,3 +138,13 @@ int nxs_dev_unregister_irq_callback(struct nxs_dev *pthis, u32 type,
 
 	return 0;
 }
+
+void nxs_dev_print(const struct nxs_dev *pthis, char *prefix)
+{
+	if (prefix)
+		pr_info("%s: ", prefix);
+
+	pr_info("[%s:%d]\n",
+		nxs_function_to_str(pthis->dev_function),
+		pthis->dev_inst_index);
+}
