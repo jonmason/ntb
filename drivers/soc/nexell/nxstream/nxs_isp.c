@@ -26,17 +26,34 @@
 #include <linux/regmap.h>
 #include <linux/interrupt.h>
 #include <linux/of_address.h>
+#include <linux/mfd/syscon.h>
 #include <linux/platform_device.h>
 
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
+#define DISP2ISP_OFFSET 0
+#define ISP2DISP_OFFSET 4
+
+#define DISP2ISP_ENABLE_MASK BIT(3)
+#define DISP2ISP_ENABLE_SHIFT 3
+
+#define DISP2ISP_PWDN BIT(1)
+
+#define ISP2DISP_ENABLE_MASK BIT(2)
+#define ISP2DISP_ENABLE_SHIFT 2
+
+#define ISP2DISP_PWDN	BIT(1)
+
 struct nxs_isp {
 	struct nxs_dev nxs_dev;
 	u8 *base;
 	u8 *core_base;
+	struct regmap *reg;
+	u32 offset;
 };
+
 
 #define nxs_to_isp(dev)		container_of(dev, struct nxs_isp, nxs_dev)
 
@@ -44,6 +61,7 @@ static void isp_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 				     bool enable)
 {
 	dev_info(pthis->dev, "[%s]\n", __func__);
+
 }
 
 static u32 isp_get_interrupt_enable(const struct nxs_dev *pthis, int type)
@@ -62,17 +80,36 @@ static void isp_clear_interrupt_pending(const struct nxs_dev *pthis,
 					     int type)
 {
 	dev_info(pthis->dev, "[%s]\n", __func__);
+
 }
 
 static int isp_open(const struct nxs_dev *pthis)
 {
+	struct nxs_isp *isp = nxs_to_isp(pthis);
+
 	dev_info(pthis->dev, "[%s]\n", __func__);
+	/* clock enable */
+	/* cmu reset */
+	/* clock source & divisor setting */
+	regmap_update_bits(isp->reg, isp->offset + DISP2ISP_OFFSET,
+			DISP2ISP_ENABLE_MASK, (1 << DISP2ISP_ENABLE_SHIFT));
+	regmap_update_bits(isp->reg, isp->offset + ISP2DISP_OFFSET,
+			ISP2DISP_ENABLE_MASK, (1 << ISP2DISP_ENABLE_SHIFT));
+	regmap_update_bits(isp->reg, isp->offset + (ISP2DISP_OFFSET*2),
+			ISP2DISP_ENABLE_MASK, (1 << ISP2DISP_ENABLE_SHIFT));
 	return 0;
 }
 
 static int isp_close(const struct nxs_dev *pthis)
 {
+	struct nxs_isp *isp = nxs_to_isp(pthis);
 	dev_info(pthis->dev, "[%s]\n", __func__);
+	regmap_update_bits(isp->reg, isp->offset + DISP2ISP_OFFSET,
+			DISP2ISP_ENABLE_MASK, 0);
+	regmap_update_bits(isp->reg, isp->offset + ISP2DISP_OFFSET,
+			ISP2DISP_ENABLE_MASK, 0);
+	regmap_update_bits(isp->reg, isp->offset + (ISP2DISP_OFFSET*2),
+			ISP2DISP_ENABLE_MASK, 0);
 	return 0;
 }
 
@@ -146,7 +183,6 @@ static int nxs_isp_probe(struct platform_device *pdev)
 	struct nxs_isp *isp;
 	struct nxs_dev *nxs_dev;
 	struct resource res;
-
 	dev_info(&pdev->dev, "[%s] \n", __func__);
 	isp = devm_kzalloc(&pdev->dev, sizeof(*isp), GFP_KERNEL);
 	if (!isp)
@@ -156,7 +192,12 @@ static int nxs_isp_probe(struct platform_device *pdev)
 	ret = nxs_dev_parse_dt(pdev, nxs_dev);
 	if (ret)
 		return ret;
-
+	isp->reg = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+						   "syscon");
+	if (IS_ERR(isp->reg)) {
+		dev_err(&pdev->dev, "unable to get syscon \n");
+		return PTR_ERR(isp->reg);
+	}
 	ret = of_address_to_resource(pdev->dev.of_node, 0, &res);
 	if (ret) {
 		dev_err(&pdev->dev,
@@ -174,14 +215,10 @@ static int nxs_isp_probe(struct platform_device *pdev)
 			nxs_dev->dev_inst_index);
 		return -EBUSY;
 	}
-	dev_info(&pdev->dev,
-		 "[%s] base address = 0x%x \n",
-		 nxs_function_to_str(nxs_dev->dev_function),
-		 isp->base);
 	ret = of_address_to_resource(pdev->dev.of_node, 1, &res);
 	if (ret) {
 		dev_err(&pdev->dev,
-			"[%s:%d] failed to get isp core base address \n",
+			"[%s:%d] failed to get isp base address \n",
 			nxs_function_to_str(nxs_dev->dev_function),
 			nxs_dev->dev_inst_index);
 		return -ENXIO;
@@ -195,10 +232,22 @@ static int nxs_isp_probe(struct platform_device *pdev)
 			nxs_dev->dev_inst_index);
 		return -EBUSY;
 	}
+	ret = of_address_to_resource(pdev->dev.of_node, 2, &res);
+	if (ret) {
+		dev_err(&pdev->dev,
+			"[%s:%d] failed to get isp base address \n",
+			nxs_function_to_str(nxs_dev->dev_function),
+			nxs_dev->dev_inst_index);
+		return -ENXIO;
+	}
+	isp->offset = res.start;
+
 	dev_info(&pdev->dev,
-		 "[%s] core base address = 0x%x \n",
+		 "[%s] base = 0x%x, core = 0x%x, offset = 0x%x \n",
 		 nxs_function_to_str(nxs_dev->dev_function),
-		 isp->core_base);
+		 isp->base,
+		 isp->core_base,
+		 isp->offset);
 	nxs_dev->set_interrupt_enable = isp_set_interrupt_enable;
 	nxs_dev->get_interrupt_enable = isp_get_interrupt_enable;
 	nxs_dev->get_interrupt_pending = isp_get_interrupt_pending;
