@@ -59,26 +59,26 @@ make_nxs_function_request(struct device *dev, struct device_node *np, int index)
 		of_property_read_u32_array(np, node_name, array, count);
 
 		for (i = 0; i < count; i += 2) {
-			struct nxs_function *func;
+			struct nxs_function_elem *elem;
 
-			func = kzalloc(sizeof(*func), GFP_KERNEL);
-			if (!func) {
+			elem = kzalloc(sizeof(*elem), GFP_KERNEL);
+			if (!elem) {
 				WARN_ON(1);
 				kfree(array);
 				goto fail_return;
 			}
 
-			func->function = array[i];
-			func->index = array[i + 1];
-			func->user = NXS_FUNCTION_USER_KERNEL;
+			elem->function = array[i];
+			elem->index = array[i + 1];
+			elem->user = NXS_FUNCTION_USER_KERNEL;
 
-			if (func->function == NXS_FUNCTION_MULTITAP)
+			if (elem->function == NXS_FUNCTION_MULTITAP)
 				mark_multitap_follow(&req->head);
 
 			dev_info(dev, "function %s index %d added to request %p\n",
-				 nxs_function_to_str(func->function),
-				 func->index, req);
-			list_add_tail(&func->list, &req->head);
+				 nxs_function_to_str(elem->function),
+				 elem->index, req);
+			list_add_tail(&elem->list, &req->head);
 			req->nums_of_function++;
 		}
 

@@ -31,7 +31,7 @@ enum {
 	NXS_FUNCTION_USER_APP,
 };
 
-struct nxs_function {
+struct nxs_function_elem {
 	struct list_head list;
 	u32 function;
 	u32 index;
@@ -41,7 +41,7 @@ struct nxs_function {
 
 /* below code must be synced with include/uapi/linux/nxs_ioctl.h */
 #define BLENDING_TO_OTHER       (1 << 0)
-#define BLENDING_TO_MINE        (1 << 1)
+#define BLENDING_TO_BOTTOM      (1 << 1)
 #define MULTI_PATH              (1 << 2)
 
 struct nxs_function_request {
@@ -53,37 +53,33 @@ struct nxs_function_request {
 		int sibling_handle;
 		/* for blending: BLENDING_TO_OTHER */
 		uint32_t display_id;
-		/* for complete display: BLENDING_TO_MINE */
+		/* for complete display: BLENDING_TO_BOTTOM */
 		uint32_t bottom_id;
 	} option;
 };
 
-struct nxs_function_instance {
-	struct list_head dev_list; /* nxs_dev->func_list */
-	struct list_head list; /* nxs_function_instance->list */
+struct nxs_function {
+	struct list_head list; /* connected to nxs_func_list of nxs_function.c */
+	struct list_head dev_list; /* head of nxs_dev->func_list */
+	struct list_head disp_list; /* connected to nxs_display->func_list */
 
 	struct nxs_function_request *req;
 	int type;
 	void *priv;
 	u32 id;
-	/* for display */
-	struct nxs_dev *top; /* top(first) dev for blender path or multitap path */
-	struct nxs_dev *cur_blender;
-	struct nxs_dev *blender_next;
+	void *disp;
 };
 
 struct nxs_query_function;
 struct nxs_function_builder {
 	void *priv;
-	struct nxs_function_instance *
-		(*build)(struct nxs_function_builder *pthis,
-			 const char *name,
-			 struct nxs_function_request *);
+	struct nxs_function *(*build)(struct nxs_function_builder *pthis,
+				      const char *name,
+				      struct nxs_function_request *);
 	int (*free)(struct nxs_function_builder *pthis,
-		    struct nxs_function_instance *);
-	struct nxs_function_instance *
-		(*get)(struct nxs_function_builder *pthis,
-		       int handle);
+		    struct nxs_function *);
+	struct nxs_function *(*get)(struct nxs_function_builder *pthis,
+				    int handle);
 	int (*query)(struct nxs_function_builder *pthis,
 		     struct nxs_query_function *query);
 };
@@ -154,26 +150,29 @@ int nxs_capture_bind_sensor(struct device *dev, struct nxs_dev *nxs_dev,
 int nxs_capture_power(struct nxs_capture_ctx *capture, bool enable);
 void nxs_capture_free(struct nxs_capture_ctx *capture);
 void nxs_free_function_request(struct nxs_function_request *req);
-struct nxs_function_instance *
-nxs_function_build(struct nxs_function_request *req);
-struct nxs_function_instance *nxs_function_make(int dev_num, ...);
-void nxs_function_destroy(struct nxs_function_instance *inst);
-struct nxs_function_instance *nxs_function_get(int handle);
+struct nxs_function *nxs_function_build(struct nxs_function_request *req);
+struct nxs_function *nxs_function_make(int dev_num, ...);
+void nxs_function_destroy(struct nxs_function *f);
+struct nxs_function *nxs_function_get(int handle);
 struct nxs_irq_callback *
-nxs_function_register_irqcallback(struct nxs_function_instance *inst,
+nxs_function_register_irqcallback(struct nxs_function *f,
 				  void *data,
 				  void (*handler)(struct nxs_dev *,
 						  void*)
 				 );
-int nxs_function_unregister_irqcallback(struct nxs_function_instance *inst,
+int nxs_function_unregister_irqcallback(struct nxs_function *f,
 					struct nxs_irq_callback *callback);
-int nxs_function_config(struct nxs_function_instance *inst, bool dirty,
-			int count, ...);
-int nxs_function_connect(struct nxs_function_instance *inst);
-int nxs_function_ready(struct nxs_function_instance *inst);
-int nxs_function_start(struct nxs_function_instance *inst);
-void nxs_function_stop(struct nxs_function_instance *inst);
-struct nxs_dev *nxs_function_find(struct nxs_function_instance *inst,
-				  u32 function);
+int nxs_function_config(struct nxs_function *f, bool dirty, int count, ...);
+int nxs_function_connect(struct nxs_function *f);
+int nxs_function_ready(struct nxs_function *f);
+int nxs_function_start(struct nxs_function *f);
+void nxs_function_stop(struct nxs_function *f);
+void nxs_function_disconnect(struct nxs_function *f);
+struct nxs_dev *nxs_function_find_dev(struct nxs_function *f,
+				      u32 dev_function);
+int nxs_function_register_display(struct nxs_function *f);
+int nxs_function_unregister_display(struct nxs_function *f);
+int nxs_function_add_to_display(int disp, struct nxs_function *f);
+int nxs_function_remove_from_display(int disp, struct nxs_function *f);
 
 #endif

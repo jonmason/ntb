@@ -24,9 +24,10 @@ struct list_head;
 
 int  register_nxs_dev(struct nxs_dev *);
 void unregister_nxs_dev(struct nxs_dev *);
-struct nxs_function_instance *
-request_nxs_function(const char *, struct nxs_function_request *, bool);
-void remove_nxs_function(struct nxs_function_instance *, bool);
+struct nxs_function *request_nxs_function(const char *name,
+					  struct nxs_function_request *f,
+					  bool use_builder);
+void remove_nxs_function(struct nxs_function *f, bool use_builder);
 struct nxs_dev *get_nxs_dev(u32 function, u32 index, u32 user,
 			    bool multitap_follow);
 void put_nxs_dev(struct nxs_dev *);

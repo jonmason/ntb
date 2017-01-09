@@ -73,9 +73,9 @@ void unregister_nxs_dev(struct nxs_dev *nxs_dev)
 }
 EXPORT_SYMBOL_GPL(unregister_nxs_dev);
 
-struct nxs_function_instance *
-request_nxs_function(const char *name, struct nxs_function_request *req,
-		     bool use_builder)
+struct nxs_function *request_nxs_function(const char *name,
+					  struct nxs_function_request *req,
+					  bool use_builder)
 {
 	if (use_builder) {
 		if (res_manager->builder)
@@ -87,22 +87,22 @@ request_nxs_function(const char *name, struct nxs_function_request *req,
 }
 EXPORT_SYMBOL_GPL(request_nxs_function);
 
-void remove_nxs_function(struct nxs_function_instance *inst, bool use_builder)
+void remove_nxs_function(struct nxs_function *f, bool use_builder)
 {
 	if (use_builder) {
 		if (res_manager->builder)
-			res_manager->builder->free(res_manager->builder, inst);
+			res_manager->builder->free(res_manager->builder, f);
 	} else
-		nxs_function_destroy(inst);
+		nxs_function_destroy(f);
 }
 EXPORT_SYMBOL_GPL(remove_nxs_function);
 
 void mark_multitap_follow(struct list_head *head)
 {
-	struct nxs_function *func;
+	struct nxs_function_elem *elem;
 
-	list_for_each_entry(func, head, list)
-		func->multitap_follow = true;
+	list_for_each_entry(elem, head, list)
+		elem->multitap_follow = true;
 }
 EXPORT_SYMBOL_GPL(mark_multitap_follow);
 
@@ -239,39 +239,16 @@ static int nxs_res_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static int get_function_index(struct nxs_function_instance *inst, int func)
+static int get_function_index(struct nxs_function *f, int func)
 {
 	struct nxs_dev *nxs_dev;
 
-	list_for_each_entry(nxs_dev, &inst->dev_list, list) {
+	list_for_each_entry(nxs_dev, &f->dev_list, list) {
 		if (nxs_dev->dev_function == func)
 			return nxs_dev->dev_inst_index;
 	}
 
 	return -ENOENT;
-}
-
-static int handle_multitap(struct nxs_res_manager *manager,
-			   struct nxs_function_request *req,
-			   struct nxs_function_instance *sibling_inst)
-{
-	struct nxs_function *func;
-	int index;
-
-	list_for_each_entry(func, &req->head, list) {
-		index = get_function_index(sibling_inst, func->function);
-		if (index < 0) {
-			dev_err(manager->dev, "%s: can't get index for %s\n",
-				__func__, nxs_function_to_str(func->function));
-			return -ENOENT;
-		}
-
-		func->index = index;
-		dev_info(manager->dev, "%s: func %s index set to %d\n",
-			 __func__, nxs_function_to_str(func->function), index);
-	}
-
-	return 0;
 }
 
 static struct nxs_function_request *
@@ -280,22 +257,6 @@ make_function_request(struct nxs_res_manager *manager,
 {
 	int i;
 	struct nxs_function_request *func_req;
-	/* TODO: refactoring */
-#if 0
-	int ret;
-	struct nxs_function_instance *sibling_inst = NULL;
-
-	if (req->flags & MULTI_PATH && req->option.sibling_handle > 0) {
-		sibling_inst = manager->builder->get(manager->builder,
-						req->option.sibling_handle);
-		if (!sibling_inst) {
-			dev_err(manager->dev,
-				"%s: failed to get sibling function instance\n",
-				__func__);
-			return NULL;
-		}
-	}
-#endif
 
 	func_req = kzalloc(sizeof(*func_req), GFP_KERNEL);
 	if (!func_req) {
@@ -308,39 +269,19 @@ make_function_request(struct nxs_res_manager *manager,
 	memcpy(&func_req->option, &req->option, sizeof(func_req->option));
 
 	for (i = 0; i < req->count * 2; i += 2) {
-		struct nxs_function *func;
+		struct nxs_function_elem *elem;
 
-		func = kzalloc(sizeof(*func), GFP_KERNEL);
-		if (!func) {
+		elem = kzalloc(sizeof(*elem), GFP_KERNEL);
+		if (!elem) {
 			WARN_ON(1);
 			goto error_out;
 		}
 
-		func->function = req->array[i];
-		func->index = req->array[i+1];
-		func->user = NXS_FUNCTION_USER_APP;
-
-		/* TODO: refactoring */
-#if 0
-		if (func->function == NXS_FUNCTION_MULTITAP)
-			mark_multitap_follow(&func_req->head);
-#endif
-
-		list_add_tail(&func->list, &func_req->head);
+		elem->function = req->array[i];
+		elem->index = req->array[i+1];
+		elem->user = NXS_FUNCTION_USER_APP;
+		list_add_tail(&elem->list, &func_req->head);
 		func_req->nums_of_function++;
-
-		/* TODO: refactoring */
-#if 0
-		if (func->function == NXS_FUNCTION_MULTITAP && sibling_inst) {
-			ret = handle_multitap(manager, func_req, sibling_inst);
-			if (ret < 0) {
-				dev_err(manager->dev,
-					"%s: failed to handle_multitap\n",
-					__func__);
-				goto error_out;
-			}
-		}
-#endif
 	}
 
 	return func_req;
@@ -355,7 +296,7 @@ static int handle_request_function(struct nxs_res_manager *manager,
 {
 	struct nxs_request_function req;
 	struct nxs_function_request *func_req = NULL;
-	struct nxs_function_instance *inst;
+	struct nxs_function *f;
 
 	if (copy_from_user(&req, (void __user *)arg, sizeof(req)))
 		return -EFAULT;
@@ -368,17 +309,17 @@ static int handle_request_function(struct nxs_res_manager *manager,
 		return -EINVAL;
 	}
 
-	inst = request_nxs_function(req.name, func_req, true);
-	if (!inst) {
+	f = request_nxs_function(req.name, func_req, true);
+	if (!f) {
 		dev_err(manager->dev, "%s: failed to request_nxs_function\n",
 			__func__);
 		nxs_free_function_request(func_req);
 		return -ENOENT;
 	}
 
-	req.handle = inst->id;
+	req.handle = f->id;
 	if (copy_to_user((void __user *)arg, &req, sizeof(req))) {
-		remove_nxs_function(inst, true);
+		remove_nxs_function(f, true);
 		return -EFAULT;
 	}
 
@@ -394,16 +335,16 @@ static int handle_remove_function(struct nxs_res_manager *manager,
 		return -EFAULT;
 
 	if (manager->builder->get) {
-		struct nxs_function_instance *inst;
+		struct nxs_function *f;
 
-		inst = manager->builder->get(manager->builder, remove.handle);
-		if (!inst) {
-			dev_err(manager->dev, "can't get function inst for handle %d\n",
+		f = manager->builder->get(manager->builder, remove.handle);
+		if (!f) {
+			dev_err(manager->dev, "can't get function for handle %d\n",
 				remove.handle);
 			return -ENOENT;
 		}
 
-		return manager->builder->free(manager->builder, inst);
+		return manager->builder->free(manager->builder, f);
 	}
 
 	return -EINVAL;
