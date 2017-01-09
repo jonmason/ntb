@@ -150,11 +150,14 @@ static int vip_stop(const struct nxs_dev *pthis)
 	return 0;
 }
 
-static int vip_set_dirty(const struct nxs_dev *pthis)
+static int vip_set_dirty(const struct nxs_dev *pthis, u32 type)
 {
 	struct nxs_vip *vip;
 	u32 val;
 	u8 *reg;
+
+	if (type != NXS_DEV_DIRTY_NORMAL)
+		return 0;
 
 	if (pthis->dev_function == NXS_FUNCTION_VIP_CLIPPER)
 		vip = clipper_to_vip(pthis);

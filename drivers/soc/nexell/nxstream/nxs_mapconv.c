@@ -73,8 +73,11 @@ static int mapconv_stop(const struct nxs_dev *pthis)
 	return 0;
 }
 
-static int mapconv_set_dirty(const struct nxs_dev *pthis)
+static int mapconv_set_dirty(const struct nxs_dev *pthis, u32 type)
 {
+	if (type != NXS_DEV_DIRTY_NORMAL)
+		return 0;
+
 	return 0;
 }
 

@@ -92,10 +92,13 @@ static int scaler_stop(const struct nxs_dev *pthis)
 	return 0;
 }
 
-static int scaler_set_dirty(const struct nxs_dev *pthis)
+static int scaler_set_dirty(const struct nxs_dev *pthis, u32 type)
 {
 	struct nxs_scaler *scaler = nxs_to_scaler(pthis);
 	u32 dirty_val;
+
+	if (type != NXS_DEV_DIRTY_NORMAL)
+		return 0;
 
 	switch (pthis->dev_inst_index) {
 	case 0:

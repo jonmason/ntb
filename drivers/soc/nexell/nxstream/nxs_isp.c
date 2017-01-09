@@ -88,12 +88,16 @@ static int isp_stop(const struct nxs_dev *pthis)
 	return 0;
 }
 
-static int isp_set_dirty(const struct nxs_dev *pthis)
+static int isp_set_dirty(const struct nxs_dev *pthis, u32 type)
 {
 	struct nxs_isp *isp = nxs_to_isp(pthis);
 	u32 dirty_val;
 
 	dev_info(pthis->dev, "[%s]\n", __func__);
+
+	if (type != NXS_DEV_DIRTY_NORMAL)
+		return 0;
+
 	return 0;
 }
 

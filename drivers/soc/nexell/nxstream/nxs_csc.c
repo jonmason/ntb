@@ -93,10 +93,13 @@ static int csc_stop(const struct nxs_dev *pthis)
 	return 0;
 }
 
-static int csc_set_dirty(const struct nxs_dev *pthis)
+static int csc_set_dirty(const struct nxs_dev *pthis, u32 type)
 {
 	struct nxs_csc *csc = nxs_to_csc(pthis);
 	u32 dirty_val;
+
+	if (type != NXS_DEV_DIRTY_NORMAL)
+		return 0;
 
 	switch (pthis->dev_inst_index) {
 	case 0:

@@ -114,6 +114,11 @@ enum {
 	NXS_DEV_IRQCALLBACK_TYPE_INVALID
 };
 
+enum {
+	NXS_DEV_DIRTY_NORMAL = 1,
+	NXS_DEV_DIRTY_TID,
+};
+
 struct nxs_irq_callback {
 	void (*handler)(struct nxs_dev *, void *);
 	void *data;
@@ -178,7 +183,7 @@ struct nxs_dev {
 			   const struct nxs_control *pparam);
 	int (*get_control)(const struct nxs_dev *pthis, int type,
 			   struct nxs_control *pparam);
-	int (*set_dirty)(const struct nxs_dev *pthis);
+	int (*set_dirty)(const struct nxs_dev *pthis, u32 type);
 	int (*set_tid)(const struct nxs_dev *pthis, u32 tid1, u32 tid2);
 	void (*dump_register)(const struct nxs_dev *pthis);
 

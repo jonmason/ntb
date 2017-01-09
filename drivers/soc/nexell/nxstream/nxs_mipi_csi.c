@@ -99,10 +99,13 @@ static int mipi_csi_stop(const struct nxs_dev *pthis)
 	return 0;
 }
 
-static int mipi_csi_set_dirty(const struct nxs_dev *pthis)
+static int mipi_csi_set_dirty(const struct nxs_dev *pthis, u32 type)
 {
 	struct nxs_csi *csi = nxs_to_csi(pthis);
 	u32 dirty_val = 0;
+
+	if (type != NXS_DEV_DIRTY_NORMAL)
+		return 0;
 
 	switch (csi->channel) {
 	case 4:

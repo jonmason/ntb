@@ -105,10 +105,13 @@ static int dmaw_close(const struct nxs_dev *pthis)
 	return 0;
 }
 
-static int dmaw_set_dirty(const struct nxs_dev *pthis)
+static int dmaw_set_dirty(const struct nxs_dev *pthis, u32 type)
 {
 	struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
 	u32 dirty_val;
+
+	if (type != NXS_DEV_DIRTY_NORMAL)
+		return 0;
 
 	switch (pthis->dev_inst_index) {
 	case 0:

@@ -101,10 +101,13 @@ static int hue_stop(const struct nxs_dev *pthis)
 	return 0;
 }
 
-static int hue_set_dirty(const struct nxs_dev *pthis)
+static int hue_set_dirty(const struct nxs_dev *pthis, u32 type)
 {
 	struct nxs_hue *hue = nxs_to_hue(pthis);
 	u32 dirty_val;
+
+	if (type != NXS_DEV_DIRTY_NORMAL)
+		return 0;
 
 	if (pthis->dev_inst_index == 0)
 		dirty_val = HUE0_DIRTY;

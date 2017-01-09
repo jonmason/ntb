@@ -740,7 +740,7 @@ static int nxs_m2m_chain_set_buffer(struct nxs_function_instance *inst,
 		return ret;
 
 	if (dst_nxs_dev->set_dirty) {
-		ret = dst_nxs_dev->set_dirty(dst_nxs_dev);
+		ret = dst_nxs_dev->set_dirty(dst_nxs_dev, NXS_DEV_DIRTY_NORMAL);
 		if (WARN(ret, "failed to set_dirty for dst\n"))
 			return ret;
 	}
@@ -750,7 +750,7 @@ static int nxs_m2m_chain_set_buffer(struct nxs_function_instance *inst,
 		return ret;
 
 	if (src_nxs_dev->set_dirty) {
-		ret = src_nxs_dev->set_dirty(src_nxs_dev);
+		ret = src_nxs_dev->set_dirty(src_nxs_dev, NXS_DEV_DIRTY_NORMAL);
 		if (WARN(ret, "failed to set_dirty for src\n"))
 			return ret;
 	}
@@ -791,14 +791,14 @@ static void nxs_video_irqcallback(struct nxs_dev *nxs_dev, void *data)
 		nxs_dev_set_buffer(nxs_dev, &info);
 
 		if (nxs_dev->set_dirty)
-			nxs_dev->set_dirty(nxs_dev);
+			nxs_dev->set_dirty(nxs_dev, NXS_DEV_DIRTY_NORMAL);
 
 		/**
 		 * HACK
 		 * dirty of first nxs_dev must be set to apply change
 		 */
 		if (nxs_dev != first)
-			first->set_dirty(first);
+			first->set_dirty(first, NXS_DEV_DIRTY_NORMAL);
 
 		if (atomic_read(&vfh->underflow)) {
 			nxs_function_start(video->nxs_function);

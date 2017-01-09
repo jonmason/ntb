@@ -172,9 +172,12 @@ static int tpgen_stop(const struct nxs_dev *pthis)
 	return 0;
 }
 
-static int tpgen_set_dirty(const struct nxs_dev *pthis)
+static int tpgen_set_dirty(const struct nxs_dev *pthis, u32 type)
 {
 	struct nxs_tpgen *tpgen = nxs_to_tpgen(pthis);
+
+	if (type != NXS_DEV_DIRTY_NORMAL)
+		return 0;
 
 	return regmap_write(tpgen->reg, TPGEN_DIRTYSET_OFFSET,
 			    TPGEN_DIRTY);

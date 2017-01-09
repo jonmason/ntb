@@ -88,11 +88,14 @@ static int mipi_dsi_stop(const struct nxs_dev *pthis)
 	return 0;
 }
 
-static int mipi_dsi_set_dirty(const struct nxs_dev *pthis)
+static int mipi_dsi_set_dirty(const struct nxs_dev *pthis, u32 type)
 {
 	struct nxs_dsi *dsi = nxs_to_dsi(pthis);
 	u32 val;
 	u8 *reg;
+
+	if (type != NXS_DEV_DIRTY_NORMAL)
+		return 0;
 
 	reg = dsi->nxs2dsi_base + DSI_DPC_CTRL0;
 	val = readl(reg);

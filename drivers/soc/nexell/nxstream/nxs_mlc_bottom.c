@@ -87,10 +87,13 @@ static int mlc_bottom_start(const struct nxs_dev *pthis)
 	return 0;
 }
 
-static int mlc_bottom_set_dirty(const struct nxs_dev *pthis)
+static int mlc_bottom_set_dirty(const struct nxs_dev *pthis, u32 type)
 {
 	struct nxs_bottom *bottom = nxs_to_bottom(pthis);
 	u32 dirty_val;
+
+	if (type != NXS_DEV_DIRTY_TID)
+		return 0;
 
 	if (pthis->dev_inst_index == 0)
 		dirty_val = BOTTOM0_DIRTY;

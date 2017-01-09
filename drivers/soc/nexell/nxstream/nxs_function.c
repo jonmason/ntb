@@ -955,7 +955,8 @@ int nxs_function_config(struct nxs_function_instance *inst, bool dirty,
 					    &inst->dev_list,
 					    func_list) {
 			if (nxs_dev->set_dirty) {
-				ret = nxs_dev->set_dirty(nxs_dev);
+				ret = nxs_dev->set_dirty(nxs_dev,
+							 NXS_DEV_DIRTY_NORMAL);
 				if (ret)
 					return ret;
 			}
@@ -1009,13 +1010,14 @@ int nxs_function_ready(struct nxs_function_instance *inst)
 	first = list_first_entry(&inst->dev_list, struct nxs_dev, func_list);
 	list_for_each_entry_reverse(nxs_dev, &inst->dev_list, func_list) {
 		if (nxs_dev->set_dirty) {
-			ret = nxs_dev->set_dirty(nxs_dev);
+			ret = nxs_dev->set_dirty(nxs_dev, NXS_DEV_DIRTY_NORMAL);
 			if (ret)
 				return ret;
 		}
 
 		if (nxs_dev == first && inst->top) {
-			ret = inst->top->set_dirty(inst->top);
+			ret = inst->top->set_dirty(inst->top,
+						   NXS_DEV_DIRTY_NORMAL);
 			if (ret)
 				return ret;
 		}

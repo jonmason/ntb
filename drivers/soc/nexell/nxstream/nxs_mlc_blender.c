@@ -110,42 +110,80 @@ static int mlc_blender_stop(const struct nxs_dev *pthis)
 	return 0;
 }
 
-static int mlc_blender_set_dirty(const struct nxs_dev *pthis)
+static int mlc_blender_set_dirty(const struct nxs_dev *pthis, u32 type)
 {
 	struct nxs_blender *blender = nxs_to_blender(pthis);
 	u32 dirty_val;
 
-	switch (pthis->dev_inst_index) {
-	case 0:
-		dirty_val = BLENDER0_DIRTY;
-		break;
-	case 1:
-		dirty_val = BLENDER1_DIRTY;
-		break;
-	case 2:
-		dirty_val = BLENDER2_DIRTY;
-		break;
-	case 3:
-		dirty_val = BLENDER3_DIRTY;
-		break;
-	case 4:
-		dirty_val = BLENDER4_DIRTY;
-		break;
-	case 5:
-		dirty_val = BLENDER5_DIRTY;
-		break;
-	case 6:
-		dirty_val = BLENDER6_DIRTY;
-		break;
-	case 7:
-		dirty_val = BLENDER7_DIRTY;
-		break;
-	default:
-		dev_err(pthis->dev, "invalid inst %d\n", pthis->dev_inst_index);
-		return -ENODEV;
-	}
+	if (type == NXS_DEV_DIRTY_TID) {
+		switch (pthis->dev_inst_index) {
+		case 0:
+			dirty_val = BLENDER0_TID_DIRTY;
+			break;
+		case 1:
+			dirty_val = BLENDER1_TID_DIRTY;
+			break;
+		case 2:
+			dirty_val = BLENDER2_TID_DIRTY;
+			break;
+		case 3:
+			dirty_val = BLENDER3_TID_DIRTY;
+			break;
+		case 4:
+			dirty_val = BLENDER4_TID_DIRTY;
+			break;
+		case 5:
+			dirty_val = BLENDER5_TID_DIRTY;
+			break;
+		case 6:
+			dirty_val = BLENDER6_TID_DIRTY;
+			break;
+		case 7:
+			dirty_val = BLENDER7_TID_DIRTY;
+			break;
+		default:
+			dev_err(pthis->dev, "invalid inst %d\n",
+				pthis->dev_inst_index);
+			return -ENODEV;
+		}
 
-	return regmap_write(blender->reg, BLENDER_DIRTYSET_OFFSET, dirty_val);
+		return regmap_write(blender->reg, BLENDER_DIRTYSET_OFFSET,
+				    dirty_val);
+	} else {
+		switch (pthis->dev_inst_index) {
+		case 0:
+			dirty_val = BLENDER0_DIRTY;
+			break;
+		case 1:
+			dirty_val = BLENDER1_DIRTY;
+			break;
+		case 2:
+			dirty_val = BLENDER2_DIRTY;
+			break;
+		case 3:
+			dirty_val = BLENDER3_DIRTY;
+			break;
+		case 4:
+			dirty_val = BLENDER4_DIRTY;
+			break;
+		case 5:
+			dirty_val = BLENDER5_DIRTY;
+			break;
+		case 6:
+			dirty_val = BLENDER6_DIRTY;
+			break;
+		case 7:
+			dirty_val = BLENDER7_DIRTY;
+			break;
+		default:
+			dev_err(pthis->dev, "invalid inst %d\n",
+				pthis->dev_inst_index);
+			return -ENODEV;
+		}
+
+		return regmap_write(blender->reg, BLENDER_DIRTYSET_OFFSET,
+				    dirty_val);
+	}
 }
 
 static int mlc_blender_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
@@ -153,40 +191,8 @@ static int mlc_blender_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
 	struct nxs_blender *blender = nxs_to_blender(pthis);
 	u32 dirty_val;
 
-	regmap_update_bits(blender->reg, blender->offset + BLENDER_CTRL0,
-			   BLENDER_TID_MASK, tid1 << BLENDER_TID_SHIFT);
-
-	switch (pthis->dev_inst_index) {
-	case 0:
-		dirty_val = BLENDER0_TID_DIRTY;
-		break;
-	case 1:
-		dirty_val = BLENDER1_TID_DIRTY;
-		break;
-	case 2:
-		dirty_val = BLENDER2_TID_DIRTY;
-		break;
-	case 3:
-		dirty_val = BLENDER3_TID_DIRTY;
-		break;
-	case 4:
-		dirty_val = BLENDER4_TID_DIRTY;
-		break;
-	case 5:
-		dirty_val = BLENDER5_TID_DIRTY;
-		break;
-	case 6:
-		dirty_val = BLENDER6_TID_DIRTY;
-		break;
-	case 7:
-		dirty_val = BLENDER7_TID_DIRTY;
-		break;
-	default:
-		dev_err(pthis->dev, "invalid inst %d\n", pthis->dev_inst_index);
-		return -ENODEV;
-	}
-
-	return regmap_write(blender->reg, BLENDER_DIRTYSET_OFFSET, dirty_val);
+	return regmap_update_bits(blender->reg, blender->offset + BLENDER_CTRL0,
+				  BLENDER_TID_MASK, tid1 << BLENDER_TID_SHIFT);
 }
 
 static int mlc_blender_set_format(const struct nxs_dev *pthis,

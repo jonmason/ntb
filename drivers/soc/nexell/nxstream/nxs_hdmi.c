@@ -87,11 +87,14 @@ static int hdmi_stop(const struct nxs_dev *pthis)
 	return 0;
 }
 
-static int hdmi_set_dirty(const struct nxs_dev *pthis)
+static int hdmi_set_dirty(const struct nxs_dev *pthis, u32 type)
 {
 	struct nxs_hdmi *hdmi = nxs_to_hdmi(pthis);
 	u32 val;
 	u8 *reg;
+
+	if (type != NXS_DEV_DIRTY_NORMAL)
+		return 0;
 
 	reg = hdmi->nxs2hdmi_base + HDMI_DPC_CTRL0;
 	val = readl(reg);

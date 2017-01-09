@@ -115,9 +115,12 @@ static int fifo_stop(const struct nxs_dev *pthis)
 	return 0;
 }
 
-static int fifo_set_dirty(const struct nxs_dev *pthis)
+static int fifo_set_dirty(const struct nxs_dev *pthis, u32 type)
 {
 	struct nxs_fifo *fifo = nxs_to_fifo(pthis);
+
+	if (type != NXS_DEV_DIRTY_NORMAL)
+		return 0;
 
 	return regmap_update_bits(fifo->reg, fifo->offset + FIFO_CTRL,
 				  FIFO_DIRTY_MASK,
