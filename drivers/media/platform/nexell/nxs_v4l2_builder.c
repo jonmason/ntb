@@ -2051,13 +2051,13 @@ static void nxs_vb2_stop_streaming(struct vb2_queue *q)
 	struct nxs_video_fh *vfh = vb2_get_drv_priv(q);
 	struct nxs_video *video = vfh->video;
 
-	nxs_function_stop(video->nxs_function);
+	nxs_function_disconnect(video->nxs_function);
 	nxs_function_unregister_irqcallback(video->nxs_function,
 					    video->irq_callback);
+	nxs_function_stop(video->nxs_function);
 	kfree(video->irq_callback);
 	video->irq_callback = NULL;
 
-	nxs_function_disconnect(video->nxs_function);
 
 	if (need_camera_sensor(video))
 		capture_off(video);
