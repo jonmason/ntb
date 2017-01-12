@@ -1200,31 +1200,43 @@ error_out:
 }
 EXPORT_SYMBOL_GPL(nxs_function_build);
 
-struct nxs_function *nxs_function_make(int dev_num, ...)
+struct nxs_function *nxs_function_make(int dev_num, bool blending,
+				       u32 disp_num, ...)
 {
 	int i;
 	va_list arg;
-	struct nxs_function_elem *elem;
 	struct nxs_function_request *req;
 	u32 func_num, func_index;
 
 	req = kzalloc(sizeof(*req), GFP_KERNEL);
 	INIT_LIST_HEAD(&req->head);
 
-	va_start(arg, dev_num);
+	if (blending) {
+		req->flags |= BLENDING_TO_OTHER;
+		req->option.display_id = disp_num;
+	}
+
+	va_start(arg, disp_num);
 	for (i = 0; i < dev_num; i++) {
 		func_num = va_arg(arg, u32);
 		func_index = va_arg(arg, u32);
 
-		elem = kzalloc(sizeof(*elem), GFP_KERNEL);
-		if (WARN(!elem, "failed to alloc nxs_function_elem\n"))
-			return NULL;
+		if (func_num == NXS_FUNCTION_MLC_BOTTOM) {
+			req->flags |= BLENDING_TO_BOTTOM;
+			req->option.bottom_id = func_index;
+		} else {
+			struct nxs_function_elem *elem;
 
-		elem->function = func_num;
-		elem->index = func_index;
-		elem->user = NXS_FUNCTION_USER_KERNEL;
-		list_add_tail(&elem->list, &req->head);
-		req->nums_of_function++;
+			elem = kzalloc(sizeof(*elem), GFP_KERNEL);
+			if (WARN(!elem, "failed to alloc nxs_function_elem\n"))
+				return NULL;
+
+			elem->function = func_num;
+			elem->index = func_index;
+			elem->user = NXS_FUNCTION_USER_KERNEL;
+			list_add_tail(&elem->list, &req->head);
+			req->nums_of_function++;
+		}
 	}
 	va_end(arg);
 
