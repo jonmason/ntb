@@ -2311,11 +2311,19 @@ static int nxs_subdev_set_dstfmt(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static void nxs_video_subdev_irqcallback(struct nxs_dev *nxs_dev, void *data)
+{
+}
+
 static int nxs_subdev_start(struct v4l2_subdev *sd)
 {
 	struct nxs_video *video = v4l2_get_subdevdata(sd);
 	struct nxs_subdev_ctx *ctx = video->subdev_ctx;
 	int ret;
+
+	video->irq_callback =
+		nxs_function_register_irqcallback(video->nxs_function, video,
+						  nxs_video_subdev_irqcallback);
 
 	ret = nxs_subdev_chain_config(video->nxs_function, ctx);
 	if (ret)
@@ -2345,8 +2353,12 @@ static int nxs_subdev_stop(struct v4l2_subdev *sd)
 
 	nxs_function_stop(video->nxs_function);
 	nxs_function_disconnect(video->nxs_function);
+	nxs_function_stop(video->nxs_function);
 	if (need_camera_sensor(video))
 		return capture_off(video);
+
+	kfree(video->irq_callback);
+	video->irq_callback = NULL;
 
 	return 0;
 }
