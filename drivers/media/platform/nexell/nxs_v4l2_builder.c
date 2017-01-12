@@ -2055,9 +2055,7 @@ static void nxs_vb2_stop_streaming(struct vb2_queue *q)
 	nxs_function_unregister_irqcallback(video->nxs_function,
 					    video->irq_callback);
 	nxs_function_stop(video->nxs_function);
-	kfree(video->irq_callback);
 	video->irq_callback = NULL;
-
 
 	if (need_camera_sensor(video))
 		capture_off(video);
@@ -2354,11 +2352,10 @@ static int nxs_subdev_stop(struct v4l2_subdev *sd)
 	nxs_function_stop(video->nxs_function);
 	nxs_function_disconnect(video->nxs_function);
 	nxs_function_stop(video->nxs_function);
+	video->irq_callback = NULL;
+
 	if (need_camera_sensor(video))
 		return capture_off(video);
-
-	kfree(video->irq_callback);
-	video->irq_callback = NULL;
 
 	return 0;
 }
