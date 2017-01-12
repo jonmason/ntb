@@ -40,6 +40,7 @@ enum nxs_control_type {
 	NXS_CONTROL_SYNCINFO,
 	NXS_CONTROL_BUFFER,
 	NXS_CONTROL_GAMMA,
+	NXS_CONTROL_STATUS, /* device specific status ex> hdmi connected? */
 	/* NXS_CONTROL_TPGEN	= NXS_SET_TPGEN, */
 	NXS_CONTROL_MAX
 };
@@ -96,6 +97,7 @@ struct nxs_control {
 		struct nxs_control_buffer buffer;
 		/* struct nxs_control_tpgen tpgen; */
 		u32 gamma;
+		u32 status;
 	} u;
 };
 
