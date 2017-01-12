@@ -1439,13 +1439,17 @@ void nxs_function_disconnect(struct nxs_function *f)
 }
 EXPORT_SYMBOL_GPL(nxs_function_disconnect);
 
-struct nxs_dev *nxs_function_find_dev(struct nxs_function *f, u32 dev_function)
+struct nxs_dev *nxs_function_find_dev(struct nxs_function *f, u32 dev_function,
+				      u32 index)
 {
 	struct nxs_dev *nxs_dev;
 
 	list_for_each_entry(nxs_dev, &f->dev_list, func_list)
-		if (nxs_dev->dev_function == dev_function)
-			return nxs_dev;
+		if (nxs_dev->dev_function == dev_function) {
+			if (index == NXS_FUNCTION_ANY ||
+			    index == nxs_dev->dev_inst_index)
+				return nxs_dev;
+		}
 
 	return NULL;
 }

@@ -170,7 +170,7 @@ int nxs_function_start(struct nxs_function *f);
 void nxs_function_stop(struct nxs_function *f);
 void nxs_function_disconnect(struct nxs_function *f);
 struct nxs_dev *nxs_function_find_dev(struct nxs_function *f,
-				      u32 dev_function);
+				      u32 dev_function, u32 index);
 int nxs_function_register_display(struct nxs_function *f);
 int nxs_function_unregister_display(struct nxs_function *f);
 int nxs_function_add_to_display(int disp, struct nxs_function *f);

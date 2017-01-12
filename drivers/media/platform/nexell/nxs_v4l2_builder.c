@@ -514,7 +514,8 @@ static int nxs_subdev_chain_config(struct nxs_function *f,
 
 	/* set cropper */
 	nxs_dev_to = NULL;
-	nxs_dev_to = nxs_function_find_dev(f, NXS_FUNCTION_CROPPER);
+	nxs_dev_to = nxs_function_find_dev(f, NXS_FUNCTION_CROPPER,
+					   NXS_FUNCTION_ANY);
 	/* pr_info("FOR CROPPER ====> \n"); */
 	if (nxs_dev_to) {
 		if (ctx->crop.c.width > 0) {
@@ -555,7 +556,8 @@ static int nxs_subdev_chain_config(struct nxs_function *f,
 	/* set csc */
 	/* nxs_dev_from = get_next_nxs_dev(nxs_dev_to); */
 	nxs_dev_from = nxs_dev_to;
-	nxs_dev_to = nxs_function_find_dev(f, NXS_FUNCTION_CSC);
+	nxs_dev_to = nxs_function_find_dev(f, NXS_FUNCTION_CSC,
+					   NXS_FUNCTION_ANY);
 	/* pr_info("FOR CSC ====> \n"); */
 	if (nxs_dev_to) {
 		if (nxs_dev_from)
@@ -585,9 +587,11 @@ static int nxs_subdev_chain_config(struct nxs_function *f,
 
 	/* set scaler */
 	nxs_dev_from = nxs_dev_to;
-	nxs_dev_to = nxs_function_find_dev(f, NXS_FUNCTION_SCALER_4096);
+	nxs_dev_to = nxs_function_find_dev(f, NXS_FUNCTION_SCALER_4096,
+					   NXS_FUNCTION_ANY);
 	if (!nxs_dev_to)
-		nxs_dev_to = nxs_function_find_dev(f, NXS_FUNCTION_SCALER_5376);
+		nxs_dev_to = nxs_function_find_dev(f, NXS_FUNCTION_SCALER_5376,
+						   NXS_FUNCTION_ANY);
 
 	/* pr_info("FOR SCALER ====> \n"); */
 	if (nxs_dev_to) {
