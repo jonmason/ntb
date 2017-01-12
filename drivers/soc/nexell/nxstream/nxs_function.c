@@ -1572,3 +1572,128 @@ int nxs_function_remove_from_display(int disp, struct nxs_function *remove)
 	return remove_function_from_display(d, remove);
 }
 EXPORT_SYMBOL_GPL(nxs_function_remove_from_display);
+
+int nxs_function_dev_set_config(struct nxs_function *f, u32 function, u32 index,
+				struct nxs_control *c)
+{
+	struct nxs_dev *nxs_dev;
+
+	nxs_dev = nxs_function_find_dev(f, function, index);
+	if (!nxs_dev) {
+		WARN_ON(1);
+		return -ENODEV;
+	}
+
+	return nxs_dev->set_control(nxs_dev, c->type, c);
+}
+EXPORT_SYMBOL_GPL(nxs_function_dev_set_config);
+
+int nxs_function_dev_get_config(struct nxs_function *f, u32 function, u32 index,
+				struct nxs_control *c)
+{
+	struct nxs_dev *nxs_dev;
+
+	nxs_dev = nxs_function_find_dev(f, function, index);
+	if (!nxs_dev) {
+		WARN_ON(1);
+		return -ENODEV;
+	}
+
+	return nxs_dev->get_control(nxs_dev, c->type, c);
+}
+EXPORT_SYMBOL_GPL(nxs_function_dev_get_config);
+
+/**
+ * type
+ *  - NXS_CONNECTION_GENERAL: general connection
+ *  - NXS_CONNECTION_BLENDING: display blending connection
+ */
+int nxs_function_dev_connect(struct nxs_function *f, u32 type,
+			     u32 function, u32 index,
+			     u32 target_function, u32 target_index)
+{
+	struct nxs_dev *nxs_dev, *target_dev;
+
+	nxs_dev = nxs_function_find_dev(f, function, index);
+	if (!nxs_dev) {
+		WARN_ON(1);
+		return -ENODEV;
+	}
+
+	target_dev = nxs_function_find_dev(f, target_function, target_index);
+	if (!target_dev) {
+		WARN_ON(1);
+		return -ENODEV;
+	}
+
+	if (WARN(!nxs_dev->set_tid,
+		 "no set_tid func for [%s:%d]\n",
+		 nxs_function_to_str(nxs_dev->dev_function),
+		 nxs_dev->dev_inst_index))
+		return -EINVAL;
+
+	if (type == NXS_CONNECTION_GENERAL)
+		return nxs_dev->set_tid(nxs_dev, target_dev->tid, 0);
+	else if (type == NXS_CONNECTION_BLENDING)
+		return nxs_dev->set_tid(nxs_dev, target_dev->tid2, 0);
+
+	return -EINVAL;
+}
+EXPORT_SYMBOL_GPL(nxs_function_dev_connect);
+
+/**
+ * dirty_type
+ *  - NXS_DEV_DIRTY_NORMAL: dirty for genernal configuration
+ *  - NXS_DEV_DIRTY_TID: dirty for target id
+ */
+int nxs_function_dev_ready(struct nxs_function *f, u32 function, u32 index,
+			   u32 dirty_type)
+{
+	struct nxs_dev *nxs_dev;
+
+	nxs_dev = nxs_function_find_dev(f, function, index);
+	if (!nxs_dev) {
+		WARN_ON(1);
+		return -ENODEV;
+	}
+
+	if (nxs_dev->set_dirty)
+		return nxs_dev->set_dirty(nxs_dev, dirty_type);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(nxs_function_dev_ready);
+
+int nxs_function_dev_start(struct nxs_function *f, u32 function, u32 index)
+{
+	struct nxs_dev *nxs_dev;
+
+	nxs_dev = nxs_function_find_dev(f, function, index);
+	if (!nxs_dev) {
+		WARN_ON(1);
+		return -ENODEV;
+	}
+
+	if (nxs_dev->start)
+		return nxs_dev->start(nxs_dev);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(nxs_function_dev_start);
+
+int nxs_function_dev_stop(struct nxs_function *f, u32 function, u32 index)
+{
+	struct nxs_dev *nxs_dev;
+
+	nxs_dev = nxs_function_find_dev(f, function, index);
+	if (!nxs_dev) {
+		WARN_ON(1);
+		return -ENODEV;
+	}
+
+	if (nxs_dev->stop)
+		return nxs_dev->stop(nxs_dev);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(nxs_function_dev_stop);

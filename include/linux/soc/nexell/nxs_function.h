@@ -24,6 +24,7 @@
 struct v4l2_async_subdev;
 struct nxs_dev;
 struct nxs_irq_callback;
+struct nxs_control;
 
 enum {
 	NXS_FUNCTION_USER_NONE	 = 0,
@@ -143,6 +144,13 @@ struct nxs_capture_ctx {
 	struct device *dev;
 };
 
+enum nxs_connection_type {
+	NXS_CONNECTION_NONE = 0,
+	NXS_CONNECTION_GENERAL,
+	NXS_CONNECTION_BLENDING,
+	NXS_CONNECTION_INVALID
+};
+
 const char *nxs_function_to_str(int function);
 int nxs_capture_bind_sensor(struct device *dev, struct nxs_dev *nxs_dev,
 			    struct v4l2_async_subdev *asd,
@@ -175,5 +183,16 @@ int nxs_function_register_display(struct nxs_function *f);
 int nxs_function_unregister_display(struct nxs_function *f);
 int nxs_function_add_to_display(int disp, struct nxs_function *f);
 int nxs_function_remove_from_display(int disp, struct nxs_function *f);
+int nxs_function_dev_set_config(struct nxs_function *f, u32 function, u32 index,
+				struct nxs_control *c);
+int nxs_function_dev_get_config(struct nxs_function *f, u32 function, u32 index,
+				struct nxs_control *c);
+int nxs_function_dev_connect(struct nxs_function *f, u32 type,
+			     u32 function, u32 index,
+			     u32 target_function, u32 target_index);
+int nxs_function_dev_ready(struct nxs_function *f, u32 function, u32 index,
+			   u32 dirty_type);
+int nxs_function_dev_start(struct nxs_function *f, u32 function, u32 index);
+int nxs_function_dev_stop(struct nxs_function *f, u32 function, u32 index);
 
 #endif
