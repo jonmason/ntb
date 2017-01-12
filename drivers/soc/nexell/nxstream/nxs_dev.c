@@ -37,8 +37,12 @@ int nxs_set_control(const struct nxs_dev *pthis, int type,
 
 	for (i = 0; i < NXS_MAX_SERVICES; i++) {
 		pservice = &pthis->dev_services[i];
-		if (pservice->type == type)
-			return pservice->set_control(pthis, pparam);
+		if (pservice->type == type) {
+			if (pservice->set_control)
+				return pservice->set_control(pthis, pparam);
+			else
+				return 0;
+		}
 	}
 
 	return 0;
@@ -52,8 +56,12 @@ int nxs_get_control(const struct nxs_dev *pthis, int type,
 
 	for (i = 0; i < NXS_MAX_SERVICES; i++) {
 		pservice = &pthis->dev_services[i];
-		if (pservice->type == type)
-			return pservice->get_control(pthis, pparam);
+		if (pservice->type == type) {
+			if (pservice->get_control)
+				return pservice->get_control(pthis, pparam);
+			else
+				return 0;
+		}
 	}
 
 	return 0;
