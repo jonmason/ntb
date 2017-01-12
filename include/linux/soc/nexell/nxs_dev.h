@@ -78,6 +78,11 @@ struct nxs_control_syncinfo {
 	u32 vsyncwidth;
 	u32 hfrontporch;
 	u32 hbackporch;
+	u32 pixelclk;
+	u32 interlace;
+	u32 hsyncpol;
+	u32 vsyncpol;
+	u32 fps;
 };
 
 struct nxs_control_buffer {
