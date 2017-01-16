@@ -21,6 +21,8 @@
 #include <linux/atomic.h>
 #include <linux/spinlock.h>
 
+#include "nxs_display.h"
+
 #define NXS_DEV_MAX_PLANES	3
 
 enum nxs_event_type {
@@ -76,13 +78,15 @@ struct nxs_control_syncinfo {
 	u32 vfrontporch;
 	u32 vbackporch;
 	u32 vsyncwidth;
+	u32 vsyncpol;
 	u32 hfrontporch;
 	u32 hbackporch;
-	u32 pixelclk;
-	u32 interlace;
+	u32 hsyncwidth;
 	u32 hsyncpol;
-	u32 vsyncpol;
+	u32 pixelclock;
 	u32 fps;
+	u32 interlaced;
+	u32 flags;	/* private flags EX> hdmi DVI mode */
 };
 
 struct nxs_control_buffer {
@@ -100,6 +104,7 @@ struct nxs_control {
 		struct nxs_control_tpf tpf;
 		struct nxs_control_syncinfo sync_info;
 		struct nxs_control_buffer buffer;
+		struct nxs_control_display display;
 		/* struct nxs_control_tpgen tpgen; */
 		u32 gamma;
 		u32 status;
