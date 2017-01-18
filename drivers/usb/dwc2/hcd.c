@@ -3078,7 +3078,7 @@ exit:
 		 * now. This function is called from interrupt
 		 * handlers to queue more transactions as transfer
 		 * states change.
-		*/
+		 */
 		gintmsk = dwc2_readl(hsotg->regs + GINTMSK);
 		if (gintmsk & GINTSTS_PTXFEMP) {
 			gintmsk &= ~GINTSTS_PTXFEMP;
