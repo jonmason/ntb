@@ -156,12 +156,30 @@
 
 		i2s_1:i2s@c0056000 {
 			#sound-dai-cells = <1>;
-			master-mode = <1>;
-			mclk-in = <0>;
+			master-mode = <0>;
+			mclk-in = <1>;
 			trans-mode = <0>;
 			frame-bit = <32>;
 			sample-rate = <48000>;
-			pre-supply-mclk = <1>;
+			pre-supply-mclk = <0>;
+			status = "okay";
+		};
+
+		i2s_2:i2s@c0057000 {
+			#sound-dai-cells = <1>;
+			master-mode = <0>;
+			mclk-in = <1>;
+			trans-mode = <0>;
+			frame-bit = <32>;
+			sample-rate = <48000>;
+			pre-supply-mclk = <0>;
+			status = "okay";
+		};
+
+		spdif_tx: spdiftx@c0059000 {
+			#sound-dai-cells = <1>;
+			pcm-bit = <16>;
+			sample_rate = <48000>;
 			status = "okay";
 		};
 
@@ -170,12 +188,17 @@
 			#size-cells = <0>;
 			status = "okay";
 
-			rt5640: rt5640@1c {
+			tlv320dac3203: tlv320dac3203@18 {
 				#sound-dai-cells = <0>;
-				compatible = "realtek,rt5640";
-				reg = <0x1c>;
-				realtek,ldo1-en-gpios =
-				    <&gpio_c 4 GPIO_ACTIVE_HIGH>;
+				compatible = "ti,tlv320aic32x4";
+				reg = <0x18>;
+				reset-gpios = <&gpio_c 29 GPIO_ACTIVE_LOW>;
+				clocks = <&i2s0>;
+				clock-names = "mclk";
+				iov-supply = <&iov>;
+				ldoin-supply = <&ldoin>;
+				dv-supply = <&dv>;
+				av-supply = <&av>;
 			};
 		};
 
@@ -312,8 +335,111 @@
 				}; /* regulators */
 			}; /* nxe2000@32 */
 		}; /* i2c_gpio3 */
+	}; /*** soc ***/
 
-	};	/*** soc ***/
+	audio_en: regulator-fix@0 {
+		compatible = "regulator-fixed";
+
+		regulator-name = "AUDIO EN";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+		regulator-always-on;
+
+		gpio = <&gpio_e 11 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+	};
+
+	iov: regulator-fix@1 {
+		compatible = "regulator-fixed";
+
+		regulator-name = "IOV";
+	};
+
+	ldoin: regulator-fix@2 {
+		compatible = "regulator-fixed";
+
+		regulator-name = "LDOIN";
+	};
+
+	dv: regulator-fix@3 {
+		compatible = "regulator-fixed";
+
+		regulator-name = "DV";
+	};
+
+	av: regulator-fix@4 {
+		compatible = "regulator-fixed";
+
+		regulator-name = "AV";
+	};
+
+	snd_null: snd_null@0 {
+		#sound-dai-cells = <0>;
+		compatible = "nexell,snd-null";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0 0>;
+	};
+
+	spdif_out: spdif-out {
+		#sound-dai-cells = <0>;
+		compatible = "linux,spdif-dit";
+	};
+
+	sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "s5p4418 smart_voice Audio";
+		simple-audio-card,widgets =
+		    "Headphone", "Out Jack";
+		simple-audio-card,routing =
+		    "Out Jack", "HPL",
+		    "Out Jack", "HPR";
+		status = "okay";
+		simple-audio-card,dai-link@0 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s_0 0>;
+			};
+
+			codec {
+				sound-dai = <&tlv320dac3203>;
+			};
+		};
+
+		simple-audio-card,dai-link@1 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s_1 0>;
+			};
+
+			codec {
+				sound-dai = <&snd_null>;
+			};
+		};
+
+		simple-audio-card,dai-link@2 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s_2 0>;
+			};
+
+			codec {
+				sound-dai = <&snd_null>;
+			};
+		};
+
+		simple-audio-card,dai-link@3 {
+			mclk-fs = <256>;
+			cpu {
+				sound-dai = <&spdif_tx 0>;
+			};
+
+			codec {
+				sound-dai = <&spdif_out>;
+			};
+		};
+	};
 };
 
 
