@@ -159,6 +159,8 @@ static const struct aic32x4_rate_divs aic32x4_divs[] = {
 	{AIC32X4_FREQ_25000000, 44100, 2, 7, 2253, 128, 8, 2, 64, 8, 4, 4},
 	/* 48k rate */
 	{AIC32X4_FREQ_12000000, 48000, 1, 8, 1920, 128, 2, 8, 128, 2, 8, 4},
+	{AIC32X4_FREQ_12287880,	48000, 1, 7, 1920, 128, 1, 2, 128, 1, 2, 4},
+	{AIC32X4_FREQ_12288000,	48000, 1, 7, 1920, 128, 1, 2, 128, 1, 2, 4},
 	{AIC32X4_FREQ_24000000, 48000, 2, 8, 1920, 128, 8, 2, 64, 8, 4, 4},
 	{AIC32X4_FREQ_25000000, 48000, 2, 7, 8643, 128, 8, 2, 64, 8, 4, 4}
 };
@@ -318,6 +320,8 @@ static int aic32x4_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 
 	switch (freq) {
 	case AIC32X4_FREQ_12000000:
+	case AIC32X4_FREQ_12287880:
+	case AIC32X4_FREQ_12288000:
 	case AIC32X4_FREQ_24000000:
 	case AIC32X4_FREQ_25000000:
 		aic32x4->sysclk = freq;
@@ -452,6 +456,7 @@ static int aic32x4_hw_params(struct snd_pcm_substream *substream,
 	data = data & ~(3 << 4);
 	switch (params_width(params)) {
 	case 16:
+		data |= (AIC32X4_WORD_LEN_16BITS << AIC32X4_DOSRMSB_SHIFT);
 		break;
 	case 20:
 		data |= (AIC32X4_WORD_LEN_20BITS << AIC32X4_DOSRMSB_SHIFT);
@@ -665,6 +670,8 @@ static struct snd_soc_codec_driver soc_codec_dev_aic32x4 = {
 	.num_dapm_widgets = ARRAY_SIZE(aic32x4_dapm_widgets),
 	.dapm_routes = aic32x4_dapm_routes,
 	.num_dapm_routes = ARRAY_SIZE(aic32x4_dapm_routes),
+	.reg_cache_size = AIC32X4_RMICPGAVOL,
+	.reg_word_size = sizeof(u16),
 };
 
 static int aic32x4_parse_dt(struct aic32x4_priv *aic32x4,
