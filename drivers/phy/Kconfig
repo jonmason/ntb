@@ -244,7 +244,7 @@ config PHY_SUN9I_USB
 config PHY_SAMSUNG_USB2
 	tristate "Samsung USB 2.0 PHY driver"
 	depends on HAS_IOMEM
-	depends on USB_EHCI_EXYNOS || USB_OHCI_EXYNOS || USB_DWC2
+	depends on USB_EHCI_EXYNOS || USB_OHCI_EXYNOS || USB_DWC2 || USB_DWCOTG
 	select GENERIC_PHY
 	select MFD_SYSCON
 	default ARCH_EXYNOS || ARCH_S5P4418 || ARCH_S5P6818
