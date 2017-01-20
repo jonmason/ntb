@@ -143,7 +143,7 @@
 			cooling-maps {
 				map0 {
 					trip = <&cpu_alert0>;
-					cooling-device = <&cpu0 2 6>;
+					cooling-device = <&cpu0 2 2>;
 				};
 				map1 {
 					trip = <&cpu_alert1>;
