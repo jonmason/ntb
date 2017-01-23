@@ -3270,6 +3270,14 @@ static void dwc2_conn_id_status_change(struct work_struct *work)
 				 dwc2_is_host_mode(hsotg) ? "Host" :
 				 "Peripheral");
 			msleep(20);
+			/*
+			 * Sometimes the initial GOTGCTRL read is wrong, so
+			 * check it again and jump to host mode if that was
+			 * the case.
+			 */
+			gotgctl = dwc2_readl(hsotg->regs + GOTGCTL);
+			if (!(gotgctl & GOTGCTL_CONID_B))
+				goto host;
 			if (++count > 250)
 				break;
 		}
@@ -3290,6 +3298,7 @@ static void dwc2_conn_id_status_change(struct work_struct *work)
 		dwc2_hsotg_core_connect(hsotg);
 		spin_unlock_irqrestore(&hsotg->lock, flags);
 	} else {
+host:
 		/* A-Device connector (Host Mode) */
 		dev_dbg(hsotg->dev, "connId A\n");
 		while (!dwc2_is_host_mode(hsotg)) {
