@@ -179,6 +179,7 @@ struct nx_i2s_snd_param {
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
 	struct work_struct qos_work;
 #endif
+	struct snd_soc_dai_driver dai_drv;
 };
 
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
@@ -390,11 +391,9 @@ static void i2s_stop(struct snd_soc_dai *dai, int stream)
 	SND_I2S_UNLOCK(&par->lock, par->flags);
 }
 
-static struct snd_soc_dai_driver i2s_dai_driver;
-
 static int nx_i2s_check_param(struct nx_i2s_snd_param *par, struct device *dev)
 {
-	static struct snd_soc_dai_driver *dai = &i2s_dai_driver;
+	struct snd_soc_dai_driver *dai = &par->dai_drv;
 	struct i2s_register *i2s = &par->i2s;
 	struct nx_pcm_dma_param *dmap_play = &par->play;
 	struct nx_pcm_dma_param *dmap_capt = &par->capt;
@@ -544,10 +543,10 @@ done:
 static int nx_i2s_set_plat_param(struct nx_i2s_snd_param *par, void *data)
 {
 	struct platform_device *pdev = data;
+	struct snd_soc_dai_driver *dai = &par->dai_drv;
 	struct nx_pcm_dma_param *dma = &par->play;
 	int i = 0, ret = 0;
 	unsigned int id = 0;
-	static struct snd_soc_dai_driver *dai = &i2s_dai_driver;
 	char clkname[MAX_CLK_NAME_LENGTH];
 	int dfs_pllno;
 	struct resource *res;
@@ -612,6 +611,8 @@ static int nx_i2s_set_plat_param(struct nx_i2s_snd_param *par, void *data)
 					     I2S_RXD_OFFSET);
 		dma->bus_width_byte = I2S_BUS_WIDTH;
 		dma->max_burst_byte = I2S_PERI_BURST;
+		dma->dma_ch_name = "i2s";
+
 		dev_dbg(&pdev->dev, "snd i2s: %s dma (peri 0x%p, bus %dbits)\n",
 			STREAM_STR(i), (void *)dma->peri_addr,
 			dma->bus_width_byte*8);
@@ -944,36 +945,35 @@ static int nx_i2s_dai_remove(struct snd_soc_dai *dai)
 	return 0;
 }
 
-static struct snd_soc_dai_driver i2s_dai_driver = {
-	.probe		= nx_i2s_dai_probe,
-	.remove		= nx_i2s_dai_remove,
-	.suspend	= nx_i2s_dai_suspend,
-	.resume		= nx_i2s_dai_resume,
-	.playback	= {
-		.stream_name = "Playback",
-		.channels_min	= 2,
-		.channels_max	= 2,
-		.formats		= SND_SOC_I2S_FORMATS,
-		.rates			= SND_SOC_I2S_RATES,
-		.rate_min		= 0,
-		.rate_max		= 192000,
-		},
-	.capture	= {
-		.stream_name = "Capture",
-		.channels_min	= 2,
-		.channels_max	= 2,
-		.formats		= SND_SOC_I2S_FORMATS,
-		.rates			= SND_SOC_I2S_RATES,
-		.rate_min		= 0,
-		.rate_max		= 192000,
-		},
-	.ops = &nx_i2s_ops,
-	.symmetric_rates = 1,
-};
-
 static const struct snd_soc_component_driver nx_i2s_component = {
 	.name = "nx-i2sc",
 };
+
+static void nx_i2s_dai_init(struct snd_soc_dai_driver *dai)
+{
+	dai->probe = nx_i2s_dai_probe;
+	dai->remove = nx_i2s_dai_remove;
+	dai->suspend = nx_i2s_dai_suspend;
+	dai->resume = nx_i2s_dai_resume;
+	dai->ops = &nx_i2s_ops;
+	dai->symmetric_rates = 1;
+
+	dai->playback.stream_name = "Playback";
+	dai->playback.channels_min = 2;
+	dai->playback.channels_max = 2;
+	dai->playback.formats = SND_SOC_I2S_FORMATS;
+	dai->playback.rates = SND_SOC_I2S_RATES;
+	dai->playback.rate_min = 0;
+	dai->playback.rate_max = 192000;
+
+	dai->capture.stream_name = "Capture";
+	dai->capture.channels_min = 2;
+	dai->capture.channels_max = 2;
+	dai->capture.formats = SND_SOC_I2S_FORMATS;
+	dai->capture.rates = SND_SOC_I2S_RATES;
+	dai->capture.rate_min = 0;
+	dai->capture.rate_max = 192000;
+}
 
 static int nx_i2s_probe(struct platform_device *pdev)
 {
@@ -985,12 +985,14 @@ static int nx_i2s_probe(struct platform_device *pdev)
 	if (!par)
 		return -ENOMEM;
 
+	nx_i2s_dai_init(&par->dai_drv);
+
 	ret = nx_i2s_set_plat_param(par, pdev);
 	if (ret)
 		goto err_out;
 
-	ret = devm_snd_soc_register_component(&pdev->dev, &nx_i2s_component,
-					 &i2s_dai_driver, 1);
+	ret = devm_snd_soc_register_component(
+			&pdev->dev, &nx_i2s_component, &par->dai_drv, 1);
 	if (ret) {
 		dev_err(&pdev->dev, "fail, %s snd_soc_register_component ...\n",
 		       pdev->name);
