@@ -183,6 +183,14 @@
 			status = "okay";
 		};
 
+		snd_spi_2:snd_spi@c005f000 {
+			data-bit = <16>;
+			clock-frequency = <100000000>;
+			clock-invert = <1>;
+			clock-phase = <1>;
+			status = "okay";
+		};
+
 		i2c_1:i2c@c00a5000 {
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -387,8 +395,31 @@
 		compatible = "linux,spdif-dit";
 	};
 
+	snd_smart_voice: snd_smart_voice@0 {
+		#sound-dai-cells = <0>;
+		compatible = "nexell,snd-smart-voice,i2s,pl022";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		gpio_regs = < PHYS_BASE_GPIOA 0x1000
+			PHYS_BASE_GPIOB 0x1000
+			PHYS_BASE_GPIOC 0x1000
+			PHYS_BASE_GPIOD 0x1000
+			PHYS_BASE_GPIOE 0x1000
+			PHYS_BASE_ALIVE 0x200>;
+
+		cpu-dais = <2>;	/* i2s:1EA, spi:1EA */
+		skip-frame-detect = <0>;
+		pin {
+			spi-cs-gpio = <&gpio_c 16 0>;
+			pdm-isrun-gpio = <&gpio_e 4 0>;
+			pdm-lrck-gpio = <&gpio_b 26 0>;
+			i2s-lrck-gpio = <&gpio_b 4 0>;
+		};
+	};
+
 	sound {
-		compatible = "simple-audio-card";
+		compatible = "nexell,simple-audio-card";
 		simple-audio-card,name = "s5p4418 smart_voice Audio";
 		simple-audio-card,widgets =
 		    "Headphone", "Out Jack";
@@ -425,7 +456,7 @@
 			};
 
 			codec {
-				sound-dai = <&snd_null>;
+				sound-dai = <&snd_smart_voice>;
 			};
 		};
 
@@ -437,6 +468,16 @@
 
 			codec {
 				sound-dai = <&spdif_out>;
+			};
+		};
+
+		simple-audio-card,dai-link@4 {
+			format = "spi";
+			cpu {
+				sound-dai = <&snd_spi_2 0>;
+			};
+			codec {
+				sound-dai = <&snd_smart_voice>;
 			};
 		};
 	};
