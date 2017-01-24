@@ -699,6 +699,69 @@
 			status = "disabled";
 		};
 
+		snd_spi_0:snd_spi@c005b000 {
+			compatible = "nexell,nexell-snd-pl022";
+			reg = <PHYS_BASE_SSP0 0x1000>;
+			interrupts = <IRQ_SSP0>;
+			dmas = <&pl08xdma0 6 0>, <&pl08xdma0 7 0>;
+			dma-names = "tx", "rx";
+			clocks = <&spi0>;
+			clock-names = "SSPCLK";
+			resets = <&nexell_reset RESET_ID_SSP0_P>,
+			       <&nexell_reset RESET_ID_SSP0>;
+			reset-names = "pre-reset","spi-reset";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			num-cs = <1>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi0_bus>;
+
+			#sound-dai-cells = <1>;
+			status = "disabled";
+		};
+
+		snd_spi_1:snd_spi@c005c000 {
+			compatible = "nexell,nexell-snd-pl022";
+			reg = <PHYS_BASE_SSP1 0x1000>;
+			interrupts = <IRQ_SSP1>;
+			dmas = <&pl08xdma0 8 0>, <&pl08xdma0 9 0>;
+			dma-names = "tx", "rx";
+			clocks = <&spi1>;
+			clock-names = "SSPCLK";
+			resets = <&nexell_reset RESET_ID_SSP1_P>,
+			       <&nexell_reset RESET_ID_SSP1>;
+			reset-names = "pre-reset","spi-reset";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			num-cs = <1>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi1_bus>;
+
+			#sound-dai-cells = <1>;
+			status = "disabled";
+		};
+
+		snd_spi_2:snd_spi@c005f000 {
+			compatible = "nexell,nexell-snd-pl022";
+			reg = <PHYS_BASE_SSP2 0x1000>;
+			interrupts = <IRQ_SSP2>;
+			dmas = <&pl08xdma0 10 0>, <&pl08xdma0 11 0>;
+			dma-names = "tx", "rx";
+			clocks = <&spi2>;
+			clock-names = "SSPCLK";
+			resets = <&nexell_reset RESET_ID_SSP2_P>,
+			       <&nexell_reset RESET_ID_SSP2>;
+			reset-names = "pre-reset","spi-reset";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			num-cs = <1>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi2_bus>;
+
+			#sound-dai-cells = <1>;
+			status = "disabled";
+		};
+
 		mipi_csi:mipi_csi@c00d0000 {
 			compatible = "nexell,mipi_csi";
 			reg = <PHYS_BASE_MIPI 0x1000>;
