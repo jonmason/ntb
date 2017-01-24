@@ -41,6 +41,23 @@ config SND_SPDIF_TRANSCEIVER
 	select SND_NX_SPDIF_TX
 	select SND_SOC_SPDIF
 
+config SND_NX_SPI
+	tristate "SPI receiver (PCM)"
+	depends on SND_NX_SOC
+
+choice
+	prompt "SPI device"
+	depends on SND_NX_SPI
+
+	config SND_NX_SPI_PL022
+		bool "ARM AMBA PL022 SSP controller"
+		help
+	  	  This selects the ARM(R) AMBA(R) PrimeCell PL022 SSP
+	  	  controller. If you have an embedded system with an AMBA(R)
+	  	  bus and a PL022 controller, say Y here.
+
+endchoice
+
 config SND_CODEC_NULL
 	tristate "I2S audio null codec."
 	depends on SND_NX_I2S
@@ -64,6 +81,10 @@ config SND_CODEC_ALC5623
 	tristate "ALC5623 I2S audio codec."
 	depends on SND_NX_I2S
 	select SND_SOC_ALC5623
+
+config SND_CODEC_SMARTVOICE
+	tristate "Smart Voice spi/i2s audio codec."
+	depends on SND_NX_SPI
 
 config SND_NX_SIMPLE_CARD
 	tristate "Nexell Simple sound card support"
