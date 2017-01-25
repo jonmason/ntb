@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/init.h>
@@ -25,9 +24,11 @@
 #include <linux/of_fdt.h>
 #include <linux/of_address.h>
 #include <linux/io.h>
+#include <linux/soc/nexell/sec_reg.h>
 
 #define	NX_PIN_FN_SIZE	4
 #define TIEOFF_REG_NUM 33
+#define TIEOFF_PHY_ADDR 0xC0011000
 
 struct	nx_tieoff_registerset {
 	u32	tieoffreg[TIEOFF_REG_NUM];
@@ -35,6 +36,25 @@ struct	nx_tieoff_registerset {
 
 static struct nx_tieoff_registerset *nx_tieoff;
 
+void tieoff_write(int val, int index)
+{
+#ifdef CONFIG_ARCH_S5P4418
+	write_sec_reg_by_id((void __iomem *)(TIEOFF_PHY_ADDR + index * 4),
+			val, NEXELL_TOFF_SEC_ID);
+#else
+	writel(val, &nx_tieoff->tieoffreg[index]);
+#endif
+}
+
+static int tieoff_read(int index)
+{
+#ifdef CONFIG_ARCH_S5P4418
+	return read_sec_reg_by_id((void __iomem *)(TIEOFF_PHY_ADDR + index * 4),
+			NEXELL_TOFF_SEC_ID);
+#else
+	return readl(&nx_tieoff->tieoffreg[index]);
+#endif
+}
 
 void nx_tieoff_set(u32 tieoff_index, u32 tieoff_value)
 {
@@ -56,19 +76,19 @@ void nx_tieoff_set(u32 tieoff_index, u32 tieoff_value)
 	if (msb > 32) {
 		msb &= 0x1F;
 		mask   = ~(0xffffffff<<lsb);
-		regval = readl(&nx_tieoff->tieoffreg[regindex]) & mask;
+		regval = tieoff_read(regindex) & mask;
 		regval |= ((tieoff_value & ((1UL<<BitWidth)-1))<<lsb);
-		writel(regval, &nx_tieoff->tieoffreg[regindex]);
+		tieoff_write(regval, regindex);
 
 		mask   = (0xffffffff<<msb);
-		regval = readl(&nx_tieoff->tieoffreg[regindex+1]) & mask;
+		regval = tieoff_read(regindex+1) & mask;
 		regval |= ((tieoff_value & ((1UL<<BitWidth)-1))>>msb);
-		writel(regval, &nx_tieoff->tieoffreg[regindex+1]);
+		tieoff_write(regval, regindex);
 	} else	{
 		mask	= (0xffffffff<<msb) | (~(0xffffffff<<lsb));
-		regval	= readl(&nx_tieoff->tieoffreg[regindex]) & mask;
+		regval	= tieoff_read(regindex) & mask;
 		regval	|= ((tieoff_value & ((1UL<<BitWidth)-1))<<lsb);
-		writel(regval, &nx_tieoff->tieoffreg[regindex]);
+		tieoff_write(regval, regindex);
 	}
 }
 EXPORT_SYMBOL_GPL(nx_tieoff_set);
@@ -92,15 +112,15 @@ u32 nx_tieoff_get(u32 tieoff_index)
 	if (msb > 32) {
 		msb &= 0x1F;
 		mask   = 0xffffffff<<lsb;
-		regval = readl(&nx_tieoff->tieoffreg[regindex]) & mask;
+		regval = tieoff_read(regindex) & mask;
 		regval >>= lsb;
 
 		mask   = ~(0xffffffff<<msb);
-		regval |= ((readl(&nx_tieoff->tieoffreg[regindex+1]) & mask)
+		regval |= ((tieoff_read(regindex) & mask)
 			  << (32-lsb));
 	} else	{
 		mask   = ~(0xffffffff<<msb) & (0xffffffff<<lsb);
-		regval = readl(&nx_tieoff->tieoffreg[regindex]) & mask;
+		regval = tieoff_read(regindex) & mask;
 		regval >>= lsb;
 	}
 	return regval;
@@ -156,8 +176,8 @@ static int __init cpu_early_initcall_setup(void)
 
 		for (index = 0; size > index; index += 2)
 			nx_tieoff_set(pins[index], pins[index+1]);
-
 	}
+
 	return 0;
 }
 early_initcall(cpu_early_initcall_setup);
