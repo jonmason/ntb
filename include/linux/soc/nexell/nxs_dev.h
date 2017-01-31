@@ -23,12 +23,14 @@
 
 #include "nxs_display.h"
 
-#define NXS_DEV_MAX_PLANES	3
+#define NXS_DEV_MAX_PLANES	2
 
 enum nxs_event_type {
 	NXS_EVENT_IDLE		= 1,
 	NXS_EVENT_UPDATE	= 2,
 	NXS_EVENT_DONE		= 3,
+	NXS_EVENT_ERR		= 4,
+	NXS_EVENT_ALL		= 5,
 	NXS_EVENT_MAX
 };
 
