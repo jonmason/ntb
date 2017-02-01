@@ -53,6 +53,7 @@ struct nxs_control_format {
 	u32 width;
 	u32 height;
 	u32 pixelformat;
+	u32 field;
 };
 
 struct nxs_control_crop {
