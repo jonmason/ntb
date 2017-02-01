@@ -124,6 +124,7 @@ struct nxs_video_fh {
 	unsigned int width;
 	unsigned int height;
 	unsigned int pixelformat;
+	unsigned int field;
 	struct list_head bufq;
 	spinlock_t bufq_lock;
 	atomic_t underflow;
@@ -139,6 +140,7 @@ struct nxs_video_fh {
 	unsigned int dst_width;
 	unsigned int dst_height;
 	unsigned int dst_pixelformat;
+	unsigned int dst_field;
 	atomic_t running;
 	struct completion stop_done;
 };
@@ -377,6 +379,7 @@ static void get_info_of_format(struct v4l2_format *f,
 			       unsigned int sizes[],
 			       unsigned int *width,
 			       unsigned int *height,
+			       unsigned int *field,
 			       unsigned int *pixelformat)
 {
 	/* TODO: check app source set_format routine
@@ -389,7 +392,7 @@ static void get_info_of_format(struct v4l2_format *f,
 		*width = f->fmt.pix_mp.width;
 		*height = f->fmt.pix_mp.height;
 		*pixelformat = f->fmt.pix_mp.pixelformat;
-
+		*field = f->fmt.pix_mp.field;
 		for (i = 0; i < *num_planes; i++) {
 			strides[i] = f->fmt.pix_mp.plane_fmt[i].bytesperline;
 			sizes[i] = f->fmt.pix_mp.plane_fmt[i].sizeimage;
@@ -399,7 +402,7 @@ static void get_info_of_format(struct v4l2_format *f,
 		*width = f->fmt.pix.width;
 		*height = f->fmt.pix.height;
 		*pixelformat = f->fmt.pix.pixelformat;
-
+		*field = f->fmt.pix.field;
 		strides[0] = f->fmt.pix.bytesperline;
 		sizes[0] = f->fmt.pix.sizeimage;
 	}
@@ -436,6 +439,7 @@ static int nxs_chain_config(struct nxs_function *f,
 	format.u.format.width = vfh->width;
 	format.u.format.height = vfh->height;
 	format.u.format.pixelformat = vfh->pixelformat;
+	format.u.format.field = vfh->field;
 
 	crop.type = NXS_CONTROL_CROP;
 	crop.u.crop.l = vfh->crop.c.left;
@@ -465,11 +469,13 @@ static int nxs_m2m_chain_config(struct nxs_function *f,
 	src_f.u.format.width = vfh->width;
 	src_f.u.format.height = vfh->height;
 	src_f.u.format.pixelformat = vfh->pixelformat;
+	src_f.u.format.field = vfh->field;
 
 	dst_f.type = NXS_CONTROL_DST_FORMAT;
 	dst_f.u.format.width = vfh->dst_width;
 	dst_f.u.format.height = vfh->dst_height;
 	dst_f.u.format.pixelformat = vfh->dst_pixelformat;
+	dst_f.u.format.field = vfh->dst_field;
 
 	return nxs_function_config(f, false, 2, &src_f, &dst_f);
 }
@@ -501,15 +507,17 @@ static int nxs_subdev_chain_config(struct nxs_function *f,
 	fmt.u.format.width = ctx->format.width;
 	fmt.u.format.height = ctx->format.height;
 	fmt.u.format.pixelformat = ctx->format.code;
-
+	fmt.u.format.field = ctx->format.field;
 	if (ctx->dst_format.width > 0) {
 		df.u.format.width = ctx->dst_format.width;
 		df.u.format.height = ctx->dst_format.height;
 		df.u.format.pixelformat = ctx->dst_format.code;
+		df.u.format.field = ctx->dst_format.field;
 	} else {
 		df.u.format.width = fmt.u.format.width;
 		df.u.format.height = fmt.u.format.height;
 		df.u.format.pixelformat = fmt.u.format.pixelformat;
+		df.u.format.field = fmt.u.format.field;
 	}
 
 	/* set cropper */
@@ -1167,7 +1175,7 @@ static int m2m_s_fmt(void *fh, struct v4l2_format *f)
 			get_info_of_format(f, &vfh->num_planes,
 					   vfh->strides, vfh->sizes,
 					   &vfh->width, &vfh->height,
-					   &vfh->pixelformat);
+					   &vfh->field, &vfh->pixelformat);
 		} else {
 			/* dst path */
 			memcpy(&vfh->dst_format, f, sizeof(*f));
@@ -1175,6 +1183,7 @@ static int m2m_s_fmt(void *fh, struct v4l2_format *f)
 			get_info_of_format(f, &vfh->dst_num_planes,
 					   vfh->dst_strides, vfh->dst_sizes,
 					   &vfh->dst_width, &vfh->dst_height,
+					   &vfh->dst_field,
 					   &vfh->dst_pixelformat);
 		}
 
@@ -1253,7 +1262,7 @@ static int generic_s_fmt(void *fh, struct v4l2_format *f)
 
 		get_info_of_format(f, &vfh->num_planes, vfh->strides,
 				   vfh->sizes, &vfh->width, &vfh->height,
-				   &vfh->pixelformat);
+				   &vfh->field, &vfh->pixelformat);
 
 		return nxs_vbq_init(vfh, f->type);
 	}
