@@ -26,12 +26,16 @@
 #define NXS_DEV_MAX_PLANES	2
 
 enum nxs_event_type {
-	NXS_EVENT_IDLE		= 1,
-	NXS_EVENT_UPDATE	= 2,
-	NXS_EVENT_DONE		= 3,
-	NXS_EVENT_ERR		= 4,
-	NXS_EVENT_ALL		= 5,
-	NXS_EVENT_MAX
+	NXS_EVENT_NONE		= 0,
+	NXS_EVENT_IDLE		= 1<<0,
+	NXS_EVENT_UPDATE	= 1<<1,
+	NXS_EVENT_DONE		= 1<<2,
+	NXS_EVENT_ERR		= 1<<3,
+	NXS_EVENT_ALL		= (NXS_EVENT_IDLE |
+				   NXS_EVENT_UPDATE |
+				   NXS_EVENT_DONE |
+				   NXS_EVENT_ERR),
+	NXS_EVENT_MAX		= 1<<4,
 };
 
 enum nxs_control_type {
@@ -189,8 +193,8 @@ struct nxs_dev {
 
 	void (*set_interrupt_enable)(const struct nxs_dev *pthis, int type,
 				     bool enable);
-	u32  (*get_interrupt_enable)(const struct nxs_dev *pthis, int type);
-	u32  (*get_interrupt_pending)(const struct nxs_dev *pthis, int type);
+	bool  (*get_interrupt_enable)(const struct nxs_dev *pthis, int type);
+	bool  (*get_interrupt_pending)(const struct nxs_dev *pthis, int type);
 	void (*clear_interrupt_pending)(const struct nxs_dev *pthis, int type);
 
 	int (*open)(const struct nxs_dev *pthis);
