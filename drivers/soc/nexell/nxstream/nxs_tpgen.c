@@ -27,6 +27,8 @@
 #include <linux/mfd/syscon.h>
 #include <linux/platform_device.h>
 
+#include <linux/videodev2.h>
+
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
@@ -70,8 +72,8 @@
 #define TPGEN_UPDATE_INTDISABLE_MASK	BIT(14)
 #define TPGEN_UPDATE_INTENB_SHIFT	13
 #define TPGEN_UPDATE_INTENB_MASK	BIT(13)
-#define TPGEN_UPDATE_INTPEND_CLR_SHIFT	12
-#define TPGEN_UPDATE_INTPEND_CLR_MASK	BIT(12)
+#define TPGEN_UPDATE_INTPEND_SHIFT	12
+#define TPGEN_UPDATE_INTPEND_MASK	BIT(12)
 #define TPGEN_IRQ_OVF_INTDISABLE_SHIFT	10
 #define TPGEN_IRQ_OVF_INTDISABLE_MASK	BIT(10)
 #define TPGEN_IRQ_OVF_INTENB_SHIFT	9
@@ -129,56 +131,325 @@ struct nxs_tpgen {
 	struct nxs_dev nxs_dev;
 	struct regmap *reg;
 	u32 offset;
+	u32 irq;
+	atomic_t open_count;
+};
+
+enum tpgen_format_type {
+	TPGEN_FORMAT_YUV = 0,
+	TPGEN_FORMAT_RGB = 1,
+	TPGEN_FORMAT_BAYER = 3,
 };
 
 #define nxs_to_tpgen(dev)	container_of(dev, struct nxs_tpgen, nxs_dev)
 
+static int tpgen_get_interrupt_pending_number(struct nxs_tpgen *tpgen);
+static void tpgen_clear_interrupt_pending(const struct nxs_dev *pthis,
+					  int type);
+
+static irqreturn_t tpgen_irq_handler(void *priv)
+{
+	struct nxs_tpgen *tpgen = (struct nxs_tpgen *)priv;
+	struct nxs_dev *nxs_dev = &tpgen->nxs_dev;
+	struct nxs_irq_callback *callback;
+	unsigned long flags;
+
+	spin_lock_irqsave(&nxs_dev->irq_lock, flags);
+	list_for_each_entry(callback, &nxs_dev->irq_callback, list) {
+		if (callback)
+			callback->handler(nxs_dev, callback->data);
+		else {
+			int int_pending_num =
+				tpgen_get_interrupt_pending_number(tpgen);
+
+			if (int_pending_num) {
+				dev_info(tpgen->nxs_dev.dev, "[%s] int_num = 0x%x\n",
+					 __func__, int_pending_num);
+				tpgen_clear_interrupt_pending(&tpgen->nxs_dev,
+							      int_pending_num);
+			}
+		}
+	}
+	return IRQ_HANDLED;
+}
+
+static bool tpgen_check_busy(struct nxs_tpgen *tpgen)
+{
+	u32 busy;
+
+	regmap_read(tpgen->reg, tpgen->offset + TPGEN_BASIC_CTRL, &busy);
+	return ~(busy & TPGEN_IDLE_MASK);
+}
+
+static void tpgen_set_realtime_mode(struct nxs_tpgen *tpgen, u32 mode)
+{
+	dev_info(tpgen->nxs_dev.dev, "[%s] mode = %d\n",
+		 __func__, mode);
+	regmap_update_bits(tpgen->reg, tpgen->offset + TPGEN_BASIC_CTRL,
+			   TPGEN_REALTIME_MODE_MASK,
+			   mode << TPGEN_REALTIME_MODE_SHIFT);
+}
+
+static int tpgen_get_realtime_mode(struct nxs_tpgen *tpgen)
+{
+	u32 mode;
+
+	dev_info(tpgen->nxs_dev.dev, "[%s]\n", __func__);
+	regmap_read(tpgen->reg, tpgen->offset + TPGEN_BASIC_CTRL, &mode);
+	return ((mode & TPGEN_REALTIME_MODE_MASK) >> TPGEN_REALTIME_MODE_SHIFT);
+}
+
+static void tpgen_config_stream(struct nxs_tpgen *tpgen)
+{
+	u32 delay, nclk_per_pixel, enc, mode;
+
+	dev_info(tpgen->nxs_dev.dev, "[%s]\n", __func__);
+	/* p_tpgen_parameter->realtime_mode   = 1; */
+	/* set the realtime mode as '0' just for test at the first */
+	tpgen_set_realtime_mode(tpgen, false);
+	/* p_tpgen_parameter->nclk_per_twopix = 1; */
+	/* 0 : 1 clk per two pixel data is genterate */
+	/* 1 : 2 clk per two pixel data is genterate */
+	/* 2 : 3 clk per two pixel data is genterate */
+	nclk_per_pixel = 1;
+	regmap_update_bits(tpgen->reg, tpgen->offset + TPGEN_BASIC_CTRL,
+			   TPGEN_NCLK_PER_TWOPIX_MASK,
+			   nclk_per_pixel << TPGEN_NCLK_PER_TWOPIX_SHIFT);
+	/* p_tpgen_parameter->tp_gen_mode     = 0 ;*/
+	/* tp_gen_mode0: horizental pixel counter */
+	/* tp_gen_mode1: color bar */
+	/* tp_gen_mode2: bayer */
+	mode = 0;
+	/* explanation in the spec said '0' means color bar mode.*/
+	regmap_update_bits(tpgen->reg, tpgen->offset + TPGEN_BASIC_CTRL,
+			   TPGEN_TPGEN_MODE_MASK,
+			   mode << TPGEN_TPGEN_MODE_SHIFT);
+	if (tpgen_get_realtime_mode(tpgen)) {
+		/* p_tpgen_parameter->v2h_delay     = 10 ;*/
+		/* p_tpgen_parameter->h2h_delay     = 10 ;*/
+		/* p_tpgen_parameter->h2v_delay     = 10 ;*/
+		/* p_tpgen_parameter->v2v_delay     = 10 ;*/
+		delay = 10;
+		regmap_write(tpgen->reg, tpgen->offset + TPGEN_V2H_DLY_CTRL,
+			     delay);
+		regmap_write(tpgen->reg, tpgen->offset + TPGEN_H2H_DLY_CTRL,
+			     delay);
+		regmap_write(tpgen->reg, tpgen->offset + TPGEN_H2V_DLY_CTRL,
+			     delay);
+		regmap_write(tpgen->reg, tpgen->offset + TPGEN_V2V_DLY_CTRL,
+			     delay);
+	}
+	/* p_tpgen_parameter->enc_header_0  = 0 ; */
+	/* p_tpgen_parameter->enc_header_1  = 0 ; */
+	/* p_tpgen_parameter->enc_header_2  = 0 ; */
+	/* p_tpgen_parameter->enc_header_3  = 0 ; */
+	regmap_write(tpgen->reg, tpgen->offset + TPGEN_USERDEF_HEADER0, 0);
+	regmap_write(tpgen->reg, tpgen->offset + TPGEN_USERDEF_HEADER1, 0);
+	regmap_write(tpgen->reg, tpgen->offset + TPGEN_USERDEF_HEADER2, 0);
+	regmap_write(tpgen->reg, tpgen->offset + TPGEN_USERDEF_HEADER3, 0);
+	/* p_tpgen_parameter->enc_field     = 0 ; */
+	enc = 0;
+	regmap_update_bits(tpgen->reg, tpgen->offset + TPGEN_CTRL,
+			   TPGEN_ENC_FIELD_MASK,
+			   enc << TPGEN_ENC_FIELD_SHIFT);
+	/* p_tpgen_parameter->enc_secure    = 0 ; */
+	enc = 0;
+	regmap_update_bits(tpgen->reg, tpgen->offset + TPGEN_CTRL,
+			   TPGEN_ENC_SECURE_MASK,
+			   enc << TPGEN_ENC_SECURE_SHIFT);
+	/* p_tpgen_parameter->enc_reg_fire  = 1 ; */
+	enc = 1;
+	regmap_update_bits(tpgen->reg, tpgen->offset + TPGEN_CTRL,
+			   TPGEN_ENC_REG_FIRE_MASK,
+			   enc << TPGEN_ENC_REG_FIRE_SHIFT);
+}
+
+static int tpgen_set_enable(struct nxs_tpgen *tpgen, bool enable)
+{
+	dev_info(tpgen->nxs_dev.dev, "[%s] - %s\n",
+		 __func__, (enable)?"enable":"disable");
+	return regmap_update_bits(tpgen->reg, tpgen->offset + TPGEN_BASIC_CTRL,
+				  TPGEN_TPGEN_ENABLE_MASK,
+				  enable << TPGEN_TPGEN_ENABLE_SHIFT);
+}
+
+static int tpgen_reset_register(struct nxs_tpgen *tpgen)
+{
+	dev_info(tpgen->nxs_dev.dev, "[%s]\n", __func__);
+	return regmap_update_bits(tpgen->reg, tpgen->offset + TPGEN_BASIC_CTRL,
+				  TPGEN_REG_CLEAR_MASK,
+				  1 << TPGEN_REG_CLEAR_SHIFT);
+}
+
 static void tpgen_set_interrupt_enable(const struct nxs_dev *pthis, int type,
-				     bool enable)
+				       bool enable)
 {
+	struct nxs_tpgen *tpgen = nxs_to_tpgen(pthis);
+	u32 mask_v = NXS_EVENT_NONE;
+
+	dev_info(pthis->dev, "[%s] type - %d, %s\n",
+		 __func__, type, (enable)?"enable":"disable");
+	if (enable) {
+		if (type && NXS_EVENT_IDLE)
+			mask_v |= TPGEN_IRQ_IDLE_INTENB_MASK;
+		if (type && NXS_EVENT_UPDATE)
+			mask_v |= TPGEN_UPDATE_INTENB_MASK;
+		if (type && NXS_EVENT_DONE)
+			mask_v |= TPGEN_IRQ_DONE_INTENB_MASK;
+		if (type && NXS_EVENT_ERR)
+			mask_v |= TPGEN_IRQ_OVF_INTENB_MASK;
+	} else {
+		if (type && NXS_EVENT_IDLE)
+			mask_v |= TPGEN_IRQ_IDLE_INTDISABLE_MASK;
+		if (type && NXS_EVENT_UPDATE)
+			mask_v |= TPGEN_UPDATE_INTDISABLE_MASK;
+		if (type && NXS_EVENT_DONE)
+			mask_v |= TPGEN_IRQ_DONE_INTDISABLE_MASK;
+		if (type && NXS_EVENT_ERR)
+			mask_v |= TPGEN_IRQ_OVF_INTDISABLE_MASK;
+	}
+	regmap_update_bits(tpgen->reg, tpgen->offset + TPGEN_INTERRUPT,
+			   mask_v, mask_v);
 }
 
-static u32 tpgen_get_interrupt_enable(const struct nxs_dev *pthis, int type)
+static bool tpgen_get_interrupt_enable(const struct nxs_dev *pthis, int type)
 {
-	return 0;
+	struct nxs_tpgen *tpgen = nxs_to_tpgen(pthis);
+	u32 status = 0, mask_v = 0;
+
+	dev_info(pthis->dev, "[%s] type - %d\n",
+		 __func__, type);
+	regmap_read(tpgen->reg, tpgen->offset + TPGEN_INTERRUPT, &status);
+	if (type && NXS_EVENT_IDLE)
+		mask_v |= TPGEN_IRQ_IDLE_INTENB_MASK;
+	if (type && NXS_EVENT_UPDATE)
+		mask_v |= TPGEN_UPDATE_INTENB_MASK;
+	if (type && NXS_EVENT_DONE)
+		mask_v |= TPGEN_IRQ_DONE_INTENB_MASK;
+	if (type && NXS_EVENT_ERR)
+		mask_v |= TPGEN_IRQ_OVF_INTENB_MASK;
+	return (status & mask_v);
 }
 
-static u32 tpgen_get_interrupt_pending(const struct nxs_dev *pthis, int type)
+static bool tpgen_get_interrupt_pending(const struct nxs_dev *pthis, int type)
 {
-	return 0;
+	struct nxs_tpgen *tpgen = nxs_to_tpgen(pthis);
+	u32 status = 0, mask_v = 0;
+
+	dev_info(pthis->dev, "[%s] type - %d\n",
+		 __func__, type);
+	regmap_read(tpgen->reg, tpgen->offset + TPGEN_INTERRUPT, &status);
+	if (type && NXS_EVENT_IDLE)
+		mask_v |= TPGEN_IRQ_IDLE_INTPEND_MASK;
+	if (type && NXS_EVENT_UPDATE)
+		mask_v |= TPGEN_UPDATE_INTPEND_MASK;
+	if (type && NXS_EVENT_DONE)
+		mask_v |= TPGEN_IRQ_DONE_INTPEND_MASK;
+	if (type && NXS_EVENT_ERR)
+		mask_v |= TPGEN_IRQ_OVF_INTPEND_MASK;
+	return (status & mask_v);
+}
+
+static int tpgen_get_interrupt_pending_number(struct nxs_tpgen *tpgen)
+{
+	u32 status = 0, ret = NXS_EVENT_NONE;
+
+	dev_info(tpgen->nxs_dev.dev, "[%s]\n", __func__);
+	regmap_read(tpgen->reg, tpgen->offset + TPGEN_INTERRUPT, &status);
+	if (status && TPGEN_IRQ_IDLE_INTPEND_MASK)
+		ret |= NXS_EVENT_IDLE;
+	if (status && TPGEN_UPDATE_INTPEND_MASK)
+		ret |= NXS_EVENT_UPDATE;
+	if (status && TPGEN_IRQ_DONE_INTPEND_MASK)
+		ret |= NXS_EVENT_DONE;
+	if (status && TPGEN_IRQ_OVF_INTPEND_MASK)
+		ret |= NXS_EVENT_ERR;
+	return ret;
 }
 
 static void tpgen_clear_interrupt_pending(const struct nxs_dev *pthis, int type)
 {
+	struct nxs_tpgen *tpgen = nxs_to_tpgen(pthis);
+	u32 mask_v = NXS_EVENT_NONE;
+
+	dev_info(pthis->dev, "[%s] type - %d\n", __func__, type);
+	if (type && NXS_EVENT_IDLE)
+		mask_v |= TPGEN_IRQ_IDLE_INTPEND_MASK;
+	if (type && NXS_EVENT_UPDATE)
+		mask_v |= TPGEN_UPDATE_INTPEND_MASK;
+	if (type && NXS_EVENT_DONE)
+		mask_v |= TPGEN_IRQ_DONE_INTPEND_MASK;
+	if (type && NXS_EVENT_ERR)
+		mask_v |= TPGEN_IRQ_OVF_INTPEND_MASK;
+	regmap_update_bits(tpgen->reg, tpgen->offset + TPGEN_INTERRUPT,
+			   mask_v, mask_v);
 }
 
 static int tpgen_open(const struct nxs_dev *pthis)
 {
+	struct nxs_tpgen *tpgen = nxs_to_tpgen(pthis);
+
+	dev_info(pthis->dev, "[%s]\n", __func__);
+	if (atomic_read(&tpgen->open_count) == 0) {
+		int ret;
+		/* clock enable */
+		/* reset */
+		ret = request_irq(tpgen->irq, tpgen_irq_handler,
+				  IRQF_TRIGGER_NONE,
+				  "nxs-tpgen", tpgen);
+		if (ret < 0) {
+			dev_err(pthis->dev, "failed to request irq : %d\n",
+				ret);
+			return ret;
+		}
+	}
+	atomic_inc(&tpgen->open_count);
 	return 0;
 }
 
 static int tpgen_close(const struct nxs_dev *pthis)
 {
+	struct nxs_tpgen *tpgen = nxs_to_tpgen(pthis);
+
+	dev_info(pthis->dev, "[%s]\n", __func__);
+	if (tpgen_check_busy(tpgen)) {
+		dev_err(pthis->dev, "tpgen is busy\n");
+		return -EBUSY;
+	}
+	atomic_dec(&tpgen->open_count);
+	if (atomic_read(&tpgen->open_count) == 0) {
+		tpgen_reset_register(tpgen);
+		free_irq(tpgen->irq, tpgen);
+		/* clock disable */
+	}
 	return 0;
 }
 
 static int tpgen_start(const struct nxs_dev *pthis)
 {
-	return 0;
+	struct nxs_tpgen *tpgen = nxs_to_tpgen(pthis);
+
+	dev_info(pthis->dev, "[%s]\n", __func__);
+	return tpgen_set_enable(tpgen, true);
 }
 
 static int tpgen_stop(const struct nxs_dev *pthis)
 {
-	return 0;
+	struct nxs_tpgen *tpgen = nxs_to_tpgen(pthis);
+
+	dev_info(pthis->dev, "[%s]\n", __func__);
+	return tpgen_set_enable(tpgen, false);
 }
 
+/* write - clear dirtyflag for TestPatternGenerator */
 static int tpgen_set_dirty(const struct nxs_dev *pthis, u32 type)
 {
 	struct nxs_tpgen *tpgen = nxs_to_tpgen(pthis);
 
+	dev_info(pthis->dev, "[%s]\n", __func__);
+
 	if (type != NXS_DEV_DIRTY_NORMAL)
 		return 0;
-
 	return regmap_write(tpgen->reg, TPGEN_DIRTYSET_OFFSET,
 			    TPGEN_DIRTY);
 }
@@ -187,6 +458,7 @@ static int tpgen_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
 {
 	struct nxs_tpgen *tpgen = nxs_to_tpgen(pthis);
 
+	dev_info(pthis->dev, "[%s]\n", __func__);
 	return regmap_update_bits(tpgen->reg, tpgen->offset + TPGEN_CTRL,
 				  TPGEN_ENC_TID_MASK,
 				  tid1 << TPGEN_ENC_TID_SHIFT);
@@ -195,7 +467,60 @@ static int tpgen_set_tid(const struct nxs_dev *pthis, u32 tid1, u32 tid2)
 static int tpgen_set_format(const struct nxs_dev *pthis,
 			    const struct nxs_control *pparam)
 {
-	return 0;
+	struct nxs_tpgen *tpgen = nxs_to_tpgen(pthis);
+	u32 size, type;
+
+	dev_info(pthis->dev, "[%s]\n", __func__);
+	tpgen_config_stream(tpgen);
+	/* p_tpgen_parameter->enc_width     = 64 ; */
+	/* p_tpgen_parameter->enc_height    = 1 ; */
+	size = ((pparam->u.format.width << TPGEN_ENC_WIDTH_SHIFT) |
+		(pparam->u.format.height));
+	regmap_write(tpgen->reg, TPGEN_IMG_SIZE, size);
+	/* p_tpgen_parameter->enc_img_type  = 0 ; 0: YUV, 1: RGB, 3: BAYER */
+	switch (pparam->u.format.pixelformat) {
+	case V4L2_PIX_FMT_YUYV:
+	case V4L2_PIX_FMT_YYUV:
+	case V4L2_PIX_FMT_YVYU:
+	case V4L2_PIX_FMT_VYUY:
+	case V4L2_PIX_FMT_UYVY:
+	case V4L2_PIX_FMT_NV12:
+	case V4L2_PIX_FMT_NV21:
+	case V4L2_PIX_FMT_NV16:
+	case V4L2_PIX_FMT_NV61:
+	case V4L2_PIX_FMT_NV24:
+	case V4L2_PIX_FMT_NV42:
+	case V4L2_PIX_FMT_NV12M:
+	case V4L2_PIX_FMT_NV21M:
+	case V4L2_PIX_FMT_NV16M:
+	case V4L2_PIX_FMT_NV61M:
+		type = TPGEN_FORMAT_YUV;
+		break;
+	case V4L2_PIX_FMT_ARGB555:
+	case V4L2_PIX_FMT_XRGB555:
+	case V4L2_PIX_FMT_RGB565:
+	case V4L2_PIX_FMT_BGR24:
+	case V4L2_PIX_FMT_RGB24:
+	case V4L2_PIX_FMT_BGR32:
+	case V4L2_PIX_FMT_ABGR32:
+	case V4L2_PIX_FMT_XBGR32:
+	case V4L2_PIX_FMT_RGB32:
+	case V4L2_PIX_FMT_ARGB32:
+	case V4L2_PIX_FMT_XRGB32:
+		type = TPGEN_FORMAT_RGB;
+		break;
+	default:
+		/*
+		 * Todo
+		 * Currently not support bayer format
+		 *
+		 */
+		type = TPGEN_FORMAT_BAYER;
+		break;
+	}
+	return regmap_update_bits(tpgen->reg, tpgen->offset + TPGEN_CTRL,
+				  TPGEN_ENC_IMG_TYPE_MASK,
+				  type << TPGEN_ENC_IMG_TYPE_SHIFT);
 }
 
 static int tpgen_get_format(const struct nxs_dev *pthis,
@@ -233,6 +558,8 @@ static int nxs_tpgen_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 	tpgen->offset = res->start;
+	tpgen->irq = platform_get_irq(pdev, 0);
+	atomic_set(&tpgen->open_count, 0);
 
 	nxs_dev->set_interrupt_enable = tpgen_set_interrupt_enable;
 	nxs_dev->get_interrupt_enable = tpgen_get_interrupt_enable;
