@@ -395,6 +395,12 @@
 		compatible = "linux,spdif-dit";
 	};
 
+	snd_pcm_smart_voice:snd_pcm_smart_voice@1 {
+		#sound-dai-cells = <0>;
+		compatible = "nexell,snd-pcm-smart-voice";
+		status = "okay";
+	};
+
 	snd_smart_voice: snd_smart_voice@0 {
 		#sound-dai-cells = <0>;
 		compatible = "nexell,snd-smart-voice,i2s,pl022";
@@ -409,7 +415,6 @@
 			PHYS_BASE_ALIVE 0x200>;
 
 		cpu-dais = <2>;	/* i2s:1EA, spi:1EA */
-		skip-frame-detect = <0>;
 		pin {
 			spi-cs-gpio = <&gpio_c 16 0>;
 			pdm-isrun-gpio = <&gpio_e 4 0>;
@@ -453,6 +458,10 @@
 			format = "i2s";
 			cpu {
 				sound-dai = <&i2s_2 0>;
+			};
+
+			plat {
+				sound-dai = <&snd_pcm_smart_voice>;
 			};
 
 			codec {
