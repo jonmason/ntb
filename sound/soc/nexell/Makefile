@@ -27,6 +27,6 @@ nexell-snd-alc5658-objs 			:= nexell-alc5658.o
 nexell-snd-null-objs				:= nexell-null.o
 nexell-snd-rt5640-objs				:= nexell-rt5640.o
 nexell-snd-alc5623-objs 			:= nexell-alc5623.o
-nexell-snd-smart-voice-objs			:= nexell-smart-voice.o
+nexell-snd-smart-voice-objs			:= nexell-smart-voice.o nexell-pcm-smart-voice.o
 nexell-snd-spdif-transceiver-objs 		:= nexell-spdif-transceiver.o
 nexell-snd-soc-simple-card-objs			:= nexell-simple-card.o

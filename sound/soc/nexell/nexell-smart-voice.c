@@ -24,9 +24,11 @@
 #include <linux/of_address.h>
 #include <sound/soc.h>
 
+#include "nexell-pcm.h"
 #include "nexell-spi-pl022.h"
 
-#define	SVI_IOBASE_MAX	5
+#define	SVI_IOBASE_MAX		5
+#define	DEF_SYNC_DEV_NUM	2 /* spi, i2sn */
 
 enum svoice_dev_type {
 	SVI_DEV_I2S,
@@ -76,7 +78,7 @@ struct svoice_snd {
 	struct list_head list;
 	spinlock_t lock;
 	int num_require_dev;
-	int no_lrck;
+	bool detector;
 	void __iomem *io_bases[SVI_IOBASE_MAX];
 };
 
@@ -114,10 +116,15 @@ static inline void __spi_cs_free(void)
 static inline void __spi_clear(struct svoice_dev *sv)
 {
 	void __iomem *base = sv->virtbase;
-	u32 val = pl022_status(base);
+	u32 val;
 
-	if (val & (1<<2))
-		pr_info("SPI: spi.%p rx not empty (0x%08x)\n", base, val);
+	/* wait for fifo flush */
+	val = __raw_readl(SSP_SR(base));
+	if (val & (1 << 2)) {
+		pr_info("SPI: spi.%p rx not empty (0x%08x)!!!\n", base, val);
+		while (__raw_readl(SSP_SR(base)) & (1 << 2))
+			val = __raw_readl(SSP_DR(base));
+	}
 }
 
 /* SSPCR1 = 0x04 */
@@ -125,13 +132,7 @@ static inline void __spi_start(struct svoice_dev *sv)
 {
 	void __iomem *base = sv->virtbase;
 
-	__spi_cs_set();
 	pl022_enable(base, 1);
-}
-
-static inline void __spi_stop(struct svoice_dev *sv)
-{
-	__spi_cs_free();
 }
 
 static inline void __i2s_clear(struct svoice_dev *sv)
@@ -174,7 +175,7 @@ static inline bool __i2s_frame_wait(int wait)
 	} while (val && --count > 0);
 
 	/* no Low -> no lrck */
-	if (count < 0)
+	if (count == 0)
 		return false;
 
 	/* wait High */
@@ -184,7 +185,7 @@ static inline bool __i2s_frame_wait(int wait)
 	} while (!val && --count > 0);
 
 	/* no High : no lrck */
-	if (count < 0)
+	if (count == 0)
 		return false;
 
 	/* wait Low */
@@ -202,9 +203,9 @@ static inline bool __pin_start(struct svoice_snd *snd)
 	bool lrck;
 	u32 val;
 
-	lrck = snd->no_lrck ? false : true;
-	if (!snd->no_lrck)
-		lrck = __i2s_frame_wait(DETECT_LRCK_WAIT);
+	__spi_cs_set();
+
+	lrck = __i2s_frame_wait(DETECT_LRCK_WAIT);
 
 	/* pin: ISRUN */
 	pin = &svoice_pins[SVI_PIN_PDM_ISRUN];
@@ -229,6 +230,8 @@ static inline void __pin_stop(void)
 	struct svoice_pin *pin;
 	u32 val;
 
+	__spi_cs_free();
+
 	/* pin: LRCK */
 	pin = &svoice_pins[SVI_PIN_PDM_LCRCK];
 	val = readl(pin->base) | (1 << pin->offset); /* no lrck */
@@ -240,6 +243,17 @@ static inline void __pin_stop(void)
 	writel(val, pin->base);
 }
 
+static void __pin_nolrck(void *data)
+{
+	struct svoice_pin *pin;
+	u32 val;
+
+	/* pin: LRCK */
+	pin = &svoice_pins[SVI_PIN_PDM_LCRCK];
+	val = readl(pin->base) | (1 << pin->offset); /* no lrck */
+	writel(val, pin->base);
+}
+
 static int svoice_start(struct svoice_snd *snd)
 {
 	struct svoice_dev *sv;
@@ -248,6 +262,10 @@ static int svoice_start(struct svoice_snd *snd)
 	u32 val;
 
 	dev_dbg(snd->dev, "run smart-voice ...\n");
+
+	/* clear mask */
+	list_for_each_entry(sv, &snd->list, list)
+		sv->start = false;
 
 	/* clear fifo */
 	list_for_each_entry(sv, &snd->list, list)
@@ -269,15 +287,12 @@ static int svoice_start(struct svoice_snd *snd)
 	return 0;
 }
 
-static void svoice_stop(struct svoice_snd *snd)
+static void svoice_stop(struct svoice_dev *sv)
 {
-	struct svoice_dev *sv;
+	if (sv->type != SVI_DEV_SPI)
+		return;
 
 	__pin_stop();
-
-	list_for_each_entry(sv, &snd->list, list)
-		sv->type == SVI_DEV_SPI ?
-			__spi_stop(sv) : __i2s_stop(sv);
 }
 
 /* cpu dai trigger */
@@ -291,11 +306,12 @@ static int svoice_trigger_start(struct snd_pcm_substream *substream,
 	unsigned long flags;
 	int nr = 0, ret;
 
-	spin_lock_irqsave(&snd->lock, flags);
-
+	spin_lock(&snd->lock);
 	find_list_dev(sv, snd, rtd->cpu_dai);
-	if (!sv)
-		goto exit_trigger;
+	if (!sv) {
+		spin_unlock(&snd->lock);
+		return -1;
+	}
 
 	sv->start = true;
 
@@ -303,20 +319,21 @@ static int svoice_trigger_start(struct snd_pcm_substream *substream,
 	dev_dbg(rtd->dev, "%s <-> %s trigger\n", dai->name, codec_dai->name);
 
 	list_for_each_entry(sv, &snd->list, list) {
-		dev_dbg(rtd->dev, "%s.%p, %s [%d:%d]\n",
+		dev_dbg(rtd->dev, "%s.%p, %s %d - %dEA\n",
 			sv->type == SVI_DEV_I2S ? "i2s" : "spi",
 			sv->virtbase, sv->start ? "run":"stopped",
-			snd->num_require_dev, nr + 1);
+			nr + 1, snd->num_require_dev);
 		if (!sv->start)
-			goto exit_trigger;
+			break;
 		nr++;
 	}
+	spin_unlock(&snd->lock);
 
-	if (nr == snd->num_require_dev)
+	if (nr >= snd->num_require_dev) {
+		spin_lock_irqsave(&snd->lock, flags);
 		ret = svoice_start(snd);
-
-exit_trigger:
-	spin_unlock_irqrestore(&snd->lock, flags);
+		spin_unlock_irqrestore(&snd->lock, flags);
+	}
 	return ret;
 }
 
@@ -330,18 +347,32 @@ static void hook_cpu_ops(struct snd_soc_pcm_runtime *runtime,
 	struct snd_soc_dai *cpu_dai = runtime->cpu_dai;
 	struct svoice_snd *snd = snd_soc_codec_get_drvdata(dai->codec);
 	struct svoice_dev *sv;
-	unsigned long flags;
 
-	spin_lock_irqsave(&snd->lock, flags);
-
+	spin_lock(&snd->lock);
 	find_list_dev(sv, snd, cpu_dai);
-	if (!sv)
-		goto exit_ops;
+	if (!sv) {
+		spin_unlock(&snd->lock);
+		return;
+	}
+	spin_unlock(&snd->lock);
 
 	dev_dbg(dai->dev, "%s %s %p, type:%s\n",
 		cpu_dai->name, hooking ? "hook" : "unhook",
 		sv->virtbase, sv->type == SVI_DEV_I2S ? "i2s" : "spi");
 
+	spin_lock(&snd->lock);
+
+	/* not sync start */
+	if (snd->num_require_dev < 2 && sv->type == SVI_DEV_SPI) {
+		if (hooking)
+			__pin_start(snd);
+		else
+			__pin_stop();
+		spin_unlock(&snd->lock);
+		return;
+	}
+
+	/* hooking to start synchronization */
 	if (hooking) {
 		sv->save_ops = cpu_dai->driver->ops;
 		memcpy(&sv->hook_ops,
@@ -350,13 +381,11 @@ static void hook_cpu_ops(struct snd_soc_pcm_runtime *runtime,
 		sv->hook_ops.trigger = svoice_trigger_start;
 		cpu_dai->driver->ops = &sv->hook_ops;
 	} else {
-		sv->start = false;
 		cpu_dai->driver->ops = sv->save_ops;
-		svoice_stop(snd);
+		svoice_stop(sv);
 	}
 
-exit_ops:
-	spin_unlock_irqrestore(&snd->lock, flags);
+	spin_unlock(&snd->lock);
 }
 
 static int svoice_trigger(struct snd_pcm_substream *substream, int cmd,
@@ -388,6 +417,7 @@ static int svoice_startup(struct snd_pcm_substream *substream,
 				struct snd_soc_dai *dai)
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct nx_pcm_runtime_data *prtd = substream->runtime->private_data;
 	struct device_node *cpu_node = rtd->dai_link->cpu_of_node;
 	struct svoice_snd *snd = snd_soc_codec_get_drvdata(dai->codec);
 	struct svoice_dev *sv;
@@ -400,6 +430,10 @@ static int svoice_startup(struct snd_pcm_substream *substream,
 
 	if (strstr(cpu_node->name, "i2s")) {
 		sv->type = SVI_DEV_I2S;
+		if (!snd->detector) {
+			snd->detector = true;
+			prtd->run_detector = true;
+		}
 	} else if (strstr(cpu_node->name, "spi")) {
 		sv->type = SVI_DEV_SPI;
 	} else {
@@ -415,7 +449,7 @@ static int svoice_startup(struct snd_pcm_substream *substream,
 
 	sv->phybase = r.start;
 	sv->virtbase = ioremap(sv->phybase, resource_size(&r));
-	if (!sv->virtbase)  {
+	if (!sv->virtbase) {
 		dev_err(dai->dev, "failed to ioremap 0x%lx(%x)\n",
 			sv->phybase, resource_size(&r));
 		ret = -ENOMEM;
@@ -447,7 +481,6 @@ static void svoice_shutdown(struct snd_pcm_substream *substream,
 	struct svoice_dev *sv = NULL;
 
 	spin_lock(&snd->lock);
-
 	find_list_dev(sv, snd, rtd->cpu_dai);
 	if (!sv) {
 		spin_unlock(&snd->lock);
@@ -456,6 +489,9 @@ static void svoice_shutdown(struct snd_pcm_substream *substream,
 
 	list_del(&sv->list);
 	spin_unlock(&snd->lock);
+
+	if (snd->detector)
+		snd->detector = false;
 
 	dev_dbg(dai->dev, "%s: %p type:%s\n",
 		rtd->cpu_dai->name, sv->virtbase,
@@ -467,8 +503,20 @@ static void svoice_shutdown(struct snd_pcm_substream *substream,
 	kfree(sv);
 }
 
+static int svoice_prepare(struct snd_pcm_substream *substream,
+			struct snd_soc_dai *dai)
+{
+	struct nx_pcm_runtime_data *prtd = substream->runtime->private_data;
+
+	if (prtd->rate_detector)
+		prtd->rate_detector->cb = __pin_nolrck;
+
+	return 0;
+}
+
 static const struct snd_soc_dai_ops snd_smart_voice_ops = {
 	.startup = svoice_startup,
+	.prepare = svoice_prepare,
 	.trigger = svoice_trigger,
 	.shutdown = svoice_shutdown,
 };
@@ -493,6 +541,7 @@ static int svoice_setup(struct platform_device *pdev,
 {
 	struct device *dev = &pdev->dev;
 	struct device_node *node = pdev->dev.of_node;
+	struct device_node *np;
 	struct svoice_pin *pin;
 	const __be32 *list;
 	u32 addr, length;
@@ -516,23 +565,15 @@ static int svoice_setup(struct platform_device *pdev,
 			('A' + i), addr, snd->io_bases[i]);
 	}
 
-	ret = of_property_read_u32(node, "cpu-dais", &snd->num_require_dev);
-	if (ret < 0)
-		snd->num_require_dev = 1;
-
-	ret = of_property_read_u32(node, "skip-frame-detect", &snd->no_lrck);
-	if (ret < 0)
-		snd->no_lrck = 0;
-
 	/* pin property */
-	node = of_find_node_by_name(node, "pin");
-	if (!node) {
+	np = of_find_node_by_name(node, "pin");
+	if (!np) {
 		dev_err(dev, "can't smart-voice 'pin' node\n");
 		return -EINVAL;
 	}
 
 	for (i = 0, pin = &svoice_pins[0]; i < SVI_PIN_NUM; i++, pin++) {
-		val = of_get_named_gpio(node, pin->property, 0);
+		val = of_get_named_gpio(np, pin->property, 0);
 		if (!gpio_is_valid(val)) {
 			dev_err(dev, "can't smart-voice %s property\n",
 				pin->property);
@@ -564,12 +605,18 @@ static int svoice_setup(struct platform_device *pdev,
 			pin->output ? "out" : "status");
 	}
 
+	ret = of_property_read_u32(node,
+			"cpu-dais", &snd->num_require_dev);
+	if (ret < 0)
+		snd->num_require_dev = DEF_SYNC_DEV_NUM;
+
 	INIT_LIST_HEAD(&snd->list);
 	spin_lock_init(&snd->lock);
 
 	dev_set_drvdata(&pdev->dev, snd);
 
-	dev_info(dev, "Smart Voice - DAI %d EA\n", snd->num_require_dev);
+	dev_info(dev, "Smart Voice - %dEA\n", snd->num_require_dev);
+
 	return 0;
 }
 

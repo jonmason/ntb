@@ -86,8 +86,6 @@ static void pl022_stop(struct pl022_snd *pl022, int stream)
 		while (__raw_readl(SSP_SR(base)) & (1 << 2))
 			val = __raw_readl(SSP_DR(base));
 	}
-
-	udelay(4);
 }
 
 static int  pl022_ops_startup(struct snd_pcm_substream *substream,
@@ -217,6 +215,8 @@ static int pl022_dma_config(struct pl022_snd *pl022)
 	dma->bus_width_byte = bus_width;
 	dma->max_burst_byte = max_burst;
 	dma->dma_ch_name = "spi";
+	dma->real_clock = (16000 * 4);
+	dma->dfs = 0;
 
 	dev_dbg(pl022->dev, "spi-rx: %s dma, 0x%p, bus %dbyte, burst %dbyte\n",
 		 STREAM_STR(0), (void *)dma->peri_addr, dma->bus_width_byte,

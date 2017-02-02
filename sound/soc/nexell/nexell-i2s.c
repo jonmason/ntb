@@ -612,6 +612,7 @@ static int nx_i2s_set_plat_param(struct nx_i2s_snd_param *par, void *data)
 		dma->bus_width_byte = I2S_BUS_WIDTH;
 		dma->max_burst_byte = I2S_PERI_BURST;
 		dma->dma_ch_name = "i2s";
+		dma->dfs = par->dfs;
 
 		dev_dbg(&pdev->dev, "snd i2s: %s dma (peri 0x%p, bus %dbits)\n",
 			STREAM_STR(i), (void *)dma->peri_addr,
@@ -705,7 +706,10 @@ static int nx_i2s_startup(struct snd_pcm_substream *substream,
 static void nx_i2s_shutdown(struct snd_pcm_substream *substream,
 				struct snd_soc_dai *dai)
 {
-	i2s_stop(dai, substream->stream);
+	struct nx_i2s_snd_param *par = snd_soc_dai_get_drvdata(dai);
+
+	if (par->status & SNDDEV_STATUS_RUNNING)
+		i2s_stop(dai, substream->stream);
 
 #ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
 	nx_i2s_qos_update(NX_BUS_CLK_IDLE_KHZ);
