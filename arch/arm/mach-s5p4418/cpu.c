@@ -34,10 +34,12 @@
 #ifdef CONFIG_SECURE_REG_ACCESS
 
 #define S5P4418_L2C_BASE 0xcf000000
+#define SEC_L2C_ID	NEXELL_L2C_SEC_ID
 
 void l2c_write_sec(unsigned long val, unsigned reg)
 {
-	write_sec_reg((void __iomem *) S5P4418_L2C_BASE + reg, val);
+	write_sec_reg_by_id((void __iomem *) S5P4418_L2C_BASE + reg, val,
+			NEXELL_L2C_SEC_ID);
 }
 #endif
 
