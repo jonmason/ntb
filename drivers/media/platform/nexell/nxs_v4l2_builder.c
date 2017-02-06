@@ -265,21 +265,6 @@ static struct nxs_video_format supported_formats[] = {
 
 static struct nxs_video_format supported_mplane_formats[] = {
 	{
-		.format		= V4L2_PIX_FMT_YVU420,
-		.bpp		= 12,
-		.name		= "YVU 4:2:0",
-	},
-	{
-		.format		= V4L2_PIX_FMT_YUV422P,
-		.bpp		= 16,
-		.name		= "YVU422 planar",
-	},
-	{
-		.format		= V4L2_PIX_FMT_YUV420,
-		.bpp		= 12,
-		.name		= "YUV 4:2:0",
-	},
-	{
 		.format		= V4L2_PIX_FMT_NV12,
 		.bpp		= 12,
 		.name		= "Y/CbCr 4:2:0",
@@ -328,16 +313,6 @@ static struct nxs_video_format supported_mplane_formats[] = {
 		.format		= V4L2_PIX_FMT_NV61M,
 		.bpp		= 16,
 		.name		= "Y/CrCb 4:2:2",
-	},
-	{
-		.format		= V4L2_PIX_FMT_YUV420M,
-		.bpp		= 12,
-		.name		= "YUV420 planar",
-	},
-	{
-		.format		= V4L2_PIX_FMT_YVU420M,
-		.bpp		= 12,
-		.name		= "YVU420 planar",
 	},
 };
 
