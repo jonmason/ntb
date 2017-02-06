@@ -62,15 +62,6 @@
 
 #define NXS_VIDEO_JOB_TIMEOUT	(2*HZ)
 
-enum nxs_video_type {
-	NXS_VIDEO_TYPE_NONE = 0,
-	NXS_VIDEO_TYPE_CAPTURE,
-	NXS_VIDEO_TYPE_RENDER,
-	NXS_VIDEO_TYPE_M2M,
-	NXS_VIDEO_TYPE_SUBDEV,
-	NXS_VIDEO_TYPE_INVALID
-};
-
 struct nxs_subdev_ctx {
 	struct v4l2_mbus_framefmt format; /* source format */
 	struct v4l2_mbus_framefmt dst_format; /* dest format */
@@ -402,6 +393,24 @@ static struct nxs_video_buffer *get_next_video_buffer(struct nxs_video_fh *vfh,
 
 	return buffer;
 }
+static u32 get_nxs_field(u32 v4l2_field)
+{
+	u32 nxs_field;
+
+	switch (v4l2_field) {
+	case V4L2_FIELD_NONE:
+		nxs_field = NXS_FIELD_PROGRESSIVE;
+		break;
+	case V4L2_FIELD_INTERLACED:
+		nxs_field = NXS_FIELD_INTERLACED;
+		break;
+	case V4L2_FIELD_ANY:
+		nxs_field = NXS_FIELD_3D;
+		break;
+	}
+
+	return nxs_field;
+}
 
 static int nxs_chain_config(struct nxs_function *f,
 			    struct nxs_video_fh *vfh)
@@ -409,12 +418,16 @@ static int nxs_chain_config(struct nxs_function *f,
 	struct nxs_control format;
 	struct nxs_control crop;
 	struct nxs_control selection;
+	struct nxs_control video;
+
+	video.type = NXS_CONTROL_VIDEO;
+	video.u.video.type = vfh->video->type;
+	video.u.video.field = get_nxs_field(vfh->field);
 
 	format.type = NXS_CONTROL_FORMAT;
 	format.u.format.width = vfh->width;
 	format.u.format.height = vfh->height;
 	format.u.format.pixelformat = vfh->pixelformat;
-	format.u.format.field = vfh->field;
 
 	crop.type = NXS_CONTROL_CROP;
 	crop.u.crop.l = vfh->crop.c.left;
@@ -438,19 +451,22 @@ static int nxs_m2m_chain_config(struct nxs_function *f,
 				struct nxs_video_fh *vfh)
 {
 	struct nxs_control src_f, dst_f;
+	struct nxs_control video;
+
+	video.type = NXS_CONTROL_VIDEO;
+	video.u.video.type = vfh->video->type;
+	video.u.video.field = get_nxs_field(vfh->field);
 
 	/* format */
 	src_f.type = NXS_CONTROL_FORMAT;
 	src_f.u.format.width = vfh->width;
 	src_f.u.format.height = vfh->height;
 	src_f.u.format.pixelformat = vfh->pixelformat;
-	src_f.u.format.field = vfh->field;
 
 	dst_f.type = NXS_CONTROL_DST_FORMAT;
 	dst_f.u.format.width = vfh->dst_width;
 	dst_f.u.format.height = vfh->dst_height;
 	dst_f.u.format.pixelformat = vfh->dst_pixelformat;
-	dst_f.u.format.field = vfh->dst_field;
 
 	return nxs_function_config(f, false, 2, &src_f, &dst_f);
 }
@@ -482,17 +498,14 @@ static int nxs_subdev_chain_config(struct nxs_function *f,
 	fmt.u.format.width = ctx->format.width;
 	fmt.u.format.height = ctx->format.height;
 	fmt.u.format.pixelformat = ctx->format.code;
-	fmt.u.format.field = ctx->format.field;
 	if (ctx->dst_format.width > 0) {
 		df.u.format.width = ctx->dst_format.width;
 		df.u.format.height = ctx->dst_format.height;
 		df.u.format.pixelformat = ctx->dst_format.code;
-		df.u.format.field = ctx->dst_format.field;
 	} else {
 		df.u.format.width = fmt.u.format.width;
 		df.u.format.height = fmt.u.format.height;
 		df.u.format.pixelformat = fmt.u.format.pixelformat;
-		df.u.format.field = fmt.u.format.field;
 	}
 
 	/* set cropper */

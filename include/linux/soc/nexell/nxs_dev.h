@@ -54,6 +54,21 @@ enum nxs_control_type {
 	NXS_CONTROL_MAX
 };
 
+enum nxs_video_type {
+	NXS_VIDEO_TYPE_NONE = 0,
+	NXS_VIDEO_TYPE_CAPTURE,
+	NXS_VIDEO_TYPE_RENDER,
+	NXS_VIDEO_TYPE_M2M,
+	NXS_VIDEO_TYPE_SUBDEV,
+	NXS_VIDEO_TYPE_INVALID
+};
+
+enum nxs_field_type {
+	NXS_FIELD_PROGRESSIVE = 0,
+	NXS_FIELD_INTERLACED = 1,
+	NXS_FIELD_3D = 3,
+};
+
 struct nxs_control_format {
 	u32 width;
 	u32 height;
