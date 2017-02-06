@@ -17,6 +17,8 @@
 #include "../nx-v4l2.h"
 
 #if defined(CONFIG_ARCH_S5P4418) && defined(CONFIG_SECURE_REG_ACCESS)
+#include <linux/soc/nexell/sec_reg.h>
+
 #define USE_PSCI_REG_READ_WRITE
 #endif
 
@@ -266,19 +268,16 @@ enum {
 static struct nx_mipi_register_set *__g_pregister[1];
 
 #ifdef USE_PSCI_REG_READ_WRITE
-extern void write_sec_reg(void __iomem *reg, int val);
-extern int read_sec_reg(void __iomem *reg);
-
 #define MIPI_CSI_PHYSICAL_BASE	0xC00D0000
 
 #define write_reg_wrapper(val, reg)	do { \
 	void *phys = (void *)(MIPI_CSI_PHYSICAL_BASE + ((char *)reg - (char *)__g_pregister[0]));	\
-	write_sec_reg(phys, val); \
+	write_sec_reg_by_id(phys, val, NEXELL_MIPI_SEC_ID); \
 	} while (0)
 
 #define read_reg_wrapper(pval, reg)	do { \
 	void *phys = (void *)(MIPI_CSI_PHYSICAL_BASE + ((char *)reg - (char *)__g_pregister[0]));	\
-	*pval = read_sec_reg(phys); \
+	*pval = read_sec_reg_by_id(phys, NEXELL_MIPI_SEC_ID); \
 	} while (0)
 
 #define writereg(regname, mask, value)	\
