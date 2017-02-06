@@ -47,22 +47,21 @@ void mali_hw_core_delete(struct mali_hw_core *core);
 /* nexell add */
 #if defined(CONFIG_ARCH_S5P4418) && defined(CONFIG_SECURE_REG_ACCESS)
 #define USE_PSCI_REG_READ_WRITE
-extern void write_sec_reg(void __iomem *reg, int val);
-extern int read_sec_reg(void __iomem *reg);
+#include <linux/soc/nexell/sec_reg.h>
 #endif
 
 #ifdef USE_PSCI_REG_READ_WRITE
 MALI_STATIC_INLINE u32 nx_register_read(u32 phys_addr_page, u32 offset)
 {
 	void *phys_addr = (void*)(phys_addr_page + offset);
-	return read_sec_reg(phys_addr);
+	return read_sec_reg_by_id(phys_addr,  NEXELL_MALI_SEC_ID);
 }
 
 MALI_STATIC_INLINE void nx_register_write(u32 phys_addr_page, u32 offset,
 					  u32 new_val)
 {
 	void *phys_addr = (void*)(phys_addr_page + offset);
-	write_sec_reg(phys_addr, new_val);
+	write_sec_reg_by_id(phys_addr, new_val, NEXELL_MALI_SEC_ID);
 }
 #endif
 
