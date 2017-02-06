@@ -49,6 +49,7 @@ enum nxs_control_type {
 	NXS_CONTROL_BUFFER,
 	NXS_CONTROL_GAMMA,
 	NXS_CONTROL_STATUS, /* device specific status ex> hdmi connected? */
+	NXS_CONTROL_VIDEO,
 	/* NXS_CONTROL_TPGEN	= NXS_SET_TPGEN, */
 	NXS_CONTROL_MAX
 };
@@ -57,6 +58,11 @@ struct nxs_control_format {
 	u32 width;
 	u32 height;
 	u32 pixelformat;
+	u32 field;
+};
+
+struct nxs_control_video {
+	u32 type;
 	u32 field;
 };
 
@@ -112,6 +118,7 @@ struct nxs_control {
 		struct nxs_control_syncinfo sync_info;
 		struct nxs_control_buffer buffer;
 		struct nxs_control_display display;
+		struct nxs_control_video video;
 		/* struct nxs_control_tpgen tpgen; */
 		u32 gamma;
 		u32 status;
