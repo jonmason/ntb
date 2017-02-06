@@ -48,6 +48,8 @@
 // R1 - CMD, R2 - wsm_id (only for register cmd)
 #define SMC_STD_RESOURCE_MONITOR	15
 
+#define SMC_STD_SYNC_KERNEL_TIME	16
+
 /* TODO: this should be sent to PSCI */
 #define SMC_PM_CPU_OFF			0
 #define SMC_PM_SYSTEM_OFF		1

@@ -34,6 +34,7 @@
 #define TZIO_SMC		_IOWR(TZ_IOC_MAGIC, 102, struct tzio_message)
 #define TZIO_DBG_START		_IOR(TZ_IOC_MAGIC, 113, unsigned long)
 #define TZIO_GET_INFO		_IOR(TZ_IOC_MAGIC, 115, struct tzio_info)
+#define TZIO_SYNC_TIME		_IO(TZ_IOC_MAGIC, 116)
 
 #define TZMEM_EXPORT_MEMORY	_IOWR(TZ_IOC_MAGIC, 122, struct tzmem_region)
 #define TZMEM_RELEASE_MEMORY	_IOWR(TZ_IOC_MAGIC, 123, int)

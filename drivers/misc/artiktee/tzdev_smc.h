@@ -83,6 +83,7 @@ void init_smc_status(void);
 
 int smc_init_monitor(void);
 int scm_query_kernel_info(struct secos_kern_info *kinfo);
+int scm_sync_kernel_time(void);
 int scm_syscrash_register(int wsm_id);
 int scm_minidump_register(int wsm_id);
 int scm_register_wsm(const void *addr, size_t size, unsigned int flags,

@@ -18,6 +18,7 @@
 
 #include <linux/kernel.h>
 #include <linux/cpu.h>
+#include <linux/time.h>
 
 #include "tzdev.h"
 #include "tzdev_internal.h"
@@ -198,6 +199,33 @@ int scm_query_kernel_info(struct secos_kern_info *kinfo)
 #else
 	args.arg[2] = 0;
 	compiletime_assert(sizeof(uintptr_t) == 4, "Incorrect pointer size");
+#endif
+
+	do_call_smc_internal(&args, &res, SMC_OP);
+
+	return res.res[0];
+}
+
+int scm_sync_kernel_time(void)
+{
+	struct monitor_arguments args = { 0, };
+	struct monitor_result res = { {0,} };
+	struct timespec ts;
+
+	int SMC_OP = SMC_STD_SYNC_KERNEL_TIME;
+
+	args.function_id =
+		SMC_32CALL | SMC_STANDARD_CALL | SMC_ENTITY_SECUREOS | SMC_OP;
+
+	getnstimeofday(&ts);
+#ifdef CONFIG_64BIT
+	args.arg[0] = 2;
+	args.arg[1] = (uint32_t) (ts.tv_sec >> 32);
+	args.arg[2] = (uint32_t) ts.tv_sec;
+#else
+	args.arg[0] = 1;
+	args.arg[1] = 0;
+	args.arg[2] = (uint32_t) ts.tv_sec;
 #endif
 
 	do_call_smc_internal(&args, &res, SMC_OP);

@@ -362,7 +362,7 @@ static int unregister_user_memory(struct file *owner, int id)
 	read_unlock_irqrestore(&tzmem_idr_lock, flags);
 
 	if (!node) {
-		tzlog_print(TZLOG_ERROR, "Unable to find WSM node ID %d\n", id);
+		tzlog_print(TZLOG_INFO, "Unable to find WSM node ID %d\n", id);
 		return -EINVAL;
 	}
 

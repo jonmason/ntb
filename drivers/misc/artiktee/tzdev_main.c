@@ -41,13 +41,15 @@
 #include <linux/slab.h>
 #include <linux/dcache.h>
 #include <linux/vmalloc.h>
-#ifdef CONFIG_ARTIK_USE_TZCMA_FOR_ARTIK710_CRYPTO
+#ifdef CONFIG_ARTIK_USE_TZCMA_FOR_CRYPTO
 #include <linux/dma-contiguous.h>
 #include <linux/dma-mapping.h>
+#include <linux/sizes.h>
+#endif /* CONFIG_ARTIK_USE_TZCMA_FOR_CRYPTO */
+#ifdef CONFIG_ARTIK_USE_DMA
 #include <linux/dmaengine.h>
 #include <linux/property.h>
-#include <linux/sizes.h>
-#endif
+#endif /* CONFIG_ARTIK_USE_DMA */
 
 #include "tzdev.h"
 #include "tzdev_init.h"
@@ -820,10 +822,11 @@ int tzio_message_wait(struct tzio_message *__user msg,
 				}
 
 				if ((context->timeout_seconds > 0) &&
-					(context->softlock_timer > context->timeout_seconds)) {
+					(context->softlock_timer >
+						context->timeout_seconds)) {
 					tzlog_print(TZLOG_ERROR,
-							"TA %u timed out. Killing all requests\n",
-							context->remote_id);
+						"TA %u timed out. Killing all requests\n",
+						context->remote_id);
 					tzio_connection_closed(context->remote_id);
 					break;
 				}
@@ -1176,21 +1179,30 @@ static long tzio_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			kinfo.abi = SECOS_ABI_VERSION;
 			ret = scm_query_kernel_info(&kinfo);
 			strncpy(tz_info.secos_build_id, kinfo.build_id,
-					sizeof(tz_info.secos_build_id) - 1);
+				sizeof(tz_info.secos_build_id) - 1);
 #ifdef CONFIG_MODULE_BUILD_VCS_ID
-			strncpy(tz_info.linux_module_build_id, CONFIG_MODULE_BUILD_VCS_ID,
-					sizeof(tz_info.linux_module_build_id) - 1);
+			strncpy(tz_info.linux_module_build_id,
+				CONFIG_MODULE_BUILD_VCS_ID,
+				sizeof(tz_info.linux_module_build_id) - 1);
 #endif
 			strncpy(tz_info.machine_name, kinfo.machine_name,
-					sizeof(tz_info.machine_name) - 1);
+				sizeof(tz_info.machine_name) - 1);
 			strncpy(tz_info.secos_build_type, kinfo.build_type,
-					sizeof(tz_info.secos_build_type) - 1);
+				sizeof(tz_info.secos_build_type) - 1);
 #ifdef CONFIG_MODULE_BUILD_TYPE
-			strncpy(tz_info.linux_module_build_type, CONFIG_MODULE_BUILD_TYPE,
-					sizeof(tz_info.linux_module_build_type) - 1);
+			strncpy(tz_info.linux_module_build_type,
+				CONFIG_MODULE_BUILD_TYPE,
+				sizeof(tz_info.linux_module_build_type) - 1);
 #endif
 
-			ret = copy_to_user((void *)arg, &tz_info, sizeof(tz_info));
+			ret = copy_to_user((void *)arg, &tz_info,
+					sizeof(tz_info));
+			break;
+		}
+
+	case TZIO_SYNC_TIME:
+		{
+			scm_sync_kernel_time();
 			break;
 		}
 
@@ -1223,7 +1235,7 @@ static int tzio_mmap(struct file *file, struct vm_area_struct *vma)
 
 static int tzio_release(struct inode *inode, struct file *filp)
 {
-	tzlog_print(TZLOG_ERROR,
+	tzlog_print(TZLOG_INFO,
 		    "tzdaemon has been crashed,start notify secure os\n");
 	tzio_file_closed(filp);
 	scm_tzdaemon_dead(0);
@@ -1534,8 +1546,9 @@ int tzpath_fullpath_create(const char *dir_path)
 	char *full_path = NULL;
 	char *parent_dir = NULL;
 
-	if( tzpath_buf == NULL) {
-		tzlog_print(K_ERR, "Failed to create tzpath, tz rootpath is NULL\n");
+	if (tzpath_buf == NULL) {
+		tzlog_print(K_ERR,
+			"Failed to create tzpath, tz rootpath is NULL\n");
 		return -EINVAL;
 	}
 
@@ -1544,14 +1557,14 @@ int tzpath_fullpath_create(const char *dir_path)
 		return -EINVAL;
 	}
 
-	parent_dir = (char *)kmalloc(PATH_MAX, GFP_KERNEL);
+	parent_dir = kmalloc(PATH_MAX, GFP_KERNEL);
 	if (parent_dir == NULL) {
 		tzlog_print(K_ERR, "vmalloc failed\n");
 		ret = -ENOMEM;
 		goto error_exit;
 	}
 
-	full_path = (char *)kmalloc(PATH_MAX, GFP_KERNEL);
+	full_path = kmalloc(PATH_MAX, GFP_KERNEL);
 	if (full_path == NULL) {
 		tzlog_print(K_ERR, "vmalloc failed\n");
 		ret = -ENOMEM;
@@ -1569,8 +1582,9 @@ int tzpath_fullpath_create(const char *dir_path)
 		}
 	}
 
-	if( ret != 0 && ret != -EEXIST)
-		tzlog_print(K_ERR, "Failed to mkdir fullpath, path : %s, err: %d",
+	if (ret != 0 && ret != -EEXIST)
+		tzlog_print(K_ERR,
+				"Failed to mkdir fullpath, path : %s, err: %d",
 				full_path, ret);
 	else
 		ret = 0;
@@ -1583,17 +1597,17 @@ error_exit:
 }
 
 
-static int tzpath_alloc(const char * path, ssize_t sz)
+static int tzpath_alloc(const char *path, ssize_t sz)
 {
 	int ret;
 	char *old_tzpath = tzpath_buf;
 
-	if( path==NULL)
+	if (path == NULL)
 		return -EINVAL;
 
-	tzpath_buf = kstrndup ( path, sz, GFP_KERNEL);
+	tzpath_buf = kstrndup(path, sz, GFP_KERNEL);
 
-	if( tzpath_buf == NULL) {
+	if (tzpath_buf == NULL) {
 		ret = -ENOMEM;
 		goto error;
 		return -ENOMEM;
@@ -1633,10 +1647,10 @@ static ssize_t tzdev_store(struct kobject *kobj, struct kobj_attribute *attr,
 
 static int check_privilege(void)
 {
-	if( !uid_eq(current_euid(), GLOBAL_ROOT_UID))
+	if (!uid_eq(current_euid(), GLOBAL_ROOT_UID))
 		return -1;
 
-	if( strncmp( current->comm, "tzdaemon", 9) != 0 )
+	if (strncmp(current->comm, "tzdaemon", 9) != 0)
 		return -1;
 
 	return 0;
@@ -1658,23 +1672,23 @@ static ssize_t tzpath_store(struct kobject *kobj, struct kobj_attribute *attr,
 	int rc;
 	struct path file_path;
 
-	if( buf == NULL || count > 128) {
+	if (buf == NULL || count > 128)
 		return -EINVAL;
-	}
 
-	if( check_privilege() != 0 ) {
+	if (check_privilege() != 0) {
 		tzlog_print(TZLOG_ERROR, "Permission denied\n");
 		return -EPERM;
 	}
 
 	rc = kern_path(buf, LOOKUP_FOLLOW, &file_path);
 
-	if( rc < 0 ) {
-		tzlog_print(TZLOG_ERROR, "Failed to open path : %s err:%d\n", buf, rc);
+	if (rc < 0) {
+		tzlog_print(TZLOG_ERROR, "Failed to open path : %s err:%d\n",
+			buf, rc);
 		return rc;
 	}
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(3, 15, 0))
-	if( !d_is_dir(file_path.dentry) ) {
+	if (!d_is_dir(file_path.dentry)) {
 		tzlog_print(TZLOG_ERROR, "Failed to access path : %s\n", buf);
 		path_put(&file_path);
 		return -ENOENT;
@@ -1684,12 +1698,12 @@ static ssize_t tzpath_store(struct kobject *kobj, struct kobj_attribute *attr,
 	path_put(&file_path);
 
 	rc = tzpath_alloc(buf, count);
-	if( rc != 0 ) {
+	if (rc != 0) {
 		tzlog_print(TZLOG_ERROR, "Failed to setup tzpath : %s\n", buf);
 		return -EINVAL;
 	}
 
-	if( storage_path_init() != 0 )
+	if (storage_path_init() != 0)
 		return -EIO;
 
 	return count;
@@ -1834,7 +1848,7 @@ static int fetch_kernel_info(void)
 extern struct miscdevice tzmem;
 extern struct miscdevice tzrsrc;
 
-#ifdef CONFIG_ARTIK_USE_TZCMA_FOR_ARTIK710_CRYPTO
+#ifdef CONFIG_ARTIK_USE_TZCMA_FOR_CRYPTO
 #define TZCMA_MEMORY_ALLOC	0
 #define TZCMA_MEMORY_FREE	1
 #define TZCMA_LLI_TBL_PAGE	4
@@ -1846,8 +1860,8 @@ extern struct miscdevice tzrsrc;
 static struct device *tzcma_dev;
 struct tzcma_info {
 	int chan_id;
-	size_t size;
-	unsigned long virtAddr;
+	u64 size;
+	u64 virtAddr;
 };
 struct tzcma_info g_tzcmas[TZCMA_ALLOC_MAX_COUNT];
 struct dma_chan *g_tzcma_channels[TZCMA_ALLOC_MAX_COUNT];
@@ -1862,6 +1876,7 @@ static struct tzcma_info_internal g_tzcmas_internal[TZCMA_ALLOC_MAX_COUNT];
 int g_tzcma_alloc_cnt;
 bool g_tzcma_state_opened;
 
+#ifdef CONFIG_ARTIK_USE_DMA
 static bool tzcma_filter(struct dma_chan *chan, void *param)
 {
 	if (strcmp(dev_name(chan->device->dev), "c0001000.pl08xdma") == 0
@@ -1877,6 +1892,7 @@ static bool tzcma_filter(struct dma_chan *chan, void *param)
 		return true;
 	return false;
 }
+#endif /* CONFIG_ARTIK_USE_DMA*/
 
 static int tzcma_get_alloc_idx(void)
 {
@@ -1915,10 +1931,14 @@ static void tzcma_free(int idx)
 				TZCMA_LLI_TBL_PAGE * PAGE_SIZE;
 	dma_free_writecombine(tzcma_dev, dma_free_size,
 		g_tzcmas_internal[idx].cpuAddr, g_tzcmas_internal[idx].phyAddr);
+
+#ifdef CONFIG_ARTIK_USE_DMA
 	if (g_tzcma_channels[idx] != NULL) {
 		dma_release_channel(g_tzcma_channels[idx]);
 		g_tzcma_channels[idx] = NULL;
 	}
+#endif /* CONFIG_ARTIK_USE_DMA*/
+
 	memset(&g_tzcmas[idx], 0, sizeof(struct tzcma_info));
 	memset(&g_tzcmas_internal[idx], 0, sizeof(struct tzcma_info_internal));
 }
@@ -1929,7 +1949,10 @@ static int tzcma_alloc(int idx, size_t size)
 	int dma_alloc_size;
 	void *cpuAddr;
 	dma_addr_t phyAddr;
+
+#ifdef CONFIG_ARTIK_USE_DMA
 	dma_cap_mask_t mask;
+#endif /* CONFIG_ARTIK_USE_DMA*/
 
 	if (idx < 0 || idx >= TZCMA_ALLOC_MAX_COUNT) {
 		tzlog_print(TZLOG_ERROR,
@@ -1939,8 +1962,10 @@ static int tzcma_alloc(int idx, size_t size)
 
 	dma_alloc_size = round_up(size, PAGE_SIZE) +
 				TZCMA_LLI_TBL_PAGE * PAGE_SIZE;
+
 	cpuAddr = dma_alloc_writecombine(tzcma_dev, dma_alloc_size,
 			&phyAddr, GFP_KERNEL | GFP_DMA);
+
 	if (cpuAddr == NULL) {
 		tzlog_print(TZLOG_ERROR, "dma alloc failed\n");
 		return -ENOMEM;
@@ -1950,6 +1975,7 @@ static int tzcma_alloc(int idx, size_t size)
 	g_tzcmas_internal[idx].phyAddr = phyAddr;
 	g_tzcmas_internal[idx].cpuAddr = cpuAddr;
 
+#ifdef CONFIG_ARTIK_USE_DMA
 	dma_cap_zero(mask);
 	dma_cap_set(DMA_MEMCPY, mask);
 	g_tzcma_channels[idx] = dma_request_channel(mask, tzcma_filter, NULL);
@@ -1959,6 +1985,8 @@ static int tzcma_alloc(int idx, size_t size)
 		return -ENODEV;
 	}
 	g_tzcmas[idx].chan_id = g_tzcma_channels[idx]->chan_id;
+#endif /* CONFIG_ARTIK_USE_DMA*/
+
 	return ret;
 }
 
@@ -1976,8 +2004,10 @@ static int tzcma_open(struct inode *inode, struct file *file)
 	for (i = 0; i < TZCMA_ALLOC_MAX_COUNT; i++) {
 		memset(&g_tzcmas[i], 0, sizeof(struct tzcma_info));
 		memset(&g_tzcmas_internal[i], 0,
-			sizeof(struct tzcma_info_internal));
+				sizeof(struct tzcma_info_internal));
+#ifdef CONFIG_ARTIK_USE_DMA
 		g_tzcma_channels[i] = NULL;
+#endif /* CONFIG_ARTIK_USE_DMA*/
 	}
 	g_tzcma_alloc_cnt = 0;
 	return ret;
@@ -2103,15 +2133,15 @@ static int tzcma_init(void)
 	g_tzcma_state_opened = false;
 
 	ret = misc_register(&tzcma);
-	if (unlikely(ret))
-	{
+	if (unlikely(ret)) {
 		pr_err("failed to register tzcma device!\n");
 		goto tzcma_out;
 	}
 
 	tzcma_dev = tzcma.this_device;
-	arch_setup_dma_ops(tzcma_dev, 0, 0, NULL, DEV_DMA_COHERENT);
+	tzcma_dev->coherent_dma_mask = ~0;
 
+#ifdef CONFIG_ARTIK_USE_DMA
 	/*
 	 * if you want using tzdev module,
 	 * It should be modified as follows.
@@ -2119,6 +2149,7 @@ static int tzcma_init(void)
 	 * in linux-artik7/arch/arm64/mm/dma-mapping.c
 	*/
 	arch_setup_dma_ops(tzcma_dev, 0, 0, NULL, 0);
+#endif /* CONFIG_ARTIK_USE_DMA*/
 
 	return ret;
 
@@ -2127,7 +2158,7 @@ tzcma_out:
 
 	return ret;
 }
-#endif /* CONFIG_ARTIK_USE_TZCMA_FOR_ARTIK710_CRYPTO */
+#endif /* CONFIG_ARTIK_USE_TZCMA_FOR_CRYPTO */
 
 static int __init init_tzdev(void)
 {
@@ -2157,10 +2188,10 @@ static int __init init_tzdev(void)
 		goto err1;
 
 	rc = tzpath_alloc(TZDEV_DEFAULT_TZPATH, strlen(TZDEV_DEFAULT_TZPATH));
-	if(unlikely(rc))
+	if (unlikely(rc))
 		goto tzpath_out;
 
-	if( storage_path_init() != 0 ) {
+	if (storage_path_init() != 0) {
 		rc = -EIO;
 		goto tzpath_out;
 	}
@@ -2175,7 +2206,7 @@ static int __init init_tzdev(void)
 		goto tzdev_out;
 	}
 #endif
-#ifdef CONFIG_ARTIK_USE_TZCMA_FOR_ARTIK710_CRYPTO
+#ifdef CONFIG_ARTIK_USE_TZCMA_FOR_CRYPTO
 	tzcma_init();
 #endif
 
