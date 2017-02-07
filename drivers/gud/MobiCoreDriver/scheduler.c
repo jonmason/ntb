@@ -30,7 +30,7 @@
 #include "scheduler.h"
 
 #define SCHEDULING_FREQ		5   /**< N-SIQ every n-th time */
-#define DEFAULT_TIMEOUT_MS	60000
+#define DEFAULT_TIMEOUT_MS	30000
 
 static struct sched_ctx {
 	struct task_struct	*thread;

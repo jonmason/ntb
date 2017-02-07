@@ -32,6 +32,7 @@
 #include "nq.h"
 
 #define NQ_NUM_ELEMS		64
+#define DEFAULT_TIMEOUT_MS	30000
 
 static struct {
 	struct mutex buffer_mutex;	/* Lock on SWd communication buffer */
@@ -226,10 +227,14 @@ static inline void nq_notif_handler(u32 id, u32 payload)
 static int irq_bh_worker(void *arg)
 {
 	struct notification_queue *rx = l_ctx.nq.rx;
+	s32 timeout_ms = DEFAULT_TIMEOUT_MS;
 
 	while (l_ctx.irq_bh_active) {
-		wait_for_completion_killable(&l_ctx.irq_bh_complete);
-
+		if (!wait_for_completion_timeout
+			(&l_ctx.irq_bh_complete,
+			msecs_to_jiffies(timeout_ms))) {
+				continue;
+		}
 		/* Deal with all pending notifications in one go */
 		while ((rx->hdr.write_cnt - rx->hdr.read_cnt) > 0) {
 			struct notification nf;
