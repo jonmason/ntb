@@ -268,7 +268,7 @@ static int pl022_setup(struct pl022_snd *pl022)
 		dev_err(pl022->dev,
 			"could not support spi protocol %d\n",
 			pl022->protocol);
-			return -EINVAL;
+		return -EINVAL;
 	}
 
 	pl022_enable(base, 0);

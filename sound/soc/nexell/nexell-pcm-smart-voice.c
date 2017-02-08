@@ -284,8 +284,10 @@ static int nx_pcm_rate_detect_params(struct snd_pcm_substream *substream,
 		return -ENOMEM;
 
 	detect->us = kcalloc(params_periods(params), sizeof(s64), GFP_KERNEL);
-	if (!detect->us)
+	if (!detect->us) {
+		kfree(detect);
 		return -ENOMEM;
+	}
 
 	detect->t_count = 0;
 	detect->exist = false;
@@ -398,8 +400,12 @@ static void nx_pcm_dma_release_channel(void *runtime_data, int stream)
 {
 	struct nx_pcm_runtime_data *prtd = runtime_data;
 
-	if (prtd && prtd->dma_chan)
+	if (!prtd)
+		return;
+
+	if (prtd->dma_chan)
 		dma_release_channel(prtd->dma_chan);
+
 	dev_dbg(prtd->dev, "release dma '%s_%s'\n",
 		dev_name(prtd->dma_param->dev),
 	       (stream == SNDRV_PCM_STREAM_PLAYBACK) ? "tx":"rx");
