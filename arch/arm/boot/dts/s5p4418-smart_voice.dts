@@ -55,6 +55,22 @@
 			uart3:uart@c00ab000 { clock-frequency = <147500000>; };
 			uart1:uart@c00a8000 { clock-frequency = <100000000>; };
 			uart0:uart@c00a9000 { clock-frequency = <147500000>; };
+			dummy_clk: dummy_clk {
+				#clock-cells = <0>;
+				clock-output-names = "dummy_clk";
+				compatible = "fixed-clock";
+				clock-frequency = <0>;
+			};
+		};
+
+		pinctrl@C0010000 {
+			i2s1_bus:i2s1 {
+				/delete-node/ i2s1-mclk;
+			};
+
+			i2s2_bus:i2s2 {
+				/delete-node/ i2s2-mclk;
+			};
 		};
 
 		l2:l2-cache-controller@cf000000 {
@@ -201,7 +217,7 @@
 				compatible = "ti,tlv320aic32x4";
 				reg = <0x18>;
 				reset-gpios = <&gpio_c 29 GPIO_ACTIVE_LOW>;
-				clocks = <&i2s0>;
+				clocks = <&dummy_clk>;
 				clock-names = "mclk";
 				iov-supply = <&iov>;
 				ldoin-supply = <&ldoin>;
