@@ -24,6 +24,7 @@
 #include "nxs_display.h"
 
 #define NXS_DEV_MAX_PLANES	2
+#define NXS_DEV_MAX_FIELDS	4
 
 enum nxs_event_type {
 	NXS_EVENT_NONE		= 0,
