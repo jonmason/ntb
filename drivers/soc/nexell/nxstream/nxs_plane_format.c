@@ -1,0 +1,705 @@
+/*
+ * Copyright (C) 2016  Nexell Co., Ltd.
+ * Author: Hyejung, Kwon <cjscld15@nexell.co.kr>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+#include <linux/kernel.h>
+#include <linux/device.h>
+#include <linux/module.h>
+#include <linux/videodev2.h>
+#include <linux/soc/nexell/nxs_dev.h>
+#include <linux/soc/nexell/nxs_plane_format.h>
+
+void nxs_print_plane_format(struct nxs_dev *nxs_dev,
+			    struct nxs_plane_format *config)
+{
+	dev_info(nxs_dev->dev,
+		"==========================================\n");
+	dev_info(nxs_dev->dev, "color expand is			: %s\n",
+		(config->color_expand)?"enable":"disable");
+	dev_info(nxs_dev->dev, "color dither is			: %s\n",
+		(config->color_dither)?"enable":"disable");
+	dev_info(nxs_dev->dev, "total bitwidth 1st plane		: %d\n",
+		config->total_bitwidth_1st_pl);
+	dev_info(nxs_dev->dev, "[composition for 1st plane]\n");
+	dev_info(nxs_dev->dev, "[0] startbit				: %d\n",
+		config->p0_comp[0].startbit);
+	dev_info(nxs_dev->dev, "[0] bitwidth				: %d\n",
+		config->p0_comp[0].bitwidth);
+	dev_info(nxs_dev->dev, "[0] is_2nd_pland			: %s\n",
+		(config->p0_comp[0].is_2nd_pl)?"true":"false");
+	dev_info(nxs_dev->dev, "[0] use user definition value	: %s\n",
+		(config->p0_comp[0].use_userdef)?"enable":"disable");
+	dev_info(nxs_dev->dev, "[0] definition value			: %d\n",
+		config->p0_comp[0].userdef);
+	dev_info(nxs_dev->dev, "[1] startbit				: %d\n",
+		config->p0_comp[1].startbit);
+	dev_info(nxs_dev->dev, "[1] bitwidth				: %d\n",
+		config->p0_comp[1].bitwidth);
+	dev_info(nxs_dev->dev, "[1] is_2nd_pland			: %s\n",
+		(config->p0_comp[1].is_2nd_pl)?"true":"false");
+	dev_info(nxs_dev->dev, "[1] use user definition value	: %s\n",
+		(config->p0_comp[1].use_userdef)?"enable":"disable");
+	dev_info(nxs_dev->dev, "[1] definition value			: %d\n",
+		config->p0_comp[1].userdef);
+	dev_info(nxs_dev->dev, "[2] startbit				: %d\n",
+		config->p0_comp[2].startbit);
+	dev_info(nxs_dev->dev, "[2] bitwidth				: %d\n",
+		config->p0_comp[2].bitwidth);
+	dev_info(nxs_dev->dev, "[2] is_2nd_pland			: %s\n",
+		(config->p0_comp[2].is_2nd_pl)?"true":"false");
+	dev_info(nxs_dev->dev, "[2] use user definition value	: %s\n",
+		(config->p0_comp[2].use_userdef)?"enable":"disable");
+	dev_info(nxs_dev->dev, "[2] definition value			: %d\n",
+		config->p0_comp[2].userdef);
+	dev_info(nxs_dev->dev, "[3] startbit				: %d\n",
+		config->p0_comp[3].startbit);
+	dev_info(nxs_dev->dev, "[3] bitwidth				: %d\n",
+		config->p0_comp[3].bitwidth);
+	dev_info(nxs_dev->dev, "[3] is_2nd_pland			: %s\n",
+		(config->p0_comp[3].is_2nd_pl)?"true":"false");
+	dev_info(nxs_dev->dev, "[3] use user definition value	: %s\n",
+		(config->p0_comp[3].use_userdef)?"enable":"disable");
+	dev_info(nxs_dev->dev, "[3] definition value			: %d\n",
+		config->p0_comp[3].userdef);
+	dev_info(nxs_dev->dev, "[composition for 2nd plane]\n");
+	dev_info(nxs_dev->dev, "total bitwidth 2nd plane		: %d\n",
+		config->total_bitwidth_2nd_pl);
+	dev_info(nxs_dev->dev, "[0] startbit				: %d\n",
+		config->p1_comp[0].startbit);
+	dev_info(nxs_dev->dev, "[0] bitwidth				: %d\n",
+		config->p1_comp[0].bitwidth);
+	dev_info(nxs_dev->dev, "[0] is_2nd_pland			: %s\n",
+		(config->p1_comp[0].is_2nd_pl)?"true":"false");
+	dev_info(nxs_dev->dev, "[0] use user definition value	: %s\n",
+		(config->p1_comp[0].use_userdef)?"enable":"disable");
+	dev_info(nxs_dev->dev, "[0] definition value			: %d\n",
+		config->p1_comp[0].userdef);
+	dev_info(nxs_dev->dev, "[1] startbit				: %d\n",
+		config->p1_comp[1].startbit);
+	dev_info(nxs_dev->dev, "[1] bitwidth				: %d\n",
+		config->p1_comp[1].bitwidth);
+	dev_info(nxs_dev->dev, "[1] is_2nd_pland			: %s\n",
+		(config->p1_comp[1].is_2nd_pl)?"true":"false");
+	dev_info(nxs_dev->dev, "[1] use user definition value	: %s\n",
+		(config->p1_comp[1].use_userdef)?"enable":"disable");
+	dev_info(nxs_dev->dev, "[1] definition value			: %d\n",
+		config->p1_comp[1].userdef);
+	dev_info(nxs_dev->dev, "[2] startbit				: %d\n",
+		config->p1_comp[2].startbit);
+	dev_info(nxs_dev->dev, "[2] bitwidth				: %d\n",
+		config->p1_comp[2].bitwidth);
+	dev_info(nxs_dev->dev, "[2] is_2nd_pland			: %s\n",
+		(config->p1_comp[2].is_2nd_pl)?"true":"false");
+	dev_info(nxs_dev->dev, "[2] use user definition value	: %s\n",
+		(config->p1_comp[2].use_userdef)?"enable":"disable");
+	dev_info(nxs_dev->dev, "[2] definition value			: %d\n",
+		config->p1_comp[2].userdef);
+	dev_info(nxs_dev->dev, "[3] startbit				: %d\n",
+		config->p1_comp[3].startbit);
+	dev_info(nxs_dev->dev, "[3] bitwidth				: %d\n",
+		config->p1_comp[3].bitwidth);
+	dev_info(nxs_dev->dev, "[3] is_2nd_pland			: %s\n",
+		(config->p1_comp[3].is_2nd_pl)?"true":"false");
+	dev_info(nxs_dev->dev, "[3] use user definition value	: %s\n",
+		(config->p1_comp[3].use_userdef)?"enable":"disable");
+	dev_info(nxs_dev->dev, "[3] definition value			: %d\n",
+		config->p1_comp[3].userdef);
+	dev_info(nxs_dev->dev,
+		"==========================================\n");
+}
+
+u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
+			 struct nxs_plane_format *config)
+{
+	dev_info(nxs_dev->dev, "[%s]\n", __func__);
+	/*
+	 * currently only support for 8bit format
+	 * each pixel is smaller than 10bit
+	 * so set color_expand = 1 as a defaut value
+	 */
+	config->color_expand = 1;
+	switch (format) {
+	/* RGB */
+	case V4L2_PIX_FMT_ARGB555:
+		/*
+		 * ARGB-1-5-5-5
+		 * BPP = 16
+		 * 7	6	5	4	3	2	1	0
+		 * g2	g1	g0	b4	b3	b2	b1	b0
+		 * 15	14	13	12	11	10	9	8
+		 * a	r4	r3	r2	r1	r0	g4	g3
+		 */
+		config->img_type = NXS_IMG_RGB;
+		config->total_bitwidth_1st_pl = 32;
+		config->p0_comp[0].startbit = 10;
+		config->p0_comp[0].bitwidth = 5;
+		config->p0_comp[1].startbit = 5;
+		config->p0_comp[1].bitwidth = 5;
+		config->p0_comp[2].startbit = 0;
+		config->p0_comp[2].bitwidth = 5;
+		config->p0_comp[3].startbit = 15;
+		config->p0_comp[3].bitwidth = 1;
+		config->p1_comp[0].startbit = 26;
+		config->p1_comp[0].bitwidth = 5;
+		config->p1_comp[1].startbit = 21;
+		config->p1_comp[1].bitwidth = 5;
+		config->p1_comp[2].startbit = 16;
+		config->p1_comp[2].bitwidth = 5;
+		config->p1_comp[3].startbit = 31;
+		config->p1_comp[3].bitwidth = 1;
+		break;
+	case V4L2_PIX_FMT_XRGB555:
+		/*
+		 * XRGB-1-5-5-5(X is dummy)
+		 * BPP = 16
+		 * 7	6	5	4	3	2	1	0
+		 * g2	g1	g0	b4	b3	b2	b1	b0
+		 * 15	14	13	12	11	10	9	8
+		 * -	r4	r3	r2	r1	r0	g4	g3
+		 */
+		config->img_type = NXS_IMG_RGB;
+		config->total_bitwidth_1st_pl = 32;
+		config->p0_comp[0].startbit = 10;
+		config->p0_comp[0].bitwidth = 5;
+		config->p0_comp[1].startbit = 5;
+		config->p0_comp[1].bitwidth = 5;
+		config->p0_comp[2].startbit = 0;
+		config->p0_comp[2].bitwidth = 5;
+		config->p0_comp[3].use_userdef = 1;
+		config->p0_comp[3].userdef = ~0;
+		config->p1_comp[0].startbit = 15;
+		config->p1_comp[0].bitwidth = 5;
+		config->p1_comp[1].startbit = 26;
+		config->p1_comp[1].bitwidth = 5;
+		config->p1_comp[2].startbit = 21;
+		config->p1_comp[2].bitwidth = 5;
+		config->p1_comp[3].use_userdef = 1;
+		config->p1_comp[3].userdef = ~0;
+		break;
+	case V4L2_PIX_FMT_RGB565:
+		/*
+		 * same as NX_B5_G6_R5
+		 * BPP = 16
+		 * 7	6	5	4	3	2	1	0
+		 * g2	g1	g0	b4	b3	b2	b1	b0
+		 * 15	14	13	12	11	10	9	8
+		 * r4	r3	r2	r1	r0	g5	g4	g3
+		 */
+		config->img_type = NXS_IMG_RGB;
+		config->total_bitwidth_1st_pl = 32;
+		config->p0_comp[0].startbit = 11;
+		config->p0_comp[0].bitwidth = 5;
+		config->p0_comp[1].startbit = 5;
+		config->p0_comp[1].bitwidth = 6;
+		config->p0_comp[2].startbit = 0;
+		config->p0_comp[2].bitwidth = 5;
+		config->p0_comp[3].use_userdef = 1;
+		config->p0_comp[3].userdef = ~0;
+		config->p1_comp[0].startbit = 27;
+		config->p1_comp[0].bitwidth = 5;
+		config->p1_comp[1].startbit = 21;
+		config->p1_comp[1].bitwidth = 6;
+		config->p1_comp[2].startbit = 16;
+		config->p1_comp[2].bitwidth = 5;
+		config->p1_comp[3].use_userdef = 1;
+		config->p1_comp[3].userdef = ~0;
+		break;
+	case V4L2_PIX_FMT_BGR24:
+		/*
+		 * BGR-8-8-8
+		 * BPP = 24
+		 * 7	6	5	4	3	2	1	0
+		 * b7	b6	b5	b4	b3	b2	b1	b0
+		 * 15	14	13	12	11	10	9	8
+		 * g7	g6	g5	g4	g3	g2	g1	g0
+		 * 23	22	21	20	19	18	17	16
+		 * r7	r6	r5	r4	r3	r2	r1	r0
+		 */
+		config->img_type = NXS_IMG_RGB;
+		config->total_bitwidth_1st_pl = 48;
+		config->p0_comp[0].startbit = 16;
+		config->p0_comp[0].bitwidth = 8;
+		config->p0_comp[1].startbit = 8;
+		config->p0_comp[1].bitwidth = 8;
+		config->p0_comp[2].startbit = 0;
+		config->p0_comp[2].bitwidth = 8;
+		config->p0_comp[3].use_userdef = 1;
+		config->p0_comp[3].userdef = ~0;
+		config->p1_comp[0].startbit = 40;
+		config->p1_comp[0].bitwidth = 8;
+		config->p1_comp[1].startbit = 32;
+		config->p1_comp[1].bitwidth = 8;
+		config->p1_comp[2].startbit = 24;
+		config->p1_comp[2].bitwidth = 8;
+		config->p1_comp[3].use_userdef = 1;
+		config->p1_comp[3].userdef = ~0;
+		break;
+	case V4L2_PIX_FMT_RGB24:
+		/*
+		 * RGB-8-8-8
+		 * bpp = 24;
+		 */
+		config->img_type = NXS_IMG_RGB;
+		config->total_bitwidth_1st_pl = 48;
+		config->p0_comp[0].startbit = 0;
+		config->p0_comp[0].bitwidth = 8;
+		config->p0_comp[1].startbit = 8;
+		config->p0_comp[1].bitwidth = 8;
+		config->p0_comp[2].startbit = 16;
+		config->p0_comp[2].bitwidth = 8;
+		config->p0_comp[3].use_userdef = 1;
+		config->p0_comp[3].userdef = ~0;
+		config->p1_comp[0].startbit = 24;
+		config->p1_comp[0].bitwidth = 8;
+		config->p1_comp[1].startbit = 32;
+		config->p1_comp[1].bitwidth = 8;
+		config->p1_comp[2].startbit = 40;
+		config->p1_comp[2].bitwidth = 8;
+		config->p1_comp[3].use_userdef = 1;
+		config->p1_comp[3].userdef = ~0;
+		break;
+	case V4L2_PIX_FMT_BGR32:
+		/* BGR-8-8-8-8
+		 * as Packed RGB Formats,
+		 * https://www.linuxtv.org/downloads/v4l-dvb-apis-old/
+		 * packed-rgb.html
+		 * thie composition is changed depends on the driver
+		 * so currently handle same as the format ABGR32-8-8-8-8
+		 * following the site
+		 */
+	case V4L2_PIX_FMT_ABGR32:
+		/*
+		 * BGRA-8-8-8-8
+		 * BPP = 32
+		 * b7	b6	b5	b4	b3	b2	b1	b0
+		 * g7	g6	g5	g4	g3	g2	g1	g0
+		 * r7	r6	r5	r4	r3	r2	r1	r0
+		 * a7	a6	a5	a4	a3	a2	a1	a0
+		 */
+		config->img_type = NXS_IMG_RGB;
+		config->total_bitwidth_1st_pl = 64;
+		config->p0_comp[0].startbit = 16;
+		config->p0_comp[0].bitwidth = 8;
+		config->p0_comp[1].startbit = 8;
+		config->p0_comp[1].bitwidth = 8;
+		config->p0_comp[2].startbit = 0;
+		config->p0_comp[2].bitwidth = 8;
+		config->p0_comp[3].startbit = 24;
+		config->p0_comp[3].bitwidth = 8;
+		config->p1_comp[0].startbit = 48;
+		config->p1_comp[0].bitwidth = 8;
+		config->p1_comp[1].startbit = 40;
+		config->p1_comp[1].bitwidth = 8;
+		config->p1_comp[2].startbit = 32;
+		config->p1_comp[2].bitwidth = 8;
+		config->p1_comp[3].startbit = 56;
+		config->p1_comp[3].bitwidth = 8;
+		break;
+	case V4L2_PIX_FMT_XBGR32:
+		/*
+		 * BGRX-8-8-8-8
+		 * bpp = 32;
+		 */
+		config->img_type = NXS_IMG_RGB;
+		config->p0_comp[0].startbit = 16;
+		config->p0_comp[0].bitwidth = 8;
+		config->p0_comp[1].startbit = 8;
+		config->p0_comp[1].bitwidth = 8;
+		config->p0_comp[2].startbit = 0;
+		config->p0_comp[2].bitwidth = 8;
+		config->p0_comp[3].use_userdef = 1;
+		config->p0_comp[3].userdef = ~0;
+		config->p1_comp[0].startbit = 48;
+		config->p1_comp[0].bitwidth = 8;
+		config->p1_comp[1].startbit = 40;
+		config->p1_comp[1].bitwidth = 8;
+		config->p1_comp[2].startbit = 32;
+		config->p1_comp[2].bitwidth = 8;
+		config->p1_comp[3].use_userdef = 1;
+		config->p1_comp[3].userdef = ~0;
+		break;
+	case V4L2_PIX_FMT_RGB32:
+		/* RGB-8-8-8-8
+		 * as Packed RGB Formats,
+		 * https://www.linuxtv.org/downloads/v4l-dvb-apis-old/
+		 * packed-rgb.html
+		 * thie composition is changed depends on the driver
+		 * so currently handle same as the format ARGB32-8-8-8-8
+		 * following the site
+		 */
+	case V4L2_PIX_FMT_ARGB32:
+		/*
+		 * ARGB-8-8-8-8 same as NX_A8_R8_G8-B8
+		 * BPP = 32
+		 * a7	a6	a5	a4	a3	a2	a1	a0
+		 * r7	r6	r5	r4	r3	r2	r1	r0
+		 * g7	g6	g5	g4	g3	g2	g1	g0
+		 * b7	b6	b5	b4	b3	b2	b1	b0
+		 */
+		config->img_type = NXS_IMG_RGB;
+		config->total_bitwidth_1st_pl = 64;
+		config->p0_comp[0].startbit = 8;
+		config->p0_comp[0].bitwidth = 8;
+		config->p0_comp[1].startbit = 16;
+		config->p0_comp[1].bitwidth = 8;
+		config->p0_comp[2].startbit = 24;
+		config->p0_comp[2].bitwidth = 8;
+		config->p0_comp[3].startbit = 0;
+		config->p0_comp[3].bitwidth = 8;
+		config->p1_comp[0].startbit = 40;
+		config->p1_comp[0].bitwidth = 8;
+		config->p1_comp[1].startbit = 48;
+		config->p1_comp[1].bitwidth = 8;
+		config->p1_comp[2].startbit = 56;
+		config->p1_comp[2].bitwidth = 8;
+		config->p1_comp[3].startbit = 32;
+		config->p1_comp[3].bitwidth = 8;
+		break;
+	case V4L2_PIX_FMT_XRGB32:
+		/*
+		 * XRGB-8-8-8-8
+		 * bpp = 32
+		 */
+		config->img_type = NXS_IMG_RGB;
+		config->total_bitwidth_1st_pl = 64;
+		config->p0_comp[0].startbit = 8;
+		config->p0_comp[0].bitwidth = 8;
+		config->p0_comp[1].startbit = 16;
+		config->p0_comp[1].bitwidth = 8;
+		config->p0_comp[2].startbit = 24;
+		config->p0_comp[2].bitwidth = 8;
+		config->p0_comp[3].use_userdef = 1;
+		config->p0_comp[3].userdef = ~0;
+		config->p1_comp[0].startbit = 32;
+		config->p1_comp[0].bitwidth = 8;
+		config->p1_comp[1].startbit = 40;
+		config->p1_comp[1].bitwidth = 8;
+		config->p1_comp[2].startbit = 48;
+		config->p1_comp[2].bitwidth = 8;
+		config->p1_comp[3].use_userdef = 1;
+		config->p1_comp[3].userdef = ~0;
+		break;
+	/* YUV422 */
+	case V4L2_PIX_FMT_YUYV:
+		/* bpp = 16 */
+		config->img_type = NXS_IMG_YUV;
+		config->total_bitwidth_1st_pl = 32;
+		config->p0_comp[0].startbit = 0;
+		config->p0_comp[0].bitwidth = 8;
+		config->p0_comp[1].startbit = 8;
+		config->p0_comp[1].bitwidth = 8;
+		config->p0_comp[2].startbit = 24;
+		config->p0_comp[2].bitwidth = 8;
+		config->p0_comp[3].use_userdef = 1;
+		config->p0_comp[3].userdef = ~0;
+		config->p1_comp[0].startbit = 16;
+		config->p1_comp[0].bitwidth = 8;
+		config->p1_comp[1].startbit = 8;
+		config->p1_comp[1].bitwidth = 8;
+		config->p1_comp[2].startbit = 24;
+		config->p1_comp[2].bitwidth = 8;
+		config->p1_comp[3].use_userdef = 1;
+		config->p1_comp[3].userdef = ~0;
+		config->use_average_value = 1;
+		break;
+	case V4L2_PIX_FMT_YYUV:
+		/* bpp = 16 */
+		config->img_type = NXS_IMG_YUV;
+		config->total_bitwidth_1st_pl = 32;
+		config->p0_comp[0].startbit = 0;
+		config->p0_comp[0].bitwidth = 8;
+		config->p0_comp[1].startbit = 16;
+		config->p0_comp[1].bitwidth = 8;
+		config->p0_comp[2].startbit = 24;
+		config->p0_comp[2].bitwidth = 8;
+		config->p0_comp[3].use_userdef = 1;
+		config->p0_comp[3].userdef = ~0;
+		config->p1_comp[0].startbit = 8;
+		config->p1_comp[0].bitwidth = 8;
+		config->p1_comp[1].startbit = 16;
+		config->p1_comp[1].bitwidth = 8;
+		config->p1_comp[2].startbit = 24;
+		config->p1_comp[2].bitwidth = 8;
+		config->p1_comp[3].use_userdef = 1;
+		config->p1_comp[3].userdef = ~0;
+		config->use_average_value = 1;
+		break;
+	case V4L2_PIX_FMT_YVYU:
+		/* bpp = 16 */
+		config->img_type = NXS_IMG_YUV;
+		config->total_bitwidth_1st_pl = 32;
+		config->p0_comp[0].startbit = 0;
+		config->p0_comp[0].bitwidth = 8;
+		config->p0_comp[1].startbit = 24;
+		config->p0_comp[1].bitwidth = 8;
+		config->p0_comp[2].startbit = 8;
+		config->p0_comp[2].bitwidth = 8;
+		config->p0_comp[3].use_userdef = 1;
+		config->p0_comp[3].userdef = ~0;
+		config->p1_comp[0].startbit = 16;
+		config->p1_comp[0].bitwidth = 8;
+		config->p1_comp[1].startbit = 24;
+		config->p1_comp[1].bitwidth = 8;
+		config->p1_comp[2].startbit = 8;
+		config->p1_comp[2].bitwidth = 8;
+		config->p1_comp[3].use_userdef = 1;
+		config->p1_comp[3].userdef = ~0;
+		config->use_average_value = 1;
+		break;
+	case V4L2_PIX_FMT_UYVY:
+		/* bpp = 16 */
+		config->img_type = NXS_IMG_YUV;
+		config->total_bitwidth_1st_pl = 32;
+		config->p0_comp[0].startbit = 8;
+		config->p0_comp[0].bitwidth = 8;
+		config->p0_comp[1].startbit = 0;
+		config->p0_comp[1].bitwidth = 8;
+		config->p0_comp[2].startbit = 16;
+		config->p0_comp[2].bitwidth = 8;
+		config->p0_comp[3].use_userdef = 1;
+		config->p0_comp[3].userdef = ~0;
+		config->p1_comp[0].startbit = 24;
+		config->p1_comp[0].bitwidth = 8;
+		config->p1_comp[1].startbit = 0;
+		config->p1_comp[1].bitwidth = 8;
+		config->p1_comp[2].startbit = 16;
+		config->p1_comp[2].bitwidth = 8;
+		config->p1_comp[3].use_userdef = 1;
+		config->p1_comp[3].userdef = ~0;
+		config->use_average_value = 1;
+		break;
+	case V4L2_PIX_FMT_VYUY:
+		/* bpp = 16 */
+		config->img_type = NXS_IMG_YUV;
+		config->total_bitwidth_1st_pl = 32;
+		config->p0_comp[0].startbit = 8;
+		config->p0_comp[0].bitwidth = 8;
+		config->p0_comp[1].startbit = 16;
+		config->p0_comp[1].bitwidth = 8;
+		config->p0_comp[2].startbit = 0;
+		config->p0_comp[2].bitwidth = 8;
+		config->p0_comp[3].use_userdef = 1;
+		config->p0_comp[3].userdef = ~0;
+		config->p1_comp[0].startbit = 24;
+		config->p1_comp[0].bitwidth = 8;
+		config->p1_comp[1].startbit = 16;
+		config->p1_comp[1].bitwidth = 8;
+		config->p1_comp[2].startbit = 0;
+		config->p1_comp[2].bitwidth = 8;
+		config->p1_comp[3].use_userdef = 1;
+		config->p1_comp[3].userdef = ~0;
+		config->use_average_value = 1;
+		break;
+	case V4L2_PIX_FMT_NV24:
+		/*
+		 * Y/CbCr 4:4:4
+		 * bpp = 24
+		 */
+		config->img_type = NXS_IMG_YUV;
+		config->total_bitwidth_1st_pl = 16;
+		config->total_bitwidth_1st_pl = 32;
+		config->p0_comp[0].startbit = 0;
+		config->p0_comp[0].bitwidth = 8;
+		config->p0_comp[1].startbit = 0;
+		config->p0_comp[1].bitwidth = 8;
+		config->p0_comp[1].is_2nd_pl = 1;
+		config->p0_comp[2].startbit = 8;
+		config->p0_comp[2].bitwidth = 8;
+		config->p0_comp[2].is_2nd_pl = 1;
+		config->p0_comp[3].use_userdef = 1;
+		config->p0_comp[3].userdef = ~0;
+		config->p1_comp[0].startbit = 8;
+		config->p1_comp[0].bitwidth = 8;
+		config->p1_comp[1].startbit = 16;
+		config->p1_comp[1].bitwidth = 8;
+		config->p1_comp[1].is_2nd_pl = 1;
+		config->p1_comp[2].startbit = 24;
+		config->p1_comp[2].bitwidth = 8;
+		config->p1_comp[2].is_2nd_pl = 1;
+		config->p1_comp[3].use_userdef = 1;
+		config->p1_comp[3].userdef = ~0;
+		config->use_average_value = 1;
+		break;
+	case V4L2_PIX_FMT_NV42:
+		/* bpp = 24 */
+		config->img_type = NXS_IMG_YUV;
+		config->total_bitwidth_1st_pl = 16;
+		config->total_bitwidth_1st_pl = 32;
+		config->p0_comp[0].startbit = 0;
+		config->p0_comp[0].bitwidth = 8;
+		config->p0_comp[1].startbit = 8;
+		config->p0_comp[1].bitwidth = 8;
+		config->p0_comp[1].is_2nd_pl = 1;
+		config->p0_comp[2].startbit = 0;
+		config->p0_comp[2].bitwidth = 8;
+		config->p0_comp[2].is_2nd_pl = 1;
+		config->p0_comp[3].use_userdef = 1;
+		config->p0_comp[3].userdef = ~0;
+		config->p1_comp[0].startbit = 8;
+		config->p1_comp[0].bitwidth = 8;
+		config->p1_comp[1].startbit = 24;
+		config->p1_comp[1].bitwidth = 8;
+		config->p1_comp[1].is_2nd_pl = 1;
+		config->p1_comp[2].startbit = 16;
+		config->p1_comp[2].bitwidth = 8;
+		config->p1_comp[2].is_2nd_pl = 1;
+		config->p1_comp[3].use_userdef = 1;
+		config->p1_comp[3].userdef = ~0;
+		config->use_average_value = 1;
+		break;
+	case V4L2_PIX_FMT_NV12:
+	case V4L2_PIX_FMT_NV12M:
+		/*
+		 * Y/CbCr 4:2:0 same as NX_2P_Y08_Y18_U8_V8
+		 * bpp = 12
+		 */
+		config->img_type = NXS_IMG_YUV;
+		config->total_bitwidth_1st_pl = 16;
+		config->total_bitwidth_2nd_pl = 16;
+		config->half_height_2nd_pl = 1;
+		config->p0_comp[0].startbit = 0;
+		config->p0_comp[0].bitwidth = 8;
+		config->p0_comp[1].startbit = 0;
+		config->p0_comp[1].bitwidth = 8;
+		config->p0_comp[1].is_2nd_pl = 1;
+		config->p0_comp[2].startbit = 8;
+		config->p0_comp[2].bitwidth = 8;
+		config->p0_comp[2].is_2nd_pl = 1;
+		config->p0_comp[3].use_userdef = 1;
+		config->p0_comp[3].userdef = ~0;
+		config->p1_comp[0].startbit = 8;
+		config->p1_comp[0].bitwidth = 8;
+		config->p1_comp[1].startbit = 0;
+		config->p1_comp[1].bitwidth = 8;
+		config->p1_comp[1].is_2nd_pl = 1;
+		config->p1_comp[2].startbit = 8;
+		config->p1_comp[2].bitwidth = 8;
+		config->p1_comp[2].is_2nd_pl = 1;
+		config->p1_comp[3].use_userdef = 1;
+		config->p1_comp[3].userdef = ~0;
+		config->use_average_value = 1;
+		break;
+	case V4L2_PIX_FMT_NV21:
+	case V4L2_PIX_FMT_NV21M:
+		/*
+		 * Y/CbCr 420 same as NX_2P_Y08_Y18_V8_U8
+		 * bpp = 12
+		 */
+		config->img_type = NXS_IMG_YUV;
+		config->total_bitwidth_1st_pl = 16;
+		config->total_bitwidth_2nd_pl = 16;
+		config->half_height_2nd_pl = 1;
+		config->p0_comp[0].startbit = 0;
+		config->p0_comp[0].bitwidth = 8;
+		config->p0_comp[1].startbit = 8;
+		config->p0_comp[1].bitwidth = 8;
+		config->p0_comp[1].is_2nd_pl = 1;
+		config->p0_comp[2].startbit = 0;
+		config->p0_comp[2].bitwidth = 8;
+		config->p0_comp[2].is_2nd_pl = 1;
+		config->p0_comp[3].use_userdef = 1;
+		config->p0_comp[3].userdef = ~0;
+		config->p1_comp[0].startbit = 8;
+		config->p1_comp[0].bitwidth = 8;
+		config->p1_comp[1].startbit = 8;
+		config->p1_comp[1].bitwidth = 8;
+		config->p1_comp[1].is_2nd_pl = 1;
+		config->p1_comp[2].startbit = 0;
+		config->p1_comp[2].bitwidth = 8;
+		config->p1_comp[2].is_2nd_pl = 1;
+		config->p1_comp[3].use_userdef = 1;
+		config->p1_comp[3].userdef = ~0;
+		config->use_average_value = 1;
+		break;
+	case V4L2_PIX_FMT_NV16:
+	case V4L2_PIX_FMT_NV16M:
+		/*
+		 * Y/CbCr 422
+		 * bpp = 16
+		 */
+		config->img_type = NXS_IMG_YUV;
+		config->total_bitwidth_1st_pl = 16;
+		config->total_bitwidth_2nd_pl = 16;
+		config->p0_comp[0].startbit = 0;
+		config->p0_comp[0].bitwidth = 8;
+		config->p0_comp[1].startbit = 0;
+		config->p0_comp[1].bitwidth = 8;
+		config->p0_comp[1].is_2nd_pl = 1;
+		config->p0_comp[2].startbit = 8;
+		config->p0_comp[2].bitwidth = 8;
+		config->p0_comp[2].is_2nd_pl = 1;
+		config->p0_comp[3].use_userdef = 1;
+		config->p0_comp[3].userdef = ~0;
+		config->p1_comp[0].startbit = 8;
+		config->p1_comp[0].bitwidth = 8;
+		config->p1_comp[1].startbit = 0;
+		config->p1_comp[1].bitwidth = 8;
+		config->p1_comp[1].is_2nd_pl = 1;
+		config->p1_comp[2].startbit = 8;
+		config->p1_comp[2].bitwidth = 8;
+		config->p1_comp[2].is_2nd_pl = 1;
+		config->p1_comp[3].use_userdef = 1;
+		config->p1_comp[3].userdef = ~0;
+		config->use_average_value = 1;
+		break;
+	case V4L2_PIX_FMT_NV61:
+	case V4L2_PIX_FMT_NV61M:
+		/*
+		 * same as NX_2P_Y08_Y18_V8_U8
+		 * bpp = 16
+		 */
+		config->img_type = NXS_IMG_YUV;
+		config->total_bitwidth_1st_pl = 16;
+		config->total_bitwidth_2nd_pl = 16;
+		config->p0_comp[0].startbit = 0;
+		config->p0_comp[0].bitwidth = 8;
+		config->p0_comp[1].startbit = 8;
+		config->p0_comp[1].bitwidth = 8;
+		config->p0_comp[1].is_2nd_pl = 1;
+		config->p0_comp[2].startbit = 0;
+		config->p0_comp[2].bitwidth = 8;
+		config->p0_comp[2].is_2nd_pl = 1;
+		config->p0_comp[3].use_userdef = 1;
+		config->p0_comp[3].userdef = ~0;
+		config->p1_comp[0].startbit = 8;
+		config->p1_comp[0].bitwidth = 8;
+		config->p1_comp[1].startbit = 8;
+		config->p1_comp[1].bitwidth = 8;
+		config->p1_comp[1].is_2nd_pl = 1;
+		config->p1_comp[2].startbit = 0;
+		config->p1_comp[2].bitwidth = 8;
+		config->p1_comp[2].is_2nd_pl = 1;
+		config->p1_comp[3].use_userdef = 1;
+		config->p1_comp[3].userdef = ~0;
+		config->use_average_value = 1;
+		break;
+	default:
+		/*
+		 * Todo
+		 * support for bayer format and 10bit format
+		 * put_dummy_type
+		 */
+		dev_err(nxs_dev->dev, "unsupported format\n");
+		config->img_type = NXS_IMG_MAX;
+		return -EINVAL;
+	}
+
+	dev_info(nxs_dev->dev,
+		 "format is %s, multiplanes:%s\n",
+		 (config->img_type) ? "RGB" : "YUV",
+		 (config->total_bitwidth_2nd_pl) ? "true" : "false");
+	return 0;
+}
