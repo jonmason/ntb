@@ -32,8 +32,8 @@
 #include <media/v4l2-of.h>
 
 #include <dt-bindings/media/nexell-vip.h>
-#include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
+#include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
 struct nxs_display {
@@ -1175,7 +1175,7 @@ struct nxs_function *nxs_function_build(struct nxs_function_request *req)
 	f->id = nxs_func_seq;
 	mutex_unlock(&nxs_func_lock);
 
-	if (req->flags & BLENDING_TO_OTHER) {
+	if ((f->disp) && (req->flags & BLENDING_TO_OTHER)) {
 		int ret;
 
 		ret = nxs_function_add_to_display(req->option.display_id, f);
@@ -1200,8 +1200,52 @@ error_out:
 }
 EXPORT_SYMBOL_GPL(nxs_function_build);
 
+struct nxs_function *nxs_function_add(struct nxs_function *f,
+				      struct list_head *head)
+{
+	struct nxs_dev *nxs_dev;
+	struct nxs_function_elem *elem = head;
+
+	nxs_dev = get_nxs_dev(elem->function, elem->index, elem->user,
+			      elem->multitap_follow);
+	if (!nxs_dev) {
+		pr_err("can't get nxs_dev for func %s, index 0x%x\n",
+		       nxs_function_to_str(elem->function),
+		       elem->index);
+		goto error_out;
+	}
+	list_add_tail(&nxs_dev->func_list, &f->dev_list);
+	f->req->nums_of_function++;
+	if (is_display_channel(f) && (!f->disp)) {
+		if (nxs_function_register_display(f)) {
+			pr_err("%s: failed to nxs_function_register_display\n",
+			       __func__);
+			goto error_out;
+		}
+		if (f->req->flags & BLENDING_TO_OTHER) {
+			int ret;
+
+			ret = nxs_function_add_to_display
+				(f->req->option.display_id, f);
+			if (ret) {
+				pr_err("%s: failed to nxs_function_add_to_display\n",
+				       __func__);
+				goto error_out;
+			}
+		}
+	}
+	return f;
+
+error_out:
+	if (f)
+		nxs_function_destroy(f);
+	return NULL;
+
+}
+EXPORT_SYMBOL_GPL(nxs_function_add);
+
 struct nxs_function *nxs_function_make(int dev_num, bool blending,
-				       u32 disp_num, ...)
+				       u32 disp_num, struct list_head *head)
 {
 	int i;
 	va_list arg;
@@ -1216,29 +1260,10 @@ struct nxs_function *nxs_function_make(int dev_num, bool blending,
 		req->option.display_id = disp_num;
 	}
 
-	va_start(arg, disp_num);
-	for (i = 0; i < dev_num; i++) {
-		func_num = va_arg(arg, u32);
-		func_index = va_arg(arg, u32);
-
-		if (func_num == NXS_FUNCTION_MLC_BOTTOM) {
-			req->flags |= BLENDING_TO_BOTTOM;
-			req->option.bottom_id = func_index;
-		} else {
-			struct nxs_function_elem *elem;
-
-			elem = kzalloc(sizeof(*elem), GFP_KERNEL);
-			if (WARN(!elem, "failed to alloc nxs_function_elem\n"))
-				return NULL;
-
-			elem->function = func_num;
-			elem->index = func_index;
-			elem->user = NXS_FUNCTION_USER_KERNEL;
-			list_add_tail(&elem->list, &req->head);
-			req->nums_of_function++;
-		}
-	}
-	va_end(arg);
+	if (WARN(!head, "element is not valid\n"))
+		return NULL;
+	list_add_tail(head, &req->head);
+	req->nums_of_function++;
 
 	return nxs_function_build(req);
 }
@@ -1286,6 +1311,23 @@ struct nxs_function *nxs_function_get(int handle)
 	return f;
 }
 EXPORT_SYMBOL_GPL(nxs_function_get);
+
+int nxs_function_set_interrupt(struct nxs_function *f,
+			       enum nxs_event_type type,
+			       bool enable)
+{
+	struct nxs_dev *nxs_dev;
+	int ret;
+
+	nxs_dev = list_last_entry(&f->dev_list, struct nxs_dev, func_list);
+	if (nxs_dev->set_interrupt_enable) {
+		nxs_dev->set_interrupt_enable(nxs_dev,
+					      type,
+					      enable);
+	}
+	return 0;
+}
+EXPORT_SYMBOL_GPL(nxs_function_set_interrupt);
 
 struct nxs_irq_callback *
 nxs_function_register_irqcallback(struct nxs_function *f,
@@ -1419,6 +1461,34 @@ void nxs_function_stop(struct nxs_function *f)
 	}
 }
 EXPORT_SYMBOL_GPL(nxs_function_stop);
+
+int nxs_function_open(struct nxs_function *f)
+{
+	struct nxs_dev *nxs_dev;
+	int ret;
+
+	list_for_each_entry_reverse(nxs_dev, &f->dev_list, func_list) {
+		if (nxs_dev->open) {
+			ret = nxs_dev->open(nxs_dev);
+			if (ret)
+				return ret;
+		}
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(nxs_function_open);
+
+void nxs_function_close(struct nxs_function *f)
+{
+	struct nxs_dev *nxs_dev;
+
+	list_for_each_entry_reverse(nxs_dev, &f->dev_list, func_list) {
+		if (nxs_dev->close)
+			nxs_dev->close(nxs_dev);
+	}
+}
+EXPORT_SYMBOL_GPL(nxs_function_close);
 
 void nxs_function_disconnect(struct nxs_function *f)
 {

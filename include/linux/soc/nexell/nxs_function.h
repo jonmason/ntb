@@ -160,7 +160,9 @@ void nxs_capture_free(struct nxs_capture_ctx *capture);
 void nxs_free_function_request(struct nxs_function_request *req);
 struct nxs_function *nxs_function_build(struct nxs_function_request *req);
 struct nxs_function *nxs_function_make(int dev_num, bool blending,
-				       u32 disp_num, ...);
+				       u32 disp_num, struct list_head *head);
+struct nxs_function *nxs_function_add(struct nxs_function *f,
+				      struct list_head *head);
 void nxs_function_destroy(struct nxs_function *f);
 struct nxs_function *nxs_function_get(int handle);
 struct nxs_irq_callback *
@@ -172,10 +174,15 @@ nxs_function_register_irqcallback(struct nxs_function *f,
 int nxs_function_unregister_irqcallback(struct nxs_function *f,
 					struct nxs_irq_callback *callback);
 int nxs_function_config(struct nxs_function *f, bool dirty, int count, ...);
+int nxs_function_set_interrupt(struct nxs_function *f,
+			       enum nxs_event_type type,
+			       bool enable);
 int nxs_function_connect(struct nxs_function *f);
 int nxs_function_ready(struct nxs_function *f);
 int nxs_function_start(struct nxs_function *f);
 void nxs_function_stop(struct nxs_function *f);
+int nxs_function_open(struct nxs_function *f);
+void nxs_function_close(struct nxs_function *f);
 void nxs_function_disconnect(struct nxs_function *f);
 struct nxs_dev *nxs_function_find_dev(struct nxs_function *f,
 				      u32 dev_function, u32 index);
