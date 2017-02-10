@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2016  Nexell Co., Ltd.
- * Author: Sungwoo, Park <swpark@nexell.co.kr>
+ * Author: Hyejung, Kwon <cjscld15@nexell.co.kr>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -30,6 +30,7 @@
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
+#include <linux/soc/nexell/nxs_plane_format.h>
 
 #define DMAW_DIRTYSET_OFFSET	0x0008
 #define DMAW_DIRTYCLR_OFFSET	0x0018
@@ -46,7 +47,180 @@
 #define DMAW10_DIRTY		BIT(14)
 #define DMAW11_DIRTY		BIT(15)
 
-#define SIMULATE_INTERRUPT
+
+/* DMAW REGISTER OFFSET */
+#define DMAW_CTRL0				0x00
+#define DMAW_CTRL1				0x04
+#define DMAW_CTRL2				0x08
+#define DMAW_P0_COMP0				0x0C
+#define DMAW_P0_COMP1				0x10
+#define DMAW_P0_COMP2				0x14
+#define DMAW_P0_COMP3				0x18
+#define DMAW_P1_COMP0				0x1C
+#define DMAW_P1_COMP1				0x20
+#define DMAW_P1_COMP2				0x24
+#define DMAW_P1_COMP3				0x28
+#define DMAW_PL0_BASEADDR			0x34
+#define DMAW_PL0_BASEADDR_H			0x38
+#define DMAW_PL0_STRIDE				0x3C
+#define DMAW_PL0_STRIDE_H			0x40
+#define DMAW_PL0_CTRL				0x44
+#define DMAW_PL1_BASEADDR			0x48
+#define DMAW_PL1_BASEADDR_H			0x4C
+#define DMAW_PL1_STRIDE				0x50
+#define DMAW_PL1_STRIDE_H			0x54
+#define DMAW_PL1_CTRL				0x58
+#define DMAW_SRC_IMG_SIZE			0x5C
+#define DMAW_INT				0x60
+
+#define DMAW_PL_CONFIG_SIZE			0x14
+
+/* DMAW CTRL0 - offset : 0x5000 */
+#define DMAW_REG_CLEAR_SHIFT	3
+#define DMAW_REG_CLEAR_MASK	BIT(3)
+#define DMAW_TZPROT_SHIFT	2
+#define DMAW_TZPROT_MASK	BIT(2)
+#define DMAW_IDLE_SHIFT		1
+#define DMAW_IDLE_MASK		BIT(1)
+#define DMAW_EN_START_SHIFT	0
+#define DMAW_EN_START_MASK	BIT(0)
+
+/* DMAW CTRL1 - offset : 0x5004 */
+#define DMAW_EN_ADDR_FITTING_SHIFT		24
+#define DMAW_EN_ADDR_FITTING_MASK		BIT(24)
+#define DMAW_PL1_AXI_CTRL_AWCACHE_SHIFT		20
+#define DMAW_PL1_AXI_CTRL_AWCACHE_MASK		GENMASK(23, 20)
+#define DMAW_PL1_AXI_CTRL_WID_SHIFT		16
+#define DMAW_PL1_AXI_CTRL_WID_MASK		GENMASK(19, 16)
+#define DMAW_PL0_AXI_CTRL_AWCACHE_SHIFT		12
+#define DMAW_PL0_AXI_CTRL_AWCACHE_MASK		GENMASK(15, 12)
+#define DMAW_PL0_AXI_CTRL_WID_SHIFT		8
+#define DMAW_PL0_AXI_CTRL_WID_MASK		GENMASK(11, 8)
+#define DMAW_INVERT_FIELD_SHIFT			3
+#define DMAW_INVERT_FIELD_MASK			BIT(3)
+#define DMAW_EN_INTERLACE_MODE_SHIFT		2
+#define DMAW_EN_INTERLACE_MODE_MASK		BIT(2)
+#define DMAW_EN_EXPANDER_SHIFT			1
+#define DMAW_EN_EXPANDER_MASK			BIT(1)
+#define DMAW_EN_DITHER_SHIFT			0
+#define DMAW_EN_DITHER_MASK			BIT(0)
+
+/* DMAW CTRL2 - offset : 0x5008 */
+#define DMAW_HALF_HEIGHT_2ND_PL_SHIFT		20
+#define DMAW_HALF_HEIGHT_2ND_PL_MASK		BIT(20)
+#define DMAW_HALF_HEIGHT_1ST_PL_SHIFT		19
+#define DMAW_HALF_HEIGHT_1ST_PL_MASK		BIT(19)
+#define DMAW_USE_AVERAGE_VALUE_SHIFT		18
+#define DMAW_USE_AVERAGE_VALUE_MASK		BIT(18)
+#define DMAW_PUT_DUMMY_TYPE_SHIFT		16
+#define DMAW_PUT_DUMMY_TYPE_MASK		GENMASK(17, 16)
+#define DMAW_TOTAL_BITWIDTH_2ND_PL_SHIFT	8
+#define DMAW_TOTAL_BITWIDTH_2ND_PL_MASK		GENMASK(15, 8)
+#define DMAW_TOTAL_BITWIDTH_1ST_PL_SHIFT	0
+#define DMAW_TOTAL_BITWIDTH_1ST_PL_MASK		GENMASK(8, 0)
+
+/* DMAW P_COMP - offset : 0x500C */
+/* P0_COMP0 - 0x500C, P0_COMP1 - 0x5010 */
+/* P0_COMP2 - 0x5014, P0_COMP3 - 0x5018 */
+/* P1_COMP0 - 0x501C, P1_COMP2 - 0x5020 */
+/* P1_COMP2 - 0x5024, P1_COMP3 - 0x5028 */
+#define DMAW_P_COMP_STARTBIT_SHIFT		17
+#define DMAW_P_COMP_STARTBIT_MASK		GENMASK(23, 17)
+#define DMAW_P_COMP_BITWIDTH_SHIFT		12
+#define DMAW_P_COMP_BITWIDTH_MASK		GENMASK(16, 12)
+#define DMAW_P_COMP_IS_2ND_PL_SHIFT		11
+#define DMAW_P_COMP_IS_2ND_PL_MASK		BIT(11)
+#define DMAW_P_COMP_USE_USERDEF_SHIFT		10
+#define DMAW_P_COMP_USE_USERDEF_MASK		BIT(10)
+#define DMAW_P_COMP_USERDEF_SHIFT		0
+#define DMAW_P_COMP_USERDEF_MASK		GENMASK(10, 0)
+#define DMAW_P_COMP_SIZE			0x10
+
+/* DMAW - PL0 CTRL - offset : 0x5044 */
+/* DMAW - PL1 CTRL - offset : 0x5058 */
+#define DMAW_PL_NUM_OF_128X16_TR_SHIFT		12
+#define DMAW_PL_NUM_OF_128X16_TR_MASK		GENMASK(22, 12)
+#define DMAW_PL_LAST_FLUSH_128X16_TR_SHIFT	8
+#define DMAW_PL_LAST_FLUSH_128X16_TR_MASK	GENMASK(11, 8)
+#define DMAW_PL_BIT_IN_LAST_128_TR_SHIFT	0
+#define DMAW_PL_BIT_IN_LAST_128_TR_MASK		GENMASK(7, 0)
+#define DMAW_PL_CTRL_OFFSET			0x14
+#define DMAW_PL_CTRL_MASK			GENMASK(22, 0)
+
+/* DMAW SRC IMG SIZE - offset : 0x505C */
+#define DMAW_SRC_IMG_HEIGHT_SHIFT		16
+#define DMAW_SRC_IMG_HEIGHT_MASK		GENMASK(31, 16)
+#define DMAW_SRC_IMG_WIDTH_SHIFT		0
+#define DMAW_SRC_IMG_WIDTH_MASK			GENMASK(15, 0)
+
+/* DMAW INTERRUPT - offset : 0x5060 */
+#define DMAW_IDLE_INTDISABLE_SHIFT		30
+#define DMAW_IDLE_INTDISABLE_MASK		BIT(30)
+#define DMAW_IDLE_INTENB_SHIFT			29
+#define DMAW_IDLE_INTENB_MASK			BIT(29)
+#define DMAW_IDLE_INTPEND_CLR_SHIFT		28
+#define DMAW_IDLE_INTPEND_CLR_MASK		BIT(28)
+#define DMAW_RESOL_ERR_INTDISABLE_SHIFT		26
+#define DMAW_RESOL_ERR_INTDISABLE_MASK		BIT(26)
+#define DMAW_RESOL_ERR_INTENB_SHIFT		25
+#define DMAW_RESOL_ERR_INTENB_MASK		BIT(25)
+#define DMAW_RESOL_ERR_INTPEND_CLR_SHIFT	24
+#define DMAW_RESOL_ERR_INTPEND_CLR_MASK		BIT(24)
+#define DMAW_DEC_ERR_INTDISABLE_SHIFT		22
+#define DMAW_DEC_ERR_INTDISABLE_MASK		BIT(22)
+#define DMAW_DEC_ERR_INTENB_SHIFT		21
+#define DMAW_DEC_ERR_INTENB_MASK		BIT(21)
+#define DMAW_DEC_ERR_INTPEND_CLR_SHIFT		20
+#define DMAW_DEC_ERR_INTPEND_CLR_MASK		BIT(20)
+#define DMAW_AXI1_ERR_INTDISABLE_SHIFT		18
+#define DMAW_AXI1_ERR_INTDISABLE_MASK		BIT(18)
+#define DMAW_AXI1_ERR_INTENB_SHIFT		17
+#define DMAW_AXI1_ERR_INTENB_MASK		BIT(17)
+#define DMAW_AXI1_ERR_INTPEND_CLR_SHIFT		16
+#define DMAW_AXI1_ERR_INTPEND_CLR_MASK		BIT(16)
+#define DMAW_AXI0_ERR_INTDISABLE_SHIFT		14
+#define DMAW_AXI0_ERR_INTDISABLE_MASK		BIT(14)
+#define DMAW_AXI0_ERR_INTENB_SHIFT		13
+#define DMAW_AXI0_ERR_INTENB_MASK		BIT(13)
+#define DMAW_AXI0_ERR_INTPEND_CLR_SHIFT		12
+#define DMAW_AXI0_ERR_INTPEND_CLR_MASK		BIT(12)
+#define DMAW_SEC_ERR_INTDISABLE_SHIFT		10
+#define DMAW_SEC_ERR_INTDISABLE_MASK		BIT(10)
+#define DMAW_SEC_ERR_INTENB_SHIFT		9
+#define DMAW_SEC_ERR_INTENB_MASK		BIT(9)
+#define DMAW_SEC_ERR_INTPEND_CLR_SHIFT		8
+#define DMAW_SEC_ERR_INTPEND_CLR_MASK		BIT(8)
+#define DMAW_DONE_INTDISABLE_SHIFT		6
+#define DMAW_DONE_INTDISABLE_MASK		BIT(6)
+#define DMAW_DONE_INTENB_SHIFT			5
+#define DMAW_DONE_INTENB_MASK			BIT(5)
+#define DMAW_DONE_INTPEND_CLR_SHIFT		4
+#define DMAW_DONE_INTPEND_CLR_MASK		BIT(4)
+#define DMAW_UPDATE_INTDISABLE_SHIFT		2
+#define DMAW_UPDATE_INTDISABLE_MASK		BIT(2)
+#define DMAW_UPDATE_INTENB_SHIFT		1
+#define DMAW_UPDATE_INTENB_MASK			BIT(1)
+#define DMAW_UPDATE_INTPEND_CLR_SHIFT		0
+#define DMAW_UPDATE_INTPEND_CLR_MASK		BIT(0)
+
+/* AXIM_DMARW */
+#define AXIM_DMARW_OFFSET			0x100000
+#define AXIM_DMARW_SIZE				0x4000
+
+#define AXIM_DMARW_AWQOS_OFFSET			0x00
+#define AXIM_DMARW_AWQOS_SHIFT			4
+#define AXIM_DMARW_AWQOS_MASK			GENMASK(7, 4)
+#define AXIM_DMARW_AXQOS_USE_SHIFT		8
+#define AXIM_DMARW_AXQOS_USE_MASK		BIT(8)
+#define AXIM_DMARW_AWADDRH_OFFSET		0x24
+#define AXIM_DMARW_AWADDRH_EN_OFFSET		0x2c
+
+/* DMAW TRANSACTION CONTROL */
+#define DMAW_TR_WIDTH				128
+#define DMAW_TR_HEIGHT				16
+#define DMAW_TR_SIZE				(DMAW_TR_WIDTH*DMAW_TR_HEIGHT)
+
+/* #define SIMULATE_INTERRUPT */
 
 struct nxs_dmaw {
 #ifdef SIMULATE_INTERRUPT
@@ -55,13 +229,25 @@ struct nxs_dmaw {
 	struct nxs_dev nxs_dev;
 	struct regmap *reg;
 	u32 offset;
+	u32 irq;
+	bool is_m2m;
+	atomic_t open_count;
 };
+
+#define nxs_to_dmaw(dev)	container_of(dev, struct nxs_dmaw, nxs_dev)
+
+static enum nxs_event_type
+dmaw_get_interrupt_pending_number(struct nxs_dmaw *dmaw);
+static u32 dmaw_get_interrupt_pending(const struct nxs_dev *pthis,
+				      enum nxs_event_type);
+static void dmaw_clear_interrupt_pending(const struct nxs_dev *pthis,
+					 enum nxs_event_type type);
 
 #ifdef SIMULATE_INTERRUPT
 #include <linux/timer.h>
 #define INT_TIMEOUT_MS		30
 
-static void int_timer_func(unsigned long priv)
+static void int_timer_func(void *priv)
 {
 	struct nxs_dmaw *dmaw = (struct nxs_dmaw *)priv;
 	struct nxs_dev *nxs_dev = &dmaw->nxs_dev;
@@ -69,42 +255,481 @@ static void int_timer_func(unsigned long priv)
 	unsigned long flags;
 
 	spin_lock_irqsave(&nxs_dev->irq_lock, flags);
-	list_for_each_entry(callback, &nxs_dev->irq_callback, list)
-		callback->handler(nxs_dev, callback->data);
+	list_for_each_entry(callback, &nxs_dev->irq_callback, list) {
+		if (callback)
+			callback->handler(nxs_dev, callback->data);
+	}
 	spin_unlock_irqrestore(&nxs_dev->irq_lock, flags);
 
 	mod_timer(&dmaw->timer, jiffies + msecs_to_jiffies(INT_TIMEOUT_MS));
 }
+#else
+static irqreturn_t dmaw_irq_handler(void *priv)
+{
+	struct nxs_dmaw *dmaw = (struct nxs_dmaw *)priv;
+	struct nxs_dev *nxs_dev = &dmaw->nxs_dev;
+	struct nxs_irq_callback *callback;
+	unsigned long flags;
+
+	spin_lock_irqsave(&nxs_dev->irq_lock, flags);
+	dev_info(nxs_dev->dev, "[%s] pending status = 0x%x\n", __func__,
+		 dmaw_get_interrupt_pending(nxs_dev, NXS_EVENT_ALL));
+	list_for_each_entry(callback, &nxs_dev->irq_callback, list) {
+		if (callback)
+			callback->handler(nxs_dev, callback->data);
+	}
+	dmaw_clear_interrupt_pending(nxs_dev,
+				     dmaw_get_interrupt_pending_number(dmaw));
+	spin_unlock_irqrestore(&nxs_dev->irq_lock, flags);
+	return IRQ_HANDLED;
+}
 #endif
 
-#define nxs_to_dmaw(dev)	container_of(dev, struct nxs_dmaw, nxs_dev)
+static void dmaw_reset_register(struct nxs_dmaw *dmaw)
+{
+	regmap_update_bits(dmaw->reg, dmaw->offset + DMAW_CTRL0,
+			   DMAW_REG_CLEAR_MASK, 1 << DMAW_REG_CLEAR_SHIFT);
+}
 
-static void dmaw_set_interrupt_enable(const struct nxs_dev *pthis, int type,
+static bool dmaw_check_busy(struct nxs_dmaw *dmaw)
+{
+	u32 busy;
+
+	regmap_read(dmaw->reg, dmaw->offset + DMAW_CTRL0, &busy);
+	return ~(busy && DMAW_IDLE_MASK);
+}
+
+static void dmaw_set_dpc_mode(struct nxs_dmaw *dmaw, bool enable)
+{
+	u32 val, awqos;
+
+	dev_info(dmaw->nxs_dev.dev, "[%s] %s\n",
+		 __func__, (enable)?"enable":"disable");
+	/*
+	 * dpc mode - set AWADDR_H and enable AWQOS
+	 * m2m mode - set AWADDR_H and disable AWQOS
+	 */
+	regmap_write(dmaw->reg, AXIM_DMARW_OFFSET +
+		     ((dmaw->nxs_dev.dev_inst_index * AXIM_DMARW_SIZE) +
+		      AXIM_DMARW_AWADDRH_OFFSET),
+		     enable);
+	val = 0xFFFFFFFF;
+	regmap_write(dmaw->reg, AXIM_DMARW_OFFSET +
+		     ((dmaw->nxs_dev.dev_inst_index * AXIM_DMARW_SIZE) +
+		      AXIM_DMARW_AWADDRH_EN_OFFSET),
+		     val);
+	if (enable)
+		awqos = 14;
+	else
+		awqos = 0;
+	regmap_update_bits(dmaw->reg, AXIM_DMARW_OFFSET +
+			   ((dmaw->nxs_dev.dev_inst_index * AXIM_DMARW_SIZE) +
+			    AXIM_DMARW_AWQOS_OFFSET),
+			   AXIM_DMARW_AXQOS_USE_MASK,
+			   (1 << AXIM_DMARW_AXQOS_USE_SHIFT));
+	regmap_update_bits(dmaw->reg, AXIM_DMARW_OFFSET +
+			   ((dmaw->nxs_dev.dev_inst_index * AXIM_DMARW_SIZE) +
+			    AXIM_DMARW_AWQOS_OFFSET),
+			   AXIM_DMARW_AWQOS_MASK,
+			   (awqos << AXIM_DMARW_AWQOS_SHIFT));
+
+}
+
+static void dmaw_set_interlaced_mode(struct nxs_dmaw *dmaw, bool enable)
+{
+	dev_info(dmaw->nxs_dev.dev, "[%s] %s\n", (enable)?"enable":"disable");
+	regmap_update_bits(dmaw->reg, dmaw->offset + DMAW_CTRL1,
+			   DMAW_EN_INTERLACE_MODE_MASK,
+			   enable << DMAW_EN_INTERLACE_MODE_SHIFT);
+}
+
+static void dmaw_set_start(struct nxs_dmaw *dmaw, bool enable)
+{
+	dev_info(dmaw->nxs_dev.dev, "[%s] %s\n", (enable)?"enable":"disable");
+	regmap_update_bits(dmaw->reg, dmaw->offset + DMAW_CTRL0,
+			   DMAW_EN_START_MASK, enable << DMAW_EN_START_SHIFT);
+
+}
+
+static void dmaw_set_src_imgsize(struct nxs_dmaw *dmaw, u32 width, u32 height)
+{
+	dev_info(dmaw->nxs_dev.dev, "[%s] width:%d, height:%d\n",
+		 __func__, width, height);
+	regmap_write(dmaw->reg,
+		     dmaw->offset + DMAW_SRC_IMG_SIZE,
+		     ((width << DMAW_SRC_IMG_WIDTH_SHIFT) || height));
+}
+
+static u32 dmaw_get_bpp(struct nxs_dmaw *dmaw, u32 plane_num)
+{
+	u32 value = 0, bitwidth;
+
+	regmap_read(dmaw->reg, dmaw->offset + DMAW_CTRL2, &value);
+	if (plane_num)
+		bitwidth = (value & DMAW_TOTAL_BITWIDTH_2ND_PL_MASK) >>
+			DMAW_TOTAL_BITWIDTH_2ND_PL_SHIFT;
+	else
+		bitwidth = (value & DMAW_TOTAL_BITWIDTH_1ST_PL_MASK) >>
+			DMAW_TOTAL_BITWIDTH_1ST_PL_SHIFT;
+
+	return (bitwidth / 2);
+}
+
+static void dmaw_set_axi_control(struct nxs_dmaw *dmaw)
+{
+	u32 wid = 0, awcache = 3, value;
+
+	value = ((wid << DMAW_PL0_AXI_CTRL_WID_SHIFT) |
+		(wid << DMAW_PL1_AXI_CTRL_WID_SHIFT) |
+		(awcache << DMAW_PL0_AXI_CTRL_AWCACHE_SHIFT) |
+		(awcache << DMAW_PL1_AXI_CTRL_AWCACHE_SHIFT));
+	regmap_update_bits(dmaw->reg, dmaw->offset + DMAW_CTRL1,
+			   (DMAW_PL0_AXI_CTRL_WID_MASK |
+			    DMAW_PL1_AXI_CTRL_WID_MASK |
+			    DMAW_PL0_AXI_CTRL_AWCACHE_MASK |
+			    DMAW_PL1_AXI_CTRL_AWCACHE_MASK),
+			   value);
+}
+
+/*
+ * DMAW transfer a data by 128*16 size
+ * Todo
+ * currently only support for 8bit and yuv/rgb format
+ * It's different to calculate each value for 10bit and bayer format
+ */
+static void dmaw_set_transaction_control(struct nxs_dmaw *dmaw, u32 width)
+{
+	u32 i, total_bit, div, mod, extra, value, bpp;
+	u32 num_of_tr, last_flush_tr, bit_in_last_tr;
+
+	for (i = 0; i < NXS_DEV_MAX_PLANES; i++) {
+		/* get num of 128*16 tr and last flush 128*16 tr for plane i*/
+		bpp = dmaw_get_bpp(dmaw, i);
+		total_bit = width * bpp;
+		div = total_bit / DMAW_TR_SIZE;
+		mod = total_bit % DMAW_TR_SIZE;
+		extra = (!mod) ? 0 : 1;
+		num_of_tr = (bpp) ? (div + (extra-1)) : 0;
+		last_flush_tr = mod;
+		div = last_flush_tr / DMAW_TR_WIDTH;
+		mod = last_flush_tr % DMAW_TR_WIDTH;
+		extra = (!mod) ? 0 : 1;
+		last_flush_tr = (div + extra) ? ((div + extra) - 1) :
+			(DMAW_TR_HEIGHT - 1);
+		bit_in_last_tr = mod;
+
+		value = bit_in_last_tr;
+		value |= ((last_flush_tr << DMAW_PL_LAST_FLUSH_128X16_TR_SHIFT)
+			  | DMAW_PL_LAST_FLUSH_128X16_TR_MASK);
+		value |= ((num_of_tr << DMAW_PL_NUM_OF_128X16_TR_SHIFT)
+			  | DMAW_PL_NUM_OF_128X16_TR_MASK);
+		regmap_update_bits(dmaw->reg, dmaw->offset + DMAW_PL0_CTRL +
+				   (DMAW_PL_CTRL_OFFSET * i),
+				   DMAW_PL_CTRL_MASK, value);
+	}
+}
+
+static void dmaw_set_plane_format(struct nxs_dmaw *dmaw,
+				  struct nxs_plane_format *config)
+{
+	u32 value = 0, i;
+
+	nxs_print_plane_format(&dmaw->nxs_dev, config);
+	/* set color expand and color dither */
+	if (config->color_expand)
+		value |= ((config->color_expand << DMAW_EN_EXPANDER_SHIFT) |
+			DMAW_EN_EXPANDER_MASK);
+
+	if (config->color_dither)
+		value |= ((config->color_dither << DMAW_EN_DITHER_SHIFT) |
+			DMAW_EN_DITHER_MASK);
+	/*
+	 * enable addr fitting if the img_type is not bayer fomrat and not 10bit
+	 * format
+	 */
+	if ((config->img_type != NXS_IMG_RAW) && (!config->color_dither))
+		value |= ((1 << DMAW_EN_ADDR_FITTING_SHIFT) |
+			  DMAW_EN_ADDR_FITTING_MASK);
+
+	regmap_update_bits(dmaw->reg, dmaw->offset + DMAW_CTRL1,
+			   DMAW_EN_EXPANDER_MASK | DMAW_EN_DITHER_MASK,
+			   value);
+	/* half height setting */
+	value |= ((config->half_height_1st_pl <<
+		DMAW_HALF_HEIGHT_1ST_PL_SHIFT) |
+		 DMAW_HALF_HEIGHT_1ST_PL_MASK);
+	value |= ((config->half_height_2nd_pl <<
+		DMAW_HALF_HEIGHT_2ND_PL_SHIFT) |
+		 DMAW_HALF_HEIGHT_2ND_PL_MASK);
+	/* setting use average value */
+	value |= ((config->use_average_value << DMAW_USE_AVERAGE_VALUE_SHIFT)
+		| DMAW_USE_AVERAGE_VALUE_MASK);
+	/* setting put dummy type */
+	if (config->put_dummy_type)
+		value |= ((config->put_dummy_type << DMAW_PUT_DUMMY_TYPE_SHIFT)
+			  | DMAW_PUT_DUMMY_TYPE_MASK);
+
+	/* total bitwidth setting */
+	value = ((config->total_bitwidth_1st_pl <<
+		DMAW_TOTAL_BITWIDTH_1ST_PL_SHIFT) |
+		 DMAW_TOTAL_BITWIDTH_1ST_PL_MASK);
+	value |= ((config->total_bitwidth_2nd_pl <<
+		DMAW_TOTAL_BITWIDTH_2ND_PL_SHIFT) |
+		 DMAW_TOTAL_BITWIDTH_2ND_PL_MASK);
+	regmap_write(dmaw->reg, dmaw->offset + DMAW_CTRL2, value);
+	/* 1st plane - p composition */
+	for (i = 0; i < NXS_DEV_MAX_FIELDS; i++) {
+		value = ((config->p0_comp[i].startbit <<
+			  DMAW_P_COMP_STARTBIT_SHIFT)
+			 | DMAW_P_COMP_STARTBIT_MASK);
+		value |= ((config->p0_comp[i].bitwidth <<
+			   DMAW_P_COMP_BITWIDTH_SHIFT)
+			  | DMAW_P_COMP_BITWIDTH_MASK);
+		value |= ((config->p0_comp[i].is_2nd_pl <<
+			   DMAW_P_COMP_IS_2ND_PL_SHIFT) |
+			  DMAW_P_COMP_IS_2ND_PL_MASK);
+		value |= ((config->p0_comp[i].use_userdef <<
+			   DMAW_P_COMP_USE_USERDEF_SHIFT) |
+			  DMAW_P_COMP_USE_USERDEF_MASK);
+		value |= ((config->p0_comp[i].userdef <<
+			   DMAW_P_COMP_USERDEF_SHIFT) |
+			  DMAW_P_COMP_USERDEF_MASK);
+		regmap_write(dmaw->reg, dmaw->offset + DMAW_P0_COMP0 +
+			     (i * DMAW_P_COMP_SIZE),
+			     value);
+	}
+	/* 2nd plane - p composition */
+	for (i = 0; i < NXS_DEV_MAX_FIELDS; i++) {
+		value = ((config->p1_comp[i].startbit <<
+			  DMAW_P_COMP_STARTBIT_SHIFT)
+			 | DMAW_P_COMP_STARTBIT_MASK);
+		value |= ((config->p1_comp[i].bitwidth <<
+			   DMAW_P_COMP_BITWIDTH_SHIFT)
+			  | DMAW_P_COMP_BITWIDTH_MASK);
+		value |= ((config->p1_comp[i].is_2nd_pl <<
+			   DMAW_P_COMP_IS_2ND_PL_SHIFT) |
+			  DMAW_P_COMP_IS_2ND_PL_MASK);
+		value |= ((config->p1_comp[i].use_userdef <<
+			   DMAW_P_COMP_USE_USERDEF_SHIFT) |
+			  DMAW_P_COMP_USE_USERDEF_MASK);
+		value |= ((config->p1_comp[i].userdef <<
+			   DMAW_P_COMP_USERDEF_SHIFT) |
+			  DMAW_P_COMP_USERDEF_MASK);
+		regmap_write(dmaw->reg, dmaw->offset + DMAW_P1_COMP0 +
+			     (i * DMAW_P_COMP_SIZE),
+			     value);
+	}
+}
+
+static void dmaw_set_interrupt_enable(const struct nxs_dev *pthis,
+				      enum nxs_event_type type,
 				     bool enable)
 {
+	struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
+	u32 mask_v = 0;
+
+	dev_info(pthis->dev, "[%s] type : %d - %s\n",
+		 __func__, type, (enable)?"enable":"disable");
+	if (enable) {
+		if (type & NXS_EVENT_IDLE)
+			mask_v |= DMAW_IDLE_INTENB_MASK;
+		if (type & NXS_EVENT_DONE) {
+			mask_v |= DMAW_DONE_INTENB_MASK;
+			/*mask_v |= DMAW_UPDATE_INTENB_MASK;*/
+		}
+		if (type & NXS_EVENT_ERR) {
+			mask_v |= DMAW_RESOL_ERR_INTENB_MASK;
+			mask_v |= DMAW_DEC_ERR_INTENB_MASK;
+			mask_v |= DMAW_AXI1_ERR_INTENB_MASK;
+			mask_v |= DMAW_AXI0_ERR_INTENB_MASK;
+			mask_v |= DMAW_SEC_ERR_INTENB_MASK;
+		}
+	} else {
+		if (type & NXS_EVENT_IDLE)
+			mask_v |= DMAW_IDLE_INTDISABLE_MASK;
+		if (type & NXS_EVENT_DONE) {
+			mask_v |= DMAW_DONE_INTDISABLE_MASK;
+			mask_v |= DMAW_UPDATE_INTDISABLE_MASK;
+		}
+		if (type & NXS_EVENT_ERR) {
+			mask_v |= DMAW_RESOL_ERR_INTDISABLE_MASK;
+			mask_v |= DMAW_DEC_ERR_INTDISABLE_MASK;
+			mask_v |= DMAW_AXI1_ERR_INTDISABLE_MASK;
+			mask_v |= DMAW_AXI0_ERR_INTDISABLE_MASK;
+			mask_v |= DMAW_SEC_ERR_INTDISABLE_MASK;
+		}
+	}
+	regmap_update_bits(dmaw->reg, dmaw->offset + DMAW_INT,
+			   mask_v, mask_v);
 }
 
-static u32 dmaw_get_interrupt_enable(const struct nxs_dev *pthis, int type)
+static u32 dmaw_get_interrupt_enable(const struct nxs_dev *pthis,
+				     enum nxs_event_type type)
 {
-	return 0;
+	struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
+	u32 mask_v = 0, enable = 0;
+
+	dev_info(pthis->dev, "[%s] type:%d\n", __func__, type);
+	if (type & NXS_EVENT_IDLE)
+		mask_v |= DMAW_IDLE_INTENB_MASK;
+	if (type & NXS_EVENT_DONE) {
+		mask_v |= DMAW_UPDATE_INTENB_MASK;
+		mask_v |= DMAW_DONE_INTENB_MASK;
+	}
+	if (type & NXS_EVENT_ERR) {
+		mask_v |= DMAW_RESOL_ERR_INTENB_MASK;
+		mask_v |= DMAW_DEC_ERR_INTENB_MASK;
+		mask_v |= DMAW_AXI1_ERR_INTENB_MASK;
+		mask_v |= DMAW_AXI0_ERR_INTENB_MASK;
+		mask_v |= DMAW_SEC_ERR_INTENB_MASK;
+	}
+	regmap_read(dmaw->reg, dmaw->offset + DMAW_INT, &enable);
+	enable &= mask_v;
+
+	return enable;
 }
 
-static u32 dmaw_get_interrupt_pending(const struct nxs_dev *pthis, int type)
+static u32 dmaw_get_interrupt_pending(const struct nxs_dev *pthis,
+				      enum nxs_event_type type)
 {
-	return 0;
+	struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
+	u32 mask_v = 0, pend = 0;
+
+	dev_info(pthis->dev, "[%s] type:%d\n", __func__, type);
+	if (type & NXS_EVENT_IDLE)
+		mask_v |= DMAW_IDLE_INTPEND_CLR_MASK;
+	if (type & NXS_EVENT_DONE) {
+		mask_v |= DMAW_DONE_INTPEND_CLR_MASK;
+		mask_v |= DMAW_UPDATE_INTPEND_CLR_MASK;
+	}
+	if (type & NXS_EVENT_ERR) {
+		mask_v |= DMAW_RESOL_ERR_INTPEND_CLR_MASK;
+		mask_v |= DMAW_DEC_ERR_INTPEND_CLR_MASK;
+		mask_v |= DMAW_AXI1_ERR_INTPEND_CLR_MASK;
+		mask_v |= DMAW_AXI0_ERR_INTPEND_CLR_MASK;
+		mask_v |= DMAW_SEC_ERR_INTPEND_CLR_MASK;
+	}
+	regmap_read(dmaw->reg, dmaw->offset + DMAW_INT, &pend);
+	pend &= mask_v;
+
+	return pend;
 }
 
-static void dmaw_clear_interrupt_pending(const struct nxs_dev *pthis, int type)
+static enum nxs_event_type
+dmaw_get_interrupt_pending_number(struct nxs_dmaw *dmaw)
 {
+	u32 pend = 0, type = NXS_EVENT_NONE;
+
+	dev_info(dmaw->nxs_dev.dev, "[%s]\n", __func__);
+	regmap_read(dmaw->reg, dmaw->offset + DMAW_INT, &pend);
+
+	if (pend & DMAW_IDLE_INTPEND_CLR_MASK)
+		type |= NXS_EVENT_IDLE;
+
+	if (pend & DMAW_UPDATE_INTPEND_CLR_MASK)
+		type |= NXS_EVENT_DONE;
+
+	if (pend & DMAW_DONE_INTPEND_CLR_MASK)
+		type |= NXS_EVENT_DONE;
+
+	if ((pend & DMAW_RESOL_ERR_INTPEND_CLR_MASK) ||
+	    (pend & DMAW_DEC_ERR_INTPEND_CLR_MASK) ||
+	    (pend & DMAW_AXI1_ERR_INTPEND_CLR_MASK) ||
+	    (pend & DMAW_AXI0_ERR_INTPEND_CLR_MASK) ||
+	    (pend & DMAW_SEC_ERR_INTPEND_CLR_MASK))
+		type |= NXS_EVENT_ERR;
+
+	return type;
+}
+
+static void dmaw_clear_interrupt_pending(const struct nxs_dev *pthis,
+					 enum nxs_event_type type)
+{
+	struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
+	u32 mask_v = 0;
+
+	dev_info(pthis->dev, "[%s] type:%d\n", __func__, type);
+	if (type & NXS_EVENT_IDLE)
+		mask_v |= DMAW_IDLE_INTPEND_CLR_MASK;
+
+	if (type & NXS_EVENT_DONE) {
+		mask_v |= DMAW_UPDATE_INTPEND_CLR_MASK;
+		mask_v |= DMAW_DONE_INTPEND_CLR_MASK;
+	}
+	if (type & NXS_EVENT_ERR) {
+		mask_v |= DMAW_RESOL_ERR_INTPEND_CLR_MASK;
+		mask_v |= DMAW_DEC_ERR_INTPEND_CLR_MASK;
+		mask_v |= DMAW_AXI1_ERR_INTPEND_CLR_MASK;
+		mask_v |= DMAW_AXI0_ERR_INTPEND_CLR_MASK;
+		mask_v |= DMAW_SEC_ERR_INTPEND_CLR_MASK;
+	}
+	regmap_update_bits(dmaw->reg, dmaw->offset + DMAW_INT,
+			   mask_v, mask_v);
 }
 
 static int dmaw_open(const struct nxs_dev *pthis)
 {
+	struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
+
+	dev_info(pthis->dev, "[%s]\n", __func__);
+	if (atomic_read(&dmaw->open_count) == 0) {
+		int ret;
+		struct clk *clk;
+
+		clk = clk_get(pthis->dev, "dmaw");
+		if (IS_ERR(clk)) {
+			dev_err(pthis->dev, "controller clock not fount\n");
+			return -ENODEV;
+		}
+		ret = clk_prepare_enable(clk);
+		if (ret) {
+			dev_err(pthis->dev,
+				"clock failed to prepare enable:%d\n", ret);
+			return ret;
+		}
+		/* reset */
+#ifdef SIMULATE_INTERRUPT
+		setup_timer(&dmaw->timer, int_timer_func, (long)dmaw);
+#else
+		ret = request_irq(dmaw->irq, dmaw_irq_handler,
+				  IRQF_TRIGGER_NONE, "nxs-dmaw", dmaw);
+		if (ret < 0) {
+			dev_err(pthis->dev, "failed to request irq:%d\n", ret);
+			return ret;
+		}
+#endif
+	}
+	atomic_inc(&dmaw->open_count);
 	return 0;
 }
 
 static int dmaw_close(const struct nxs_dev *pthis)
 {
+	struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
+
+	dev_info(pthis->dev, "[%s]\n", __func__);
+	if (dmaw_check_busy(dmaw)) {
+		dev_err(pthis->dev, "dmaw is busy status\n");
+		return -EBUSY;
+	}
+	atomic_dec(&dmaw->open_count);
+	if (atomic_read(&dmaw->open_count) == 0) {
+		struct clk *clk;
+
+		dmaw_reset_register(dmaw);
+#ifdef SIMULATE_INTERRUPT
+		if (list_empty(&pthis->irq_callback))
+			del_timer(&dmaw->timer);
+#else
+		free_irq(dmaw->irq, dmaw);
+#endif
+		clk = clk_get(pthis->dev, "dmaw");
+		if (IS_ERR(clk)) {
+			dev_err(pthis->dev, "controller clock not found\n");
+			return -ENODEV;
+		}
+		clk_disable_unprepare(clk);
+	}
 	return 0;
 }
 
@@ -115,7 +740,6 @@ static int dmaw_set_dirty(const struct nxs_dev *pthis, u32 type)
 
 	if (type != NXS_DEV_DIRTY_NORMAL)
 		return 0;
-
 	switch (pthis->dev_inst_index) {
 	case 0:
 		dirty_val = DMAW0_DIRTY;
@@ -163,35 +787,57 @@ static int dmaw_set_dirty(const struct nxs_dev *pthis, u32 type)
 
 static int dmaw_start(const struct nxs_dev *pthis)
 {
-#ifdef SIMULATE_INTERRUPT
 	struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
 
-	mod_timer(&dmaw->timer, jiffies + msecs_to_jiffies(INT_TIMEOUT_MS));
+	dev_info(pthis->dev, "[%s]\n", __func__);
+#ifdef SIMULATE_INTERRUPT
+	mod_timer(&dmaw->timer, jiffies +
+		  msecs_to_jiffies(INT_TIMEOUT_MS));
 #endif
-
+	dmaw_set_dpc_mode(dmaw, ~(dmaw->is_m2m));
+	dmaw_set_start(dmaw, true);
 	return 0;
 }
 
 static int dmaw_stop(const struct nxs_dev *pthis)
 {
-	if (list_empty(&pthis->irq_callback)) {
+	struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
+
 #ifdef SIMULATE_INTERRUPT
-		struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
-
-		del_timer(&dmaw->timer);
+	del_timer(&dmaw->timer);
 #endif
-	}
-
+	dev_info(pthis->dev, "[%s]\n", __func__);
+	dmaw_set_dpc_mode(dmaw, false);
+	dmaw_set_start(dmaw, false);
 	return 0;
 }
 
-static int dmaw_set_format(const struct nxs_dev *pthis,
+static int dmaw_set_dstformat(const struct nxs_dev *pthis,
 			   const struct nxs_control *pparam)
 {
+	struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
+	struct nxs_plane_format config;
+
+	dev_info(pthis->dev, "[%s] widht = %d, height = %d, format = 0x%x\n",
+		 __func__, pparam->u.format.width, pparam->u.format.height,
+		 pparam->u.format.pixelformat);
+	memset(&config, 0x0, sizeof(struct nxs_plane_format));
+	nxs_get_plane_format(&dmaw->nxs_dev, pparam->u.format.pixelformat,
+			     &config);
+	if (config.img_type == NXS_IMG_MAX) {
+		dev_err(pthis->dev,
+			"failed to get image information from the format\n");
+		return -EINVAL;
+	}
+	dmaw_set_src_imgsize(dmaw, pparam->u.format.width,
+			     pparam->u.format.height);
+	dmaw_set_plane_format(dmaw, &config);
+	dmaw_set_axi_control(dmaw);
+	dmaw_set_transaction_control(dmaw, pparam->u.format.width);
 	return 0;
 }
 
-static int dmaw_get_format(const struct nxs_dev *pthis,
+static int dmaw_get_dstformat(const struct nxs_dev *pthis,
 			   struct nxs_control *pparam)
 {
 	return 0;
@@ -200,11 +846,58 @@ static int dmaw_get_format(const struct nxs_dev *pthis,
 static int dmaw_set_buffer(const struct nxs_dev *pthis,
 			   const struct nxs_control *pparam)
 {
+	struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
+	u32 i, buffer_num;
+
+	dev_info(pthis->dev, "[%s]\n", __func__);
+	buffer_num = pparam->u.buffer.num_planes;
+	if (buffer_num > NXS_DEV_MAX_PLANES)
+		return -EINVAL;
+
+	for (i = 0; i < buffer_num; i++) {
+		dev_info(pthis->dev, "[%d] address = %p, stride = %d\n",
+			 i, pparam->u.buffer.address[i],
+			 pparam->u.buffer.strides[i]);
+		regmap_write(dmaw->reg,
+			     dmaw->offset + DMAW_PL0_BASEADDR +
+			     (i * DMAW_PL_CONFIG_SIZE),
+			     pparam->u.buffer.address[i]);
+		regmap_write(dmaw->reg,
+			     dmaw->offset + DMAW_PL0_STRIDE +
+			     (i * DMAW_PL_CONFIG_SIZE),
+			     pparam->u.buffer.strides[i]);
+	}
 	return 0;
 }
 
 static int dmaw_get_buffer(const struct nxs_dev *pthis,
 			   struct nxs_control *pparam)
+{
+	dev_info(pthis->dev, "[%s]\n", __func__);
+	return 0;
+}
+
+static int dmaw_set_video(const struct nxs_dev *pthis,
+			  struct nxs_control *pparam)
+{
+	struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
+	u32 type = pparam->u.video.type;
+	u32 field = pparam->u.video.field;
+
+	dev_info(pthis->dev, "[%s] type:%d, field:%d\n",
+		 __func__, type, field);
+
+	if (type == NXS_VIDEO_TYPE_M2M)
+		dmaw->is_m2m = true;
+	else
+		dmaw->is_m2m = false;
+	if (field == NXS_FIELD_INTERLACED)
+		dmaw_set_interlaced_mode(dmaw, true);
+	return 0;
+}
+
+static int dmaw_get_video(const struct nxs_dev *pthis,
+			  struct nxs_control *pparam)
 {
 	return 0;
 }
@@ -238,6 +931,9 @@ static int nxs_dmaw_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 	dmaw->offset = res->start;
+	dmaw->irq = platform_get_irq(pdev, 0);
+	atomic_set(&dmaw->open_count, 0);
+	dmaw->is_m2m = false;
 
 	nxs_dev->set_interrupt_enable = dmaw_set_interrupt_enable;
 	nxs_dev->get_interrupt_enable = dmaw_get_interrupt_enable;
@@ -250,18 +946,17 @@ static int nxs_dmaw_probe(struct platform_device *pdev)
 	nxs_dev->set_dirty = dmaw_set_dirty;
 	nxs_dev->set_control = nxs_set_control;
 	nxs_dev->get_control = nxs_get_control;
-	nxs_dev->dev_services[0].type = NXS_CONTROL_FORMAT;
-	nxs_dev->dev_services[0].set_control = dmaw_set_format;
-	nxs_dev->dev_services[0].get_control = dmaw_get_format;
+	nxs_dev->dev_services[0].type = NXS_CONTROL_DST_FORMAT;
+	nxs_dev->dev_services[0].set_control = dmaw_set_dstformat;
+	nxs_dev->dev_services[0].get_control = dmaw_get_dstformat;
 	nxs_dev->dev_services[1].type = NXS_CONTROL_BUFFER;
 	nxs_dev->dev_services[1].set_control = dmaw_set_buffer;
 	nxs_dev->dev_services[1].get_control = dmaw_get_buffer;
+	nxs_dev->dev_services[2].type = NXS_CONTROL_VIDEO;
+	nxs_dev->dev_services[2].set_control = dmaw_set_video;
+	nxs_dev->dev_services[2].get_control = dmaw_get_video;
 
 	nxs_dev->dev = &pdev->dev;
-
-#ifdef SIMULATE_INTERRUPT
-	setup_timer(&dmaw->timer, int_timer_func, (long)dmaw);
-#endif
 
 	ret = register_nxs_dev(&dmaw->nxs_dev);
 	if (ret)
@@ -311,5 +1006,5 @@ static void __exit nxs_dmaw_exit(void)
 module_exit(nxs_dmaw_exit);
 
 MODULE_DESCRIPTION("Nexell Stream DMAW driver");
-MODULE_AUTHOR("Sungwoo Park, <swpark@nexell.co.kr>");
+MODULE_AUTHOR("Hyejung Kwon, <cjscld15@nexell.co.kr>");
 MODULE_LICENSE("GPL");
