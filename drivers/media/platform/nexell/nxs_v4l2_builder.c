@@ -51,8 +51,8 @@
 #include <dt-bindings/media/nexell-vip.h>
 #include <linux/nxs_ioctl.h>
 #include <linux/nxs_v4l2.h>
-#include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
+#include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
 #define NXS_VIDEO_MAX_NAME_SIZE	32
@@ -400,7 +400,7 @@ static u32 get_nxs_field(u32 v4l2_field)
 static int nxs_chain_config(struct nxs_function *f,
 			    struct nxs_video_fh *vfh)
 {
-	struct nxs_control format;
+	struct nxs_control format, dst_f;
 	struct nxs_control crop;
 	struct nxs_control selection;
 	struct nxs_control video;
@@ -427,9 +427,15 @@ static int nxs_chain_config(struct nxs_function *f,
 	selection.u.sel.w = vfh->selection.r.width;
 	selection.u.sel.h = vfh->selection.r.height;
 
+	/* dst format */
+	dst_f.type = NXS_CONTROL_DST_FORMAT;
+	dst_f.u.format.width = vfh->dst_width;
+	dst_f.u.format.height = vfh->dst_height;
+	dst_f.u.format.pixelformat = vfh->dst_pixelformat;
 	/* TODO: other controls */
 
-	return nxs_function_config(f, false, 3, &format, &crop, &selection);
+	return nxs_function_config(f, false, 5, &video, &format, &crop,
+				   &selection, &dst_f);
 }
 
 static int nxs_m2m_chain_config(struct nxs_function *f,
@@ -453,7 +459,7 @@ static int nxs_m2m_chain_config(struct nxs_function *f,
 	dst_f.u.format.height = vfh->dst_height;
 	dst_f.u.format.pixelformat = vfh->dst_pixelformat;
 
-	return nxs_function_config(f, false, 2, &src_f, &dst_f);
+	return nxs_function_config(f, false, 3, &video, &src_f, &dst_f);
 }
 
 static bool is_end_node(struct nxs_dev *dev)
@@ -715,8 +721,8 @@ static int nxs_m2m_chain_set_buffer(struct nxs_function *f,
 	if (WARN(!src_nxs_dev, "src nxs_dev non exist\n"))
 		return -ENODEV;
 
-	dst_nxs_dev = list_first_entry(&f->dev_list, struct nxs_dev,
-				       func_list);
+	dst_nxs_dev = list_last_entry(&f->dev_list, struct nxs_dev,
+				      func_list);
 	if (WARN(!dst_nxs_dev, "dst nxs_dev non exist\n"))
 		return -ENODEV;
 
@@ -2106,6 +2112,10 @@ static int nxs_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 	if (!video->irq_callback)
 		return -ENOENT;
 
+	ret = nxs_function_open(video->nxs_function);
+	if (ret)
+		return ret;
+
 	ret = nxs_chain_config(video->nxs_function, vfh);
 	if (ret)
 		return ret;
@@ -2119,6 +2129,12 @@ static int nxs_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 		return ret;
 
 	ret = nxs_function_ready(video->nxs_function);
+	if (ret)
+		return ret;
+
+	ret = nxs_function_set_interrupt(video->nxs_function,
+					 (NXS_EVENT_DONE | NXS_EVENT_ERR),
+					 true);
 	if (ret)
 		return ret;
 
@@ -2137,10 +2153,13 @@ static void nxs_vb2_stop_streaming(struct vb2_queue *q)
 	struct nxs_video_fh *vfh = vb2_get_drv_priv(q);
 	struct nxs_video *video = vfh->video;
 
-	nxs_function_disconnect(video->nxs_function);
+	nxs_function_set_interrupt(video->nxs_function, NXS_EVENT_ALL,
+				   false);
 	nxs_function_unregister_irqcallback(video->nxs_function,
 					    video->irq_callback);
 	nxs_function_stop(video->nxs_function);
+	nxs_function_disconnect(video->nxs_function);
+	nxs_function_close(video->nxs_function);
 	video->irq_callback = NULL;
 
 	if (need_camera_sensor(video))
@@ -2234,6 +2253,10 @@ static int nxs_m2m_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 	if (!video->irq_callback)
 		return -ENOENT;
 
+	ret = nxs_function_open(video->nxs_function);
+	if (ret)
+		return ret;
+
 	ret = nxs_m2m_chain_config(video->nxs_function, vfh);
 	if (ret)
 		return ret;
@@ -2260,9 +2283,14 @@ static void nxs_m2m_vb2_stop_streaming(struct vb2_queue *q)
 
 	nxs_m2m_job_abort(vfh);
 
-	nxs_function_stop(video->nxs_function);
+	nxs_function_set_interrupt(video->nxs_function, NXS_EVENT_ALL,
+				   false);
 	nxs_function_unregister_irqcallback(video->nxs_function,
 					    video->irq_callback);
+	nxs_function_stop(video->nxs_function);
+	nxs_function_disconnect(video->nxs_function);
+	nxs_function_close(video->nxs_function);
+	video->irq_callback = NULL;
 }
 
 static struct vb2_ops nxs_m2m_vb2_ops = {
@@ -2409,6 +2437,10 @@ static int nxs_subdev_start(struct v4l2_subdev *sd)
 		nxs_function_register_irqcallback(video->nxs_function, video,
 						  nxs_video_subdev_irqcallback);
 
+	ret = nxs_function_open(video->nxs_function);
+	if (ret)
+		return ret;
+
 	ret = nxs_subdev_chain_config(video->nxs_function, ctx);
 	if (ret)
 		return ret;
@@ -2421,6 +2453,11 @@ static int nxs_subdev_start(struct v4l2_subdev *sd)
 	if (ret)
 		return ret;
 
+	ret = nxs_function_set_interrupt(video->nxs_function,
+					 (NXS_EVENT_DONE | NXS_EVENT_ERR),
+					 true);
+	if (ret)
+		return ret;
 	ret = nxs_function_start(video->nxs_function);
 	if (ret)
 		return ret;
@@ -2435,9 +2472,13 @@ static int nxs_subdev_stop(struct v4l2_subdev *sd)
 {
 	struct nxs_video *video = v4l2_get_subdevdata(sd);
 
+	nxs_function_set_interrupt(video->nxs_function, NXS_EVENT_ALL,
+				   false);
+	nxs_function_unregister_irqcallback(video->nxs_function,
+					    video->irq_callback);
 	nxs_function_stop(video->nxs_function);
 	nxs_function_disconnect(video->nxs_function);
-	nxs_function_stop(video->nxs_function);
+	nxs_function_close(video->nxs_function);
 	video->irq_callback = NULL;
 
 	if (need_camera_sensor(video))
