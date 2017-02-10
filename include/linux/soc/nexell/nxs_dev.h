@@ -29,12 +29,12 @@
 enum nxs_event_type {
 	NXS_EVENT_NONE		= 0,
 	NXS_EVENT_IDLE		= 1<<0,
-	NXS_EVENT_UPDATE	= 1<<1,
-	NXS_EVENT_DONE		= 1<<2,
+	NXS_EVENT_DONE		= 1<<1,
+	NXS_EVENT_CHANGED	= 1<<2,
 	NXS_EVENT_ERR		= 1<<3,
 	NXS_EVENT_ALL		= (NXS_EVENT_IDLE |
-				   NXS_EVENT_UPDATE |
 				   NXS_EVENT_DONE |
+				   NXS_EVENT_CHANGED |
 				   NXS_EVENT_ERR),
 	NXS_EVENT_MAX		= 1<<4,
 };
@@ -51,7 +51,6 @@ enum nxs_control_type {
 	NXS_CONTROL_GAMMA,
 	NXS_CONTROL_STATUS, /* device specific status ex> hdmi connected? */
 	NXS_CONTROL_VIDEO,
-	/* NXS_CONTROL_TPGEN	= NXS_SET_TPGEN, */
 	NXS_CONTROL_MAX
 };
 
@@ -214,11 +213,15 @@ struct nxs_dev {
 	spinlock_t irq_lock;
 	struct list_head irq_callback;
 
-	void (*set_interrupt_enable)(const struct nxs_dev *pthis, int type,
+	void (*set_interrupt_enable)(const struct nxs_dev *pthis,
+				    enum nxs_event_type type,
 				     bool enable);
-	bool  (*get_interrupt_enable)(const struct nxs_dev *pthis, int type);
-	bool  (*get_interrupt_pending)(const struct nxs_dev *pthis, int type);
-	void (*clear_interrupt_pending)(const struct nxs_dev *pthis, int type);
+	u32  (*get_interrupt_enable)(const struct nxs_dev *pthis,
+				     enum nxs_event_type type);
+	u32  (*get_interrupt_pending)(const struct nxs_dev *pthis,
+				      enum nxs_event_type type);
+	void (*clear_interrupt_pending)(const struct nxs_dev *pthis,
+					enum nxs_event_type type);
 
 	int (*open)(const struct nxs_dev *pthis);
 	int (*close)(const struct nxs_dev *pthis);
