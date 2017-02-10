@@ -140,9 +140,12 @@ struct nxs_scaler {
 
 #define nxs_to_scaler(dev)	container_of(dev, struct nxs_scaler, nxs_dev)
 
+static u32 scaler_get_interrupt_pending(const struct nxs_dev *pthis,
+					enum nxs_event_type type);
 static void scaler_clear_interrupt_pending(const struct nxs_dev *pthis,
-					   int type);
-static int scaler_get_interrupt_pending_number(struct nxs_scaler *scaler);
+					   enum nxs_event_type type);
+static enum nxs_event_type scaler_get_interrupt_pending_number
+(struct nxs_scaler *scaler);
 
 static irqreturn_t scaler_irq_handler(void *priv)
 {
@@ -152,21 +155,15 @@ static irqreturn_t scaler_irq_handler(void *priv)
 	unsigned long flags;
 
 	spin_lock_irqsave(&nxs_dev->irq_lock, flags);
+	dev_info(nxs_dev->dev, "[%s] pending status = 0x%x\n", __func__,
+		 scaler_get_interrupt_pending(nxs_dev, NXS_EVENT_ALL));
 	list_for_each_entry(callback, &nxs_dev->irq_callback, list) {
 		if (callback)
 			callback->handler(nxs_dev, callback->data);
-		else {
-			int int_pending_num =
-				scaler_get_interrupt_pending_number(scaler);
-
-			if (int_pending_num) {
-				dev_info(nxs_dev->dev, "[%s] int_num = %d\n",
-					 __func__, int_pending_num);
-				scaler_clear_interrupt_pending(nxs_dev,
-							       int_pending_num);
-			}
-		}
 	}
+	scaler_clear_interrupt_pending
+		(nxs_dev, scaler_get_interrupt_pending_number(scaler));
+	spin_unlock_irqrestore(&nxs_dev->irq_lock, flags);
 	return IRQ_HANDLED;
 }
 
@@ -178,8 +175,9 @@ static void scaler_reset_register(struct nxs_scaler *scaler)
 			   1 << SCALER_REG_CLEAR_SHIFT);
 }
 
-static void scaler_set_interrupt_enable(const struct nxs_dev *pthis, int type,
-				     bool enable)
+static void scaler_set_interrupt_enable(const struct nxs_dev *pthis,
+					enum nxs_event_type type,
+					bool enable)
 {
 	struct nxs_scaler *scaler = nxs_to_scaler(pthis);
 	u32	mask_v = 0;
@@ -187,21 +185,21 @@ static void scaler_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 	dev_info(pthis->dev, "[%s] %s\n", __func__,
 		 (enable)?"enable":"disable");
 	if (enable) {
-		if (type && NXS_EVENT_IDLE)
+		if (type & NXS_EVENT_IDLE)
 			mask_v |= SCALER_IDLE_INTEN_MASK;
-		if (type && NXS_EVENT_UPDATE)
+		if (type & NXS_EVENT_DONE)
 			mask_v |= SCALER_UPDATE_INTEN_MASK;
-		if (type && NXS_EVENT_ERR) {
+		if (type & NXS_EVENT_ERR) {
 			mask_v |= SCALER_RESOL_INTEN_MASK;
 			mask_v |= SCALER_SEC_INTEN_MASK;
 			mask_v |= SCALER_ERR_INTEN_MASK;
 		}
 	} else {
-		if (type && NXS_EVENT_IDLE)
+		if (type & NXS_EVENT_IDLE)
 			mask_v |= SCALER_IDLE_INTDIS_MASK;
-		if (type && NXS_EVENT_UPDATE)
+		if (type & NXS_EVENT_DONE)
 			mask_v |= SCALER_UPDATE_INTDIS_MASK;
-		if (type && NXS_EVENT_ERR) {
+		if (type & NXS_EVENT_ERR) {
 			mask_v |= SCALER_RESOL_INTDIS_MASK;
 			mask_v |= SCALER_SEC_INTDIS_MASK;
 			mask_v |= SCALER_ERR_INTDIS_MASK;
@@ -211,75 +209,81 @@ static void scaler_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 			   mask_v, mask_v);
 }
 
-static bool scaler_get_interrupt_enable(const struct nxs_dev *pthis, int type)
+static u32 scaler_get_interrupt_enable(const struct nxs_dev *pthis,
+				      enum nxs_event_type type)
 {
 	struct nxs_scaler *scaler = nxs_to_scaler(pthis);
 	u32	mask_v = 0, status = 0;
 
 	dev_info(pthis->dev, "[%s] type:%d\n", __func__, type);
-	if (type && NXS_EVENT_IDLE)
+	if (type & NXS_EVENT_IDLE)
 		mask_v |= SCALER_IDLE_INTEN_MASK;
-	if (type && NXS_EVENT_UPDATE)
+	if (type & NXS_EVENT_DONE)
 		mask_v |= SCALER_UPDATE_INTEN_MASK;
-	if (type && NXS_EVENT_ERR) {
+	if (type & NXS_EVENT_ERR) {
 		mask_v |= SCALER_RESOL_INTEN_MASK;
 		mask_v |= SCALER_SEC_INTEN_MASK;
 		mask_v |= SCALER_ERR_INTEN_MASK;
 	}
 	regmap_read(scaler->reg, scaler->offset + SCALER_INT, &status);
-	return (status & mask_v);
+	status &= mask_v;
+	return status;
 }
 
-static bool scaler_get_interrupt_pending(const struct nxs_dev *pthis, int type)
+static u32 scaler_get_interrupt_pending(const struct nxs_dev *pthis,
+					enum nxs_event_type type)
 {
 	struct nxs_scaler *scaler = nxs_to_scaler(pthis);
 	u32	mask_v, pend_status;
 
 	dev_info(pthis->dev, "[%s] type:%d\n", __func__, type);
-	if (type && NXS_EVENT_IDLE)
+	if (type & NXS_EVENT_IDLE)
 		mask_v |= SCALER_IDLE_INTPEND_CLR_MASK;
-	if (type && NXS_EVENT_UPDATE)
+	if (type & NXS_EVENT_DONE)
 		mask_v |= SCALER_UPDATE_INTPEND_CLR_MASK;
-	if (type && NXS_EVENT_ERR) {
+	if (type & NXS_EVENT_ERR) {
 		mask_v |= SCALER_RESOL_INTPEND_CLR_MASK;
 		mask_v |= SCALER_SEC_INTPEND_CLR_MASK;
 		mask_v |= SCALER_ERR_INTPEND_CLR_MASK;
 	}
 	regmap_read(scaler->reg, scaler->offset + SCALER_INT, &pend_status);
-	return (pend_status & mask_v);
+	pend_status &= mask_v;
+	return pend_status;
 }
 
-static int scaler_get_interrupt_pending_number(struct nxs_scaler *scaler)
+static enum nxs_event_type scaler_get_interrupt_pending_number
+(struct nxs_scaler *scaler)
 {
-	u32	ret = NXS_EVENT_NONE, pend_status = 0;
+	enum nxs_event_type	ret = NXS_EVENT_NONE;
+	u32	pend_status = 0;
 
 	dev_info(scaler->nxs_dev.dev, "[%s]\n", __func__);
 	regmap_read(scaler->reg, scaler->offset + SCALER_INT, &pend_status);
-	if (pend_status && SCALER_IDLE_INTPEND_CLR_MASK)
+	if (pend_status & SCALER_IDLE_INTPEND_CLR_MASK)
 		ret |= NXS_EVENT_IDLE;
-	if (pend_status && SCALER_UPDATE_INTPEND_CLR_MASK)
-		ret |= NXS_EVENT_UPDATE;
-	if (pend_status && SCALER_RESOL_INTPEND_CLR_MASK)
+	if (pend_status & SCALER_UPDATE_INTPEND_CLR_MASK)
+		ret |= NXS_EVENT_DONE;
+	if (pend_status & SCALER_RESOL_INTPEND_CLR_MASK)
 		ret |= NXS_EVENT_ERR;
-	if (pend_status && SCALER_SEC_INTPEND_CLR_MASK)
+	if (pend_status & SCALER_SEC_INTPEND_CLR_MASK)
 		ret |= NXS_EVENT_ERR;
-	if (pend_status && SCALER_ERR_INTPEND_CLR_MASK)
+	if (pend_status & SCALER_ERR_INTPEND_CLR_MASK)
 		ret |= NXS_EVENT_ERR;
 	return ret;
 }
 
 static void scaler_clear_interrupt_pending(const struct nxs_dev *pthis,
-					   int type)
+					   enum nxs_event_type type)
 {
 	struct nxs_scaler *scaler = nxs_to_scaler(pthis);
 	u32	mask_v = 0;
 
 	dev_info(pthis->dev, "[%s] type:%d\n", __func__, type);
-	if (type && NXS_EVENT_IDLE)
+	if (type & NXS_EVENT_IDLE)
 		mask_v |= SCALER_IDLE_INTPEND_CLR_MASK;
-	if (type && NXS_EVENT_UPDATE)
+	if (type & NXS_EVENT_DONE)
 		mask_v |= SCALER_UPDATE_INTPEND_CLR_MASK;
-	if (type && NXS_EVENT_ERR) {
+	if (type & NXS_EVENT_ERR) {
 		mask_v |= SCALER_RESOL_INTPEND_CLR_MASK;
 		mask_v |= SCALER_SEC_INTPEND_CLR_MASK;
 		mask_v |= SCALER_ERR_INTPEND_CLR_MASK;
