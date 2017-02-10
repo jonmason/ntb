@@ -31,6 +31,7 @@
 
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
+#include <linux/soc/nexell/nxs_plane_format.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
 #define TPGEN_DIRTYSET_OFFSET	0x0004
@@ -135,17 +136,14 @@ struct nxs_tpgen {
 	atomic_t open_count;
 };
 
-enum tpgen_format_type {
-	TPGEN_FORMAT_YUV = 0,
-	TPGEN_FORMAT_RGB = 1,
-	TPGEN_FORMAT_BAYER = 3,
-};
-
 #define nxs_to_tpgen(dev)	container_of(dev, struct nxs_tpgen, nxs_dev)
 
-static int tpgen_get_interrupt_pending_number(struct nxs_tpgen *tpgen);
+static enum nxs_event_type
+tpgen_get_interrupt_pending_number(struct nxs_tpgen *tpgen);
+static u32 tpgen_get_interrupt_pending(const struct nxs_dev *pthis,
+				       enum nxs_event_type type);
 static void tpgen_clear_interrupt_pending(const struct nxs_dev *pthis,
-					  int type);
+					  enum nxs_event_type type);
 
 static irqreturn_t tpgen_irq_handler(void *priv)
 {
@@ -155,21 +153,16 @@ static irqreturn_t tpgen_irq_handler(void *priv)
 	unsigned long flags;
 
 	spin_lock_irqsave(&nxs_dev->irq_lock, flags);
+	dev_info(tpgen->nxs_dev.dev, "[%s] pend status = 0x%x\n",
+		 __func__, tpgen_get_interrupt_pending(nxs_dev, NXS_EVENT_ALL));
+
 	list_for_each_entry(callback, &nxs_dev->irq_callback, list) {
 		if (callback)
 			callback->handler(nxs_dev, callback->data);
-		else {
-			int int_pending_num =
-				tpgen_get_interrupt_pending_number(tpgen);
-
-			if (int_pending_num) {
-				dev_info(tpgen->nxs_dev.dev, "[%s] int_num = 0x%x\n",
-					 __func__, int_pending_num);
-				tpgen_clear_interrupt_pending(&tpgen->nxs_dev,
-							      int_pending_num);
-			}
-		}
 	}
+	tpgen_clear_interrupt_pending
+		(nxs_dev, tpgen_get_interrupt_pending_number(tpgen));
+	spin_unlock_irqrestore(&nxs_dev->irq_lock, flags);
 	return IRQ_HANDLED;
 }
 
@@ -281,7 +274,8 @@ static int tpgen_reset_register(struct nxs_tpgen *tpgen)
 				  1 << TPGEN_REG_CLEAR_SHIFT);
 }
 
-static void tpgen_set_interrupt_enable(const struct nxs_dev *pthis, int type,
+static void tpgen_set_interrupt_enable(const struct nxs_dev *pthis,
+				       enum nxs_event_type type,
 				       bool enable)
 {
 	struct nxs_tpgen *tpgen = nxs_to_tpgen(pthis);
@@ -290,29 +284,26 @@ static void tpgen_set_interrupt_enable(const struct nxs_dev *pthis, int type,
 	dev_info(pthis->dev, "[%s] type - %d, %s\n",
 		 __func__, type, (enable)?"enable":"disable");
 	if (enable) {
-		if (type && NXS_EVENT_IDLE)
+		if (type & NXS_EVENT_IDLE)
 			mask_v |= TPGEN_IRQ_IDLE_INTENB_MASK;
-		if (type && NXS_EVENT_UPDATE)
-			mask_v |= TPGEN_UPDATE_INTENB_MASK;
-		if (type && NXS_EVENT_DONE)
+		if (type & NXS_EVENT_DONE)
 			mask_v |= TPGEN_IRQ_DONE_INTENB_MASK;
-		if (type && NXS_EVENT_ERR)
+		if (type & NXS_EVENT_ERR)
 			mask_v |= TPGEN_IRQ_OVF_INTENB_MASK;
 	} else {
-		if (type && NXS_EVENT_IDLE)
+		if (type & NXS_EVENT_IDLE)
 			mask_v |= TPGEN_IRQ_IDLE_INTDISABLE_MASK;
-		if (type && NXS_EVENT_UPDATE)
-			mask_v |= TPGEN_UPDATE_INTDISABLE_MASK;
-		if (type && NXS_EVENT_DONE)
+		if (type & NXS_EVENT_DONE)
 			mask_v |= TPGEN_IRQ_DONE_INTDISABLE_MASK;
-		if (type && NXS_EVENT_ERR)
+		if (type & NXS_EVENT_ERR)
 			mask_v |= TPGEN_IRQ_OVF_INTDISABLE_MASK;
 	}
 	regmap_update_bits(tpgen->reg, tpgen->offset + TPGEN_INTERRUPT,
 			   mask_v, mask_v);
 }
 
-static bool tpgen_get_interrupt_enable(const struct nxs_dev *pthis, int type)
+static u32 tpgen_get_interrupt_enable(const struct nxs_dev *pthis,
+				      enum nxs_event_type type)
 {
 	struct nxs_tpgen *tpgen = nxs_to_tpgen(pthis);
 	u32 status = 0, mask_v = 0;
@@ -320,18 +311,19 @@ static bool tpgen_get_interrupt_enable(const struct nxs_dev *pthis, int type)
 	dev_info(pthis->dev, "[%s] type - %d\n",
 		 __func__, type);
 	regmap_read(tpgen->reg, tpgen->offset + TPGEN_INTERRUPT, &status);
-	if (type && NXS_EVENT_IDLE)
+	if (type & NXS_EVENT_IDLE)
 		mask_v |= TPGEN_IRQ_IDLE_INTENB_MASK;
-	if (type && NXS_EVENT_UPDATE)
-		mask_v |= TPGEN_UPDATE_INTENB_MASK;
-	if (type && NXS_EVENT_DONE)
+	if (type & NXS_EVENT_DONE)
 		mask_v |= TPGEN_IRQ_DONE_INTENB_MASK;
-	if (type && NXS_EVENT_ERR)
+	if (type & NXS_EVENT_ERR)
 		mask_v |= TPGEN_IRQ_OVF_INTENB_MASK;
-	return (status & mask_v);
+	status &= mask_v;
+
+	return status;
 }
 
-static bool tpgen_get_interrupt_pending(const struct nxs_dev *pthis, int type)
+static u32 tpgen_get_interrupt_pending(const struct nxs_dev *pthis,
+				       enum nxs_event_type type)
 {
 	struct nxs_tpgen *tpgen = nxs_to_tpgen(pthis);
 	u32 status = 0, mask_v = 0;
@@ -339,47 +331,46 @@ static bool tpgen_get_interrupt_pending(const struct nxs_dev *pthis, int type)
 	dev_info(pthis->dev, "[%s] type - %d\n",
 		 __func__, type);
 	regmap_read(tpgen->reg, tpgen->offset + TPGEN_INTERRUPT, &status);
-	if (type && NXS_EVENT_IDLE)
+	if (type & NXS_EVENT_IDLE)
 		mask_v |= TPGEN_IRQ_IDLE_INTPEND_MASK;
-	if (type && NXS_EVENT_UPDATE)
-		mask_v |= TPGEN_UPDATE_INTPEND_MASK;
-	if (type && NXS_EVENT_DONE)
+	if (type & NXS_EVENT_DONE)
 		mask_v |= TPGEN_IRQ_DONE_INTPEND_MASK;
-	if (type && NXS_EVENT_ERR)
+	if (type & NXS_EVENT_ERR)
 		mask_v |= TPGEN_IRQ_OVF_INTPEND_MASK;
-	return (status & mask_v);
+	status &= mask_v;
+
+	return status;
 }
 
-static int tpgen_get_interrupt_pending_number(struct nxs_tpgen *tpgen)
+static enum nxs_event_type
+tpgen_get_interrupt_pending_number(struct nxs_tpgen *tpgen)
 {
-	u32 status = 0, ret = NXS_EVENT_NONE;
+	u32 status = 0;
+	enum nxs_event_type ret = NXS_EVENT_NONE;
 
 	dev_info(tpgen->nxs_dev.dev, "[%s]\n", __func__);
 	regmap_read(tpgen->reg, tpgen->offset + TPGEN_INTERRUPT, &status);
-	if (status && TPGEN_IRQ_IDLE_INTPEND_MASK)
+	if (status & TPGEN_IRQ_IDLE_INTPEND_MASK)
 		ret |= NXS_EVENT_IDLE;
-	if (status && TPGEN_UPDATE_INTPEND_MASK)
-		ret |= NXS_EVENT_UPDATE;
-	if (status && TPGEN_IRQ_DONE_INTPEND_MASK)
+	if (status & TPGEN_IRQ_DONE_INTPEND_MASK)
 		ret |= NXS_EVENT_DONE;
-	if (status && TPGEN_IRQ_OVF_INTPEND_MASK)
+	if (status & TPGEN_IRQ_OVF_INTPEND_MASK)
 		ret |= NXS_EVENT_ERR;
 	return ret;
 }
 
-static void tpgen_clear_interrupt_pending(const struct nxs_dev *pthis, int type)
+static void tpgen_clear_interrupt_pending(const struct nxs_dev *pthis,
+					  enum nxs_event_type type)
 {
 	struct nxs_tpgen *tpgen = nxs_to_tpgen(pthis);
 	u32 mask_v = NXS_EVENT_NONE;
 
 	dev_info(pthis->dev, "[%s] type - %d\n", __func__, type);
-	if (type && NXS_EVENT_IDLE)
+	if (type & NXS_EVENT_IDLE)
 		mask_v |= TPGEN_IRQ_IDLE_INTPEND_MASK;
-	if (type && NXS_EVENT_UPDATE)
-		mask_v |= TPGEN_UPDATE_INTPEND_MASK;
-	if (type && NXS_EVENT_DONE)
+	if (type & NXS_EVENT_DONE)
 		mask_v |= TPGEN_IRQ_DONE_INTPEND_MASK;
-	if (type && NXS_EVENT_ERR)
+	if (type & NXS_EVENT_ERR)
 		mask_v |= TPGEN_IRQ_OVF_INTPEND_MASK;
 	regmap_update_bits(tpgen->reg, tpgen->offset + TPGEN_INTERRUPT,
 			   mask_v, mask_v);
@@ -469,8 +460,12 @@ static int tpgen_set_format(const struct nxs_dev *pthis,
 {
 	struct nxs_tpgen *tpgen = nxs_to_tpgen(pthis);
 	u32 size, type;
+	struct nxs_plane_format config;
 
-	dev_info(pthis->dev, "[%s]\n", __func__);
+	dev_info(pthis->dev, "[%s]width:%d, height:%d, format:%d\n",
+		 __func__, pparam->u.format.width, pparam->u.format.height,
+		 pparam->u.format.pixelformat);
+
 	tpgen_config_stream(tpgen);
 	/* p_tpgen_parameter->enc_width     = 64 ; */
 	/* p_tpgen_parameter->enc_height    = 1 ; */
@@ -478,46 +473,14 @@ static int tpgen_set_format(const struct nxs_dev *pthis,
 		(pparam->u.format.height));
 	regmap_write(tpgen->reg, TPGEN_IMG_SIZE, size);
 	/* p_tpgen_parameter->enc_img_type  = 0 ; 0: YUV, 1: RGB, 3: BAYER */
-	switch (pparam->u.format.pixelformat) {
-	case V4L2_PIX_FMT_YUYV:
-	case V4L2_PIX_FMT_YYUV:
-	case V4L2_PIX_FMT_YVYU:
-	case V4L2_PIX_FMT_VYUY:
-	case V4L2_PIX_FMT_UYVY:
-	case V4L2_PIX_FMT_NV12:
-	case V4L2_PIX_FMT_NV21:
-	case V4L2_PIX_FMT_NV16:
-	case V4L2_PIX_FMT_NV61:
-	case V4L2_PIX_FMT_NV24:
-	case V4L2_PIX_FMT_NV42:
-	case V4L2_PIX_FMT_NV12M:
-	case V4L2_PIX_FMT_NV21M:
-	case V4L2_PIX_FMT_NV16M:
-	case V4L2_PIX_FMT_NV61M:
-		type = TPGEN_FORMAT_YUV;
-		break;
-	case V4L2_PIX_FMT_ARGB555:
-	case V4L2_PIX_FMT_XRGB555:
-	case V4L2_PIX_FMT_RGB565:
-	case V4L2_PIX_FMT_BGR24:
-	case V4L2_PIX_FMT_RGB24:
-	case V4L2_PIX_FMT_BGR32:
-	case V4L2_PIX_FMT_ABGR32:
-	case V4L2_PIX_FMT_XBGR32:
-	case V4L2_PIX_FMT_RGB32:
-	case V4L2_PIX_FMT_ARGB32:
-	case V4L2_PIX_FMT_XRGB32:
-		type = TPGEN_FORMAT_RGB;
-		break;
-	default:
-		/*
-		 * Todo
-		 * Currently not support bayer format
-		 *
-		 */
-		type = TPGEN_FORMAT_BAYER;
-		break;
-	}
+	nxs_get_plane_format(&tpgen->nxs_dev, pparam->u.format.pixelformat,
+			     &config);
+
+	if (config.img_type == NXS_IMG_RAW)
+		type = 3;
+	else
+		type = config.img_type;
+
 	return regmap_update_bits(tpgen->reg, tpgen->offset + TPGEN_CTRL,
 				  TPGEN_ENC_IMG_TYPE_MASK,
 				  type << TPGEN_ENC_IMG_TYPE_SHIFT);
