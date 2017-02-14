@@ -34,6 +34,7 @@
 #include <linux/cdev.h>
 #include <linux/slab.h>
 #include <linux/clk.h>
+#include <linux/clk-provider.h>
 #include <linux/regulator/consumer.h>
 
 #include <sound/tlv320aic32x4.h>
@@ -564,7 +565,8 @@ static int aic32x4_set_bias_level(struct snd_soc_codec *codec,
 				    AIC32X4_PLLEN, 0);
 
 		/* Switch off master clock */
-		clk_disable_unprepare(aic32x4->mclk);
+		if (__clk_is_enabled(aic32x4->mclk))
+			clk_disable_unprepare(aic32x4->mclk);
 		break;
 	case SND_SOC_BIAS_OFF:
 		break;
