@@ -38,7 +38,7 @@ static struct nx_tieoff_registerset *nx_tieoff;
 
 void tieoff_write(int val, int index)
 {
-#ifdef CONFIG_ARCH_S5P4418
+#if defined(CONFIG_ARCH_S5P4418) && defined(CONFIG_SECURE_REG_ACCESS)
 	write_sec_reg_by_id((void __iomem *)(TIEOFF_PHY_ADDR + index * 4),
 			val, NEXELL_TOFF_SEC_ID);
 #else
@@ -48,7 +48,7 @@ void tieoff_write(int val, int index)
 
 static int tieoff_read(int index)
 {
-#ifdef CONFIG_ARCH_S5P4418
+#if defined(CONFIG_ARCH_S5P4418) && defined(CONFIG_SECURE_REG_ACCESS)
 	return read_sec_reg_by_id((void __iomem *)(TIEOFF_PHY_ADDR + index * 4),
 			NEXELL_TOFF_SEC_ID);
 #else
