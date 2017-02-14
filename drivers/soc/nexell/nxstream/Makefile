@@ -23,3 +23,4 @@ obj-y += nxs_scaler.o
 obj-y += nxs_tpgen.o
 obj-y += nxs_vip.o
 obj-y += nxs_isp.o
+obj-y += nxs_sysctl.o
