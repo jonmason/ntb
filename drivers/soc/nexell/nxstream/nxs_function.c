@@ -33,6 +33,7 @@
 
 #include <dt-bindings/media/nexell-vip.h>
 #include <linux/soc/nexell/nxs_dev.h>
+#include <linux/soc/nexell/nxs_sysctl.h>
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
@@ -1319,11 +1320,22 @@ int nxs_function_set_interrupt(struct nxs_function *f,
 	struct nxs_dev *nxs_dev;
 	int ret;
 
-	nxs_dev = list_last_entry(&f->dev_list, struct nxs_dev, func_list);
-	if (nxs_dev->set_interrupt_enable) {
-		nxs_dev->set_interrupt_enable(nxs_dev,
-					      type,
-					      enable);
+	if (nxs_get_trace_mode()) {
+		list_for_each_entry_reverse(nxs_dev, &f->dev_list, func_list) {
+			if (nxs_dev->set_interrupt_enable) {
+				nxs_dev->set_interrupt_enable(nxs_dev,
+							      NXS_EVENT_ALL,
+							      enable);
+			}
+		}
+	} else {
+		nxs_dev = list_last_entry(&f->dev_list,
+					  struct nxs_dev, func_list);
+		if (nxs_dev->set_interrupt_enable) {
+			nxs_dev->set_interrupt_enable(nxs_dev,
+						      type,
+						      enable);
+		}
 	}
 	return 0;
 }
