@@ -31,6 +31,7 @@
 
 #include <linux/soc/nexell/nxs_function.h>
 #include <linux/soc/nexell/nxs_dev.h>
+#include <linux/soc/nexell/nxs_sysctl.h>
 #include <linux/soc/nexell/nxs_res_manager.h>
 
 struct nxs_res_manager {
@@ -288,6 +289,7 @@ make_function_request(struct nxs_res_manager *manager,
 
 error_out:
 	nxs_free_function_request(func_req);
+
 	return NULL;
 }
 
@@ -441,13 +443,20 @@ static int nxs_res_manager_probe(struct platform_device *pdev)
 	if (ret)
 		dev_err(&pdev->dev, "%s: failed to misc_register\n", __func__);
 
+	ret = nxs_sysctl_init();
+	if (ret)
+		dev_err(&pdev->dev, "%s: failed to register nxstream sys control\n",
+			__func__);
+
 	return ret;
 }
 
 static int nxs_res_manager_remove(struct platform_device *pdev)
 {
+	nxs_sysctl_exit();
 	misc_deregister(&nxs_res_miscdev);
 	res_manager = NULL;
+
 	return 0;
 }
 
