@@ -217,12 +217,15 @@
 				compatible = "ti,tlv320aic32x4";
 				reg = <0x18>;
 				reset-gpios = <&gpio_c 29 GPIO_ACTIVE_LOW>;
+				amp-gpios = <&gpio_e 11 GPIO_ACTIVE_HIGH>;
+
 				clocks = <&dummy_clk>;
 				clock-names = "mclk";
 				iov-supply = <&iov>;
 				ldoin-supply = <&ldoin>;
 				dv-supply = <&dv>;
 				av-supply = <&av>;
+				dac-mono = "left";
 			};
 		};
 
@@ -369,9 +372,6 @@
 		regulator-max-microvolt = <3300000>;
 		regulator-boot-on;
 		regulator-always-on;
-
-		gpio = <&gpio_e 11 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
 	};
 
 	iov: regulator-fix@1 {
@@ -558,6 +558,14 @@
 	status = "okay";
 };
 
+&i2s0_bus {
+	i2s0_mclk: i2s0-mclk {
+		nexell,pin-strength = <0>;
+	};
+	i2s0_bclk: i2s0-bclk {
+		nexell,pin-strength = <0>;
+	};
+};
 
 
 
