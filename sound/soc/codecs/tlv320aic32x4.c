@@ -36,6 +36,8 @@
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/regulator/consumer.h>
+#include <linux/of_gpio.h>
+#include <dt-bindings/gpio/gpio.h>
 
 #include <sound/tlv320aic32x4.h>
 #include <sound/core.h>
@@ -63,6 +65,12 @@ struct aic32x4_rate_divs {
 	u8 blck_N;
 };
 
+enum aic32x4_mix {
+	MIX_STEREO,
+	MIX_MONO_L,
+	MIX_MONO_R,
+};
+
 struct aic32x4_priv {
 	struct regmap *regmap;
 	u32 sysclk;
@@ -70,6 +78,10 @@ struct aic32x4_priv {
 	u32 micpga_routing;
 	bool swapdacs;
 	int rstn_gpio;
+	int amp_gpio;
+	int amp_active_high;
+
+	enum aic32x4_mix dac_mono;
 	struct clk *mclk;
 
 	struct regulator *supply_ldo;
@@ -476,6 +488,10 @@ static int aic32x4_hw_params(struct snd_pcm_substream *substream,
 	} else {
 		if (aic32x4->swapdacs)
 			data = AIC32X4_RDAC2LCHN | AIC32X4_LDAC2RCHN;
+		else if (aic32x4->dac_mono == MIX_MONO_L)
+			data = 0x3 << 4;
+		else if (aic32x4->dac_mono == MIX_MONO_R)
+			data = 0x3 << 2;
 		else
 			data = AIC32X4_LDAC2LCHN | AIC32X4_RDAC2RCHN;
 	}
@@ -488,6 +504,7 @@ static int aic32x4_hw_params(struct snd_pcm_substream *substream,
 static int aic32x4_mute(struct snd_soc_dai *dai, int mute)
 {
 	struct snd_soc_codec *codec = dai->codec;
+	struct aic32x4_priv *aic32x4 = snd_soc_codec_get_drvdata(codec);
 	u8 dac_reg;
 
 	dac_reg = snd_soc_read(codec, AIC32X4_DACMUTE) & ~AIC32X4_MUTEON;
@@ -495,6 +512,16 @@ static int aic32x4_mute(struct snd_soc_dai *dai, int mute)
 		snd_soc_write(codec, AIC32X4_DACMUTE, dac_reg | AIC32X4_MUTEON);
 	else
 		snd_soc_write(codec, AIC32X4_DACMUTE, dac_reg);
+
+	if (gpio_is_valid(aic32x4->amp_gpio)) {
+		if (mute)
+			gpio_set_value(aic32x4->amp_gpio,
+				aic32x4->amp_active_high ? 0 : 1);
+		else
+			gpio_set_value(aic32x4->amp_gpio,
+				aic32x4->amp_active_high ? 1 : 0);
+	}
+
 	return 0;
 }
 
@@ -507,10 +534,13 @@ static int aic32x4_set_bias_level(struct snd_soc_codec *codec,
 	switch (level) {
 	case SND_SOC_BIAS_ON:
 		/* Switch on master clock */
-		ret = clk_prepare_enable(aic32x4->mclk);
-		if (ret) {
-			dev_err(codec->dev, "Failed to enable master clock\n");
-			return ret;
+		if (!__clk_is_enabled(aic32x4->mclk)) {
+			ret = clk_prepare_enable(aic32x4->mclk);
+			if (ret) {
+				dev_err(codec->dev,
+					"Failed to enable master clock\n");
+				return ret;
+			}
 		}
 
 		/* Switch on PLL */
@@ -603,6 +633,39 @@ static struct snd_soc_dai_driver aic32x4_dai = {
 	.symmetric_rates = 1,
 };
 
+static const char * const aic32x4_mode_output_common[] = {
+	"common", "1.25V", "1.5V", "1.65V"
+	};
+
+static const char * const aic32x4_mode_powered[] = {
+	"AVDD", "LDOIN"
+	};
+
+static const char * const aic32x4_mode_ldoin_range[] = {
+	"1.5V to 1.95V", "1.8V to 3.6V"
+	};
+
+static SOC_ENUM_SINGLE_DECL(aic32x4_mode_output_common_enum, AIC32X4_CMMODE, 4,
+			    aic32x4_mode_output_common);
+
+static SOC_ENUM_SINGLE_DECL(aic32x4_mode_powered_enum, AIC32X4_CMMODE, 1,
+			    aic32x4_mode_powered);
+
+static SOC_ENUM_SINGLE_DECL(aic32x4_mode_ldoin_range_enum, AIC32X4_CMMODE, 0,
+			    aic32x4_mode_ldoin_range);
+
+static const struct snd_kcontrol_new aic32x4_mode_controls[] = {
+	SOC_ENUM("HPL/HPR Powered Supply Switch", aic32x4_mode_powered_enum),
+	SOC_ENUM("LDOIN Input Range Switch", aic32x4_mode_ldoin_range_enum),
+	SOC_ENUM("Output Common Mode Switch", aic32x4_mode_output_common_enum),
+};
+
+static int aic32x4_add_controls(struct snd_soc_codec *codec)
+{
+	return snd_soc_add_codec_controls(codec, aic32x4_mode_controls,
+				ARRAY_SIZE(aic32x4_mode_controls));
+}
+
 static int aic32x4_probe(struct snd_soc_codec *codec)
 {
 	struct aic32x4_priv *aic32x4 = snd_soc_codec_get_drvdata(codec);
@@ -658,6 +721,8 @@ static int aic32x4_probe(struct snd_soc_codec *codec)
 				AIC32X4_LADC_EN | AIC32X4_RADC_EN);
 	snd_soc_write(codec, AIC32X4_ADCSETUP, tmp_reg);
 
+	aic32x4_add_controls(codec);
+
 	return 0;
 }
 
@@ -677,11 +742,45 @@ static struct snd_soc_codec_driver soc_codec_dev_aic32x4 = {
 };
 
 static int aic32x4_parse_dt(struct aic32x4_priv *aic32x4,
-		struct device_node *np)
+			struct device *dev)
 {
+	struct device_node *np = dev->of_node;
+	const char *name = np->name;
+	enum of_gpio_flags flags;
+
 	aic32x4->swapdacs = false;
 	aic32x4->micpga_routing = 0;
 	aic32x4->rstn_gpio = of_get_named_gpio(np, "reset-gpios", 0);
+
+	aic32x4->amp_gpio = of_get_named_gpio_flags(np,
+			"amp-gpios", 0, &flags);
+
+	if (gpio_is_valid(aic32x4->amp_gpio)) {
+		aic32x4->amp_active_high = flags == GPIO_ACTIVE_HIGH ? 1 : 0;
+
+		devm_gpio_request_one(dev, aic32x4->amp_gpio,
+				aic32x4->amp_active_high ?
+				GPIOF_OUT_INIT_LOW : GPIOF_OUT_INIT_HIGH,
+				"tlv320aic32x4 amp");
+
+		pr_info("tlv320aic32x4 AMP amp-gpio.%d act %s\n",
+			aic32x4->amp_gpio, aic32x4->amp_active_high ?
+			"high" : "low ");
+	}
+
+	if (!of_property_read_string(np, "dac-mono", &name)) {
+		if (!strcmp("left", name))
+			aic32x4->dac_mono = MIX_MONO_L;
+		else if (!strcmp("right", name))
+			aic32x4->dac_mono = MIX_MONO_R;
+		else
+			aic32x4->dac_mono = MIX_STEREO;
+
+		pr_info("tlv320aic32x4 %s\n",
+			aic32x4->dac_mono == MIX_MONO_L ? "Mono Left" :
+			aic32x4->dac_mono == MIX_MONO_R ? "Mono Right" :
+			"Stereo");
+	}
 
 	return 0;
 }
@@ -811,7 +910,7 @@ static int aic32x4_i2c_probe(struct i2c_client *i2c,
 		aic32x4->micpga_routing = pdata->micpga_routing;
 		aic32x4->rstn_gpio = pdata->rstn_gpio;
 	} else if (np) {
-		ret = aic32x4_parse_dt(aic32x4, np);
+		ret = aic32x4_parse_dt(aic32x4, &i2c->dev);
 		if (ret) {
 			dev_err(&i2c->dev, "Failed to parse DT node\n");
 			return ret;
@@ -821,6 +920,7 @@ static int aic32x4_i2c_probe(struct i2c_client *i2c,
 		aic32x4->swapdacs = false;
 		aic32x4->micpga_routing = 0;
 		aic32x4->rstn_gpio = -1;
+		aic32x4->amp_gpio = -1;
 	}
 
 	aic32x4->mclk = devm_clk_get(&i2c->dev, "mclk");
