@@ -10,6 +10,11 @@ Required properties:
 -supply_name: arm vdd control regulator name.
 -<arm vdd control regulator name>-supply: arm vdd control node
 
+-max_freq: set max cpu frequency. support 1.6Ghz Overclock.
+ default cpu freq
+ s5p6818 : 1.4Ghz
+ s5p4418 : 1.2Ghz
+
 All the required listed above must be defined under node cpufreq.
 
 Example:
@@ -19,5 +24,6 @@ Example:
 		reg = <0xc00bb000 0x30000>;
 		supply_name = "vdd_core_regulator";
 		vdd_core_regulator-supply = <&VCC_DCDC0>;
+		max_freq = <16000000>;
 	};
 

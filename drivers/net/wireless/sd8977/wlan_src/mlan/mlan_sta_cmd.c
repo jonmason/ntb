@@ -1860,12 +1860,14 @@ wlan_cmd_tdls_oper(IN pmlan_private pmpriv,
 			if (HTcap_tlv) {
 				if (pmpriv->host_tdls_cs_support &&
 				    (pmpriv->adapter->fw_bands & BAND_A))
-					wlan_fill_ht_cap_tlv(pmpriv, HTcap_tlv,
-							     BAND_A);
+					wlan_fill_tdls_ht_cap_TLV(pmpriv,
+								  HTcap_tlv,
+								  BAND_A);
 				else
-					wlan_fill_ht_cap_tlv(pmpriv, HTcap_tlv,
-							     pbss_desc->
-							     bss_band);
+					wlan_fill_tdls_ht_cap_TLV(pmpriv,
+								  HTcap_tlv,
+								  pbss_desc->
+								  bss_band);
 				DBG_HEXDUMP(MCMD_D, "FW htcap",
 					    (t_u8 *)HTcap_tlv,
 					    sizeof(MrvlIETypes_HTCap_t));

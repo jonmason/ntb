@@ -727,6 +727,8 @@ static int es8316_pcm_hw_params(struct snd_pcm_substream *substream,
 static int es8316_set_bias_level(struct snd_soc_codec *codec,
 				 enum snd_soc_bias_level level)
 {
+	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
+
 	DBG("%s %d\n", __func__, level);
 
 	switch (level) {
@@ -812,7 +814,7 @@ static int es8316_set_bias_level(struct snd_soc_codec *codec,
 		snd_soc_write(codec, ES8316_RESET_REG00, 0x7F);
 		break;
 	}
-	codec->dapm.bias_level = level;
+	dapm->bias_level = level;
 
 	return 0;
 }
@@ -978,6 +980,7 @@ static int es8316_resume(struct snd_soc_codec *codec)
 static int es8316_probe(struct snd_soc_codec *codec)
 {
 	int ret = 0;
+	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 
 	es8316_jack_insert = 0;
 	DBG("---%s--start--\n", __func__);
@@ -996,9 +999,9 @@ static int es8316_probe(struct snd_soc_codec *codec)
 
 	snd_soc_add_codec_controls(codec, es8316_snd_controls,
 				ARRAY_SIZE(es8316_snd_controls));
-	snd_soc_dapm_new_controls(&codec->dapm, es8316_dapm_widgets,
+	snd_soc_dapm_new_controls(dapm, es8316_dapm_widgets,
 				  ARRAY_SIZE(es8316_dapm_widgets));
-	snd_soc_dapm_add_routes(&codec->dapm, es8316_dapm_routes,
+	snd_soc_dapm_add_routes(dapm, es8316_dapm_routes,
 			ARRAY_SIZE(es8316_dapm_routes));
 #if defined(HS_IRQ)
 	det_initialize();

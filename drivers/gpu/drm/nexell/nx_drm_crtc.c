@@ -421,9 +421,21 @@ static int nx_drm_crtc_irq_install(struct drm_device *drm,
 	if (0 > ret)
 		DRM_ERROR("fail : crtc.%d irq %d !!!\n", nx_crtc->pipe, irq);
 
+	nx_crtc->irq_install = true;
 	DRM_INFO("irq %d install for crtc.%d\n", irq, nx_crtc->pipe);
 
 	return ret;
+}
+
+static void nx_drm_crtc_irq_uninstall(struct drm_device *drm,
+			struct drm_crtc *crtc)
+{
+	struct nx_drm_crtc *nx_crtc = to_nx_crtc(crtc);
+
+	if (nx_crtc->irq_install) {
+		drm_irq_uninstall(drm);
+		nx_crtc->irq_install = false;
+	}
 }
 
 static int __of_graph_get_port_num_index(struct drm_device *drm,
@@ -485,14 +497,6 @@ static int nx_drm_crtc_parse_dt_setup(struct drm_device *drm,
 	if (0 > err)
 		return -EINVAL;
 
-	nx_crtc->pipe_irq = irq;
-
-	if (INVALID_IRQ != nx_crtc->pipe_irq) {
-		err = nx_drm_crtc_irq_install(drm, crtc);
-		if (0 > err)
-			return -EINVAL;
-	}
-
 	/*
 	 * parse port properties.
 	 */
@@ -528,6 +532,9 @@ static int nx_drm_crtc_parse_dt_setup(struct drm_device *drm,
 		DRM_DEBUG_KMS("crtc.%d planes[%d]: %s, bg:0x%08x, key:0x%08x\n",
 			pipe, i, strings[i], top->back_color, top->color_key);
 	}
+
+	/* set drm irq */
+	nx_crtc->pipe_irq = irq;
 
 	return 0;
 }
@@ -588,6 +595,31 @@ err_plane:
 	}
 
 	kfree(planes);
+
+	return ret;
+}
+
+int nx_drm_crtc_vblank_init(struct drm_device *drm)
+{
+	struct drm_crtc *crtc;
+	struct nx_drm_crtc *nx_crtc;
+	struct nx_drm_priv *priv = drm->dev_private;
+	int i = 0, ret = 0;
+
+	for (i = 0; drm->num_crtcs > i; i++) {
+		crtc = priv->crtcs[i];
+		nx_crtc = to_nx_crtc(crtc);
+		if (nx_crtc->pipe_irq != INVALID_IRQ) {
+			ret = nx_drm_crtc_irq_install(drm, crtc);
+			if (ret)
+				goto err_irq;
+		}
+	}
+	return ret;
+
+err_irq:
+	for (i = 0; drm->num_crtcs > i; i++)
+		nx_drm_crtc_irq_uninstall(drm, priv->crtcs[i]);
 
 	return ret;
 }

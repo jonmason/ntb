@@ -1356,6 +1356,20 @@ woal_init_from_dev_tree(void)
 				inact_tmo = data;
 				PRINTM(MIOCTL, "inact_tmo=%d\n", inact_tmo);
 			}
+		} else if (!strncmp
+			   (prop->name, "dfs_offload", strlen("dfs_offload"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				dfs_offload = data;
+				PRINTM(MIOCTL, "dfs_offload=%d\n", dfs_offload);
+			}
+		} else if (!strncmp
+			   (prop->name, "gtk_rekey_offload",
+			    strlen("gtk_rekey_offload"))) {
+			if (!of_property_read_u32(dt_node, prop->name, &data)) {
+				gtk_rekey_offload = data;
+				PRINTM(MIOCTL, "gtk_rekey_offload=%d\n",
+				       gtk_rekey_offload);
+			}
 		}
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
 		else if (!strncmp

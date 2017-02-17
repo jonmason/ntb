@@ -20,6 +20,7 @@
 #include <drm/drm_panel.h>
 #include <drm/drm_mipi_dsi.h>
 
+#include <linux/backlight.h>
 #include <linux/component.h>
 #include <linux/of_platform.h>
 #include <linux/of_address.h>
@@ -52,10 +53,14 @@ struct lcd_context {
 	struct nx_drm_device *display;
 	struct mutex lock;
 	bool local_timing;
+	struct mipi_resource mipi_res;
 	struct gpio_descs *enable_gpios;
 	enum of_gpio_flags gpios_active[4];
 	int gpios_delay[4];
-	struct mipi_resource mipi_res;
+	struct backlight_device *backlight;
+	int backlight_delay;
+	bool enabled;
+	struct work_struct	lcd_power_work;
 };
 
 #define ctx_to_mipi(c)	(struct mipi_resource *)(&c->mipi_res)
@@ -68,7 +73,7 @@ static bool panel_lcd_is_connected(struct device *dev,
 	struct lcd_context *ctx = dev_get_drvdata(dev);
 	struct nx_drm_panel *panel = &ctx->display->panel;
 	struct device_node *panel_node = panel->panel_node;
-		enum dp_panel_type panel_type = dp_panel_get_type(ctx->display);
+	enum dp_panel_type panel_type = dp_panel_get_type(ctx->display);
 
 	DRM_DEBUG_KMS("%s panel node %s\n",
 		dp_panel_type_name(panel_type), panel_node ?
@@ -200,6 +205,38 @@ static void panel_lcd_commit(struct device *dev)
 {
 }
 
+static void panel_lcd_work(struct work_struct *work)
+{
+	struct lcd_context *ctx = container_of(work,
+					struct lcd_context, lcd_power_work);
+	struct gpio_desc **desc;
+	int i;
+
+	if (ctx->enable_gpios) {
+		desc = ctx->enable_gpios->desc;
+		for (i = 0; ctx->enable_gpios->ndescs > i; i++) {
+			DRM_DEBUG_KMS("LCD gpio.%d ative %s %dms\n",
+					desc_to_gpio(desc[i]),
+					ctx->gpios_active[i] == GPIO_ACTIVE_HIGH
+					? "high" : "low ", ctx->gpios_delay[i]);
+
+			gpiod_set_value_cansleep(desc[i],
+				ctx->gpios_active[i] == GPIO_ACTIVE_HIGH ?
+								1 : 0);
+			if (ctx->gpios_delay[i])
+				mdelay(ctx->gpios_delay[i]);
+		}
+	}
+
+	if (ctx->backlight) {
+		if (ctx->backlight_delay)
+			mdelay(ctx->backlight_delay);
+
+		ctx->backlight->props.power = FB_BLANK_UNBLANK;
+		backlight_update_status(ctx->backlight);
+	}
+}
+
 static void panel_lcd_enable(struct device *dev, struct drm_panel *panel)
 {
 	struct lcd_context *ctx = dev_get_drvdata(dev);
@@ -238,36 +275,35 @@ static void panel_lcd_dmps(struct device *dev, int mode)
 	struct lcd_context *ctx = dev_get_drvdata(dev);
 	struct nx_drm_panel *panel = &ctx->display->panel;
 	struct drm_panel *drm_panel = panel->panel;
+	enum dp_panel_type panel_type = dp_panel_get_type(ctx->display);
 	struct gpio_desc **desc;
 	int i;
 
-	DRM_DEBUG_KMS("dpms.%d\n", mode);
+	DRM_DEBUG_KMS("%s dpms.%d\n", dp_panel_type_name(panel_type), mode);
 
 	switch (mode) {
 	case DRM_MODE_DPMS_ON:
+		if (ctx->enabled)
+			break;
+
 		panel_lcd_enable(dev, drm_panel);
-
-		if (ctx->enable_gpios) {
-			desc = ctx->enable_gpios->desc;
-			for (i = 0; ctx->enable_gpios->ndescs > i; i++) {
-				DRM_DEBUG_KMS("LCD gpio.%d ative %s %dms\n",
-					desc_to_gpio(desc[i]),
-					ctx->gpios_active[i] == GPIO_ACTIVE_HIGH
-					? "high" : "low ",
-					ctx->gpios_delay[i]);
-
-				gpiod_set_value_cansleep(desc[i],
-						ctx->gpios_active[i] ==
-						GPIO_ACTIVE_HIGH ? 1 : 0);
-				if (ctx->gpios_delay[i])
-					mdelay(ctx->gpios_delay[i]);
-			}
-		}
+		schedule_work(&ctx->lcd_power_work);
+		ctx->enabled = true;
 		break;
 
 	case DRM_MODE_DPMS_STANDBY:
 	case DRM_MODE_DPMS_SUSPEND:
 	case DRM_MODE_DPMS_OFF:
+		if (!ctx->enabled)
+			break;
+
+		cancel_work_sync(&ctx->lcd_power_work);
+
+		if (ctx->backlight) {
+			ctx->backlight->props.power = FB_BLANK_POWERDOWN;
+			backlight_update_status(ctx->backlight);
+		}
+
 		panel_lcd_disable(dev, drm_panel);
 
 		if (ctx->enable_gpios) {
@@ -277,6 +313,7 @@ static void panel_lcd_dmps(struct device *dev, int mode)
 						ctx->gpios_active[i] ==
 						GPIO_ACTIVE_HIGH ? 0 : 1);
 		}
+		ctx->enabled = false;
 		break;
 	default:
 		DRM_ERROR("fail : unspecified mode %d\n", mode);
@@ -424,15 +461,17 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 	struct device_node *node = dev->of_node;
 	struct device_node *np;
 	struct display_timing timing;
+#ifdef CONFIG_BACKLIGHT_CLASS_DEVICE
+	struct device_node *backlight;
+#endif
 	int err;
 
 	DRM_DEBUG_KMS("enter\n");
 
-	parse_read_prop(node, "crtc-pipe", ctx->crtc_pipe);
-
 	/*
-	 * get possible crtcs
+	 * get crtcs params
 	 */
+	parse_read_prop(node, "crtc-pipe", ctx->crtc_pipe);
 	parse_read_prop(node, "crtcs-possible-mask", ctx->possible_crtcs_mask);
 
 	/*
@@ -494,6 +533,25 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 				"high" : "low ");
 		}
 
+#ifdef CONFIG_BACKLIGHT_CLASS_DEVICE
+		backlight = of_parse_phandle(node, "backlight", 0);
+		if (backlight) {
+			ctx->backlight = of_find_backlight_by_node(backlight);
+			of_node_put(backlight);
+			if (ctx->backlight) {
+				parse_read_prop(node, "backlight-delay",
+					ctx->backlight_delay);
+
+				ctx->backlight->props.power =
+					FB_BLANK_POWERDOWN;
+				backlight_update_status(ctx->backlight);
+
+				DRM_INFO("LCD backlight down, delay:%d\n",
+					ctx->backlight_delay);
+			}
+		}
+#endif
+
 		/* parse panel lcd size */
 		parse_read_prop(node, "width-mm", panel->width_mm);
 		parse_read_prop(node, "height-mm", panel->height_mm);
@@ -509,6 +567,7 @@ static int panel_lcd_parse_dt(struct platform_device *pdev,
 			ctx->local_timing = true;
 		}
 	}
+	INIT_WORK(&ctx->lcd_power_work, panel_lcd_work);
 
 	/*
 	 * parse display control config
@@ -564,7 +623,7 @@ static int panel_lcd_probe(struct platform_device *pdev)
 
 	size = sizeof(*ctx) + sizeof(struct nx_drm_device);
 	ctx = devm_kzalloc(dev, size, GFP_KERNEL);
-	if (!ctx)
+	if (IS_ERR(ctx))
 		return -ENOMEM;
 
 	ctx->display = (void *)ctx + sizeof(*ctx);
@@ -575,11 +634,11 @@ static int panel_lcd_probe(struct platform_device *pdev)
 
 	err = panel_lcd_driver_setup(pdev, ctx, &panel_type);
 	if (0 > err)
-		return err;
+		goto err_parse;
 
 	err = panel_lcd_parse_dt(pdev, ctx, panel_type);
 	if (0 > err)
-		return err;
+		goto err_parse;
 
 	panel_type = dp_panel_get_type(ctx->display);
 
@@ -597,6 +656,15 @@ static int panel_lcd_probe(struct platform_device *pdev)
 
 	DRM_DEBUG_KMS("done\n");
 	return err;
+
+err_parse:
+	if (ctx) {
+		if (ctx->backlight)
+			put_device(&ctx->backlight->dev);
+		devm_kfree(dev, ctx);
+	}
+
+	return err;
 }
 
 static int panel_lcd_remove(struct platform_device *pdev)
@@ -609,6 +677,11 @@ static int panel_lcd_remove(struct platform_device *pdev)
 
 	nx_drm_dp_panel_res_free(dev, &ctx->display->res);
 	nx_drm_dp_panel_dev_release(dev, ctx->display);
+
+	if (ctx->backlight)
+		put_device(&ctx->backlight->dev);
+
+	devm_kfree(dev, ctx);
 
 	return 0;
 }
@@ -664,6 +737,7 @@ struct platform_driver panel_lcd_driver = {
 		.pm = &panel_lcd_pm,
 	},
 };
+
 module_platform_driver(panel_lcd_driver);
 
 MODULE_AUTHOR("jhkim <jhkim@nexell.co.kr>");

@@ -5359,5 +5359,9 @@ static void __exit ext4_exit_fs(void)
 MODULE_AUTHOR("Remy Card, Stephen Tweedie, Andrew Morton, Andreas Dilger, Theodore Ts'o and others");
 MODULE_DESCRIPTION("Fourth Extended Filesystem");
 MODULE_LICENSE("GPL");
+#ifdef CONFIG_EXT4_FS_INIT_LEVEL_UP
+fs_initcall(ext4_init_fs)
+#else
 module_init(ext4_init_fs)
+#endif
 module_exit(ext4_exit_fs)

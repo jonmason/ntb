@@ -9,7 +9,9 @@
  *  Simplified starting of init:  Michael A. Griffith <grif@acm.org>
  */
 
+#ifndef CONFIG_REDUCE_BOOT_TIME
 #define DEBUG		/* Enable initcall_debug */
+#endif
 
 #include <linux/types.h>
 #include <linux/module.h>
@@ -859,12 +861,36 @@ static void __init do_initcall_level(int level)
 		do_one_initcall(*fn);
 }
 
+#ifdef CONFIG_INITCALLS_THREAD
+static int init_thread_level;
+static int __init do_initcalls_kth(void *data)
+{
+	int level = *(int *)data;
+
+	pr_info("Initcalls thread level:%d\n", level);
+
+	for (; level < ARRAY_SIZE(initcall_levels) - 1; level++)
+		do_initcall_level(level);
+
+	return 0;
+}
+#endif
+
 static void __init do_initcalls(void)
 {
 	int level;
 
+#ifdef CONFIG_INITCALLS_THREAD
+	for (level = 0; level < CONFIG_INITCALLS_THREAD_LEVEL; level++)
+		do_initcall_level(level);
+
+	init_thread_level = level;
+	kthread_run(do_initcalls_kth,
+		(void *)&init_thread_level, "initcalls:thread");
+#else
 	for (level = 0; level < ARRAY_SIZE(initcall_levels) - 1; level++)
 		do_initcall_level(level);
+#endif
 }
 
 /*
@@ -936,7 +962,9 @@ static int __ref kernel_init(void *unused)
 	kernel_init_freeable();
 	/* need to finish all async __init code before freeing the memory */
 	async_synchronize_full();
+#ifndef CONFIG_INITCALLS_THREAD
 	free_initmem();
+#endif
 	mark_rodata_ro();
 	system_state = SYSTEM_RUNNING;
 	numa_default_policy();

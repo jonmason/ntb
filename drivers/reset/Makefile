@@ -8,3 +8,4 @@ obj-$(CONFIG_ARCH_ZYNQ) += reset-zynq.o
 obj-$(CONFIG_ATH79) += reset-ath79.o
 obj-$(CONFIG_ARCH_S5P6818) += reset-nexell.o
 obj-$(CONFIG_ARCH_S5P4418) += reset-nexell.o
+obj-$(CONFIG_ARCH_NXP5540) += reset-nxp5540.o

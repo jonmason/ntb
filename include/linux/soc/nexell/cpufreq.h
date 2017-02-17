@@ -27,6 +27,7 @@ struct nxp_cpufreq_plat_data {
 	int  table_size;
 	char *supply_name;		/* voltage regulator name */
 	long supply_delay_us;
+	int max_freq;
 };
 
 int nx_change_bus_freq(u32 pll_data);

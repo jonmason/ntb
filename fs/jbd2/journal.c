@@ -2694,6 +2694,10 @@ static void __exit journal_exit(void)
 }
 
 MODULE_LICENSE("GPL");
+#ifdef CONFIG_EXT4_FS_INIT_LEVEL_UP
+fs_initcall(journal_init)
+#else
 module_init(journal_init);
+#endif
 module_exit(journal_exit);
 

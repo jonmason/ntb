@@ -49,3 +49,34 @@ config DRM_NX_HDMI
 	 This selects support for HDMI display out.
 	 If you want to enable HDMI display,
 	 you should selet this option.
+
+config DRM_NX_TVOUT
+	bool "Tv out support"
+	depends on DRM_NX
+	select DRM_PANEL
+	help
+	 This selects support for tv display out.
+	 If you want to enable tv display,
+	 you should selet this option.
+
+config DRM_NX_CLUSTER_LCD
+	bool "Cluster LCD support"
+	depends on DRM_NX
+	select DRM_PANEL
+	default n
+	help
+	 This selects support for cluster lcd out.
+	 If you want to enable cluster lcd display,
+	 you should selet this option with LCDs type (LVDS, RGB).
+
+config DRM_CHECK_IOCTL_AUTH
+	bool "Check ioctl authentication for modesetting driver"
+	depends on DRM
+	default y
+	help
+	 Choose this option if you need check authentication
+	 for modesetting driver
+
+	  If in doubt, say "Y".
+
+

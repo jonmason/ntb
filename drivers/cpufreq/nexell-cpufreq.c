@@ -36,7 +36,6 @@
 #include <linux/soc/nexell/cpufreq.h>
 
 #define DEV_NAME_CPUFREQ	"nexell-cpufreq"
-
 /*
  * DVFS info
  */
@@ -56,8 +55,10 @@ struct cpufreq_asv_ops {
 #else
 #define	FREQ_MAX_FREQ_KHZ		(1400*1000)
 #define	FREQ_ARRAY_SIZE			(11)
+#define FREQ_MAX_OVERCLK (1600*1000)
 static struct cpufreq_asv_ops	asv_ops = { };
 #endif
+
 
 struct cpufreq_dvfs_timestamp {
 	unsigned long start;
@@ -572,6 +573,7 @@ static void *nxp_cpufreq_get_dt_data(struct platform_device *pdev)
 	const __be32 *list;
 	char *supply;
 	int value, i, size = 0;
+	int tmp;
 
 	match = of_match_node(dvfs_dt_match, node);
 	if (!match)
@@ -601,6 +603,14 @@ static void *nxp_cpufreq_get_dt_data(struct platform_device *pdev)
 		pdata->table_size = size/2;
 	}
 
+	if(!of_property_read_u32(node, "max_freq", &tmp)) {
+		if(tmp > 1600000)
+			pdata->max_freq = FREQ_MAX_FREQ_KHZ;
+		else
+			pdata->max_freq = tmp;
+	} else {
+			pdata->max_freq = FREQ_MAX_FREQ_KHZ;
+	}
 	return pdata;
 }
 #else
@@ -617,6 +627,7 @@ static void *nxp_cpufreq_make_table(struct platform_device *pdev,
 	unsigned long (*plat_tbs)[2] = NULL;
 	int tb_size, asv_size = 0;
 	int id = 0, n = 0;
+	int max_freq = pdata->max_freq;
 
 	/* user defined dvfs */
 	if (pdata->dvfs_table && pdata->table_size)
@@ -655,7 +666,7 @@ static void *nxp_cpufreq_make_table(struct platform_device *pdev,
 					}
 				}
 			} else {
-				if (dvfs_tables[n][0] > FREQ_MAX_FREQ_KHZ)
+				if (dvfs_tables[n][0] > max_freq)
 					continue;
 				dvfs_tables[id][0] = dvfs_tables[n][0];
 				dvfs_tables[id][1] = dvfs_tables[n][1];

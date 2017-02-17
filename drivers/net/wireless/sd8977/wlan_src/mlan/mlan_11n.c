@@ -3173,3 +3173,33 @@ wlan_update_11n_cap(mlan_private *pmpriv)
 	pmpriv->usr_dot_11n_dev_cap_a =
 		pmadapter->hw_dot_11n_dev_cap & DEFAULT_11N_CAP_MASK_A;
 }
+
+/**
+ *  @brief This function fills the TDLS HT cap tlv
+ *
+ *  @param priv         A pointer to mlan_private structure
+ *  @param pht_cap      A pointer to MrvlIETypes_HTCap_t structure
+ *  @param bands        Band configuration
+ *
+ *  @return             N/A
+ */
+void
+wlan_fill_tdls_ht_cap_TLV(mlan_private *priv, MrvlIETypes_HTCap_t *pht_cap,
+			  t_u8 bands)
+{
+	mlan_adapter *pmadapter = priv->adapter;
+	MrvlIETypes_HTCap_t ht_cap;
+	int i = 0;
+
+	memset(pmadapter, &ht_cap, 0, sizeof(MrvlIETypes_HTCap_t));
+	wlan_fill_ht_cap_tlv(priv, &ht_cap, bands);
+
+	pht_cap->ht_cap.ht_cap_info &= ht_cap.ht_cap.ht_cap_info;
+	pht_cap->ht_cap.ampdu_param &= ht_cap.ht_cap.ampdu_param;
+	for (i = 0; i < sizeof(pht_cap->ht_cap.supported_mcs_set); i++)
+		pht_cap->ht_cap.supported_mcs_set[i] &=
+			ht_cap.ht_cap.supported_mcs_set[i];
+	pht_cap->ht_cap.ht_ext_cap &= ht_cap.ht_cap.ht_ext_cap;
+	pht_cap->ht_cap.tx_bf_cap &= ht_cap.ht_cap.tx_bf_cap;
+	pht_cap->ht_cap.asel &= ht_cap.ht_cap.asel;
+}

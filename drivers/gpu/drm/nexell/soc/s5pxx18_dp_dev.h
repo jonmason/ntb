@@ -28,6 +28,9 @@
 #include "s5pxx18_soc_lvds.h"
 #include "s5pxx18_soc_disptop_clk.h"
 
+#define CHECK_DP_POWRON
+#define	CLISTER_LCD_MAX		2
+
 /*
  * display sync info
  */
@@ -124,6 +127,8 @@ enum dp_panel_type {
 	dp_panel_type_lvds,
 	dp_panel_type_mipi,
 	dp_panel_type_hdmi,
+	dp_panel_type_tv,
+	dp_panel_type_cluster_lcd,
 	dp_panel_type_vidi,
 };
 
@@ -138,6 +143,8 @@ struct dp_control_dev {
 	void *dp_output;
 	struct dp_control_ops *ops;
 	void *regs[sizeof(struct nx_dpc_register_set)/sizeof(void *)];
+	bool cluster;
+	struct list_head list; /* next contol dev */
 };
 
 struct dp_control_ops {
@@ -194,6 +201,10 @@ struct dp_hdmi_dev {
 	void *preset_data;
 };
 
+struct dp_tv_dev {
+	void *data;
+};
+
 struct dp_mipi_xfer {
 	u8  id;
 	u8  data[2];
@@ -210,6 +221,12 @@ struct dp_mipi_xfer {
 #define	PLANE_FLAG_RGB		(0<<0)
 #define	PLANE_FLAG_VIDEO	(1<<0)
 #define	PLANE_FLAG_UNKNOWN	(0xFFFFFFF)
+
+enum dp_cluster_dir {
+	dp_cluster_hor,
+	dp_cluster_ver,
+	dp_cluster_clone,
+};
 
 struct dp_plane_top {
 	struct device *dev;
@@ -229,6 +246,9 @@ struct dp_plane_top {
 	int interlace;
 	int enable;
 	void *regs[sizeof(struct nx_mlc_register_set)/sizeof(void *)];
+	struct list_head list; /* next top */
+	bool cluster;
+	enum dp_cluster_dir cluster_dir;
 };
 
 /*
@@ -261,6 +281,7 @@ struct dp_plane_layer {
 	int module, num;
 	enum dp_plane_type type;
 	unsigned int format;
+	bool is_bgr;
 
 	/* source */
 	int left;
@@ -298,6 +319,19 @@ struct dp_plane_layer {
 	} color;
 };
 
+#define DP_PLANE_FORMAT_SCREEN_SIZE		(1<<0)
+#define DP_PLANE_FORMAT_VIDEO_PRIORITY	(1<<1)
+#define DP_PLANE_FORMAT_BACK_COLOR		(1<<2)
+
+struct plane_top_format {
+	int module;
+	int video_priority;
+	int width;
+	int height;
+	unsigned int bgcolor;
+	unsigned int mask;
+};
+
 const char *dp_panel_type_name(enum dp_panel_type panel);
 
 void nx_soc_dp_cont_dpc_base(int module, void __iomem *base);
@@ -318,6 +352,7 @@ void nx_soc_dp_plane_top_set_format(struct dp_plane_top *top,
 			int width, int height);
 void nx_soc_dp_plane_top_set_bg_color(struct dp_plane_top *top);
 int nx_soc_dp_plane_top_set_enable(struct dp_plane_top *top, bool on);
+void nx_soc_dp_plane_top_prev_format(struct plane_top_format *format);
 
 int nx_soc_dp_plane_rgb_set_format(struct dp_plane_layer *layer,
 			unsigned int format, int pixelbyte, bool adjust);
@@ -370,6 +405,11 @@ int nx_dp_device_mipi_register(struct device *dev,
 int nx_soc_dp_mipi_tx_transfer(struct dp_mipi_xfer *xfer);
 int nx_soc_dp_mipi_rx_transfer(struct dp_mipi_xfer *xfer);
 int nx_soc_dp_mipi_ransfer_done(void);
+#endif
+
+#ifdef CONFIG_DRM_NX_TVOUT
+int nx_soc_dp_tv_register(struct device *dev,
+			struct device_node *np, struct dp_control_dev *dpc);
 #endif
 
 #endif /* __S5PXX18_DP_DEV_H__ */

@@ -1280,3 +1280,33 @@ wlan_11ac_bandconfig_allowed(mlan_private *pmpriv, t_u8 bss_band)
 	}
 	return 0;
 }
+
+/**
+ *  @brief This function fills TDLS VHT cap tlv out put format is LE, not CPU
+ *
+ *  @param priv         A pointer to mlan_private structure
+ *  @param pvht_cap      A pointer to MrvlIETypes_HTCap_t structure
+ *  @param bands        Band configuration
+ *
+ *  @return             N/A
+ */
+void
+wlan_fill_tdls_vht_cap_TLV(mlan_private *priv, MrvlIETypes_VHTCap_t *pvht_cap,
+			   t_u8 bands)
+{
+	mlan_adapter *pmadapter = priv->adapter;
+	MrvlIETypes_VHTCap_t vht_cap;
+
+	memset(pmadapter, &vht_cap, 0, sizeof(MrvlIETypes_VHTCap_t));
+	wlan_fill_vht_cap_tlv(priv, &vht_cap, bands, MFALSE);
+
+	pvht_cap->vht_cap.vht_cap_info &= vht_cap.vht_cap.vht_cap_info;
+	pvht_cap->vht_cap.mcs_sets.rx_mcs_map &=
+		vht_cap.vht_cap.mcs_sets.rx_mcs_map;
+	pvht_cap->vht_cap.mcs_sets.rx_max_rate &=
+		vht_cap.vht_cap.mcs_sets.rx_max_rate;
+	pvht_cap->vht_cap.mcs_sets.tx_mcs_map &=
+		vht_cap.vht_cap.mcs_sets.tx_mcs_map;
+	pvht_cap->vht_cap.mcs_sets.tx_max_rate &=
+		vht_cap.vht_cap.mcs_sets.tx_max_rate;
+}

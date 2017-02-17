@@ -166,7 +166,15 @@ static struct platform_driver dw_mci_nexell_pltfm_driver = {
 	},
 };
 
+#ifdef CONFIG_MMC_INIT_LEVEL_UP
+static int __init dw_mci_nexell_pltfm_init(void)
+{
+	return platform_driver_register(&dw_mci_nexell_pltfm_driver);
+}
+fs_initcall(dw_mci_nexell_pltfm_init)
+#else
 module_platform_driver(dw_mci_nexell_pltfm_driver);
+#endif
 
 MODULE_DESCRIPTION("Nexell Specific DW-MSHC Driver Extension");
 MODULE_AUTHOR("Youngbok Park <ybpart@nexell.co.kr");

@@ -56,7 +56,7 @@ config MALI400_PROFILING
 	bool "Enable Mali profiling"
 	depends on MALI400
 	select TRACEPOINTS
-	default y
+	default n
 	---help---
 	  This enables gator profiling of Mali GPU events.
 

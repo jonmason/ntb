@@ -34,6 +34,125 @@ module_param_named(fb_buffers, fb_buffer_count, int, 0600);
 MODULE_PARM_DESC(fb_bgr, "frame buffer BGR pixel format");
 module_param_named(fb_bgr, fb_format_bgr, bool, 0600);
 
+#ifdef CONFIG_FB_PRE_INIT_FB
+#include <linux/memblock.h>
+#include <linux/of_address.h>
+#include "nx_drm_plane.h"
+#include "soc/s5pxx18_soc_mlc.h"
+
+static int fb_splash_image_copy(struct device *dev,
+			phys_addr_t map_phys, phys_addr_t map_phys_size,
+			void *dst_virt, phys_addr_t dst_virt_size)
+{
+	unsigned long npages, i;
+	struct page **pages;
+	void *src_virt;
+
+	npages = PAGE_ALIGN(map_phys_size) / PAGE_SIZE;
+	pages = kcalloc(npages, sizeof(struct page *), GFP_KERNEL);
+	if (!pages)
+		return -ENOMEM;
+
+	for (i = 0; i < npages; i++)
+		pages[i] = pfn_to_page((map_phys / PAGE_SIZE) + i);
+
+	src_virt = vmap(pages, npages, VM_MAP, PAGE_KERNEL);
+	if (!src_virt) {
+		dev_err(dev, "failed to map for splash image:0x%x~0x%x\n",
+			map_phys, map_phys_size);
+		kfree(pages);
+		return -ENOMEM;
+	}
+
+	DRM_INFO("Copy splash image from 0x%08x(0x%p) to 0x%p size %d\n",
+		map_phys, src_virt, dst_virt, dst_virt_size);
+
+	memcpy(dst_virt, src_virt, dst_virt_size);
+
+	kfree(pages);
+	vunmap(src_virt);
+
+	return 0;
+}
+
+/*
+ * get previous FB base address from hw register
+ */
+static dma_addr_t fb_get_splash_base(struct drm_fb_helper *fb_helper)
+{
+	struct drm_crtc *crtc;
+	struct dp_plane_layer *layer;
+	dma_addr_t dma_addr;
+	int i;
+
+	for (i = 0; fb_helper->crtc_count > i; i++) {
+		crtc = fb_helper->crtc_info[i].mode_set.crtc;
+		layer = &to_nx_plane(crtc->primary)->layer;
+		nx_mlc_get_rgblayer_address(layer->module,
+				layer->num, &dma_addr);
+		if (dma_addr)
+			return dma_addr;
+	}
+	return 0;
+}
+
+static int nxp_drm_fb_pre_logo(struct drm_fb_helper *fb_helper)
+{
+	struct device_node *node;
+	struct drm_device *drm = fb_helper->dev;
+	struct fb_info *info = fb_helper->fbdev;
+	void *buffer = info->screen_base;
+	int size = info->screen_size;
+	dma_addr_t phys_base;
+	int reserved = 0;
+	struct resource r;
+	int ret;
+
+	node = of_find_node_by_name(NULL, "display_reserved");
+	if (node) {
+		ret = of_address_to_resource(node, 0, &r);
+		if (ret) {
+			dev_err(drm->dev, "failed to memory-region !!!\n");
+			return ret;
+		}
+		of_node_put(node);
+
+		reserved = memblock_is_region_reserved(
+					r.start, resource_size(&r));
+		if (!reserved)
+			DRM_INFO("not reserved splash image:0x%x:%d\n",
+				r.start, resource_size(&r));
+
+		if (reserved) {
+			if (size > resource_size(&r)) {
+				DRM_INFO("reserved splash image size %d less %d"
+					, resource_size(&r), size);
+			}
+		}
+		phys_base = r.start;
+
+	} else {
+		DRM_INFO("not found reserved memory-region for splash image\n");
+		phys_base = fb_get_splash_base(fb_helper);
+		if (!phys_base) {
+			DRM_ERROR("not setted splash image base !!!\n");
+			return -EFAULT;
+		}
+	}
+
+	fb_splash_image_copy(drm->dev, phys_base, size, buffer, size);
+
+	if (reserved) {
+		memblock_free(r.start, resource_size(&r));
+		memblock_remove(r.start, resource_size(&r));
+		free_reserved_area(__va(r.start),
+				__va(r.start + resource_size(&r)), -1, NULL);
+	}
+
+	return 0;
+}
+#endif
+
 static void nx_drm_fb_destroy(struct drm_framebuffer *fb)
 {
 	struct nx_drm_fb *nx_fb = to_nx_drm_fb(fb);
@@ -302,6 +421,9 @@ static int nx_drm_fb_helper_probe(struct drm_fb_helper *fb_helper,
 		info->var.pixclock = KHZ2PICOS(vm.pixelclock/1000);
 	}
 
+#ifdef CONFIG_FB_PRE_INIT_FB
+	nxp_drm_fb_pre_logo(fb_helper);
+#endif
 	return 0;
 
 err_drm_fb_destroy:

@@ -39,6 +39,7 @@ struct nx_pcm_dma_param {
 	int bus_width_byte;
 	int max_burst_byte;
 	unsigned int real_clock;
+	bool dfs;
 	struct device *dev;
 };
 
@@ -46,6 +47,27 @@ struct nx_pcm_dma_area {
 	dma_addr_t physical;		/* dma virtual addr */
 	unsigned char *virtual;		/* dma physical addr */
 };
+
+#ifdef CONFIG_SND_CODEC_SMARTVOICE
+struct nx_pcm_rate_detector {
+	struct snd_pcm_substream *substream;
+	s64 *us;
+	long duration_us;
+	int t_count;
+	int d_count;
+	int i_rate;
+	int changed_rate;
+	int table[10];
+	int table_size;
+	struct hrtimer timer;
+	struct work_struct work;
+	char message[256];
+	bool exist;
+	bool dynamic_rate;
+	spinlock_t lock;
+	void (*cb)(void *);
+};
+#endif
 
 struct nx_pcm_runtime_data {
 	struct device *dev;
@@ -63,6 +85,11 @@ struct nx_pcm_runtime_data {
 	long mem_len;
 	unsigned int mem_offs;
 	long long period_time_us;
+	/* sample rate detector for smart-voice */
+#ifdef CONFIG_SND_CODEC_SMARTVOICE
+	bool run_detector;
+	struct nx_pcm_rate_detector *rate_detector;
+#endif
 };
 
 #define	STREAM_STR(dir)	\

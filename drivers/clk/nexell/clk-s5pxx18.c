@@ -122,7 +122,7 @@ static inline void clk_dev_enb(void *base, int on)
 }
 
 static inline long clk_dev_divide(long rate, long request, int align,
-				  int *divide)
+				  int *divide, int step)
 {
 	int div = (rate / request);
 	int max = MAX_DIVIDER & ~(align - 1);
@@ -140,7 +140,11 @@ static inline long clk_dev_divide(long rate, long request, int align,
 	if (div != adv && abs(request - rate / div) > abs(request - rate / adv))
 		div = adv;
 
-	div = (div > max ? max : div);
+	if (step == 2)
+		div = (div > max ? div/2 : div);
+	else
+		div = (div > max ? max : div);
+
 	if (divide)
 		*divide = div;
 
@@ -226,7 +230,7 @@ next:
 
 		clock_hz = rate;
 		for (i = 0; step > i; i++)
-			rate = clk_dev_divide(rate, request, 2, &div[i]);
+			rate = clk_dev_divide(rate, request, 2, &div[i], step);
 
 		if (new_rate && (abs(rate - request) > abs(new_rate - request)))
 			continue;

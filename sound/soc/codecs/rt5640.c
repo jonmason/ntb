@@ -52,13 +52,66 @@ static const struct regmap_range_cfg rt5640_ranges[] = {
 };
 
 static const struct reg_sequence init_list[] = {
+#if 0
 	{RT5640_PR_BASE + 0x3d,	0x3600},
 	{RT5640_PR_BASE + 0x12,	0x0aa8},
 	{RT5640_PR_BASE + 0x14,	0x0aaa},
 	{RT5640_PR_BASE + 0x20,	0x6110},
 	{RT5640_PR_BASE + 0x21,	0xe0e0},
 	{RT5640_PR_BASE + 0x23,	0x1804},
+#else
+	{RT5640_DUMMY1,		0x3401},/*fa[12:13] = 1'b; fa[8~11]=1; fa[0]=1*/
+	{RT5640_ADDA_CLK1,	0x0014},/*73[2] = 1'b*/
+	{RT5640_MICBIAS,	0x3030},/*93[5:4] = 11'b*/
+	{RT5640_CLS_D_OUT,	0xa000},/*8d[11] = 0'b*/
+	{RT5640_CLS_D_OVCD,	0x0334},/*8c[8] = 1'b*/
+	{RT5640_PRIV_INDEX,	0x0001},
+	{RT5640_PRIV_DATA,	0x7000},
+	{RT5640_PRIV_INDEX,	0x001d},/*PR1d[8] = 1'b*/
+	{RT5640_PRIV_DATA,	0x0347},
+	{RT5640_PRIV_INDEX,	0x003d},/*PR3d[12] = 0'b; PR3d[9] = 1'b*/
+	{RT5640_PRIV_DATA,	0x3600},
+	{RT5640_PRIV_INDEX,	0x0012},/*PR12 = 0aa8'h*/
+	{RT5640_PRIV_DATA,	0x0aa8},
+	{RT5640_PRIV_INDEX,	0x0014},/*PR14 = 8aaa'h*/
+	{RT5640_PRIV_DATA,	0x8aaa},
+	{RT5640_PRIV_INDEX,	0x0020},/*PR20 = 6115'h*/
+	{RT5640_PRIV_DATA,	0x6115},
+	{RT5640_PRIV_INDEX,	0x0023},/*PR23 = 0804'h*/
+	{RT5640_PRIV_DATA,	0x0804},
+	{RT5640_PRIV_INDEX,	0x003f},/*PR3F = 0400'h*/
+	{RT5640_PRIV_DATA,	0x0400},
+	/*playback*/
+	{RT5640_STO_DAC_MIXER,	0x1414},/*Dig inf 1 -> Sto DAC mixer -> DACL*/
+	{RT5640_OUT_L3_MIXER,	0x01fe},/*DACL1 -> OUTMIXL*/
+	{RT5640_OUT_R3_MIXER,	0x01fe},/*DACR1 -> OUTMIXR*/
+	{RT5640_HP_VOL,		0x0d0d},/*OUTMIX -> HPVOL  fix volume max*/
+	{RT5640_HPO_MIXER,	0xc000},/*HPVOL -> HPOLMIX*/
+	{RT5640_PRIV_INDEX,	0x0090},
+	{RT5640_PRIV_DATA,	0x2000},
+	{RT5640_PRIV_INDEX,	0x0091},
+	{RT5640_PRIV_DATA,	0x1000},
+	{RT5640_SPK_L_MIXER,	0x0036},/*DACL1 -> SPKMIXL*/
+	{RT5640_SPK_R_MIXER,	0x0036},/*DACR1 -> SPKMIXR*/
+	{RT5640_SPK_VOL,	0x8b8b},/*SPKMIX -> SPKVOL*/
+	{RT5640_SPO_CLSD_RATIO, 0x0001},
+	{RT5640_SPO_L_MIXER,	0xe800},/*SPKVOLL -> SPOLMIX*/
+	{RT5640_SPO_R_MIXER,	0x2800},/*SPKVOLR -> SPORMIX*/
+	{RT5640_DSP_PATH2,	0x0000},
+	{RT5640_DUMMY2,		0x0000},/*MX-FB for RxDP source*/
+	/*record*/
+	{RT5640_IN1_IN2,	0x5080},/*IN1 boost 40db and differential mode*/
+	{RT5640_IN3_IN4,	0x0500},/*IN2 boost 40db and signal ended mode*/
+	{RT5640_REC_L2_MIXER,	0x007d},/*Mic1 -> RECMIXL*/
+	{RT5640_REC_R2_MIXER,	0x007d},/*Mic1 -> RECMIXR*/
+	{RT5640_STO_ADC_MIXER,	0x3020},/*ADC -> Sto ADC mixer*/
+	{RT5640_MONO_ADC_MIXER, 0x3030},
+	{RT5640_ADC_DIG_VOL,	0x2f2f},/*mute stereo adc mixer*/
+	{RT5640_DSP_PATH1,	0xC000},
+	{RT5640_ASRC_1,		0x4000},
+#endif
 };
+#define RT5640_INIT_REG_LEN ARRAY_SIZE(init_list)
 
 static const struct reg_default rt5640_reg[] = {
 	{ 0x00, 0x000e },
@@ -165,6 +218,30 @@ static const struct reg_default rt5640_reg[] = {
 	{ 0xfe, 0x10ec },
 	{ 0xff, 0x6231 },
 };
+
+static int rt5640_reg_init(struct snd_soc_codec *codec)
+{
+	struct rt5640_priv *rt5640 = snd_soc_codec_get_drvdata(codec);
+	int i;
+
+	for (i = 0; i < RT5640_INIT_REG_LEN; i++)
+		regmap_write(rt5640->regmap,
+			     init_list[i].reg, init_list[i].def);
+	return 0;
+}
+
+static int rt5640_index_sync(struct snd_soc_codec *codec)
+{
+	struct rt5640_priv *rt5640 = snd_soc_codec_get_drvdata(codec);
+	int i;
+
+	for (i = 0; i < RT5640_INIT_REG_LEN; i++)
+		if (RT5640_PRIV_INDEX == init_list[i].reg ||
+		    RT5640_PRIV_DATA == init_list[i].reg)
+			regmap_write(rt5640->regmap, init_list[i].reg,
+				      init_list[i].def);
+	return 0;
+}
 
 static int rt5640_reset(struct snd_soc_codec *codec)
 {
@@ -1046,9 +1123,14 @@ static int rt5640_hp_post_event(struct snd_soc_dapm_widget *w,
 	case SND_SOC_DAPM_POST_PMU:
 		if (!rt5640->hp_mute)
 			usleep_range(80000, 85000);
-
+		regmap_update_bits(rt5640->regmap, RT5640_HP_VOL,
+			RT5640_L_MUTE | RT5640_R_MUTE, 0);
 		break;
-
+	case SND_SOC_DAPM_PRE_PMD:
+		regmap_update_bits(rt5640->regmap, RT5640_HP_VOL,
+			RT5640_L_MUTE | RT5640_R_MUTE, RT5640_L_MUTE |
+			RT5640_R_MUTE);
+		break;
 	default:
 		return 0;
 	}
@@ -1917,7 +1999,12 @@ static int rt5640_set_dai_pll(struct snd_soc_dai *dai, int pll_id, int source,
 static int rt5640_set_bias_level(struct snd_soc_codec *codec,
 			enum snd_soc_bias_level level)
 {
+	struct rt5640_priv *rt5640 = snd_soc_codec_get_drvdata(codec);
+
 	switch (level) {
+	case SND_SOC_BIAS_ON:
+		snd_soc_update_bits(codec, RT5640_PWR_ANLG2,
+			RT5640_PWR_MB1, RT5640_PWR_MB1);
 	case SND_SOC_BIAS_STANDBY:
 		if (SND_SOC_BIAS_OFF == snd_soc_codec_get_bias_level(codec)) {
 			snd_soc_update_bits(codec, RT5640_PWR_ANLG1,
@@ -1933,6 +2020,11 @@ static int rt5640_set_bias_level(struct snd_soc_codec *codec,
 						0x0301, 0x0301);
 			snd_soc_update_bits(codec, RT5640_MICBIAS,
 						0x0030, 0x0030);
+			snd_soc_update_bits(codec, RT5640_PWR_ANLG2,
+				RT5640_PWR_MB1, RT5640_PWR_MB1);
+			regcache_cache_only(rt5640->regmap, false);
+			regcache_sync(rt5640->regmap);
+			rt5640_index_sync(codec);
 		}
 		break;
 
@@ -1988,7 +2080,8 @@ static int rt5640_probe(struct snd_soc_codec *codec)
 
 	rt5640->codec = codec;
 
-	snd_soc_codec_force_bias_level(codec, SND_SOC_BIAS_OFF);
+	rt5640_reg_init(codec);
+	rt5640_set_bias_level(codec, SND_SOC_BIAS_OFF);
 
 	snd_soc_update_bits(codec, RT5640_DUMMY1, 0x0301, 0x0301);
 	snd_soc_update_bits(codec, RT5640_MICBIAS, 0x0030, 0x0030);
@@ -2069,7 +2162,7 @@ static int rt5640_resume(struct snd_soc_codec *codec)
 #define rt5640_resume NULL
 #endif
 
-#define RT5640_STEREO_RATES SNDRV_PCM_RATE_8000_96000
+#define RT5640_STEREO_RATES SNDRV_PCM_RATE_8000_192000
 #define RT5640_FORMATS (SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S20_3LE | \
 			SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S8)
 
@@ -2253,14 +2346,14 @@ static int rt5640_i2c_probe(struct i2c_client *i2c,
 		}
 		msleep(400);
 	}
-
+#if 0
 	regmap_read(rt5640->regmap, RT5640_VENDOR_ID2, &val);
 	if (val != RT5640_DEVICE_ID) {
 		dev_err(&i2c->dev,
 			"Device with ID register %#x is not rt5640/39\n", val);
 		return -ENODEV;
 	}
-
+#endif
 	regmap_write(rt5640->regmap, RT5640_RESET, 0);
 
 	ret = regmap_register_patch(rt5640->regmap, init_list,

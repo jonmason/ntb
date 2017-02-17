@@ -94,6 +94,12 @@
 
 	};
 
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+	};
+
 	scu:0xf0000000 {
 		compatible = "arm,cortex-a9-scu";
 		reg = <0xf0000000 0x100>;
@@ -440,7 +446,7 @@
 			status = "disabled";
 		};
 
-		spdiftx@c0059000 {
+		spdif_tx: spdiftx@c0059000 {
 			compatible = "nexell,nexell-spdif-tx";
 			reg = <PHYS_BASE_SPDIF_TX 0x1000>;
 			interrupts = <IRQ_SPDIFTX>;
@@ -693,6 +699,69 @@
 			status = "disabled";
 		};
 
+		snd_spi_0:snd_spi@c005b000 {
+			compatible = "nexell,nexell-snd-pl022";
+			reg = <PHYS_BASE_SSP0 0x1000>;
+			interrupts = <IRQ_SSP0>;
+			dmas = <&pl08xdma0 6 0>, <&pl08xdma0 7 0>;
+			dma-names = "tx", "rx";
+			clocks = <&spi0>;
+			clock-names = "SSPCLK";
+			resets = <&nexell_reset RESET_ID_SSP0_P>,
+			       <&nexell_reset RESET_ID_SSP0>;
+			reset-names = "pre-reset","spi-reset";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			num-cs = <1>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi0_bus>;
+
+			#sound-dai-cells = <1>;
+			status = "disabled";
+		};
+
+		snd_spi_1:snd_spi@c005c000 {
+			compatible = "nexell,nexell-snd-pl022";
+			reg = <PHYS_BASE_SSP1 0x1000>;
+			interrupts = <IRQ_SSP1>;
+			dmas = <&pl08xdma0 8 0>, <&pl08xdma0 9 0>;
+			dma-names = "tx", "rx";
+			clocks = <&spi1>;
+			clock-names = "SSPCLK";
+			resets = <&nexell_reset RESET_ID_SSP1_P>,
+			       <&nexell_reset RESET_ID_SSP1>;
+			reset-names = "pre-reset","spi-reset";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			num-cs = <1>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi1_bus>;
+
+			#sound-dai-cells = <1>;
+			status = "disabled";
+		};
+
+		snd_spi_2:snd_spi@c005f000 {
+			compatible = "nexell,nexell-snd-pl022";
+			reg = <PHYS_BASE_SSP2 0x1000>;
+			interrupts = <IRQ_SSP2>;
+			dmas = <&pl08xdma0 10 0>, <&pl08xdma0 11 0>;
+			dma-names = "tx", "rx";
+			clocks = <&spi2>;
+			clock-names = "SSPCLK";
+			resets = <&nexell_reset RESET_ID_SSP2_P>,
+			       <&nexell_reset RESET_ID_SSP2>;
+			reset-names = "pre-reset","spi-reset";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			num-cs = <1>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi2_bus>;
+
+			#sound-dai-cells = <1>;
+			status = "disabled";
+		};
+
 		mipi_csi:mipi_csi@c00d0000 {
 			compatible = "nexell,mipi_csi";
 			reg = <PHYS_BASE_MIPI 0x1000>;
@@ -743,6 +812,13 @@
 		clipper_1:clipper1@c0064000 {
 			compatible = "nexell,nx-clipper";
 			module = <1>;
+			status = "disabled";
+		};
+
+		rearcam: rear_camera {
+			compatible = "nexell,nx-rearcam";
+			interrupts = <IRQ_VIP0>, <IRQ_VIP1>;
+			interrupts-names = "vip.0", "vip.1";
 			status = "disabled";
 		};
 
@@ -844,6 +920,34 @@
 			};
 		};
 
+		dp_drm_cluster_lcd: display_drm_cluster_lcd{
+			compatible = "nexell,s5pxx18-drm-cluster-lcd";
+			status = "disabled";
+		};
+
+		dp_drm_tvout: display_drm_tv{
+			compatible = "nexell,s5pxx18-drm-tv";
+			reg = <0xc0101000 0x100>;
+			resets = <&nexell_reset RESET_ID_DISP_TOP>;
+			reset-names = "rsc-display-top";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+
+			dp-resource {
+				reg_base = <0xc0000000 0x300000>;
+				clk_base = <0xc0109000 4>;
+				resets = <&nexell_reset RESET_ID_HDMI_VIDEO>,
+						<&nexell_reset RESET_ID_HDMI_SPDIF>,
+						<&nexell_reset RESET_ID_HDMI_TMDS>,
+						<&nexell_reset RESET_ID_HDMI>,
+						<&nexell_reset RESET_ID_HDMI_PHY>;
+				reset-names = "rsc-hdmi-video", "rsc-hdmi-spdif",
+						"rsc-hdmi-tmds", "rsc-hdmi", "rsc-hdmi-phy";
+				soc,tieoff = <NX_TIEOFF_DISPLAYTOP0_i_HDMI_PHY_REFCLK_SEL 1>;
+			};
+		};
+
 		scaler@c0066000 {
 			compatible = "nexell,scaler";
 			reg = <PHYS_BASE_SCALER 0x1000>;
@@ -882,7 +986,8 @@
 			reset-names = "vpu-a-reset", "vpu-p-reset",
 				"vpu-c-reset";
 			clocks = <&pclk>, <&bclk>;
-			status = "disabled";
+			status = "okay";
+			sram = <0 0>;
 		};
 	}; /*** soc ***/
 };

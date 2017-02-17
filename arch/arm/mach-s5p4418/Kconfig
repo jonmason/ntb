@@ -31,3 +31,33 @@ config ARCH_S5P4418
 config SECURE_REG_ACCESS
 	bool "Secure register access in non-secure mode"
 	depends on ARCH_S5P4418
+	help
+	  Support for nexell S5P4418 dual/quad core (ARM Cortex A9) platform
+
+config CPU_NXP4330
+	bool "Nexell NXP4330 CPU"
+	depends on ARCH_S5P4418
+	help
+	  Support for nexell nxp4330 cpu.
+
+config REDUCE_BOOT_TIME
+	bool "Enable Reduce Boot-Time"
+	depends on ARCH_S5P4418
+
+config INITCALLS_THREAD
+	bool "Execute kernel device initcalls with thread"
+	depends on ARCH_S5P4418 && REDUCE_BOOT_TIME
+
+config INITCALLS_THREAD_LEVEL
+	int "kernel initcalls thread level"
+	default 6
+	depends on INITCALLS_THREAD
+
+config MMC_INIT_LEVEL_UP
+	bool "MMC and related devices init level up"
+	depends on ARCH_S5P4418 && REDUCE_BOOT_TIME
+	select EXT4_FS_INIT_LEVEL_UP
+
+config EXT4_FS_INIT_LEVEL_UP
+	depends on MMC_INIT_LEVEL_UP
+	bool

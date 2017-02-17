@@ -39,6 +39,34 @@
 	.idProduct = prod, \
 	.bInterfaceClass = USB_CLASS_VENDOR_SPEC
 
+#if defined(CONFIG_HID_IUI)
+/* Apple devices */
+{
+	USB_DEVICE(0x05ac, 0x1200),
+	.match_flags =
+		(USB_DEVICE_ID_MATCH_VENDOR | USB_DEVICE_ID_MATCH_PRODUCT_HI),
+	.driver_info = (unsigned long)&(const struct snd_usb_audio_quirk) {
+		.vendor_name = "Apple Inc.",
+		.product_name = "iAccessory",
+		.ifnum = QUIRK_ANY_INTERFACE,
+		.type = QUIRK_COMPOSITE,
+		.data = &(const struct snd_usb_audio_quirk[]) {
+			{
+				.ifnum = 0,
+				.type = QUIRK_AUDIO_STANDARD_INTERFACE
+			},
+			{
+				.ifnum = 1,
+				.type = QUIRK_AUDIO_STANDARD_INTERFACE
+			},
+			{
+				.ifnum = -1
+			}
+		}
+	}
+},
+#endif
+
 /* FTDI devices */
 {
 	USB_DEVICE(0x0403, 0xb8d8),

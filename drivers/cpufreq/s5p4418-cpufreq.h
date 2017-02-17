@@ -28,9 +28,9 @@ extern void nxp_cpu_id_string(u32 string[12]);
 
 #define ASV_TABLE_COND(id)	(id == CPU_ID_S5P4418)
 
-
-#define	FREQ_MAX_FREQ_KHZ	(1200*1000)
-#define	FREQ_ARRAY_SIZE		(9)
+#define FREQ_MAX_OVER_CLL_KHZ»	(1600*1000)
+#define	FREQ_MAX_FREQ_KHZ	(1400*1000)
+#define	FREQ_ARRAY_SIZE		(13)
 #define	UV(v)				(v*1000)
 
 struct asv_tb_info {
@@ -41,47 +41,56 @@ struct asv_tb_info {
 };
 
 #define	ASB_FREQ_MHZ {	\
-	[0] = 1200,	\
-	[1] = 1100,	\
-	[2] = 1000,	\
-	[3] =  900,	\
-	[4] =  800,	\
-	[5] =  700,	\
-	[6] =  600,	\
-	[7] =  500,	\
-	[8] =  400,	\
+	[0] = 1600,	\
+	[1] = 1500,	\
+	[2] = 1400,	\
+	[3] = 1300,	\
+	[4] = 1200,	\
+	[5] = 1100,	\
+	[6] = 1000,	\
+	[7] =  900,	\
+	[8] =  800,	\
+	[9] =  700,	\
+	[10] =  600,	\
+	[11] =  500,	\
+	[12] =  400,	\
 	}
 
 static struct asv_tb_info asv_tables[] = {
 	[0] = {	.ids = 10, .ro = 110,
 			.mhz = ASB_FREQ_MHZ,
-			.uv  = { UV(1250), UV(1200), UV(1175),
-				UV(1150), UV(1125), UV(1100),
-				UV(1075), UV(1075), UV(1075) },
+			.uv  = { UV(1350),UV(1350), UV(1350), UV(1300),
+				UV(1250), UV(1200), UV(1175), UV(1150),
+				UV(1125), UV(1100), UV(1075), UV(1075),
+				UV(1075) },
 	},
 	[1] = {	.ids = 15, .ro = 130,
 			.mhz = ASB_FREQ_MHZ,
-			.uv  = { UV(1200), UV(1150), UV(1125),
-				UV(1100), UV(1075), UV(1050),
-				UV(1025), UV(1025), UV(1025) },
+			.uv  = { UV(1300),UV(1300),UV(1300),UV(1250),
+				UV(1200), UV(1150), UV(1125), UV(1100),
+				UV(1075), UV(1050), UV(1025), UV(1025),
+				UV(1025) },
 	},
 	[2] = {	.ids = 20, .ro = 140,
 			.mhz = ASB_FREQ_MHZ,
-			.uv  = { UV(1150), UV(1100), UV(1075),
-				UV(1050), UV(1025), UV(1000),
-				UV(1000), UV(1000), UV(1000) },
+			.uv  = { UV(1250),UV(1250), UV(1250), UV(1200),
+				UV(1150), UV(1100), UV(1075), UV(1050),
+				UV(1025), UV(1000), UV(1000), UV(1000),
+				UV(1000) },
 	},
 	[3] = {	.ids = 50, .ro = 170,
 			.mhz = ASB_FREQ_MHZ,
-			.uv  = { UV(1100), UV(1050), UV(1025),
-				UV(1000), UV(1000), UV(1000),
-				UV(1000), UV(1000), UV(1000) },
+			.uv  = { UV(1200),UV(1200), UV(1200), UV(1150),
+				UV(1100), UV(1050), UV(1025), UV(1000),
+				UV(1000), UV(1000), UV(1000), UV(1000),
+				UV(1000) },
 	},
 	[4] = {	.ids = 50, .ro = 170,
 			.mhz = ASB_FREQ_MHZ,
-			.uv  = { UV(1050), UV(1000), UV(1000),
-				UV(1000), UV(1000), UV(1000),
-				UV(1000), UV(1000), UV(1000) },
+			.uv  = { UV(1175),UV(1175), UV(1175), UV(1100),
+				UV(1050), UV(1000), UV(1000), UV(1000),
+				UV(1000), UV(1000), UV(1000), UV(1000),
+				UV(1000) },
 	},
 };
 #define	ASV_ARRAY_SIZE	ARRAY_SIZE(asv_tables)

@@ -1,2 +1,3 @@
 obj-$(CONFIG_ARCH_S5P6818) += s5pxx18/
 obj-$(CONFIG_ARCH_S5P4418) += s5pxx18/
+obj-$(CONFIG_ARCH_NXP5540) += nxstream/

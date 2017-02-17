@@ -167,13 +167,30 @@ static int set_plane_size(struct nx_video_frame *frame, unsigned int sizes[])
 		break;
 
 	case V4L2_PIX_FMT_YUV420:
-		frame->size[0] = sizes[0] = y_size;
-		frame->size[1] = sizes[1] =
-			frame->size[2] = sizes[2] = ALIGN(y_stride >> 1, 16)
-			* ALIGN(frame->height >> 1, 16);
+		if (frame->format.field == V4L2_FIELD_INTERLACED) {
+			y_stride = ALIGN(frame->width, 128);
+			y_size = y_stride * ALIGN(frame->height, 16);
 
-		frame->stride[0] = y_stride;
-		frame->stride[1] = frame->stride[2] = ALIGN(y_stride >> 1, 16);
+			frame->size[0] = sizes[0] = y_size;
+			frame->size[1] = sizes[1] =
+				frame->size[2] = sizes[2] =
+				ALIGN(y_stride >> 1, 64)
+				* ALIGN(frame->height >> 1, 16);
+
+			frame->stride[0] = y_stride;
+			frame->stride[1] = frame->stride[2] =
+			ALIGN(frame->width >> 1, 64);
+		} else {
+			frame->size[0] = sizes[0] = y_size;
+			frame->size[1] = sizes[1] =
+				frame->size[2] = sizes[2] =
+				ALIGN(y_stride >> 1, 16)
+				* ALIGN(frame->height >> 1, 16);
+
+			frame->stride[0] = y_stride;
+			frame->stride[1] = frame->stride[2] =
+			ALIGN(y_stride >> 1, 16);
+		}
 		break;
 
 	case V4L2_PIX_FMT_NV16:
@@ -759,6 +776,7 @@ static int nx_video_set_format(struct file *file, void *fh,
 	frame->format.num_planes  = format->num_planes;
 	frame->format.num_sw_planes  = format->num_sw_planes;
 	frame->format.is_separated  = format->is_separated;
+	frame->format.field  = field;
 	frame->width  = width;
 	frame->height = height;
 
@@ -766,7 +784,8 @@ static int nx_video_set_format(struct file *file, void *fh,
 		struct v4l2_pix_format_mplane *pix = &f->fmt.pix_mp;
 
 		for (i = 0; i < format->num_planes; ++i) {
-			frame->stride[i] = pix->plane_fmt[i].bytesperline;
+			frame->stride[i] =
+				pix->plane_fmt[i].bytesperline;
 			frame->size[i] = pix->plane_fmt[i].sizeimage;
 		}
 	}

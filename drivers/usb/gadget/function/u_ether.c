@@ -743,7 +743,7 @@ static const struct net_device_ops eth_netdev_ops = {
 	.ndo_stop		= eth_stop,
 	.ndo_start_xmit		= eth_start_xmit,
 	.ndo_change_mtu		= ueth_change_mtu,
-	.ndo_set_mac_address 	= eth_mac_addr,
+	.ndo_set_mac_address	= eth_mac_addr,
 	.ndo_validate_addr	= eth_validate_addr,
 };
 
@@ -751,6 +751,80 @@ static struct device_type gadget_type = {
 	.name	= "gadget",
 };
 
+#if defined(CONFIG_USB_F_CARPLAY) || defined(CONFIG_USB_CONFIGFS_CARPLAY)
+struct net_device *g_regnetdev;
+
+static ssize_t regnet_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	ssize_t ret;
+
+	ret = sprintf(buf, "reg_show test!!!\n");
+
+	return ret;
+}
+
+static ssize_t regnet_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t size)
+{
+	ssize_t ret;
+	int val;
+
+	pr_err("##[%s():%s:%d\t]\n",
+	       __func__, strrchr(__FILE__, '/')+1, __LINE__);
+
+	ret = kstrtoint(buf, 10, &val);
+	if (ret < 0)
+		return ret;
+
+	if (g_regnetdev && val == 1) {
+		val = register_netdev(g_regnetdev);
+		if (val) {
+			pr_err("error registering netdev: %d", val);
+			val = -EIO;
+		}
+	}
+
+	return size;
+}
+
+static DEVICE_ATTR(regnet_dev, 0664, regnet_show, regnet_store);
+
+static struct class *regnet_class;
+static struct device *regnet_udev;
+
+void gether_sysreg(void)
+{
+	int ret;
+
+	regnet_class = class_create(THIS_MODULE, "regnet");
+	regnet_udev = device_create(regnet_class, NULL, MKDEV(0, 0),
+					    NULL, "regnet");
+
+	ret = sysfs_create_file(&regnet_udev->kobj, &dev_attr_regnet_dev.attr);
+	if (ret < 0) {
+		pr_err("sysfs_create_group failed\n");
+		sysfs_remove_file(&regnet_udev->kobj,
+				  &dev_attr_regnet_dev.attr);
+	}
+}
+EXPORT_SYMBOL_GPL(gether_sysreg);
+
+void gether_sysunreg(void)
+{
+	int ret;
+
+	sysfs_remove_file(&regnet_udev->kobj, &dev_attr_regnet_dev.attr);
+
+	device_destroy(regnet_class, MKDEV(0, 0));
+	class_destroy(regnet_class);
+	regnet_udev = NULL;
+	regnet_class = NULL;
+}
+EXPORT_SYMBOL_GPL(gether_sysunreg);
+
+#endif
 /**
  * gether_setup_name - initialize one ethernet-over-usb link
  * @g: gadget to associated with these links
@@ -805,16 +879,21 @@ struct eth_dev *gether_setup_name(struct usb_gadget *g,
 
 	net->ethtool_ops = &ops;
 
+#if defined(CONFIG_USB_F_CARPLAY) || defined(CONFIG_USB_CONFIGFS_CARPLAY)
+	g_regnetdev = net;
+#endif
+
 	dev->gadget = g;
 	SET_NETDEV_DEV(net, &g->dev);
 	SET_NETDEV_DEVTYPE(net, &gadget_type);
-
+#if !defined(CONFIG_USB_F_CARPLAY) && !defined(CONFIG_USB_CONFIGFS_CARPLAY)
 	status = register_netdev(net);
 	if (status < 0) {
 		dev_dbg(&g->dev, "register_netdev failed, %d\n", status);
 		free_netdev(net);
 		dev = ERR_PTR(status);
 	} else {
+#endif
 		INFO(dev, "MAC %pM\n", net->dev_addr);
 		INFO(dev, "HOST MAC %pM\n", dev->host_mac);
 
@@ -824,8 +903,9 @@ struct eth_dev *gether_setup_name(struct usb_gadget *g,
 		 *  - tx queueing enabled if open *and* carrier is "on"
 		 */
 		netif_carrier_off(net);
+#if !defined(CONFIG_USB_F_CARPLAY) && !defined(CONFIG_USB_CONFIGFS_CARPLAY)
 	}
-
+#endif
 	return dev;
 }
 EXPORT_SYMBOL_GPL(gether_setup_name);
@@ -1023,6 +1103,9 @@ void gether_cleanup(struct eth_dev *dev)
 	unregister_netdev(dev->net);
 	flush_work(&dev->work);
 	free_netdev(dev->net);
+#if defined(CONFIG_USB_F_CARPLAY) || defined(CONFIG_USB_CONFIGFS_CARPLAY)
+	g_regnetdev = NULL;
+#endif
 }
 EXPORT_SYMBOL_GPL(gether_cleanup);
 

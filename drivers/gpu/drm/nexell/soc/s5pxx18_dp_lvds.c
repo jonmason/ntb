@@ -83,6 +83,12 @@ static int nx_soc_dp_lvds_set_prepare(struct dp_control_dev *dpc,
 	u32 LOC_D[7] = {ZERO,ZERO,ZERO,ZERO,ZERO,ZERO,ZERO};
 	u32 LOC_E[7] = {ZERO,ZERO,ZERO,ZERO,ZERO,ZERO,ZERO};
 
+#ifdef CHECK_DP_POWRON
+	if (nx_disp_top_clkgen_get_clock_divisor_enable(clkid)) {
+		pr_debug("%s: already enabled ...\n", __func__);
+		return 0;
+	}
+#endif
 	if (dev) {
 		format = dev->lvds_format;
 		voltage = dev->voltage_level;

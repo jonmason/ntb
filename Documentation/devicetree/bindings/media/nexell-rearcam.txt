@@ -1,0 +1,72 @@
+Nexell Rear Camera Device Tree bindings
+====================================
+
+Rear Camea is to operate the camera and outputting a rear quickly through the
+GPIO when the rear gear operation.
+
+Required properties:
+- compatible		: must contain "nexell,nx-rearcam"
+- interrupts		: the DPC interrupt-number specifier for Rear Camera
+- interrupts-names	: the DPC interrupt-name specifier for Rear Camera
+- status		: default is "disabled". when using, set to "okay"
+
+- rotation		: the display rotation property.
+			  values: <0> - Not rotate.
+			  	  <1> - Rotation.
+- rear_cam_dev		: the VIP settting property.
+			  It refers to the setting of the clipper already declared.
+- display		: the display system settting property.
+			  It refers to the display setting that has already been declared.
+- dp_drm_dev		: the display device setting property.
+			  It refers to the display device setting that already been declared.
+- width			: the width for display image.
+- height		: the height for display image.
+
+Optional properties:
+- gpio: event-gpio	: the GPIO for rear gear detection.
+- gpio: active_high 	: Select wherher a high status for rear gear detection GPIO.
+			  values: <0> - low activation.
+			       	  <1> - high activation.
+- gpio: detect_delay	: Delays in setting up the operation of the rear cmaera
+			  after the detection for the rear gear.
+
+- mlc: module		: the MLC moudule number to display.
+- mlc: format		: the MLC format for rgb display.
+
+- dpc: module		: the DPC module number to display
+
+
+Example:
+
+	rearcam: rear_camera {
+		compatible = "nexell,nx-rearcam";
+		interrupts = <IRQ_VIP0>, <IRQ_VIP1>;
+		interrupts-names = "vip.0", "vip.1";
+		status = "disabled";
+	};
+
+	&rearcam {
+		rotation = <0>;
+		rear_cam_dev = <&clipper_1>;
+		sensor_reg = <&sensor_tw9900>;
+		display = <&dp_drm>;
+		dp_drm_dev = <&dp_drm_lvds>;
+		width = <704>;
+		height = <480>;
+		status = "okay";
+
+		gpio {
+			event-gpio = <&alive_0 3 0>;
+			active_high = <0>;
+			detect_delay = <0>;
+		};
+
+		mlc {
+			module = <0>;
+			format = <0x06530000>;
+		};
+
+		dpc {
+			module = <0>;
+		};
+	};

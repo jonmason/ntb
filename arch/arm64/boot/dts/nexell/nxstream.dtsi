@@ -1,0 +1,1355 @@
+/*
+ * Copyright (C) 2016  Nexell Co., Ltd.
+ * Author: Sungwoo, Park <swpark@nexell.co.kr>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include <dt-bindings/soc/nxs_function.h>
+#include <dt-bindings/soc/nxs_tid.h>
+#include <dt-bindings/soc/nxs_reg_base.h>
+
+/ {
+	compatible = "nexell,nxstream";
+
+	nxs_resource_manager: nxs_resource_manager@100 {
+		compatible = "nexell,nxs_resource_manager-1.0";
+		status = "disabled";
+	};
+
+	nxs_function_initiator: nxs_function_initiator@200 {
+		compatible = "nexell,nxs_function_initiator-1.0";
+		status = "disabled";
+	};
+
+	nxs_v4l2_builder: nxs_v4l2_builder@300 {
+		compatible = "nexell,nxs-v4l2-builder-1.0";
+		status = "disabled";
+	};
+
+	/* this is for only fpga */
+	/* xps_intc_0: interrupt-controller@88000000 { */
+	/* 	#interrupt-cells = <2>; */
+	/* 	compatible = "nxs,fpga-intc-1.00.a"; */
+	/* 	interrupt-controller; */
+	/* 	reg = < 0x88000000 0x10000 >; */
+	/* 	kind-of-intr = <0x100>; */
+	/* 	num-intr-inputs = <32>; */
+	/* 	interrupt-parent = <&intc>; */
+	/* 	interrupts = <0 30 4>; */
+	/* 	status = "disabled"; */
+	/* }; */
+        /*  */
+	/* xps_intc_1: interrupt-controller@89000000 { */
+	/* 	#interrupt-cells = <2>; */
+	/* 	compatible = "nxs,fpga-intc-1.00.a"; */
+	/* 	interrupt-controller; */
+	/* 	reg = < 0x89000000 0x10000 >; */
+	/* 	kind-of-intr = <0x100>; */
+	/* 	num-intr-inputs = <29>; */
+	/* 	interrupt-parent = <&intc>; */
+	/* 	interrupts = <0 31 4>; */
+	/* 	status = "disabled"; */
+	/* }; */
+
+	nxstream: nxstream {
+		compatible = "nexell,nxstream", "syscon", "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <NXS_BASEADDR NXS_REGSIZE>;
+		interrupt-parent = <&gic>;
+		ranges;
+
+		/* dmar instance number: 10 */
+		dmar0: dmar@20c01800 {
+			compatible = "nexell,dmar-nxs-1.0";
+			reg = <DMAR0_OFFSET DMAR_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 110 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <6 4>; */
+			module = <0>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DMAR>;
+			tid = <NXS_TID_DEFAULT>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		dmar1: dmar@20c01a00 {
+			compatible = "nexell,dmar-nxs-1.0";
+			reg = <DMAR1_OFFSET DMAR_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 111 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <7 4>; */
+			module = <1>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DMAR>;
+			tid = <NXS_TID_DEFAULT>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		dmar2: dmar@20c01c00 {
+			compatible = "nexell,dmar-nxs-1.0";
+			reg = <DMAR2_OFFSET DMAR_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 112 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <8 4>; */
+			module = <2>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DMAR>;
+			tid = <NXS_TID_DEFAULT>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		dmar3: dmar@20c01e00 {
+			compatible = "nexell,dmar-nxs-1.0";
+			reg = <DMAR3_OFFSET DMAR_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 113 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <9 4>; */
+			module = <3>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DMAR>;
+			tid = <NXS_TID_DEFAULT>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		dmar4: dmar@20c02000 {
+			compatible = "nexell,dmar-nxs-1.0";
+			reg = <DMAR4_OFFSET DMAR_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 114 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <10 4>; */
+			module = <4>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DMAR>;
+			tid = <NXS_TID_DEFAULT>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		dmar5: dmar@20c02200 {
+			compatible = "nexell,dmar-nxs-1.0";
+			reg = <DMAR5_OFFSET DMAR_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 115 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <11 4>; */
+			module = <5>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DMAR>;
+			tid = <NXS_TID_DEFAULT>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		dmar6: dmar@20c02400 {
+			compatible = "nexell,dmar-nxs-1.0";
+			reg = <DMAR6_OFFSET DMAR_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 116 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <12 4>; */
+			module = <6>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DMAR>;
+			tid = <NXS_TID_DEFAULT>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		dmar7: dmar@20c02600 {
+			compatible = "nexell,dmar-nxs-1.0";
+			reg = <DMAR7_OFFSET DMAR_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 117 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <13 4>; */
+			module = <7>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DMAR>;
+			tid = <NXS_TID_DEFAULT>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		dmar8: dmar@20c02800 {
+			compatible = "nexell,dmar-nxs-1.0";
+			reg = <DMAR8_OFFSET DMAR_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 118 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <14 4>; */
+			module = <8>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DMAR>;
+			tid = <NXS_TID_DEFAULT>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		dmar9: dmar@20c02a00 {
+			compatible = "nexell,dmar-nxs-1.0";
+			reg = <DMAR9_OFFSET DMAR_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 119 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <15 4>; */
+			module = <9>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DMAR>;
+			tid = <NXS_TID_DEFAULT>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		/* dmar instance number: 12 */
+		dmaw0: dmaw@20c05000 {
+			compatible = "nexell,dmaw-nxs-1.0";
+			reg = <DMAW0_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 120 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <16 4>; */
+			module = <0>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DMAW>;
+			tid = <NXS_TID_DMAW0>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		dmaw1: dmaw@20c05200 {
+			compatible = "nexell,dmaw-nxs-1.0";
+			reg = <DMAW1_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 121 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <17 4>; */
+			module = <1>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DMAW>;
+			tid = <NXS_TID_DMAW1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		dmaw2: dmaw@20c05400 {
+			compatible = "nexell,dmaw-nxs-1.0";
+			reg = <DMAW2_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 122 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <18 4>; */
+			module = <2>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DMAW>;
+			tid = <NXS_TID_DMAW2>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		dmaw3: dmaw@20c05600 {
+			compatible = "nexell,dmaw-nxs-1.0";
+			reg = <DMAW3_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 123 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <19 4>; */
+			module = <3>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DMAW>;
+			tid = <NXS_TID_DMAW3>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		dmaw4: dmaw@20c05800 {
+			compatible = "nexell,dmaw-nxs-1.0";
+			reg = <DMAW4_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 124 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <20 4>; */
+			module = <4>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DMAW>;
+			tid = <NXS_TID_DMAW4>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		dmaw5: dmaw@20c05a00 {
+			compatible = "nexell,dmaw-nxs-1.0";
+			reg = <DMAW5_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 125 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <21 4>; */
+			module = <5>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DMAW>;
+			tid = <NXS_TID_DMAW5>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		dmaw6: dmaw@20c05c00 {
+			compatible = "nexell,dmaw-nxs-1.0";
+			reg = <DMAW6_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 126 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <22 4>; */
+			module = <6>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DMAW>;
+			tid = <NXS_TID_DMAW6>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		dmaw7: dmaw@20c05e00 {
+			compatible = "nexell,dmaw-nxs-1.0";
+			reg = <DMAW7_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 127 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <23 4>; */
+			module = <7>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DMAW>;
+			tid = <NXS_TID_DMAW7>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		dmaw8: dmaw@20c06000 {
+			compatible = "nexell,dmaw-nxs-1.0";
+			reg = <DMAW8_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 128 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <24 4>; */
+			module = <8>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DMAW>;
+			tid = <NXS_TID_DMAW8>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		dmaw9: dmaw@20c06200 {
+			compatible = "nexell,dmaw-nxs-1.0";
+			reg = <DMAW9_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 129 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <25 4>; */
+			module = <9>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DMAW>;
+			tid = <NXS_TID_DMAW9>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		dmaw10: dmaw@20c06400 {
+			compatible = "nexell,dmaw-nxs-1.0";
+			reg = <DMAW10_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 130 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <26 4>; */
+			module = <10>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DMAW>;
+			tid = <NXS_TID_DMAW10>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		dmaw11: dmaw@20c06600 {
+			compatible = "nexell,dmaw-nxs-1.0";
+			reg = <DMAW11_OFFSET DMAW_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 131 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <27 4>; */
+			module = <11>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DMAW>;
+			tid = <NXS_TID_DMAW11>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		vip0: vip@20c40000 {
+			compatible = "nexell,vip-nxs-1.0";
+			reg = <NXS_REGBASE_VIP(0) NXS_REGSIZE_VIP>,
+			      <NXS_REGBASE_VIP_PRESCALER(0) NXS_REGSIZE_VIP_PRESCALER>;
+			/* interrupts = <0 100 0>; */
+			module = <0>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_VIP_CLIPPER>;
+			tid = <NXS_TID_DEFAULT>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		vip1: vip@20c40200 {
+			compatible = "nexell,vip-nxs-1.0";
+			reg = <NXS_REGBASE_VIP(1) NXS_REGSIZE_VIP>,
+			      <NXS_REGBASE_VIP_PRESCALER(1) NXS_REGSIZE_VIP_PRESCALER>;
+			/* interrupts = <0 101 0>; */
+			module = <1>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_VIP_CLIPPER>;
+			tid = <NXS_TID_DEFAULT>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		vip2: vip@20c40400 {
+			compatible = "nexell,vip-nxs-1.0";
+			reg = <NXS_REGBASE_VIP(2) NXS_REGSIZE_VIP>,
+			      <NXS_REGBASE_VIP_PRESCALER(2) NXS_REGSIZE_VIP_PRESCALER>;
+			/* interrupts = <0 102 0>; */
+			module = <2>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_VIP_CLIPPER>;
+			tid = <NXS_TID_DEFAULT>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		vip3: vip@20c40600 {
+			compatible = "nexell,vip-nxs-1.0";
+			reg = <NXS_REGBASE_VIP(3) NXS_REGSIZE_VIP>,
+			      <NXS_REGBASE_VIP_PRESCALER(3) NXS_REGSIZE_VIP_PRESCALER>;
+			/* interrupts = <0 103 0>; */
+			module = <3>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_VIP_CLIPPER>;
+			tid = <NXS_TID_DEFAULT>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		mipi_csi: mipi_csi@20e20000 {
+			compatible = "nexell,mipi_csi-nxs-1.0";
+			reg = <CSI2NXS_OFFSET CSI2NXS_SIZE>,
+			      <NXS_REGBASE_MIPICSI(0) NXS_REGSIZE_MIPICSI>;
+			/* interrupts = <0 104 0>; */
+			module = <0>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_MIPI_CSI>;
+			tid = <NXS_TID_DEFAULT>;
+			max_refcount = <2>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		cropper0: cropper@20c00a00 {
+			compatible = "nexell,cropper-nxs-1.0";
+			reg = <CROPPER0_OFFSET CROPPER_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 107 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <28 4>; */
+			module = <0>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_CROPPER>;
+			tid = <NXS_TID_CROP0>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		cropper1: cropper@20c00a20 {
+			compatible = "nexell,cropper-nxs-1.0";
+			reg = <CROPPER1_OFFSET CROPPER_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 108 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <29 4>; */
+			module = <1>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_CROPPER>;
+			tid = <NXS_TID_CROP1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		multitap0: multitap@20c01500 {
+			compatible = "nexell,multitap-nxs-1.0";
+			reg = <MULTITAP0_OFFSET MULTITAP_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 140 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <6 4>; */
+			module = <0>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_MULTITAP>;
+			tid = <NXS_TID_MULTITAP0>;
+			max_refcount = <2>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		multitap1: multitap@20c01520 {
+			compatible = "nexell,multitap-nxs-1.0";
+			reg = <MULTITAP1_OFFSET MULTITAP_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 141 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <7 4>; */
+			module = <1>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_MULTITAP>;
+			tid = <NXS_TID_MULTITAP1>;
+			max_refcount = <2>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		multitap2: multitap@20c01540 {
+			compatible = "nexell,multitap-nxs-1.0";
+			reg = <MULTITAP2_OFFSET MULTITAP_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 142 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <8 4>; */
+			module = <2>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_MULTITAP>;
+			tid = <NXS_TID_MULTITAP2>;
+			max_refcount = <2>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		multitap3: multitap@20c01560 {
+			compatible = "nexell,multitap-nxs-1.0";
+			reg = <MULTITAP3_OFFSET MULTITAP_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 143 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <9 4>; */
+			module = <3>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_MULTITAP>;
+			tid = <NXS_TID_MULTITAP3>;
+			max_refcount = <2>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		scaler_4096_0: scaler_4096@20c00c00 {
+			compatible = "nexell,scaler-nxs-1.0";
+			reg = <SCALER0_OFFSET SCALER_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 144 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <10 4>; */
+			module = <0>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_SCALER_4096>;
+			tid = <NXS_TID_SCALER0>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			line_buffer_size = <4096>; /* scaler specific */
+			status = "disabled";
+		};
+
+		scaler_4096_1: scaler_4096@20c00f00 {
+			compatible = "nexell,scaler_4096-nxs-1.0";
+			reg = <SCALER1_OFFSET SCALER_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 145 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <11 4>; */
+			module = <1>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_SCALER_4096>;
+			tid = <NXS_TID_SCALER1>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			line_buffer_size = <4096>; /* scaler specific */
+			status = "disabled";
+		};
+
+		scaler_5376_0: scaler_5376@20c01200 {
+			compatible = "nexell,scaler_5376-nxs-1.0";
+			reg = <SCALER2_OFFSET SCALER_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 146 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <12 4>; */
+			module = <0>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_SCALER_5376>;
+			tid = <NXS_TID_SCALER2>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			line_buffer_size = <5376>; /* scaler specific */
+			status = "disabled";
+		};
+
+		mlc_bottom0: mlc_bottom@20c04000 {
+			compatible = "nexell,mlc_bottom-nxs-1.0";
+			reg = <BOTTOM0_OFFSET BOTTOM_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 147 0>; */
+			module = <0>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_MLC_BOTTOM>;
+			tid = <NXS_TID_DEFAULT>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		mlc_bottom1: mlc_bottom@20c04020 {
+			compatible = "nexell,mlc_bottom-nxs-1.0";
+			reg = <BOTTOM1_OFFSET BOTTOM_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 148 0>; */
+			module = <1>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_MLC_BOTTOM>;
+			tid = <NXS_TID_DEFAULT>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		tpgen: tpgen@20c03e00 {
+			compatible = "nexell,tpgen-nxs-1.0";
+			reg = <TPGEN_OFFSET TPGEN_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 148 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <14 4>; */
+			module = <0>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_TPGEN>;
+			tid = <NXS_TID_DEFAULT>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		mlc_blender0: mlc_blender@20c04080 {
+			compatible = "nexell,mlc_blender-nxs-1.0";
+			reg = <BLENDER0_OFFSET BLENDER_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 140 0>; */
+			module = <0>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_MLC_BLENDER>;
+			tid = <NXS_TID_BLENDER0_IMG>;
+			tid2 = <NXS_TID_BLENDER0_SCREEN>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		mlc_blender1: mlc_blender@20c04100 {
+			compatible = "nexell,mlc_blender-nxs-1.0";
+			reg = <BLENDER1_OFFSET BLENDER_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 141 0>; */
+			module = <1>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_MLC_BLENDER>;
+			tid = <NXS_TID_BLENDER1_IMG>;
+			tid2 = <NXS_TID_BLENDER1_SCREEN>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		mlc_blender2: mlc_blender@20c04180 {
+			compatible = "nexell,mlc_blender-nxs-1.0";
+			reg = <BLENDER2_OFFSET BLENDER_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 142 0>; */
+			module = <2>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_MLC_BLENDER>;
+			tid = <NXS_TID_BLENDER2_IMG>;
+			tid2 = <NXS_TID_BLENDER2_SCREEN>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		mlc_blender3: mlc_blender@20c04200 {
+			compatible = "nexell,mlc_blender-nxs-1.0";
+			reg = <BLENDER3_OFFSET BLENDER_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 143 0>; */
+			module = <3>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_MLC_BLENDER>;
+			tid = <NXS_TID_BLENDER3_IMG>;
+			tid2 = <NXS_TID_BLENDER3_SCREEN>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		mlc_blender4: mlc_blender@20c04280 {
+			compatible = "nexell,mlc_blender-nxs-1.0";
+			reg = <BLENDER4_OFFSET BLENDER_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 144 0>; */
+			module = <4>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_MLC_BLENDER>;
+			tid = <NXS_TID_BLENDER4_IMG>;
+			tid2 = <NXS_TID_BLENDER4_SCREEN>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		mlc_blender5: mlc_blender@20c04300 {
+			compatible = "nexell,mlc_blender-nxs-1.0";
+			reg = <BLENDER5_OFFSET BLENDER_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 145 0>; */
+			module = <5>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_MLC_BLENDER>;
+			tid = <NXS_TID_BLENDER5_IMG>;
+			tid2 = <NXS_TID_BLENDER5_SCREEN>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		mlc_blender6: mlc_blender@20c04380 {
+			compatible = "nexell,mlc_blender-nxs-1.0";
+			reg = <BLENDER6_OFFSET BLENDER_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 146 0>; */
+			module = <6>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_MLC_BLENDER>;
+			tid = <NXS_TID_BLENDER6_IMG>;
+			tid2 = <NXS_TID_BLENDER6_SCREEN>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		mlc_blender7: mlc_blender@20c04400 {
+			compatible = "nexell,mlc_blender-nxs-1.0";
+			reg = <BLENDER7_OFFSET BLENDER_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 147 0>; */
+			module = <7>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_MLC_BLENDER>;
+			tid = <NXS_TID_BLENDER7_IMG>;
+			tid2 = <NXS_TID_BLENDER7_SCREEN>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		hue0: hue@20c01580 {
+			compatible = "nexell,hue-nxs-1.0";
+			reg = <HUE0_OFFSET HUE_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 148 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <4 4>; */
+			module = <0>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_HUE>;
+			tid = <NXS_TID_HUE0>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		hue1: hue@20c01600 {
+			compatible = "nexell,hue-nxs-1.0";
+			reg = <HUE1_OFFSET HUE_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 149 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <5 4>; */
+			module = <1>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_HUE>;
+			tid = <NXS_TID_HUE1>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		gamma0: gamma@20c01680 {
+			compatible = "nexell,gamma-nxs-1.0";
+			reg = <GAMMA0_OFFSET GAMMA_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 150 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <2 4>; */
+			module = <0>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_GAMMA>;
+			tid = <NXS_TID_GAMMA0>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		gamma1: gamma@20c01700 {
+			compatible = "nexell,gamma-nxs-1.0";
+			reg = <GAMMA1_OFFSET GAMMA_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 151 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <3 4>; */
+			module = <0>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_GAMMA>;
+			tid = <NXS_TID_GAMMA1>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		fifo0: fifo@20c03d00 {
+			compatible = "nexell,fifo-nxs-1.0";
+			reg = <FIFO0_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 160 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <15 4>; */
+			module = <0>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_FIFO>;
+			tid = <NXS_TID_FIFO0>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		fifo1: fifo@20c03d10 {
+			compatible = "nexell,fifo-nxs-1.0";
+			reg = <FIFO1_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 161 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <16 4>; */
+			module = <1>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_FIFO>;
+			tid = <NXS_TID_FIFO1>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		fifo2: fifo@20c03d20 {
+			compatible = "nexell,fifo-nxs-1.0";
+			reg = <FIFO2_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 162 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <17 4>; */
+			module = <2>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_FIFO>;
+			tid = <NXS_TID_FIFO2>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		fifo3: fifo@20c03d30 {
+			compatible = "nexell,fifo-nxs-1.0";
+			reg = <FIFO3_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 163 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <18 4>; */
+			module = <3>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_FIFO>;
+			tid = <NXS_TID_FIFO3>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		fifo4: fifo@20c03d40 {
+			compatible = "nexell,fifo-nxs-1.0";
+			reg = <FIFO4_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 164 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <19 4>; */
+			module = <4>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_FIFO>;
+			tid = <NXS_TID_FIFO4>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		fifo5: fifo@20c03d50 {
+			compatible = "nexell,fifo-nxs-1.0";
+			reg = <FIFO5_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 165 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <20 4>; */
+			module = <5>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_FIFO>;
+			tid = <NXS_TID_FIFO5>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		fifo6: fifo@20c03d60 {
+			compatible = "nexell,fifo-nxs-1.0";
+			reg = <FIFO6_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 166 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <21 4>; */
+			module = <6>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_FIFO>;
+			tid = <NXS_TID_FIFO6>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		fifo7: fifo@20c03d70 {
+			compatible = "nexell,fifo-nxs-1.0";
+			reg = <FIFO7_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 167 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <22 4>; */
+			module = <7>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_FIFO>;
+			tid = <NXS_TID_FIFO7>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		fifo8: fifo@20c03d80 {
+			compatible = "nexell,fifo-nxs-1.0";
+			reg = <FIFO8_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 167 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <23 4>; */
+			module = <8>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_FIFO>;
+			tid = <NXS_TID_FIFO8>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		fifo9: fifo@20c03e00 {
+			compatible = "nexell,fifo-nxs-1.0";
+			reg = <FIFO9_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 167 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <24 4>; */
+			module = <9>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_FIFO>;
+			tid = <NXS_TID_FIFO9>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		fifo10: fifo@20c03e80 {
+			compatible = "nexell,fifo-nxs-1.0";
+			reg = <FIFO10_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 167 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <25 4>; */
+			module = <10>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_FIFO>;
+			tid = <NXS_TID_FIFO10>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		fifo11: fifo@20c03f00 {
+			compatible = "nexell,fifo-nxs-1.0";
+			reg = <FIFO11_OFFSET FIFO_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 167 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <26 4>; */
+			module = <11>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_FIFO>;
+			tid = <NXS_TID_FIFO11>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		mapconv: mapconv@20cd0000 {
+			compatible = "nexell,mapconv-nxs-1.0";
+			reg = <NXS_REGBASE_MAPCONV(0) NXS_REGSIZE_MAPCONV>;
+			/* interrupts = <0 168 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <27 4>; */
+			module = <0>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_MAPCONV>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		csc0: csc@20c00200 {
+			compatible = "nexell,csc-nxs-1.0";
+			reg = <CSC0_OFFSET CSC_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 171 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <30 4>; */
+			module = <0>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_CSC>;
+			tid = <NXS_TID_CSC0>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		csc1: csc@20c00240 {
+			compatible = "nexell,csc-nxs-1.0";
+			reg = <CSC1_OFFSET CSC_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 172 0>; */
+			/* interrupt-parent = <&xps_intc_0>; */
+			/* interrupts = <31 4>; */
+			module = <1>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_CSC>;
+			tid = <NXS_TID_CSC1>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		csc2: csc@20c00280 {
+			compatible = "nexell,csc-nxs-1.0";
+			reg = <CSC2_OFFSET CSC_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 173 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <0 4>; */
+			module = <2>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_CSC>;
+			tid = <NXS_TID_CSC2>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		csc3: csc@20c002c0 {
+			compatible = "nexell,csc-nxs-1.0";
+			reg = <CSC3_OFFSET CSC_SIZE>;
+			syscon = <&nxstream>;
+			/* interrupts = <0 174 0>; */
+			/* interrupt-parent = <&xps_intc_1>; */
+			/* interrupts = <1 4>; */
+			module = <3>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_CSC>;
+			tid = <NXS_TID_CSC3>;
+			max_refcount = <1>;
+			can_multitap_follow = <1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		/* FPGA doesn't have dpc module */
+		dpc0: dpc@20c80000 {
+			compatible = "nexell,dpc-nxs-1.0";
+			reg = <NXS_REGBASE_DPC(0) NXS_REGSIZE_DPC>;
+			/* interrupts = <0 175 0>; */
+			module = <0>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DPC>;
+			tid = <NXS_TID_DPC0>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		dpc1: dpc@20ca0000 {
+			compatible = "nexell,dpc-nxs-1.0";
+			reg = <NXS_REGBASE_DPC(1) NXS_REGSIZE_DPC>;
+			/* interrupts = <0 176 0>; */
+			module = <1>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_DPC>;
+			tid = <NXS_TID_DPC1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		/* FPGA doesn't have lvds module */
+		lvds0: lvds@20cc0000 {
+			compatible = "nexell,lvds-nxs-1.0";
+			reg = <NXS_REGBASE_LVDS(0) NXS_REGSIZE_LVDS>;
+			/* interrupts = <0 177 0>; */
+			module = <0>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_LVDS>;
+			tid = <NXS_TID_LVDS0>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		lvds1: lvds@20ce0000 {
+			compatible = "nexell,lvds-nxs-1.0";
+			reg = <NXS_REGBASE_LVDS(1) NXS_REGSIZE_LVDS>;
+			/* interrupts = <0 177 0>; */
+			module = <1>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_LVDS>;
+			tid = <NXS_TID_LVDS1>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		mipi_dsi: mipi_dsi@20e50000 {
+			compatible = "nexell,mipi_dsi-nxs-1.0";
+			reg = <NXS2DSI_REGBASE NXS2DSI_SIZE>,
+			      <NXS2DSI0_I80_REGBASE NXS2DSI_I80_SIZE>,
+			      <NXS2DSI1_I80_REGBASE NXS2DSI_I80_SIZE>,
+			      <NXS_REGBASE_MIPIDSI(0) NXS_REGSIZE_MIPIDSI>;
+			/* interrupts = <0 178 0>; */
+			module = <0>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_MIPI_DSI>;
+			tid = <NXS_TID_MIPI_DSI>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+		hdmi: hdmi@c6040000 {
+			compatible = "nexell,hdmi-nxs-1.0";
+			reg = <NXS2HDMI_REGBASE NXS2HDMI_SIZE>,
+			      <HDMICEC_REGBASE HDMICEC_SIZE>,
+			      <HDMIPHY_REGBASE HDMIPHY_SIZE>,
+			      <HDMILINK_REGBASE HDMILINK_SIZE>;
+			/* interrupts = <0 179 0>; */
+			module = <0>;
+			version = <0x0100>;
+			function = <NXS_FUNCTION_HDMI>;
+			tid = <NXS_TID_HDMI>;
+			/* reset */
+			/* clock */
+			status = "disabled";
+		};
+
+                isp: isp@20900000 {
+                        compatible = "nexell,isp-nxs-1.0";
+                        reg = <NXS_REGBASE_ISP NXS_REGSIZE_ISP>,
+                              <NXS_REGBASE_ISPCORE NXS_REGSIZE_ISPCORE>,
+			      <DISP2ISP_OFFSET DISP2ISP_SIZE>;
+			syscon = <&nxstream>;
+                        /* interrupts = <148 32>, */
+                        /*             <149 32>,  */
+                        /*             <150 32>,  */
+                        /*             <151 32>,  */
+                        /*             <152 32>,  */
+                        /*             <147 32>;  */
+                        module = <0>;
+                        version = <0x0100>;
+                        function = <NXS_FUNCTION_ISP>;
+                        tid = <NXS_TID_ISP>;
+                        /* reset */
+                        /* clock */
+                        status = "disabled";
+                };
+
+	};
+};

@@ -1056,7 +1056,7 @@ void nx_mlc_set_video_layer_scale(u32 module_index, u32 sw, u32 sh, u32 dw,
 	const u32 filter_luma_pos = 28;
 	const u32 filter_choma_pos = 29;
 	const u32 scale_mask = ((1 << 23) - 1);
-	register u32 hscale, vscale, cal_sh;
+	register u32 hscale = 0, vscale = 0, cal_sh;
 	register struct nx_mlc_register_set *pregister;
 
 	pregister = __g_module_variables[module_index].pregister;
@@ -1065,7 +1065,9 @@ void nx_mlc_set_video_layer_scale(u32 module_index, u32 sw, u32 sh, u32 dw,
 		sw--;
 		dw--;
 	}
-	hscale = (sw << 11) / dw;
+
+	if (dw)
+		hscale = (sw << 11) / dw;
 
 	if ((bvlumaenb || bvchromaenb) && (dh > sh)) {
 		sh--;
@@ -1077,7 +1079,8 @@ void nx_mlc_set_video_layer_scale(u32 module_index, u32 sw, u32 sh, u32 dw,
 			vscale--;
 
 	} else {
-		vscale = (sh << 11) / dh;
+		if (dh)
+			vscale = (sh << 11) / dh;
 	}
 
 	writel(((bhlumaenb << filter_luma_pos) |
@@ -1764,25 +1767,33 @@ void nx_mlc_get_rgblayer_address(u32 module_index, u32 layer,
 void nx_mlc_get_position(u32 module_index, u32 layer, int *left, int *top,
 			 int *right, int *bottom)
 {
-	int lr, tb;
+	int lr = 0, tb = 0;
 	register struct nx_mlc_register_set *pregister;
 
 	pregister = __g_module_variables[module_index].pregister;
 
-	lr = readl(&pregister->mlcrgblayer[layer].mlcleftright);
-	tb = readl(&pregister->mlcrgblayer[layer].mlctopbottom);
+	if (layer == 0 || layer == 1) {
+		lr = readl(&pregister->mlcrgblayer[layer].mlcleftright);
+		tb = readl(&pregister->mlcrgblayer[layer].mlctopbottom);
+	} else if (layer == 2) {
+		lr = readl(&pregister->mlcrgblayer2.mlcleftright);
+		tb = readl(&pregister->mlcrgblayer2.mlctopbottom);
+	} else if (layer == 3) {
+		lr = readl(&pregister->mlcvideolayer.mlcleftright);
+		tb = readl(&pregister->mlcvideolayer.mlctopbottom);
+	}
 
 	if (left)
-		*(int *)left = ((lr >> 16) & 0xFFUL);
+		*(int *)left = ((lr >> 16) & 0xffful);
 
 	if (top)
-		*(int *)top = ((tb >> 16) & 0xFFUL);
+		*(int *)top = ((tb >> 16) & 0xffful);
 
 	if (right)
-		*(int *)right = ((lr >> 0) & 0xFFUL);
+		*(int *)right = ((lr >> 0) & 0xffful);
 
 	if (bottom)
-		*(int *)bottom = ((tb >> 0) & 0xFFUL);
+		*(int *)bottom = ((tb >> 0) & 0xffful);
 }
 
 void nx_mlc_get_video_layer_address_yuyv(u32 module_index, u32 *address,
@@ -1858,14 +1869,14 @@ void nx_mlc_get_video_position(u32 module_index, int *left, int *top,
 	tb = readl(&pregister->mlcvideolayer.mlctopbottom);
 
 	if (left)
-		*(int *)left = ((lr >> 16) & 0xFFUL);
+		*(int *)left = ((lr >> 16) & 0xffful);
 
 	if (top)
-		*(int *)top = ((tb >> 16) & 0xFFUL);
+		*(int *)top = ((tb >> 16) & 0xffful);
 
 	if (right)
-		*(int *)right = ((lr >> 0) & 0xFFUL);
+		*(int *)right = ((lr >> 0) & 0xffful);
 
 	if (bottom)
-		*(int *)bottom = ((tb >> 0) & 0xFFUL);
+		*(int *)bottom = ((tb >> 0) & 0xffful);
 }

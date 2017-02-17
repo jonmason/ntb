@@ -20,11 +20,17 @@
 
 #include "soc/s5pxx18_drm_dp.h"
 
+struct nx_cluster_crtc {
+	struct videomode vm[CLISTER_LCD_MAX];
+	enum dp_cluster_dir cluster_dir;
+};
+
 struct nx_drm_crtc {
 	struct drm_crtc crtc;
 	struct drm_display_mode	current_mode;
 	int pipe;		/* hw crtc index */
 	int pipe_irq;
+	bool irq_install;
 	struct dp_plane_top top;
 	struct drm_pending_vblank_event *event;
 	unsigned int dpms_mode;
@@ -32,13 +38,15 @@ struct nx_drm_crtc {
 	int num_resets;
 	bool post_closed;
 	bool suspended;
+	struct nx_cluster_crtc *cluster;
 };
 
 #define to_nx_crtc(x)	\
 		container_of(x, struct nx_drm_crtc, crtc)
 
-int nx_drm_crtc_init(struct drm_device *dev);
-int nx_drm_crtc_enable_vblank(struct drm_device *dev, unsigned int pipe);
-void nx_drm_crtc_disable_vblank(struct drm_device *dev, unsigned int pipe);
+int nx_drm_crtc_init(struct drm_device *drm);
+int nx_drm_crtc_vblank_init(struct drm_device *drm);
+int nx_drm_crtc_enable_vblank(struct drm_device *drm, unsigned int pipe);
+void nx_drm_crtc_disable_vblank(struct drm_device *drm, unsigned int pipe);
 
 #endif

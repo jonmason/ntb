@@ -112,14 +112,23 @@ static int nx_drm_load(struct drm_device *drm, unsigned long flags)
 
 	ret = drm_vblank_init(drm, priv->num_crtcs);
 	if (ret)
-		goto err_unbind_all;
+		goto err_mode_config_cleanup;
+
+	ret = nx_drm_crtc_vblank_init(drm);
+	if (ret)
+		goto err_mode_config_cleanup;
 
 	/* Try to bind all sub drivers. */
 	ret = component_bind_all(drm->dev, drm);
 	if (ret)
-		goto err_mode_config_cleanup;
+		goto err_unbind_all;
 
+	/* disable irq turn off  */
+#ifdef CONFIG_VIDEO_NEXELL_REARCAM
+	drm->vblank_disable_allowed = false;
+#else
 	drm->vblank_disable_allowed = true;
+#endif
 
 	/* init kms poll for handling hpd */
 	drm_kms_helper_poll_init(drm);
@@ -303,6 +312,12 @@ static int nx_drm_probe(struct platform_device *pdev)
 #endif
 #ifdef CONFIG_DRM_NX_HDMI
 		"display_drm_hdmi",
+#endif
+#ifdef CONFIG_DRM_NX_TVOUT
+		"display_drm_tv",
+#endif
+#ifdef CONFIG_DRM_NX_CLUSTER_LCD
+		"display_drm_cluster_lcd",
 #endif
 	};
 	int found = 0;
