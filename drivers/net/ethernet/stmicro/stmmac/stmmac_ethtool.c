@@ -554,6 +554,11 @@ static void stmmac_get_wol(struct net_device *dev, struct ethtool_wolinfo *wol)
 {
 	struct stmmac_priv *priv = netdev_priv(dev);
 
+	if (priv->plat->get_wol) {
+		priv->plat->get_wol(dev, wol);
+		return ;
+	}
+
 	spin_lock_irq(&priv->lock);
 	if (device_can_wakeup(priv->device)) {
 		wol->supported = WAKE_MAGIC | WAKE_UCAST;
@@ -566,6 +571,39 @@ static int stmmac_set_wol(struct net_device *dev, struct ethtool_wolinfo *wol)
 {
 	struct stmmac_priv *priv = netdev_priv(dev);
 	u32 support = WAKE_MAGIC | WAKE_UCAST;
+
+	if (priv->plat->set_wol)
+	{
+		int ret;
+		u32 wolopts = wol->wolopts;
+
+		/* if requested option has already specified */
+		if (wolopts == priv->wolopts)
+			return 0;
+
+		ret = priv->plat->set_wol(dev, wol);
+		if (ret < 0)
+			return ret;
+
+		if (wolopts) {
+			pr_info("stmmac: wakeup enable by plat\n");
+			device_set_wakeup_enable(priv->device, 1);
+			enable_irq_wake(priv->wol_irq);
+
+			priv->wolopts = wol->wolopts;
+		} else {
+			/* 'disable' */
+			if (priv->wolopts) {
+				pr_info("stmmac: wakeup disable by plat\n");
+				device_set_wakeup_enable(priv->device, 0);
+				disable_irq_wake(priv->wol_irq);
+
+				priv->wolopts = 0;
+			}
+		}
+
+		return ret;
+	}
 
 	/* By default almost all GMAC devices support the WoL via
 	 * magic frame but we can disable it if the HW capability

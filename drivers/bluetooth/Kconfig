@@ -320,4 +320,11 @@ config BT_WILINK
 	  Say Y here to compile support for Texas Instrument's WiLink7 driver
 	  into the kernel or say M to compile it as module (btwilink).
 
+config BT_BCM43455
+	tristate "Enable BCM43455 driver"
+	default n
+	help
+	  Adds BCM43455 RFKILL driver for Broadcom BCM43455 chipset.
+	  default is n.
+
 endmenu

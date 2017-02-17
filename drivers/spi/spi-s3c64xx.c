@@ -26,8 +26,14 @@
 #include <linux/gpio.h>
 #include <linux/of.h>
 #include <linux/of_gpio.h>
+#include <linux/reset.h>
 
 #include <linux/platform_data/spi-s3c64xx.h>
+
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+#include <linux/pm_qos.h>
+#include <linux/soc/nexell/cpufreq.h>
+#endif
 
 #define MAX_SPI_PORTS		6
 #define S3C64XX_SPI_QUIRK_POLL		(1 << 0)
@@ -130,6 +136,9 @@
 #define RXBUSY    (1<<2)
 #define TXBUSY    (1<<3)
 
+#define SSP_MASTER	0
+#define SSP_SLAVE	1
+
 struct s3c64xx_spi_dma_data {
 	struct dma_chan *ch;
 	enum dma_transfer_direction direction;
@@ -197,6 +206,18 @@ struct s3c64xx_spi_driver_data {
 	struct s3c64xx_spi_port_config	*port_conf;
 	unsigned int			port_id;
 };
+
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+static struct pm_qos_request nx_spi_qos;
+
+static void nx_spi_qos_update(int val)
+{
+	if (!pm_qos_request_active(&nx_spi_qos))
+		pm_qos_add_request(&nx_spi_qos, PM_QOS_BUS_THROUGHPUT, val);
+	else
+		pm_qos_update_request(&nx_spi_qos, val);
+}
+#endif
 
 static void flush_fifo(struct s3c64xx_spi_driver_data *sdd)
 {
@@ -475,8 +496,10 @@ static int wait_for_dma(struct s3c64xx_spi_driver_data *sdd,
 
 	/* millisecs to xfer 'len' bytes @ 'cur_speed' */
 	ms = xfer->len * 8 * 1000 / sdd->cur_speed;
-	ms += 10; /* some tolerance */
-
+	if(sdd->cntrlr_info->hierarchy == SSP_SLAVE)
+		ms += 1000; /* some tolerance */
+	else
+		ms += 10;
 	val = msecs_to_jiffies(ms) + 10;
 	val = wait_for_completion_timeout(&sdd->xfer_completion, val);
 
@@ -521,8 +544,10 @@ static int wait_for_pio(struct s3c64xx_spi_driver_data *sdd,
 
 	/* millisecs to xfer 'len' bytes @ 'cur_speed' */
 	ms = xfer->len * 8 * 1000 / sdd->cur_speed;
-	ms += 10; /* some tolerance */
-
+	if(sdd->cntrlr_info->hierarchy == SSP_SLAVE)
+		ms += 10000; /* some tolerance */
+	else
+		ms += 10; /* some tolerance */
 	val = msecs_to_loops(ms);
 	do {
 		status = readl(regs + S3C64XX_SPI_STATUS);
@@ -575,6 +600,7 @@ static int wait_for_pio(struct s3c64xx_spi_driver_data *sdd,
 static void s3c64xx_spi_config(struct s3c64xx_spi_driver_data *sdd)
 {
 	void __iomem *regs = sdd->regs;
+	struct s3c64xx_spi_info *sci = sdd->cntrlr_info;
 	u32 val;
 
 	/* Disable Clock */
@@ -591,6 +617,8 @@ static void s3c64xx_spi_config(struct s3c64xx_spi_driver_data *sdd)
 	val &= ~(S3C64XX_SPI_CH_SLAVE |
 			S3C64XX_SPI_CPOL_L |
 			S3C64XX_SPI_CPHA_B);
+	if(sci->hierarchy == SSP_SLAVE)
+		val |= S3C64XX_SPI_CH_SLAVE;
 
 	if (sdd->cur_mode & SPI_CPOL)
 		val |= S3C64XX_SPI_CPOL_L;
@@ -679,6 +707,10 @@ static int s3c64xx_spi_transfer_one(struct spi_master *master,
 	unsigned long flags;
 	int use_dma;
 
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+	nx_spi_qos_update(NX_BUS_CLK_SPI_KHZ);
+#endif
+
 	reinit_completion(&sdd->xfer_completion);
 
 	/* Only BPW and Speed may change across transfers */
@@ -739,6 +771,10 @@ static int s3c64xx_spi_transfer_one(struct spi_master *master,
 	} else {
 		flush_fifo(sdd);
 	}
+
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+	nx_spi_qos_update(NX_BUS_CLK_IDLE_KHZ);
+#endif
 
 	return status;
 }
@@ -981,6 +1017,7 @@ static struct s3c64xx_spi_info *s3c64xx_spi_parse_dt(struct device *dev)
 {
 	struct s3c64xx_spi_info *sci;
 	u32 temp;
+	u32 hierarchy =0;
 
 	sci = devm_kzalloc(dev, sizeof(*sci), GFP_KERNEL);
 	if (!sci)
@@ -999,6 +1036,10 @@ static struct s3c64xx_spi_info *s3c64xx_spi_parse_dt(struct device *dev)
 	} else {
 		sci->num_cs = temp;
 	}
+	if (of_property_read_u32(dev->of_node, "hierarchy", &hierarchy))
+		sci->hierarchy = SSP_MASTER;
+	else
+		sci->hierarchy = hierarchy;
 
 	return sci;
 }
@@ -1034,7 +1075,7 @@ static int s3c64xx_spi_probe(struct platform_device *pdev)
 	struct spi_master *master;
 	int ret, irq;
 	char clk_name[16];
-
+	u32 val;
 	if (!sci && pdev->dev.of_node) {
 		sci = s3c64xx_spi_parse_dt(&pdev->dev);
 		if (IS_ERR(sci))
@@ -1136,6 +1177,28 @@ static int s3c64xx_spi_probe(struct platform_device *pdev)
 		goto err0;
 	}
 
+#ifdef CONFIG_RESET_CONTROLLER
+	if (of_device_is_compatible(pdev->dev.of_node, "nexell,s5p6818-spi")) {
+		struct reset_control *rst;
+		struct reset_control *prst;
+
+		prst = devm_reset_control_get(&pdev->dev, "pre-reset");
+		if (IS_ERR(prst)) {
+			dev_err(&pdev->dev, "failed to get pre-reset control\n");
+			return -EINVAL;
+		}
+		if (reset_control_status(prst))
+			reset_control_reset(prst);
+
+		rst = devm_reset_control_get(&pdev->dev, "spi-reset");
+		if (IS_ERR(rst)) {
+			dev_err(&pdev->dev, "failed to get reset control\n");
+			return -EINVAL;
+		}
+		if (reset_control_status(rst))
+			reset_control_reset(rst);
+	};
+#endif
 	/* Setup clocks */
 	sdd->clk = devm_clk_get(&pdev->dev, "spi");
 	if (IS_ERR(sdd->clk)) {
@@ -1185,9 +1248,11 @@ static int s3c64xx_spi_probe(struct platform_device *pdev)
 		goto err3;
 	}
 
-	writel(S3C64XX_SPI_INT_RX_OVERRUN_EN | S3C64XX_SPI_INT_RX_UNDERRUN_EN |
-	       S3C64XX_SPI_INT_TX_OVERRUN_EN | S3C64XX_SPI_INT_TX_UNDERRUN_EN,
-	       sdd->regs + S3C64XX_SPI_INT_EN);
+	val  = S3C64XX_SPI_INT_RX_OVERRUN_EN | S3C64XX_SPI_INT_RX_UNDERRUN_EN |
+	       S3C64XX_SPI_INT_TX_OVERRUN_EN;
+	if(sci->hierarchy == SSP_MASTER)
+		val |=  S3C64XX_SPI_INT_TX_UNDERRUN_EN;
+	writel(val, sdd->regs + S3C64XX_SPI_INT_EN);
 
 	ret = devm_spi_register_master(&pdev->dev, master);
 	if (ret != 0) {
@@ -1265,6 +1330,29 @@ static int s3c64xx_spi_resume(struct device *dev)
 	struct s3c64xx_spi_driver_data *sdd = spi_master_get_devdata(master);
 	struct s3c64xx_spi_info *sci = sdd->cntrlr_info;
 	int ret;
+
+#ifdef CONFIG_RESET_CONTROLLER
+	if (of_device_is_compatible(dev->of_node, "nexell,s5p6818-spi")) {
+		struct reset_control *rst;
+		struct reset_control *prst;
+
+		prst = devm_reset_control_get(dev, "pre-reset");
+		if (IS_ERR(prst)) {
+			dev_err(dev, "failed to get pre-reset control\n");
+			return -EINVAL;
+		}
+		if (reset_control_status(prst))
+			reset_control_reset(prst);
+
+		rst = devm_reset_control_get(dev, "spi-reset");
+		if (IS_ERR(rst)) {
+			dev_err(dev, "failed to get reset control\n");
+			return -EINVAL;
+		}
+		if (reset_control_status(rst))
+			reset_control_reset(rst);
+	};
+#endif
 
 	if (sci->cfg_gpio)
 		sci->cfg_gpio();
@@ -1363,6 +1451,14 @@ static struct s3c64xx_spi_port_config exynos7_spi_port_config = {
 	.quirks		= S3C64XX_SPI_QUIRK_CS_AUTO,
 };
 
+static struct s3c64xx_spi_port_config s5p6818_spi_port_config = {
+	.fifo_lvl_mask	= { 0x1ff, 0x1ff, 0x1ff },
+	.rx_lvl_offset	= 15,
+	.tx_st_done	= 25,
+	.high_speed	= true,
+	.clk_from_cmu	= true,
+};
+
 static const struct platform_device_id s3c64xx_spi_driver_ids[] = {
 	{
 		.name		= "s3c2443-spi",
@@ -1376,6 +1472,9 @@ static const struct platform_device_id s3c64xx_spi_driver_ids[] = {
 	}, {
 		.name		= "exynos4210-spi",
 		.driver_data	= (kernel_ulong_t)&exynos4_spi_port_config,
+	}, {
+		.name		= "s5p6818-spi",
+		.driver_data	= (kernel_ulong_t)&s5p6818_spi_port_config,
 	},
 	{ },
 };
@@ -1398,6 +1497,9 @@ static const struct of_device_id s3c64xx_spi_dt_match[] = {
 	},
 	{ .compatible = "samsung,exynos7-spi",
 			.data = (void *)&exynos7_spi_port_config,
+	},
+	{ .compatible = "nexell,s5p6818-spi",
+			.data = (void *)&s5p6818_spi_port_config,
 	},
 	{ },
 };

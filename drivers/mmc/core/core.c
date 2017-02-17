@@ -887,11 +887,11 @@ void mmc_set_data_timeout(struct mmc_data *data, const struct mmc_card *card)
 	/*
 	 * Some cards require longer data read timeout than indicated in CSD.
 	 * Address this by setting the read timeout to a "reasonably high"
-	 * value. For the cards tested, 300ms has proven enough. If necessary,
+	 * value. For the cards tested, 600ms has proven enough. If necessary,
 	 * this value can be increased if other problematic cards require this.
 	 */
 	if (mmc_card_long_read_time(card) && data->flags & MMC_DATA_READ) {
-		data->timeout_ns = 300000000;
+		data->timeout_ns = 600000000;
 		data->timeout_clks = 0;
 	}
 
@@ -2648,6 +2648,11 @@ void mmc_rescan(struct work_struct *work)
 	mmc_release_host(host);
 
  out:
+	if (host->supports_detect_complete && host->detect_complete) {
+		complete(host->detect_complete);
+		pr_info("%s: set detect_complete\n", mmc_hostname(host));
+	}
+
 	if (host->caps & MMC_CAP_NEEDS_POLL)
 		mmc_schedule_delayed_work(&host->detect, HZ);
 }
@@ -2666,7 +2671,12 @@ void mmc_start_host(struct mmc_host *host)
 	mmc_release_host(host);
 
 	mmc_gpiod_request_cd_irq(host);
-	_mmc_detect_change(host, 0, false);
+	if (host->supports_detect_complete) {
+		pr_info("%s: skip _mmc_detect_change()\n", mmc_hostname(host));
+	} else {
+		_mmc_detect_change(host, 0, false);
+		pr_info("%s: run _mmc_detect_change()\n", mmc_hostname(host));
+	}
 }
 
 void mmc_stop_host(struct mmc_host *host)

@@ -1,0 +1,47 @@
+menuconfig MARVELL_DRIVERS
+	bool "Marvell Wireless LAN module drivers"
+	depends on NET
+	select WIRELESS_EXT
+	select WEXT_CORE
+	select WEXT_PRIV
+	select WEXT_PROC
+	---help---
+	Marvell kernel module drivers
+
+if MARVELL_DRIVERS
+
+choice
+	bool "Choose the chip for marvell wireless"
+	default MRVL_WL_SD8977
+
+config MRVL_WL_SD8977
+	bool "SD8977"
+	---help---
+	Marvell NIC driver: SD8977 chipset
+	
+config MRVL_WL_SD8997
+	bool "SD8997"
+	---help---
+	Marvell combo driver support: SD8997 chipset
+
+endchoice
+
+config MRVL_WLAN_DRIVER
+	depends on MRVL_WL_SD8977 || MRVL_WL_SD8997
+	tristate "WLAN Driver"
+	---help---
+	Choose the build type of WLAN driver
+
+config MRVL_BT_DRIVER
+	depends on MRVL_WL_SD8977 || MRVL_WL_SD8997
+	tristate "BT Driver"
+	---help---
+	Choose the build type of BT driver
+
+config MRVL_SDIO_OOB_IRQ
+	depends on MRVL_WL_SD8977 || MRVL_WL_SD8997
+	tristate "Enable SDIO OOB IRQ"
+	---help---
+	Choose SDIO interrupt type of SD8977 driver
+
+endif

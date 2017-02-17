@@ -1,0 +1,32 @@
+Nexell System Reset Controller
+======================================
+
+Please also refer to reset.txt in this directory for common reset
+controller binding usage.
+
+The reset controller registers are part of the system-ctl block on s5pxx18 SoC.
+
+Required properties:
+- compatible: may be "nexell,s5pxx18-reset"
+- reg: should be register base and length as documented in the datasheet
+- #reset-cells: 1, see below
+
+Example:
+nexell_reset:reset@c0012000 {
+	#reset-cells = <1>;
+	compatible = "nexell,s5pxx18-reset";
+	reg = <0xC0012000 0x3>;
+};
+
+Specifying reset lines connected to IP modules
+==============================================
+example:
+
+	serial0:serial@..... {
+		...
+		resets  = <&nexell_reset RESET_ID_UART0>;
+		reset-names = "uart-reset";
+                ...
+        };
+
+The index could be found in <dt-bindings/reset/nexell,{CHIP NAME}-reset.h>.

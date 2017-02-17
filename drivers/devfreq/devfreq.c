@@ -894,6 +894,9 @@ static ssize_t polling_interval_store(struct device *dev,
 }
 static DEVICE_ATTR_RW(polling_interval);
 
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+extern void nx_bus_qos_update(int val);
+#endif
 static ssize_t min_freq_store(struct device *dev, struct device_attribute *attr,
 			      const char *buf, size_t count)
 {
@@ -914,10 +917,16 @@ static ssize_t min_freq_store(struct device *dev, struct device_attribute *attr,
 	}
 
 	df->min_freq = value;
+#ifndef CONFIG_ARM_S5Pxx18_DEVFREQ
 	update_devfreq(df);
+#endif
 	ret = count;
 unlock:
 	mutex_unlock(&df->lock);
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+	if (ret > 0)
+		nx_bus_qos_update(value);
+#endif
 	return ret;
 }
 
@@ -947,10 +956,16 @@ static ssize_t max_freq_store(struct device *dev, struct device_attribute *attr,
 	}
 
 	df->max_freq = value;
+#ifndef CONFIG_ARM_S5Pxx18_DEVFREQ
 	update_devfreq(df);
+#endif
 	ret = count;
 unlock:
 	mutex_unlock(&df->lock);
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+	if (ret > 0)
+		nx_bus_qos_update(value);
+#endif
 	return ret;
 }
 static DEVICE_ATTR_RW(min_freq);

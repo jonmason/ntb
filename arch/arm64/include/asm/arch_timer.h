@@ -86,6 +86,7 @@ u32 arch_timer_reg_read_cp15(int access, enum arch_timer_reg reg)
 	return val;
 }
 
+#ifdef CONFIG_ARM_ARCH_TIMER
 static inline u32 arch_timer_get_cntfrq(void)
 {
 	u32 val;
@@ -128,5 +129,33 @@ static inline int arch_timer_arch_init(void)
 {
 	return 0;
 }
+#else
+static inline u32 arch_timer_get_cntfrq(void)
+{
+	return 0;
+}
+
+static inline u32 arch_timer_get_cntkctl(void)
+{
+
+	return 0;
+}
+
+static inline void arch_timer_set_cntkctl(u32 cntkctl)
+{
+}
+
+static inline u64 arch_counter_get_cntpct(void)
+{
+/*
+* AArch64 kernel and user space mandate the use of CNTVCT.
+*/
+	BUG();
+	return 0;
+}
+
+extern u64 arch_counter_get_cntvct(void);
+extern int arch_timer_arch_init(void);
+#endif
 
 #endif

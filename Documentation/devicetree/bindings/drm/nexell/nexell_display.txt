@@ -1,0 +1,66 @@
+Device-Tree bindings for Nexell's DRM and display control driver
+
+Required properties for display controller driver:
+ - compatible: value should be "nexell,s5pxx18-dp_drm"
+ - reg: Physical base address and length of the controller's registers.
+ - interrupts: The interrupt signals from the display controller.
+ - resets: The reset signal to the display controller.
+
+ - ports: sub node to config crtc(multi layer control:MLC) info
+  - port@0,1: logical crtc sub node
+
+   - reg: hw crtc index.
+   - back_color: top layer's background color
+   - color_key: video layer's color key value
+   - plane-names: multi layer's type and order ("primary", "cursor", "rgb", "video")
+
+Example:
+
+SOC specific portion:
+/ {
+	...
+	soc {
+		...
+		dp_drm: display_drm {
+			compatible = "nexell,s5pxx18-drm";
+			reg = <0xc0102800 0x100>, <0xc0102c00 0x100>,
+				  <0xc0102000 0x100>, <0xc0102400 0x100>;
+			reg-names = "dpc.0", "dpc.1", "mlc.0", "mlc.1";
+			interrupts = < 0 IRQ_DPC_P 0 >, <0 IRQ_DPC_S 0>;
+			interrupts-names = "dpc.0", "dpc.1";
+			reset-names = "rsc-display", "rsc-display-top";
+			resets = <&nexell_reset RESET_ID_DISPLAY>,
+           	reset-names = "rsc-display";
+
+			ports {
+				#address-cells = <0x1>;
+				#size-cells = <0>;
+				port@0 { };
+				port@1 { };
+			};
+		};
+		...
+	};
+	...
+};
+
+Board Specific portion:
+&dp_drm {
+	status = "okay";
+	ports {
+		port@0 {
+			reg = <0>;
+			back_color = < 0x0 >;
+			color_key = < 0x0 >;
+			plane-names = "video", "primary", "rgb";
+		};
+
+		port@1 {
+			reg = <1>;
+			back_color = < 0x0 >;
+			color_key = < 0x0 >;
+			plane-names = "video", "primary";
+		};
+	};
+};
+

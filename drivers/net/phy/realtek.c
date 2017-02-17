@@ -15,6 +15,8 @@
  */
 #include <linux/phy.h>
 #include <linux/module.h>
+#include <linux/netdevice.h>
+#include <linux/etherdevice.h>
 
 #define RTL821x_PHYSR		0x11
 #define RTL821x_PHYSR_DUPLEX	0x2000
@@ -29,9 +31,19 @@
 #define RTL8211F_PAGE_SELECT	0x1f
 #define RTL8211F_TX_DELAY	0x100
 
+#define RTL8211_PAGSEL			0x1f
+#define RTL8211_PAGSEL_EXT		0x0007
+#define RTL8211_EXTPAGE			0x1e
+#define RTL8211_EXTPAGE_110		0x006e
+#define RTL8211_EXTPAGE_109		0x006d
+#define RTL8211_MAGIC_PACKET_EVT	0x1000
+
 MODULE_DESCRIPTION("Realtek PHY driver");
 MODULE_AUTHOR("Johnson Leung");
 MODULE_LICENSE("GPL");
+
+static int wol_enabled;
+static u16 addr[3];
 
 static int rtl821x_ack_interrupt(struct phy_device *phydev)
 {
@@ -115,6 +127,168 @@ static int rtl8211f_config_init(struct phy_device *phydev)
 	return 0;
 }
 
+static int rtl8211e_set_wol(struct phy_device *phydev,
+			    struct ethtool_wolinfo *wol)
+{
+	struct net_device *ndev = phydev->attached_dev;
+
+	/* request disable when enabled */
+	if (!wol->wolopts && wol_enabled) {
+		int err;
+		wol_enabled = 0;
+
+		/* disable WOL events */
+		err = phy_write(phydev, RTL8211_PAGSEL, RTL8211_PAGSEL_EXT);
+		if (err < 0)
+			goto out;
+		err = phy_write(phydev, RTL8211_EXTPAGE, RTL8211_EXTPAGE_109);
+		if (err < 0)
+			goto out;
+		err = phy_write(phydev, 0x15, 0x0);
+		if (err < 0)
+			goto out;
+
+out:
+		/* Change to default page */
+		phy_write(phydev, RTL8211_PAGSEL, 0x0);
+
+		return 0;
+	}
+
+	if (wol->wolopts & WAKE_MAGIC) {
+		pr_debug("rtl8211e: setting wol\n");
+		wol_enabled = 1;
+	} else {
+		pr_debug("rtl8211e: no WAKE_MAGIC options\n");
+		return -EOPNOTSUPP;
+	}
+
+	if (!ndev)
+		return -EINVAL;
+
+	if (!is_valid_ether_addr(ndev->dev_addr))
+		return -EINVAL;
+
+	addr[0] = *(const u16 *)(ndev->dev_addr + 0);
+	addr[1] = *(const u16 *)(ndev->dev_addr + 2);
+	addr[2] = *(const u16 *)(ndev->dev_addr + 4);
+
+	return 0;
+}
+
+static void rtl8211e_get_wol(struct phy_device *phydev,
+			   struct ethtool_wolinfo *wol)
+{
+	int err;
+
+	wol->supported = WAKE_MAGIC;
+	wol->wolopts = 0;
+
+	/* page select external */
+	err = phy_write(phydev, RTL8211_PAGSEL, RTL8211_PAGSEL_EXT);
+	if (err < 0)
+		return ;
+
+	/* wolopts set as WAKE_MAGIC
+	 * if (phy_read(phydev, 0x16) & RTL8211_MAGIC_PACKET_EVT)
+	 *	wol->wolopts = WAKE_MAGIC;
+	 */
+
+	err = phy_write(phydev, RTL8211_PAGSEL, 0x0);
+	if (err < 0)
+		return ;
+}
+
+static int rtl8211e_suspend(struct phy_device *phydev)
+{
+	int err = 0;
+
+	mutex_lock(&phydev->lock);
+	if (wol_enabled) {
+		/* page select external */
+		err = phy_write(phydev, RTL8211_PAGSEL, RTL8211_PAGSEL_EXT);
+		if (err < 0)
+			goto error;
+
+		/* page select */
+		err = phy_write(phydev, RTL8211_EXTPAGE, RTL8211_EXTPAGE_110);
+		if (err < 0)
+			goto error;
+
+		/* setting unicast MAC address */
+		err = phy_write(phydev, 0x15, addr[0]);
+		if (err < 0)
+			goto error;
+		err = phy_write(phydev, 0x16, addr[1]);
+		if (err < 0)
+			goto error;
+		err = phy_write(phydev, 0x17, addr[2]);
+		if (err < 0)
+			goto error;
+
+		/* page select external */
+		err = phy_write(phydev, RTL8211_PAGSEL, RTL8211_PAGSEL_EXT);
+		if (err < 0)
+			goto error;
+
+		/* page select */
+		err = phy_write(phydev, RTL8211_EXTPAGE, RTL8211_EXTPAGE_109);
+		if (err < 0)
+			goto error;
+
+		/* set max packet length */
+		err = phy_write(phydev, 0x16, 0x1fff);
+		if (err < 0)
+			goto error;
+
+		/* enable all wol event */
+		err = phy_write(phydev, 0x15, RTL8211_MAGIC_PACKET_EVT);
+		if (err < 0)
+			goto error;
+
+error:
+		/* Change to default page */
+		phy_write(phydev, RTL8211_PAGSEL, 0x0);
+	} else {
+		int value;
+		value = phy_read(phydev, MII_BMCR);
+		phy_write(phydev, MII_BMCR, value & ~BMCR_PDOWN);
+	}
+	mutex_unlock(&phydev->lock);
+
+	return err;
+}
+
+static int rtl8211e_resume(struct phy_device *phydev)
+{
+	int err = 0;
+
+	mutex_lock(&phydev->lock);
+	if (wol_enabled) {
+		/* reset WOL event */
+		err = phy_write(phydev, RTL8211_PAGSEL, RTL8211_PAGSEL_EXT);
+		if (err < 0)
+			goto out;
+		err = phy_write(phydev, RTL8211_EXTPAGE, RTL8211_EXTPAGE_109);
+		if (err < 0)
+			goto out;
+		err = phy_write(phydev, 0x16, 0x8000);
+		if (err < 0)
+			goto out;
+
+out:
+		/* Change to default page */
+		phy_write(phydev, RTL8211_PAGSEL, 0x0);
+	} else {
+		int value;
+		value = phy_read(phydev, MII_BMCR);
+		phy_write(phydev, MII_BMCR, value & ~BMCR_PDOWN);
+	}
+	mutex_unlock(&phydev->lock);
+
+	return err;
+}
+
 static struct phy_driver realtek_drvs[] = {
 	{
 		.phy_id         = 0x00008201,
@@ -159,8 +333,10 @@ static struct phy_driver realtek_drvs[] = {
 		.read_status	= &genphy_read_status,
 		.ack_interrupt	= &rtl821x_ack_interrupt,
 		.config_intr	= &rtl8211e_config_intr,
-		.suspend	= genphy_suspend,
-		.resume		= genphy_resume,
+		.set_wol	= &rtl8211e_set_wol,
+		.get_wol	= &rtl8211e_get_wol,
+		.suspend	= &rtl8211e_suspend,
+		.resume		= &rtl8211e_resume,
 		.driver		= { .owner = THIS_MODULE,},
 	}, {
 		.phy_id		= 0x001cc916,

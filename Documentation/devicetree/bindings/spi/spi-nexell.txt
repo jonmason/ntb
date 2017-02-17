@@ -1,0 +1,108 @@
+* Nexell SPI Controller
+
+The Samsung SPI controller is used to interface with various devices such as flash
+and display controllers using the SPI communication interface.
+
+The Nexell's SPI controller is used same to Samsung SPI contoller.
+
+Required SoC Specific Properties:
+
+- compatible: should be one of the following.
+    - nexell,s5p6818-spi - s5p6818 SoC,
+
+- reg: physical base address of the controller and length of memory mapped
+  region.
+
+- interrupts: The interrupt number to the cpu. The interrupt specifier format
+  depends on the interrupt controller.
+
+- dmas : Two or more DMA channel specifiers following the convention outlined
+  in bindings/dma/dma.txt
+
+- dma-names: Names for the dma channels. There must be at least one channel
+  named "tx" for transmit and named "rx" for receive.
+
+- resets : phandle to the parent reset controller. SPI has 2 channel reset controls.
+ - "nxp_reset" - reset-cotroller,
+  - "RESET_ID_SPI<N>_P" - Nth Pre reset control id (N = 0, 1, ...)
+  - "RESET_ID_SPI<N>" - Nth Reset control id (N = 0, 1, ...)
+- reset-names : input names of resets used by the controller.
+	There must has 2 channel named  "pre-reset", "spi-reset".
+
+Required Board Specific Properties:
+
+- #address-cells: should be 1.
+- #size-cells: should be 0.
+
+Optional Board Specific Properties:
+
+- samsung,spi-src-clk: If the spi controller includes a internal clock mux to
+  select the clock source for the spi bus clock, this property can be used to
+  indicate the clock to be used for driving the spi bus clock. If not specified,
+  the clock number 0 is used as default.
+
+- num-cs: Specifies the number of chip select lines supported. If
+  not specified, the default number of chip select lines is set to 1.
+
+- cs-gpios: should specify GPIOs used for chipselects (see spi-bus.txt)
+
+SPI Controller specific data in SPI slave nodes:
+
+- The spi slave nodes should provide the following information which is required
+  by the spi controller.
+
+  - samsung,spi-feedback-delay: The sampling phase shift to be applied on the
+    miso line (to account for any lag in the miso line). The following are the
+    valid values.
+
+      - 0: No phase shift.
+      - 1: 90 degree phase shift sampling.
+      - 2: 180 degree phase shift sampling.
+      - 3: 270 degree phase shift sampling.
+
+Aliases:
+
+- All the SPI controller nodes should be represented in the aliases node using
+  the following format 'spi{n}' where n is a unique number for the alias.
+
+
+Example:
+
+- SoC Specific Portion:
+	spi_0:spi@c005b000 {
+		compatible = "nexell,s5p6818-spi";
+		reg = <PHYS_BASE_SSP0 0x100>;
+		interrupts = <0 IRQ_SSP0 0>;
+		dmas = <&pl08xdma0 6>, <&pl08xdma0 7>;
+		dma-names = "tx", "rx";
+		resets = <&nexell_reset RESET_ID_SSP0_P>,
+		       <&nexell_reset RESET_ID_SSP0>;
+		reset-names = "pre-reset","spi-reset";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		samsung,spi-src-clk = <0>;
+		num-cs = <1>;
+		clocks = <&spi0>, <&spi0>;
+		clock-names = "spi", "spi_busclk0";
+		pinctrl-names = "default";
+		pinctrl-0 = <&spi0_bus>;
+		status ="disable";
+	};
+
+- Board Specific Portion:
+
+	spi_0:spi@c005b000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		cs-gpios = <&gpio_c 30 0>;
+		status = "okay";
+
+		spidev0@0 {
+			compatible ="rohm,dh2228fv";
+			reg = <0>;
+			spi-max-frequency = <50000000>;
+			controller-data {
+				smasung,spi-feedback-delay = <02>;
+			};
+		};
+	};

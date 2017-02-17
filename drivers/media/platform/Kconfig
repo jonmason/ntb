@@ -33,6 +33,8 @@ source "drivers/media/platform/omap/Kconfig"
 
 source "drivers/media/platform/blackfin/Kconfig"
 
+source "drivers/media/platform/nexell/Kconfig"
+
 config VIDEO_SH_VOU
 	tristate "SuperH VOU video output driver"
 	depends on MEDIA_CAMERA_SUPPORT
@@ -303,3 +305,10 @@ menuconfig DVB_PLATFORM_DRIVERS
 if DVB_PLATFORM_DRIVERS
 source "drivers/media/platform/sti/c8sectpfe/Kconfig"
 endif #DVB_PLATFORM_DRIVERS
+
+config VIDEO_NEXELL_CODEC
+	tristate "Nexell Video Codec"
+	depends on VIDEO_V4L2
+	default n
+	---help---
+	  This is a v4l2 driver for Nexell Video Codec.

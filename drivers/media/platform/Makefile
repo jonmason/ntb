@@ -54,4 +54,9 @@ obj-$(CONFIG_VIDEO_AM437X_VPFE)		+= am437x/
 
 obj-$(CONFIG_VIDEO_XILINX)		+= xilinx/
 
+obj-$(CONFIG_VIDEO_NEXELL)		+= nexell/
+obj-$(CONFIG_VIDEO_NEXELL_NXS)		+= nexell/
+
+obj-$(CONFIG_VIDEO_NEXELL_CODEC)	+= nxp-vpu/
+
 ccflags-y += -I$(srctree)/drivers/media/i2c

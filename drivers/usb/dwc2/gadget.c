@@ -2574,6 +2574,11 @@ irq_retry:
 	if (gintsts & GINTSTS_ERLYSUSP) {
 		dev_dbg(hsotg->dev, "GINTSTS_ErlySusp\n");
 		dwc2_writel(GINTSTS_ERLYSUSP, hsotg->regs + GINTSTS);
+#if defined(CONFIG_USB_F_CARPLAY) || defined(CONFIG_USB_CONFIGFS_CARPLAY)
+		if (hsotg->connected)
+			kobject_uevent_env(&hsotg->dev->kobj, KOBJ_OFFLINE,
+					   NULL);
+#endif
 	}
 
 	/*
@@ -3683,6 +3688,16 @@ int dwc2_hsotg_suspend(struct dwc2_hsotg *hsotg)
 	if (hsotg->lx_state != DWC2_L0)
 		return 0;
 
+	if (of_device_is_compatible(hsotg->dev->of_node,
+				    "nexell,nexell-dwc2otg")) {
+		u32 usb_status = readl(hsotg->regs + GOTGCTL);
+
+		if (usb_status & GOTGCTL_BSESVLD) {
+			dev_warn(hsotg->dev, "usb device is still connected\n");
+			return -EBUSY;
+		}
+	}
+
 	if (hsotg->driver) {
 		int ep;
 
@@ -3701,6 +3716,12 @@ int dwc2_hsotg_suspend(struct dwc2_hsotg *hsotg)
 				dwc2_hsotg_ep_disable(&hsotg->eps_in[ep]->ep);
 			if (hsotg->eps_out[ep])
 				dwc2_hsotg_ep_disable(&hsotg->eps_out[ep]->ep);
+		}
+	} else {
+		if (of_device_is_compatible(hsotg->dev->of_node,
+					    "nexell,nexell-dwc2otg")) {
+			phy_exit(hsotg->phy);
+			phy_power_off(hsotg->phy);
 		}
 	}
 
@@ -3723,6 +3744,12 @@ int dwc2_hsotg_resume(struct dwc2_hsotg *hsotg)
 		if (hsotg->enabled)
 			dwc2_hsotg_core_connect(hsotg);
 		spin_unlock_irqrestore(&hsotg->lock, flags);
+	} else {
+		if (of_device_is_compatible(hsotg->dev->of_node,
+					    "nexell,nexell-dwc2otg")) {
+			phy_power_on(hsotg->phy);
+			phy_init(hsotg->phy);
+		}
 	}
 
 	return 0;

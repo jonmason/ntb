@@ -38,10 +38,15 @@
 #include <linux/mfd/syscon.h>
 #include <linux/regmap.h>
 
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+#include <linux/pm_qos.h>
+#include <linux/soc/nexell/cpufreq.h>
+#endif
+
 #include <asm/irq.h>
 
 #include <linux/platform_data/i2c-s3c2410.h>
-
+#include <linux/reset.h>
 /* see s3c2410x user guide, v1.1, section 9 (p447) for more info */
 
 #define S3C2410_IICCON			0x00
@@ -125,8 +130,11 @@ struct s3c24xx_i2c {
 	struct s3c2410_platform_i2c	*pdata;
 	int			gpios[2];
 	struct pinctrl          *pctrl;
-#if defined(CONFIG_ARM_S3C24XX_CPUFREQ)
+#if defined(CONFIG_ARM_S3C24XX_CPUFREQ) || defined(CONFIG_ARM_S5Pxx18_DEVFREQ)
 	struct notifier_block	freq_transition;
+#endif
+#if defined(CONFIG_ARM_S5Pxx18_DEVFREQ)
+	unsigned long		clk_in;
 #endif
 	struct regmap		*sysreg;
 	unsigned int		sys_i2c_cfg;
@@ -158,6 +166,8 @@ static const struct of_device_id s3c24xx_i2c_match[] = {
 	  .data = (void *)(QUIRK_S3C2440 | QUIRK_NO_GPIO) },
 	{ .compatible = "samsung,exynos5-sata-phy-i2c",
 	  .data = (void *)(QUIRK_S3C2440 | QUIRK_POLL | QUIRK_NO_GPIO) },
+	{ .compatible = "nexell,s5p6818-i2c",
+	  .data = (void *)(QUIRK_S3C2440 | QUIRK_NO_GPIO) },
 	{},
 };
 MODULE_DEVICE_TABLE(of, s3c24xx_i2c_match);
@@ -969,6 +979,126 @@ static inline void s3c24xx_i2c_deregister_cpufreq(struct s3c24xx_i2c *i2c)
 				    CPUFREQ_TRANSITION_NOTIFIER);
 }
 
+#elif defined(CONFIG_ARM_S5Pxx18_DEVFREQ)
+
+#define freq_to_i2c(_n) container_of(_n, struct s3c24xx_i2c, freq_transition)
+
+static int s3c24xx_i2c_clockrate_by_clkin(struct s3c24xx_i2c *i2c,
+					  unsigned long clkin,
+					  unsigned int *got)
+{
+	struct s3c2410_platform_i2c *pdata = i2c->pdata;
+	unsigned int divs, div1;
+	unsigned long target_frequency;
+	u32 iiccon;
+	int freq;
+
+	i2c->clkrate = clkin;
+	clkin /= 1000;		/* clkin now in KHz */
+
+	dev_dbg(i2c->dev, "pdata desired frequency %lu\n", pdata->frequency);
+
+	target_frequency = pdata->frequency ? pdata->frequency : 100000;
+
+	target_frequency /= 1000; /* Target frequency now in KHz */
+
+	freq = s3c24xx_i2c_calcdivisor(clkin, target_frequency, &div1, &divs);
+
+	if (freq > target_frequency) {
+		dev_err(i2c->dev,
+			"Unable to achieve desired frequency %luKHz."	\
+			" Lowest achievable %dKHz\n", target_frequency, freq);
+		return -EINVAL;
+	}
+
+	*got = freq;
+
+	iiccon = readl(i2c->regs + S3C2410_IICCON);
+	iiccon &= ~(S3C2410_IICCON_SCALEMASK | S3C2410_IICCON_TXDIV_512);
+	iiccon |= (divs-1);
+
+	if (div1 == 512)
+		iiccon |= S3C2410_IICCON_TXDIV_512;
+
+	if (i2c->quirks & QUIRK_POLL)
+		iiccon |= S3C2410_IICCON_SCALE(2);
+
+	writel(iiccon, i2c->regs + S3C2410_IICCON);
+
+	if (i2c->quirks & QUIRK_S3C2440) {
+		unsigned long sda_delay;
+
+		if (pdata->sda_delay) {
+			sda_delay = clkin * pdata->sda_delay;
+			sda_delay = DIV_ROUND_UP(sda_delay, 1000000);
+			sda_delay = DIV_ROUND_UP(sda_delay, 5);
+			if (sda_delay > 3)
+				sda_delay = 3;
+			sda_delay |= S3C2410_IICLC_FILTER_ON;
+		} else
+			sda_delay = 0;
+
+		dev_dbg(i2c->dev, "IICLC=%08lx\n", sda_delay);
+		writel(sda_delay, i2c->regs + S3C2440_IICLC);
+	}
+
+	return 0;
+}
+
+static int s3c24xx_i2c_cpufreq_transition(struct notifier_block *nb,
+					  unsigned long val, void *data)
+{
+	unsigned long freq;
+	unsigned int got;
+	int ret;
+	struct s3c24xx_i2c *i2c = freq_to_i2c(nb);
+	unsigned long clkin = clk_get_rate(i2c->clk);
+
+	if (val == 0 || val == PM_QOS_DEFAULT_VALUE)
+		val = NX_BUS_CLK_LOW_KHZ;
+
+	/* change KHz to MHz */
+	freq = (val * 1000) / 2;
+
+	if (i2c->clk_in == 0) {
+		i2c->clk_in = clkin;
+		dev_info(i2c->dev, "Original clock in freq: %lu\n", clkin);
+	}
+
+	dev_dbg(i2c->dev, "[nx-devfreq] freq %lu, clk_in %lu\n",
+		freq, i2c->clk_in);
+
+	if (freq != i2c->clk_in) {
+		dev_dbg(i2c->dev, "Changed source clk from %lu -> %lu\n",
+			 i2c->clk_in, freq);
+
+		i2c_lock_adapter(&i2c->adap);
+		ret = s3c24xx_i2c_clockrate_by_clkin(i2c, freq, &got);
+		i2c_unlock_adapter(&i2c->adap);
+
+		if (ret < 0) {
+			dev_err(i2c->dev, "cannot find frequency\n");
+		} else {
+			dev_dbg(i2c->dev, "setting freq %d\n", got);
+			i2c->clk_in = freq;
+		}
+	}
+
+	return 0;
+}
+
+static inline int s3c24xx_i2c_register_cpufreq(struct s3c24xx_i2c *i2c)
+{
+	i2c->freq_transition.notifier_call = s3c24xx_i2c_cpufreq_transition;
+
+	return nx_bus_add_notifier(&i2c->freq_transition);
+}
+
+static inline void s3c24xx_i2c_deregister_cpufreq(struct s3c24xx_i2c *i2c)
+{
+	nx_bus_remove_notifier(&i2c->freq_transition);
+	pm_qos_remove_notifier(PM_QOS_BUS_THROUGHPUT, &i2c->freq_transition);
+}
 #else
 static inline int s3c24xx_i2c_register_cpufreq(struct s3c24xx_i2c *i2c)
 {
@@ -1199,6 +1329,23 @@ static int s3c24xx_i2c_probe(struct platform_device *pdev)
 	/* initialise the i2c controller */
 
 	clk_prepare_enable(i2c->clk);
+
+	/*
+	 * patch for s5p6818
+	 * s5p6818 i2c must be reset before enabled
+	 */
+#ifdef CONFIG_RESET_CONTROLLER
+	if (of_device_is_compatible(pdev->dev.of_node, "nexell,s5p6818-i2c")) {
+		struct reset_control *rst =
+			devm_reset_control_get(i2c->dev, "i2c-reset");
+		if (IS_ERR(rst)) {
+			dev_err(&pdev->dev,
+				"I2C controller failed to get reset_control\n");
+			return -EINVAL;
+		}
+		reset_control_reset(rst);
+	}
+#endif
 	ret = s3c24xx_i2c_init(i2c);
 	clk_disable(i2c->clk);
 	if (ret != 0) {
@@ -1312,6 +1459,22 @@ static int s3c24xx_i2c_resume_noirq(struct device *dev)
 	ret = clk_enable(i2c->clk);
 	if (ret)
 		return ret;
+	/*
+	 * patch for s5p6818
+	 * s5p6818 i2c must be reset when resuming
+	 */
+#ifdef CONFIG_RESET_CONTROLLER
+	if (of_device_is_compatible(dev->of_node, "nexell,s5p6818-i2c")) {
+		struct reset_control *rst =
+			devm_reset_control_get(i2c->dev, "i2c-reset");
+		if (IS_ERR(rst)) {
+			dev_err(&pdev->dev,
+				"I2C controller failed to get reset_control\n");
+			return -EINVAL;
+		}
+		reset_control_reset(rst);
+	}
+#endif
 	s3c24xx_i2c_init(i2c);
 	clk_disable(i2c->clk);
 	i2c->suspended = 0;

@@ -21,7 +21,7 @@ config STMMAC_PLATFORM
 	---help---
 	  This selects the platform specific bus support for the stmmac driver.
 	  This is the driver used on several SoCs:
-	  STi, Allwinner, Amlogic Meson, Altera SOCFPGA.
+	  STi, Allwinner, Amlogic Meson, Altera SOCFPGA, Nexell.
 
 	  If you have a controller with this interface, say Y or M here.
 
@@ -68,6 +68,16 @@ config DWMAC_MESON
 	  This selects the Amlogic Meson SoC glue layer support for
 	  the stmmac device driver. This driver is used for Meson6 and
 	  Meson8 SoCs.
+
+config DWMAC_NEXELL
+	tristate "Nexell dwmac support"
+	default ARCH_S5P6818
+	depends on OF
+	help
+	  Support for Ethernet controller on Nexell SoCs.
+
+	  This selects the Nexell SoC glue layer support for
+	  the stmmac device driver.
 
 config DWMAC_ROCKCHIP
 	tristate "Rockchip dwmac support"

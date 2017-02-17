@@ -28,6 +28,7 @@
 #include <linux/err.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/delay.h>
 
 #include <linux/platform_data/ntc_thermistor.h>
 
@@ -39,6 +40,9 @@
 #include <linux/hwmon.h>
 #include <linux/hwmon-sysfs.h>
 #include <linux/thermal.h>
+
+#define SAMPLE_CNT 5
+#define TEMPGAP	20000
 
 struct ntc_compensation {
 	int		temp_c;
@@ -309,6 +313,8 @@ ntc_thermistor_parse_dt(struct platform_device *pdev)
 		return ERR_PTR(-ENODEV);
 	if (of_property_read_u32(np, "pulldown-ohm", &pdata->pulldown_ohm))
 		return ERR_PTR(-ENODEV);
+	if (of_property_read_u32(np, "compensation", &pdata->compensat_temp))
+		return ERR_PTR(-ENODEV);
 
 	if (of_find_property(np, "connected-positive", NULL))
 		pdata->connect = NTC_CONNECTED_POSITIVE;
@@ -481,12 +487,35 @@ static int ntc_read_temp(void *dev, int *temp)
 {
 	struct ntc_data *data = dev_get_drvdata(dev);
 	int ohm;
+	int i = 0;
+	static int temp_old;
+	static int temp_error;
 
-	ohm = ntc_thermistor_get_ohm(data);
-	if (ohm < 0)
-		return ohm;
+	for (i = 0; i < SAMPLE_CNT; i++) {
+		ohm = ntc_thermistor_get_ohm(data);
+		if (ohm < 0)
+			continue;
 
-	*temp = get_temp_mc(data, ohm);
+		*temp = get_temp_mc(data, ohm) + data->pdata->compensat_temp;
+
+		if ((*temp + TEMPGAP) < temp_old) {
+			temp_error++;
+			msleep(50);
+			continue;
+		} else
+			break;
+	}
+
+	temp_old = *temp;
+
+	return 0;
+}
+
+static int ntc_set_emul_temp(void *dev, int temp)
+{
+	struct ntc_data *data = dev_get_drvdata(dev);
+
+	data->tz->emul_temperature = temp;
 
 	return 0;
 }
@@ -535,6 +564,7 @@ static const struct attribute_group ntc_attr_group = {
 
 static const struct thermal_zone_of_device_ops ntc_of_thermal_ops = {
 	.get_temp = ntc_read_temp,
+	.set_emul_temp = ntc_set_emul_temp,
 };
 
 static int ntc_thermistor_probe(struct platform_device *pdev)

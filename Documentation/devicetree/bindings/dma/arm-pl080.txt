@@ -1,0 +1,86 @@
+* ARM PrimeCell PL080 DMA Controller
+
+The ARM PrimeCell PL080 DMA controller can move blocks of memory contents
+between memory and peripherals or memory to memory.
+
+Required properties:
+  - compatible: should include both "arm,pl080" and "arm,primecell".
+  - reg: physical base address of the controller and length of memory mapped
+    region.
+  - interrupts: interrupt number to the cpu.
+
+Optional properties:
+  - dma-coherent : Present if dma operations are coherent
+  - #dma-cells : must be <1>. used to represent the number of integer
+    cells in the dmas property of client device.
+  - arm,primecell-periphid : Value to override the h/w value with
+  - master_lli_buses : buses which LLIs can be fetched from: PL08X_AHB1 | PL08X_AHB2
+  - master_mem_buses : buses which memory can be accessed from: PL08X_AHB1 | PL08X_AHB2
+  - memcpy_bus_id : name of this device channel, not just a device name since
+    devices may have more than one channel e.g. "foo_tx"
+  - memcpy_cctl : options for the channel control register for memcpy
+  - slave_bus_id : name of this device channel, not just a device name since
+    devices may have more than one channel e.g. "foo_tx"
+  - slave_min_signal : the minimum DMA signal number to be muxed in for this
+    channel (for platforms supporting muxed signals). If you have
+    static assignments, make sure this is set to the assigned signal
+    number, PL08x have 16 possible signals in number 0 thru 15 so
+    when these are not enough they often get muxed (in hardware)
+    disabling simultaneous use of the same channel for two devices.
+  - slave_periph_buses : the device connected to this channel is accessible via
+    these buses (use PL08X_AHB1 | PL08X_AHB2).
+  - use_isr : use isr instead of tasklet.
+  - slave_wait_flush_dma : wait until flush slave channel dma buffer.
+
+Example:
+
+	pl08xdma0:pl08xdma@00000 {
+		compatible = "arm,pl080", "arm,primecell";
+		reg = <0xC0000000 0x1000>;
+		interrupts = <0 1 0>;
+		#dma-cells = <1>;
+
+		/* ID and bus config */
+		arm,primecell-periphid = <0x00041080>;
+		master_lli_buses = <PL08X_AHB1>;
+
+		/* memeory copy config */
+		master_mem_buses = <PL08X_AHB1>;
+		memcpy_bus_id = "memcpy";
+		memcpy_cctl = <(PL080_BSIZE_256 << PL080_CONTROL_SB_SIZE_SHIFT |\
+			        PL080_BSIZE_256 << PL080_CONTROL_DB_SIZE_SHIFT |\
+				PL080_WIDTH_32BIT << PL080_CONTROL_SWIDTH_SHIFT|\
+				PL080_WIDTH_32BIT << PL080_CONTROL_DWIDTH_SHIFT|\
+				PL080_CONTROL_PROT_BUFF |\
+				PL080_CONTROL_PROT_CACHE |\
+				PL080_CONTROL_PROT_SYS)>;
+		/* slave channels */
+		ch0 {
+			slave_bus_id = "uart1_tx";
+			slave_min_signal = <0>;
+			slave_periph_buses = <PL08X_AHB2>;
+		};
+
+		ch1 {
+		    slave_bus_id = "uart1_rx";
+		    slave_min_signal = <1>;
+		    slave_periph_buses = <PL08X_AHB2>;
+		};
+		/* add other channels information ... */
+	};
+
+Client drivers (device nodes requiring dma transfers from dev-to-mem or
+mem-to-dev) should specify the DMA channel numbers and dma channel names
+as shown below.
+
+  [property name]  = <[phandle of the dma controller] [dma request id]>;
+  [property name]  = <[dma channel name]>
+
+      where 'dma request id' is the dma request number which is connected
+      to the client controller. The 'property name' 'dmas' and 'dma-names'
+      as required by the generic dma device tree binding helpers. The dma
+      names correspond 1:1 with the dma request ids in the dmas property.
+
+  Example:  dmas = <&pdma0 12
+		    &pdma1 11>;
+	    dma-names = "tx", "rx";

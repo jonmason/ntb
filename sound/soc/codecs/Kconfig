@@ -63,6 +63,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_DA9055 if I2C
 	select SND_SOC_DMIC
 	select SND_SOC_BT_SCO
+	select SND_SOC_ES8316 if I2C
 	select SND_SOC_ES8328_SPI if SPI_MASTER
 	select SND_SOC_ES8328_I2C if I2C
 	select SND_SOC_GTM601
@@ -93,6 +94,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_RT5640 if I2C
 	select SND_SOC_RT5645 if I2C
 	select SND_SOC_RT5651 if I2C
+	select SND_SOC_RT5659 if I2C
 	select SND_SOC_RT5670 if I2C
 	select SND_SOC_RT5677 if I2C && SPI_MASTER
 	select SND_SOC_SGTL5000 if I2C
@@ -454,6 +456,12 @@ config SND_SOC_BT_SCO
 config SND_SOC_DMIC
 	tristate
 
+config SND_SOC_HDMI_CODEC
+       tristate "HDMI stub CODEC"
+
+config SND_SOC_ES8316
+	tristate "Everest Semi ES8316 CODEC"
+
 config SND_SOC_ES8328
 	tristate "Everest Semi ES8328 CODEC"
 
@@ -561,6 +569,10 @@ config SND_SOC_RT5645
 
 config SND_SOC_RT5651
 	tristate
+
+config SND_SOC_RT5659
+	tristate "Realteck ALC5658/RT5659 CODEC"
+	depends on I2C
 
 config SND_SOC_RT5670
 	tristate
@@ -683,7 +695,9 @@ config SND_SOC_TLV320AIC31XX
 	select REGMAP_I2C
 
 config SND_SOC_TLV320AIC32X4
-	tristate
+	tristate "Texas Instruments TLV320AIC32x4 CODECs"
+	depends on I2C
+	select REGMAP_I2C
 
 config SND_SOC_TLV320AIC3X
 	tristate "Texas Instruments TLV320AIC3x CODECs"

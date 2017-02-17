@@ -271,6 +271,8 @@ int mmc_of_parse(struct mmc_host *host)
 		host->caps |= MMC_CAP_HW_RESET;
 	if (of_property_read_bool(np, "cap-sdio-irq"))
 		host->caps |= MMC_CAP_SDIO_IRQ;
+	if (of_property_read_bool(np, "cap-mmc-hw-reset"))
+		host->caps |= MMC_CAP_HW_RESET;
 	if (of_property_read_bool(np, "full-pwr-cycle"))
 		host->caps2 |= MMC_CAP2_FULL_PWR_CYCLE;
 	if (of_property_read_bool(np, "keep-power-in-suspend"))
@@ -289,6 +291,8 @@ int mmc_of_parse(struct mmc_host *host)
 		host->caps2 |= MMC_CAP2_HS400_1_8V | MMC_CAP2_HS200_1_8V_SDR;
 	if (of_property_read_bool(np, "mmc-hs400-1_2v"))
 		host->caps2 |= MMC_CAP2_HS400_1_2V | MMC_CAP2_HS200_1_2V_SDR;
+	if (of_property_read_bool(np, "disable-data-tag"))
+		host->caps2 |= MMC_CAP2_NO_DATA_TAG;
 
 	host->dsr_req = !of_property_read_u32(np, "dsr", &host->dsr);
 	if (host->dsr_req && (host->dsr & ~0xffff)) {

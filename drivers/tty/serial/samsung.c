@@ -92,6 +92,10 @@ static void dbg(const char *fmt, ...)
 /* flag to ignore all characters coming in */
 #define RXSTAT_DUMMY_READ (0x10000000)
 
+/* Baudrate definition*/
+#define MAX_BAUD     3000000
+#define MIN_BAUD     0
+
 static inline struct s3c24xx_uart_port *to_ourport(struct uart_port *port)
 {
 	return container_of(port, struct s3c24xx_uart_port, port);
@@ -1074,6 +1078,7 @@ static void s3c24xx_serial_pm(struct uart_port *port, unsigned int level,
 {
 	struct s3c24xx_uart_port *ourport = to_ourport(port);
 	int timeout = 10000;
+	unsigned int umcon;
 
 	ourport->pm_level = level;
 
@@ -1081,6 +1086,10 @@ static void s3c24xx_serial_pm(struct uart_port *port, unsigned int level,
 	case 3:
 		while (--timeout && !s3c24xx_serial_txempty_nofifo(port))
 			udelay(100);
+
+		umcon = rd_regl(port, S3C2410_UMCON);
+		umcon &= ~(S3C2410_UMCOM_AFC | S3C2410_UMCOM_RTS_LOW);
+		wr_regl(port, S3C2410_UMCON, umcon);
 
 		if (!IS_ERR(ourport->baudclk))
 			clk_disable_unprepare(ourport->baudclk);
@@ -1253,7 +1262,7 @@ static void s3c24xx_serial_set_termios(struct uart_port *port,
 	 * Ask the core to calculate the divisor for us.
 	 */
 
-	baud = uart_get_baud_rate(port, termios, old, 0, 115200*8);
+	baud = uart_get_baud_rate(port, termios, old, MIN_BAUD, MAX_BAUD);
 	quot = s3c24xx_serial_getclk(ourport, baud, &clk, &clk_sel);
 	if (baud == 38400 && (port->flags & UPF_SPD_MASK) == UPF_SPD_CUST)
 		quot = port->custom_divisor;
@@ -1263,14 +1272,14 @@ static void s3c24xx_serial_set_termios(struct uart_port *port,
 	/* check to see if we need  to change clock source */
 
 	if (ourport->baudclk != clk) {
+		clk_prepare_enable(clk);
+
 		s3c24xx_serial_setsource(port, clk_sel);
 
 		if (!IS_ERR(ourport->baudclk)) {
 			clk_disable_unprepare(ourport->baudclk);
 			ourport->baudclk = ERR_PTR(-EINVAL);
 		}
-
-		clk_prepare_enable(clk);
 
 		ourport->baudclk = clk;
 		ourport->baudclk_rate = clk ? clk_get_rate(clk) : 0;
@@ -1538,8 +1547,35 @@ s3c24xx_serial_ports[CONFIG_SERIAL_SAMSUNG_UARTS] = {
 			.flags		= UPF_BOOT_AUTOCONF,
 			.line		= 3,
 		}
+	},
+#endif
+#if CONFIG_SERIAL_SAMSUNG_UARTS > 4
+	[4] = {
+		.port = {
+			.lock		= __PORT_LOCK_UNLOCKED(4),
+			.iotype		= UPIO_MEM,
+			.uartclk	= 0,
+			.fifosize	= 16,
+			.ops		= &s3c24xx_serial_ops,
+			.flags		= UPF_BOOT_AUTOCONF,
+			.line		= 4,
+		}
+	},
+#endif
+#if CONFIG_SERIAL_SAMSUNG_UARTS > 5
+	[5] = {
+		.port = {
+			.lock		= __PORT_LOCK_UNLOCKED(5),
+			.iotype		= UPIO_MEM,
+			.uartclk	= 0,
+			.fifosize	= 16,
+			.ops		= &s3c24xx_serial_ops,
+			.flags		= UPF_BOOT_AUTOCONF,
+			.line		= 5,
+		}
 	}
 #endif
+
 };
 #undef __PORT_LOCK_UNLOCKED
 
@@ -1676,7 +1712,7 @@ static int s3c24xx_serial_init_port(struct s3c24xx_uart_port *ourport,
 		return -ENODEV;
 
 	if (port->mapbase != 0)
-		return 0;
+		return -EINVAL;
 
 	/* setup info for port */
 	port->dev	= &platdev->dev;
@@ -1730,22 +1766,25 @@ static int s3c24xx_serial_init_port(struct s3c24xx_uart_port *ourport,
 		ourport->dma = devm_kzalloc(port->dev,
 					    sizeof(*ourport->dma),
 					    GFP_KERNEL);
-		if (!ourport->dma)
-			return -ENOMEM;
+		if (!ourport->dma) {
+			ret = -ENOMEM;
+			goto err;
+		}
 	}
 
 	ourport->clk	= clk_get(&platdev->dev, "uart");
 	if (IS_ERR(ourport->clk)) {
 		pr_err("%s: Controller clock not found\n",
 				dev_name(&platdev->dev));
-		return PTR_ERR(ourport->clk);
+		ret = PTR_ERR(ourport->clk);
+		goto err;
 	}
 
 	ret = clk_prepare_enable(ourport->clk);
 	if (ret) {
 		pr_err("uart: clock failed to prepare+enable: %d\n", ret);
 		clk_put(ourport->clk);
-		return ret;
+		goto err;
 	}
 
 	/* Keep all interrupts masked and cleared */
@@ -1761,7 +1800,12 @@ static int s3c24xx_serial_init_port(struct s3c24xx_uart_port *ourport,
 
 	/* reset the fifos (and setup the uart) */
 	s3c24xx_serial_resetport(port, cfg);
+
 	return 0;
+
+err:
+	port->mapbase = 0;
+	return ret;
 }
 
 /* Device driver serial port probe */
@@ -1821,6 +1865,23 @@ static int s3c24xx_serial_probe(struct platform_device *pdev)
 	else if (ourport->info->fifosize)
 		ourport->port.fifosize = ourport->info->fifosize;
 
+	/*
+	 * patch for s5p6818
+	 * s5p6818 uart needs reset before enabled
+	 */
+#ifdef CONFIG_RESET_CONTROLLER
+	if (ourport->info->has_reset_control) {
+		struct reset_control *rst;
+
+		rst = devm_reset_control_get(&pdev->dev, "uart-reset");
+		if (!rst) {
+			dev_err(&pdev->dev, "failed to get reset control\n");
+			return -EINVAL;
+		}
+		if (reset_control_status(rst))
+			reset_control_reset(rst);
+	}
+#endif
 	/*
 	 * DMA transfers must be aligned at least to cache line size,
 	 * so find minimal transfer size suitable for DMA mode
@@ -1909,6 +1970,24 @@ static int s3c24xx_serial_resume_noirq(struct device *dev)
 	struct uart_port *port = s3c24xx_dev_to_port(dev);
 
 	if (port) {
+		/*
+		 * patch for s5p6818
+		 * s5p6818 uart needs reset before enabled
+		 */
+#ifdef CONFIG_RESET_CONTROLLER
+		struct s3c24xx_uart_port *ourport = to_ourport(port);
+
+		if (ourport->info->has_reset_control) {
+			struct reset_control *rst;
+
+			rst = devm_reset_control_get(dev, "uart-reset");
+			if (!rst) {
+				dev_err(dev, "failed to get reset control\n");
+				return -EINVAL;
+			}
+			reset_control_reset(rst);
+		}
+#endif
 		/* restore IRQ mask */
 		if (s3c24xx_serial_has_interrupt_mask(port)) {
 			unsigned int uintm = 0xf;
@@ -2327,6 +2406,36 @@ static struct s3c24xx_serial_drv_data exynos5433_serial_drv_data = {
 #define EXYNOS5433_SERIAL_DRV_DATA (kernel_ulong_t)NULL
 #endif
 
+#if defined(CONFIG_ARCH_S5P6818)
+static struct s3c24xx_serial_drv_data nexell_serial_drv_data = {
+	.info = &(struct s3c24xx_uart_info) {
+		.name		= "Nexell UART",
+		.type		= PORT_S3C6400,
+		.has_divslot	= 1,
+		.has_reset_control = 1,
+		.rx_fifomask	= S5PV210_UFSTAT_RXMASK,
+		.rx_fifoshift	= S5PV210_UFSTAT_RXSHIFT,
+		.rx_fifofull	= S5PV210_UFSTAT_RXFULL,
+		.tx_fifofull	= S5PV210_UFSTAT_TXFULL,
+		.tx_fifomask	= S5PV210_UFSTAT_TXMASK,
+		.tx_fifoshift	= S5PV210_UFSTAT_TXSHIFT,
+		.def_clk_sel	= S3C2410_UCON_CLKSEL0,
+		.num_clks	= 1,
+		.clksel_mask	= 0,
+		.clksel_shift	= 0,
+	},
+	.def_cfg = &(struct s3c2410_uartcfg) {
+		.ucon		= S5PV210_UCON_DEFAULT,
+		.ufcon		= S5PV210_UFCON_DEFAULT,
+		.has_fracval	= 1,
+	},
+	.fifosize = { 256, 64, 16, 16, 16, 16 },
+};
+#define NEXELL_SERIAL_DRV_DATA	   ((kernel_ulong_t)&nexell_serial_drv_data)
+#else
+#define NEXELL_SERIAL_DRV_DATA	   (kernel_ulong_t)NULL
+#endif
+
 static const struct platform_device_id s3c24xx_serial_driver_ids[] = {
 	{
 		.name		= "s3c2410-uart",
@@ -2349,6 +2458,9 @@ static const struct platform_device_id s3c24xx_serial_driver_ids[] = {
 	}, {
 		.name		= "exynos5433-uart",
 		.driver_data	= EXYNOS5433_SERIAL_DRV_DATA,
+	}, {
+		.name		= "s5p6818-uart",
+		.driver_data	= NEXELL_SERIAL_DRV_DATA,
 	},
 	{ },
 };
@@ -2370,6 +2482,8 @@ static const struct of_device_id s3c24xx_uart_dt_match[] = {
 		.data = (void *)EXYNOS4210_SERIAL_DRV_DATA },
 	{ .compatible = "samsung,exynos5433-uart",
 		.data = (void *)EXYNOS5433_SERIAL_DRV_DATA },
+	{ .compatible = "nexell,s5p6818-uart",
+		.data = (void *)NEXELL_SERIAL_DRV_DATA },
 	{},
 };
 MODULE_DEVICE_TABLE(of, s3c24xx_uart_dt_match);
@@ -2489,8 +2603,11 @@ OF_EARLYCON_DECLARE(s5pv210, "samsung,s5pv210-uart",
 			s5pv210_early_console_setup);
 OF_EARLYCON_DECLARE(exynos4210, "samsung,exynos4210-uart",
 			s5pv210_early_console_setup);
+OF_EARLYCON_DECLARE(s5p6818, "nexell,s5p6818-uart",
+			s5pv210_early_console_setup);
 EARLYCON_DECLARE(s5pv210, s5pv210_early_console_setup);
 EARLYCON_DECLARE(exynos4210, s5pv210_early_console_setup);
+EARLYCON_DECLARE(s5p6818, s5pv210_early_console_setup);
 #endif
 
 MODULE_ALIAS("platform:samsung-uart");

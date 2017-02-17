@@ -1,0 +1,186 @@
+/*
+ * Copyright (C) 2016  Nexell Co., Ltd.
+ * Author: Youngbok, Park <ybpark@nexell.co.kr>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+#include <dt-bindings/interrupt-controller/irq.h>
+#include "s5p4418.dtsi"
+
+/ {
+	memory {
+		device_type = "memory";
+		reg = <0x40000000 0x20000000>;
+	};
+
+	soc {
+		#include "s5p4418-pinctrl.dtsi"
+
+		clocks {
+			uart0:uart@c00a9000 { clock-frequency = <147500000>; };
+			uart1:uart@c00a8000 { clock-frequency = <147500000>; };
+			uart2:uart@c00aa000 { clock-frequency = <147500000>; };
+			uart3:uart@c00ab000 { clock-frequency = <147500000>; };
+			uart4:uart@c006e000 { clock-frequency = <147500000>; };
+			uart5:uart@c0084000 { clock-frequency = <147500000>; };
+			spi0:spi@c00ac000  { clock-frequency = <100000000>; };
+			spi1:spi@c00ad000  { clock-frequency = <100000000>; };
+			spi2:spi@c00a7000  { clock-frequency = <100000000>; };
+		};
+
+		dw_mmc_2:dw_mmc@c0069000 {
+			num-slots = <1>;
+			bus-width = <4>;
+			cap-mmc-highspeed;
+			broken-cd;
+			non-removable;
+			clock-frequency = <100000000>;
+			card-detect-delay = <200>;
+			disable-wp;
+			status = "okay";
+			nexell,drive_dly = <0x0>;
+			nexell,drive_shift = <0x02>;
+			nexell,sample_dly = <0x00>;
+			nexell,sample_shift = <0x01>;
+			disable-data-tag;
+		};
+
+		pinctrl@C0010000 {
+			cfg_wlanhostwake: cfg-wlanhostwake {
+				nexell,pins = "alive-3";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+		};
+	};	/*** soc ***/
+	artik_zb_power {
+		compatible = "samsung,artik_zb_power";
+		vdd_zb-supply = <&VCC_LDO2>;
+		reset-gpio = <&gpio_c 8 0>;
+		bootloader-gpio = <&gpio_b 31 0>;
+		status = "okay";
+	};
+
+	artik_s3t9mf {
+		compatible = "samsung,s3t9mf";
+		reset-gpio = <&gpio_b 26 0>;
+		status = "okay";
+	};
+
+	sd8x-rfkill {
+		 compatible = "mrvl,sd8x-rfkill";
+		 sd-host = <&dw_mmc_1>;
+		 pd-gpio = <&gpio_d 30 0>; /* GPIOD30=WLAN_BT_PDN output*/
+		 gpios = <&alive_0 3 1>; /* AliveGPIO3=WLAN_HOST_WAKE, input */
+		 status = "okay";
+	};
+
+	sd8xxx-wlan {
+		 drvdbg  = <0x37>;
+		 drv_mode = <0x5>;
+		 cfg80211_wext = <0xf>;
+		 sta_name = "wlan";
+		 wfd_name = "p2p";
+		 max_vir_bss = <1>;
+		 cal_data_cfg = "mrvl/WlanCalData_ext.conf";
+		 fw_name = "mrvl/sdsd8977_combo_v2.bin";
+		 reg_alpha2 = "US";
+		 p2p_enh = <1>;
+		 inact_tmo = <300>;
+		 txpwrlimit_cfg = "mrvl/txpwrlimit_cfg.bin";
+	};
+
+	sd8xxx-bt {
+		 init_cfg = "mrvl/bt_init_cfg.conf";
+		 cal_cfg = "mrvl/bt_cal_data.conf";
+	};
+
+	thermal_ap:thermal {
+		#thermal-sensor-cells = <0>;
+		compatible = "murata,ncp03wf104";
+		pullup-uv = <1800000>;   /* VCC_1.8V_AP */
+		pullup-ohm = <100000>;   /* 100K */
+		pulldown-ohm = <0>; /* 100K */
+		io-channels = <&adc 6>;  /* AP temperature */
+		compensation = <17000>; /* Compensation temp */
+	};
+
+	thermal-zones {
+		cpu0_thermal: cpu0-thermal {
+			thermal-sensors = <&thermal_ap>;
+			polling-delay-passive = <1000>;
+			polling-delay = <1000>;
+			trips {
+				cpu_alert0: cpu-alert-0 {
+					temperature = <70000>;
+					hysteresis = <100000>;
+					type = "active";
+				};
+				cpu_alert1: cpu-alert-1 {
+					temperature = <80000>;
+					hysteresis = <100000>;
+					type = "passive";
+				};
+				cpu-crit-0 {
+					temperature = <115000>;
+					hysteresis = <100000>;
+					type = "critical";
+					};
+			};
+
+			cooling-maps {
+				map0 {
+					trip = <&cpu_alert0>;
+					cooling-device = <&cpu0 2 2>;
+				};
+				map1 {
+					trip = <&cpu_alert1>;
+					cooling-device = <&cpu0 8 8>;
+				};
+			};
+		};
+	};
+};
+
+&l2 {
+	arm,prefetch-offset = <7>;
+	prefetch-data = <1>;
+	prefetch-instr = <1>;
+	arm,tag-latency = <3 4 3>;
+	arm,data-latency = <3 4 3>;
+};
+
+&dw_mmc_1 {
+	status = "okay";
+	num-slots = <1>;
+	bus-width = <4>;
+	cap-sd-highspeed;
+
+	broken-cd;
+	clock-frequency = <100000000>;
+	supports-detect-complete;
+	keep-power-in-suspend;
+	pm-ignore-notify;
+	powered-resumed-nonremovable-card;
+	cap-oob-sdio-irq;
+
+	nexell,drive_dly = <0x0>;
+	nexell,drive_shift = <0x2>;
+	nexell,sample_dly = <0x00>;
+	nexell,sample_shift = <0x01>;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdmmc1_cclk &sdmmc1_cmd &sdmmc1_bus4 &cfg_wlanhostwake>;
+};

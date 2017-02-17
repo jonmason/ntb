@@ -1,0 +1,48 @@
+Nexell's Analog to Digital Converter (ADC)
+
+The devicetree bindings are for the ADC driver written for Nexell's ADC.
+
+When the sampling is done, interrupt is rised, and then read the value.
+Please refer to the datasheet for more information.
+
+
+Required properties:
+  - compatible: Should be "nexell,<chip>-adc"
+    <chip> can be "s5p4418", "s5p6818"
+  - reg: Should contain ADC registers location and length
+  - interrupts: Should contain the IRQ line for the ADC
+  - clocks : From common clock bindings - handles to clocks specified in
+        "clock-names" property, in the same order.
+  - clock-names: From common clock bindings - list of clock input names used by
+        ADC block. Should contain "adc"
+  - sample_rate: ADC channel sampling rate. (Max 1MHz according to datasheet)
+  - #io-channel-cells: <1> - As ADC has multiple outputs.
+        For details about this, see:
+            Documentation/devicetree/bindings/iio/iio-bindings.txt
+
+
+Example:
+	adc:adc@c0053000 {
+		compatible = "nexell,s5p6818-adc";
+		reg = <PHYS_BASE_ADC 0x1000>;
+		interrupts = <0 IRQ_ADC 0>;
+		resets = <&nexell_reset RESET_ID_ADC>;
+		reset-names = "adc-reset";
+		clocks = <&pclk>;
+		clock-names = "adc";
+		sample_rate = <200000>;
+		#io-channel-cells = <1>;
+	};
+
+Example:
+	adc:adc@c0053000 {
+		compatible = "nexell,s5p4418-adc";
+		reg = <PHYS_BASE_ADC 0x1000>;
+		resets = <&nexell_reset RESET_ID_ADC>;
+		reset-names = "adc-reset";
+		clocks = <&pclk>;
+		clock-names = "adc";
+		sample_rate = <200000>;
+		#io-channel-cells = <1>;
+	};
+

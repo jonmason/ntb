@@ -468,7 +468,11 @@ static void __exit deadline_exit(void)
 	elv_unregister(&iosched_deadline);
 }
 
+#ifdef CONFIG_EXT4_FS_INIT_LEVEL_UP
+fs_initcall(deadline_init);
+#else
 module_init(deadline_init);
+#endif
 module_exit(deadline_exit);
 
 MODULE_AUTHOR("Jens Axboe");

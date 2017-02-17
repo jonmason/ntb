@@ -1,0 +1,78 @@
+* Nexell s5pxx18 specific extensions to the Synopsys Designware Mobile
+  Storage Host Controller
+
+The Synopsys designware mobile storage host controller is used to interface
+a SoC with storage medium such as eMMC or SD/MMC cards. This file documents
+differences between the core Synopsys dw mshc controller properties described
+by synopsys-dw-mshc.txt and the properties used by the Nexell s5pxx18 specific
+extensions to the Synopsys Designware Mobile Storage Host Controller.
+
+Required Properties:
+
+* compatible: should be
+	- "nexell,s5p6818-dw-mshc" : for controllers with nexell s5pxx18.
+
+* nexell,drive_dly : Output drive clock delay. range is 0 ~ 255.
+* nexell,drive_shift : Output drive clock phase shift. range is 0 ~ 3
+* nexell,sample_dly : Read sample clock delay. range is 0 ~ 255.
+* nexell,sample_shift : Read sample clock phase shitf. range is 0 ~ 255.
+
+* clock-names: input names of clocks used by the controller:
+  - "sdhcN" - controller bus clock,
+- clocks: phandles and specifiers for all clocks specified in "clock-names"
+  property, in the same order, according to clock bindings documentation [2].
+
+- resets : phandle to the parent reset controller.
+ - "nxp_reset" - reset-cotroller,
+ - "RESET_ID_SDMMCN" - Nth Reset control id (N = 0, 1, ...)
+- reset-names : input names of resets used by the controller
+
+[1] Documentation/devicetree/bindings/interrupt-controller/interrupts.txt
+[2] Documentation/devicetree/bindings/clock/clock-bindings.txts
+
+Nodes fot nexell clock timing value:
+ - drive_dly, sample_dly : 1 step delay 1.2usec.
+ - drive_shift, sample_shift :  1 step shuft 90 degree.
+
+Optional properties:
+- soc,tieoff : phandle to the tieoff control.
+ use 8bit bus width ch2. Must set  1 NX_TIEOFF_MMC_8BIT Tieoff.
+
+Example:
+  The MSHC controller node can be split into two portions, SoC specific and
+  board specific portions as listed below.
+
+	dw_mmc_2:dw_mmc@c0069000 {
+		compatible = "nexell,s5p6818-dw-mshc";
+		interrupts = <0 IRQ_SDMMC2 0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <PHYS_BASE_SDMMC2 0x1000>;
+		resets  = <&nexell_reset RESET_ID_SDMMC2>;
+		reset-names = "dw_mmc-reset";
+		clock-names = "sdhc2";
+		clocks = <&sdhc2>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&sdmmc2_cclk &sdmmc2_cmd &sdmmc2_bus4>;
+		fifo-detph = <0x20>;
+		status = "disable";
+	};
+	dw_mmc_2:dw_mmc@c0069000 {
+		num-slots = <1>;
+		bus-width = <8>;
+		cap-mmc-highspeed;
+		broken-cd;
+		non-removable;
+		clock-frequency = <200000000>;
+		nexell,clk_dly = <0x02030000>;
+		card-detect-delay = <200>;
+		disable-wp;
+		pinctrl-0 = <&sdmmc2_cclk &sdmmc2_cmd
+		&sdmmc2_bus4 &sdmmc2_bus8>;
+		status = "okay";
+		nexell,drive_dly = <0x0>;
+		nexell,drive_shift = <0x03>;
+		nexell,sample_dly = <0x00>;
+		nexell,sample_shift = <0x02>;
+		soc,tieoff = <NX_TIEOFF_MMC_8BIT 1>;
+	};

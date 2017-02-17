@@ -1,0 +1,22 @@
+Nexell S5Pxx18 series SoC devfreq Device Tree bindings
+======================================================
+
+The Nexell S5Pxx18 series SoCs can change bus clock dynamically with this driver.
+
+Required properties:
+- compatible	: must contain "nexell,s5pxx18-devfreq"
+- pll		: the number of pll that is origin of bus clock
+- supply_name	: the name of target supply that is changed dynamically,
+		  always "vdd_arm_regulator"
+- vdd_arm_regulator-supply : reference to regulator node
+- status	: default is "disabled". when using, set to "okay"
+
+Example:
+
+        nx-devfreq {
+	        compatible = "nexell,s5pxx18-devfreq";
+	        pll = <0>;
+		supply_name = "vdd_arm_regulator";
+		vdd_arm_regulator-supply = <&VCC_DCDC1>;
+	        status = "okay";
+	};

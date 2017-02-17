@@ -1,0 +1,43 @@
+config VIDEO_NEXELL
+	bool "Nexell S5Pxx18 SoC series V4l2 Subsystem driver"
+	depends on VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	depends on ARCH_S5P6818 || ARCH_S5P4418 || COMPILE_TEST
+	depends on OF && COMMON_CLK
+	depends on RESET_CONTROLLER
+	select VIDEOBUF2_DMA_CONTIG
+	help
+	  Say Y here to enable Nexell video devices for S5Pxx18 series SoC.
+	  This subsystem includes capture devices. Nexell V4L2 drivers supports
+	  only dmabuf type.
+
+if VIDEO_NEXELL
+
+config VIDEO_NEXELL_CAPTURE
+	bool "Nexell S5Pxx18 SoC series camera interface driver"
+	depends on I2C
+	default n
+	help
+	  This is a V4L2 driver for Nexell S5Pxx18 series SoC camera host
+	  interface. Nexell camera device has two memory interfaces, one is
+	  clipper and other is decimator. clipper can crop source region
+	  and decimator can scale down but cannot scale up.
+
+	  Camera host interface has three physical interface with sensor.
+	  Two of them are parallel and support ITU-R BT.656 and CCIR-601.
+	  Other is dedicated to MIPI-CSI.
+
+if VIDEO_NEXELL_CAPTURE
+source "drivers/media/platform/nexell/capture/Kconfig"
+endif # VIDEO_NEXELL_CAPTURE
+
+endif # VIDEO_NEXELL
+
+config VIDEO_NEXELL_NXS
+        bool "Nexell NXStream Devices Support"
+	depends on VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	depends on OF
+	select VIDEOBUF2_DMA_CONTIG
+	select V4L2_MEM2MEM_DEV
+	help
+	  Say Y here to enable Nexell Stream Bus video devices.
+	  This subsystem includes all v4l2 devices of Nexell Stream Bus.

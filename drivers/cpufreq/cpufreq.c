@@ -1821,6 +1821,8 @@ static int __target_index(struct cpufreq_policy *policy,
 		pr_err("%s: Failed to change cpu frequency: %d\n", __func__,
 		       retval);
 
+	freqs.new = policy->cur;
+
 	if (notify) {
 		cpufreq_freq_transition_end(policy, &freqs, retval);
 

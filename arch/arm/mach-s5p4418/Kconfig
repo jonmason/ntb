@@ -1,0 +1,63 @@
+config ARCH_S5P4418
+	bool "Nexell S5P4418D/Q"
+	select CPU_V7
+	select ARM_AMBA
+	select ARM_ERRATA_754322
+	select ARM_ERRATA_764369 if SMP
+	select ARM_ERRATA_775420
+	select ARM_GIC
+	select ARM_VIC
+	select HAVE_SMP
+	select MIGHT_HAVE_CACHE_L2X0
+	select ARCH_HAS_CPUFREQ
+	select GENERIC_TIME
+	select GENERIC_CLOCKEVENTS
+	select ZONE_DMA
+	select SPARSE_IRQ
+	select COMMON_CLK
+	select ARCH_HAS_RESET_CONTROLLER
+	select RESET_CONTROLLER
+	select PINCTRL
+	select ARCH_REQUIRE_GPIOLIB
+	select ARM_PATCH_PHYS_VIRT
+	select USE_OF
+	select HAVE_S3C2410_WATCHDOG if WATCHDOG
+	select HAVE_ARM_SCU if SMP
+	select HAVE_ARM_TWD if SMP
+	select VIRT_TO_BUS
+	help
+	  Support for nexell S5P4418 dual/quard core (ARM Cortex A9) platform
+
+config SECURE_REG_ACCESS
+	bool "Secure register access in non-secure mode"
+	depends on ARCH_S5P4418
+	help
+	  Support for nexell S5P4418 dual/quad core (ARM Cortex A9) platform
+
+config CPU_NXP4330
+	bool "Nexell NXP4330 CPU"
+	depends on ARCH_S5P4418
+	help
+	  Support for nexell nxp4330 cpu.
+
+config REDUCE_BOOT_TIME
+	bool "Enable Reduce Boot-Time"
+	depends on ARCH_S5P4418
+
+config INITCALLS_THREAD
+	bool "Execute kernel device initcalls with thread"
+	depends on ARCH_S5P4418 && REDUCE_BOOT_TIME
+
+config INITCALLS_THREAD_LEVEL
+	int "kernel initcalls thread level"
+	default 6
+	depends on INITCALLS_THREAD
+
+config MMC_INIT_LEVEL_UP
+	bool "MMC and related devices init level up"
+	depends on ARCH_S5P4418 && REDUCE_BOOT_TIME
+	select EXT4_FS_INIT_LEVEL_UP
+
+config EXT4_FS_INIT_LEVEL_UP
+	depends on MMC_INIT_LEVEL_UP
+	bool

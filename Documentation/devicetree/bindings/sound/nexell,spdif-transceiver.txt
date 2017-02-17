@@ -1,0 +1,15 @@
+Nexell Sony/Philips Digital Interface Format (S/PDIF) codec
+
+Required properties:
+
+- compatible     : Compatible list, must contain "nexell,spdif-transceiver"
+- sample_rate    : sample rate of the spdif-transceiver audio codec
+- format         : audio format of the spdif-transceiver audio codec
+
+Example:
+
+spdif-transceiver {
+	compatible = "nexell,spdif-transceiver";
+	sample_rate = <48000>;
+	format = "S16";
+};

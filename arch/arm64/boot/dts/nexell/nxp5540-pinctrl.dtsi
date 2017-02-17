@@ -1,0 +1,180 @@
+/*
+ * Nexell's nxp5540 SoC pin-mux and pin-config device tree source
+ *
+ * Copyright (C) 2016  Nexell Co., Ltd.
+ *		http://www.nexell.co.kr
+ *
+ * Nexell's nxp5540 SoC pin-mux and pin-config options are listed as
+ * device tree nodes in this file.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+*/
+
+&pinctrl_0 {
+	gpio_a: gpioa {
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	gpio_b: gpiob {
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	gpio_c: gpioc {
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	gpio_d: gpiod {
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	gpio_e: gpioe {
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	gpio_f: gpioe {
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	gpio_g: gpioe {
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	gpio_h: gpioe {
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	alive_0: alive {
+		gpio-controller;
+		#gpio-cells = <2>;
+
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+
+	i2s0_bus:i2s0 {
+		i2s0_mclk: i2s0-mclk {
+			nexell,pins = "gpiob-23";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <3>;
+		};
+
+		i2s0_bclk: i2s0-bclk {
+			nexell,pins = "gpiob-22";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <3>;
+		};
+
+		i2s0_other: i2s0-other {
+			nexell,pins = "gpiob-20", "gpiob-21", "gpiob-24";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <0>;
+		};
+	};
+
+	i2s1_bus:i2s1 {
+		i2s1_mclk: i2s1-mclk {
+			nexell,pins = "gpiob-28";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <3>;
+		};
+
+		i2s1_bclk: i2s1-bclk {
+			nexell,pins = "gpiob-27";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <3>;
+		};
+
+		i2s1_other: i2s1-other {
+			nexell,pins = "gpiob-25", "gpiob-26", "gpiob-29";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <0>;
+		};
+	};
+
+	i2s2_bus:i2s2 {
+		i2s2_mclk: i2s2-mclk {
+			nexell,pins = "gpioc-1";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <3>;
+		};
+
+		i2s2_bclk: i2s2-bclk {
+			nexell,pins = "gpioc-0";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <3>;
+		};
+
+		i2s2_other: i2s2-other {
+			nexell,pins = "gpiob-30", "gpiob-31", "gpioc-2";
+			nexell,pin-function = <1>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <0>;
+		};
+	};
+
+	i2s3_bus:i2s3 {
+		i2s3_mclk: i2s3-mclk {
+			nexell,pins = "gpioc-19";
+			nexell,pin-function = <2>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <3>;
+		};
+
+		i2s3_bclk: i2s3-bclk {
+			nexell,pins = "gpioc-18";
+			nexell,pin-function = <2>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <3>;
+		};
+
+		i2s3_other: i2s3-other {
+			nexell,pins = "gpioc-16", "gpioc-17", "gpioc-20";
+			nexell,pin-function = <2>;
+			nexell,pin-pull = <PAD_PULL_OFF>;
+			nexell,pin-strength = <0>;
+		};
+	};
+
+};

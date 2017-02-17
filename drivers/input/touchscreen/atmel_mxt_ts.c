@@ -187,6 +187,11 @@ enum t100_type {
 
 #define MXT_PIXELS_PER_MM	20
 
+static bool skip_bootloader_mode = true;
+module_param_named(skip_bootloader_mode, skip_bootloader_mode, bool, 0);
+MODULE_PARM_DESC(skip_bootloader_mode,
+		 "Skip entering bootloader mode during boot(default=enabled)");
+
 struct mxt_info {
 	u8 family_id;
 	u8 variant_id;
@@ -774,8 +779,13 @@ static void mxt_proc_t100_message(struct mxt_data *data, u8 *message)
 		return;
 
 	status = message[1];
-	x = get_unaligned_le16(&message[2]);
-	y = get_unaligned_le16(&message[4]);
+	if (data->pdata->switch_xy) {
+		x = get_unaligned_le16(&message[4]);
+		y = get_unaligned_le16(&message[2]);
+	} else {
+		x = get_unaligned_le16(&message[2]);
+		y = get_unaligned_le16(&message[4]);
+	}
 
 	if (status & MXT_T100_DETECT) {
 		type = (status & MXT_T100_TYPE_MASK) >> 4;
@@ -1107,8 +1117,8 @@ static int mxt_soft_reset(struct mxt_data *data)
 	if (ret)
 		return ret;
 
-	/* Ignore CHG line for 100ms after reset */
-	msleep(100);
+	/* Ignore CHG line for 10ms after reset */
+	msleep(10);
 
 	enable_irq(data->irq);
 
@@ -1743,7 +1753,7 @@ static int mxt_read_t100_config(struct mxt_data *data)
 	if (range_y == 0)
 		range_y = 1023;
 
-	if (cfg & MXT_T100_CFG_SWITCHXY) {
+	if (cfg & MXT_T100_CFG_SWITCHXY || data->pdata->switch_xy) {
 		data->max_x = range_y;
 		data->max_y = range_x;
 	} else {
@@ -1841,6 +1851,7 @@ static int mxt_initialize_input_device(struct mxt_data *data)
 	input_dev->open = mxt_input_open;
 	input_dev->close = mxt_input_close;
 
+	set_bit(EV_ABS, input_dev->evbit);
 	input_set_capability(input_dev, EV_KEY, BTN_TOUCH);
 
 	/* For single touch */
@@ -1950,6 +1961,9 @@ static int mxt_initialize(struct mxt_data *data)
 		error = mxt_get_info(data);
 		if (!error)
 			break;
+		/* do not try bootloader recovery to avoid long boot time */
+		if (error && skip_bootloader_mode)
+			return error;
 
 		/* Check bootloader state */
 		error = mxt_probe_bootloader(data, false);
@@ -1989,7 +2003,12 @@ static int mxt_initialize(struct mxt_data *data)
 	if (error)
 		goto err_free_object_table;
 
-	error = request_firmware_nowait(THIS_MODULE, true, MXT_CFG_NAME,
+	/* If a cfg is not provided, just skip firmware load */
+	if (data->pdata->skip_cfg_load)
+		error = mxt_configure_objects(data, NULL);
+	else
+		error = request_firmware_nowait(THIS_MODULE, true,
+					MXT_CFG_NAME,
 					&client->dev, GFP_KERNEL, data,
 					mxt_config_cb);
 	if (error) {
@@ -2445,6 +2464,12 @@ static const struct mxt_platform_data *mxt_parse_dt(struct i2c_client *client)
 
 		pdata->t19_keymap = keymap;
 	}
+
+	if (of_property_read_bool(np, "skip-cfg-load"))
+		pdata->skip_cfg_load = true;
+
+	if (of_property_read_bool(np, "switch-xy"))
+		pdata->switch_xy = true;
 
 	pdata->suspend_mode = MXT_SUSPEND_DEEP_SLEEP;
 

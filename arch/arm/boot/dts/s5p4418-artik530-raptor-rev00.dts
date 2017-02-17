@@ -1,0 +1,101 @@
+/*
+ * Copyright (C) 2016  Nexell Co., Ltd.
+ * Author: Youngbok, Park <ybpark@nexell.co.kr>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/dts-v1/;
+#include "s5p4418-artik530-raptor-common.dtsi"
+
+/ {
+	regulators {
+		VCC_DCDC0:dcdc1
+				{ PMIC_PDATA_INIT( 0,
+				"nxe2000_dcdc1",
+				900000, 1500000,
+				1250000, 1, 0, 0x4)
+				regulator-always-on;
+				regulator-boot-on;};
+		VCC_DCDC1:dcdc2
+				{ PMIC_PDATA_INIT( 1,
+				"nxe2000_dcdc2",
+				1000000, 1500000,
+				1100000, 1, 0, 0x4)
+				regulator-always-on;
+				regulator-boot-on;};
+		VCC_DCDC2:dcdc3
+				{ PMIC_PDATA_INIT( 2,
+				"nxe2000_dcdc3",
+				1000000, 1800000,
+				1500000, 1, 0, 0x4)
+				regulator-always-on;
+				regulator-boot-on;};
+		VCC_DCDC3:dcdc4
+				{ PMIC_PDATA_INIT( 3,
+				"nxe2000_dcdc4",
+				1000000, 1800000,
+				1500000, 1, 0, 0xF)
+				regulator-always-on;
+				regulator-boot-on;};
+		VCC_LDO0:ldo1
+				{ PMIC_PDATA_INIT( 5,
+				"nxe2000_ldo1",
+				1000000, 3500000,
+				3300000, 1, 1, 0x0)
+				regulator-always-on;
+				regulator-boot-on;};
+		VCC_LDO1:ldo2
+				{ PMIC_PDATA_INIT( 6,
+				"nxe2000_ldo2",
+				1000000, 3500000,
+				1800000, 1, 1, 0xF)
+				regulator-always-on;
+				regulator-boot-on;};
+		VCC_LDO2:ldo3
+				{ PMIC_PDATA_INIT( 7,
+				"nxe2000_ldo3",
+				1000000, 3500000,
+				3300000, 1, 1, 0xF)
+				regulator-always-on;
+				regulator-boot-on;};
+		VCC_LDO3:ldo4
+				{ PMIC_PDATA_INIT( 8,
+				"nxe2000_ldo4",
+				1000000, 3500000,
+				1200000, 0, 1, 0x2)
+				regulator-always-on;
+				regulator-boot-on;};
+		VCC_LDO4:ldo5
+				{ PMIC_PDATA_INIT( 9,
+				"nxe2000_ldo5",
+				1000000, 3500000,
+				3300000, 0, 1, 0x0)};
+		VCC_RTC0:ldortc1
+				{ PMIC_PDATA_INIT(15,
+				"nxe2000_rtc1",
+				1700000, 3500000,
+				1800000, 1, 1, 0xF)
+				regulator-always-on;
+				regulator-boot-on;};
+		VCC_RTC1:ldortc2
+				{ PMIC_PDATA_INIT(16,
+				"nxe2000_rtc2",
+				1000000, 3500000,
+				1000000, 1, 1, 0xF)
+				regulator-always-on;
+				regulator-boot-on;};
+	}; /* regulators */
+
+};

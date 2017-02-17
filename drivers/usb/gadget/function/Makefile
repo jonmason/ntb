@@ -52,3 +52,5 @@ usb_f_audio_source-y            := f_audio_source.o
 obj-$(CONFIG_USB_F_AUDIO_SRC)   += usb_f_audio_source.o
 usb_f_accessory-y               := f_accessory.o
 obj-$(CONFIG_USB_F_ACC)         += usb_f_accessory.o
+usb_f_carplay-y			:= f_carplay.o
+obj-$(CONFIG_USB_F_CARPLAY)	+= usb_f_carplay.o

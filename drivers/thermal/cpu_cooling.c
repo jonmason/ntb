@@ -377,26 +377,28 @@ static u32 cpu_power_to_freq(struct cpufreq_cooling_device *cpufreq_device,
  * get_load() - get load for a cpu since last updated
  * @cpufreq_device:	&struct cpufreq_cooling_device for this cpu
  * @cpu:	cpu number
+ * @cpu_idx:	index of the cpu in cpufreq_device->allowed_cpus
  *
  * Return: The average load of cpu @cpu in percentage since this
  * function was last called.
  */
-static u32 get_load(struct cpufreq_cooling_device *cpufreq_device, int cpu)
+static u32 get_load(struct cpufreq_cooling_device *cpufreq_device, int cpu,
+		    int cpu_idx)
 {
 	u32 load;
 	u64 now, now_idle, delta_time, delta_idle;
 
 	now_idle = get_cpu_idle_time(cpu, &now, 0);
-	delta_idle = now_idle - cpufreq_device->time_in_idle[cpu];
-	delta_time = now - cpufreq_device->time_in_idle_timestamp[cpu];
+	delta_idle = now_idle - cpufreq_device->time_in_idle[cpu_idx];
+	delta_time = now - cpufreq_device->time_in_idle_timestamp[cpu_idx];
 
 	if (delta_time <= delta_idle)
 		load = 0;
 	else
 		load = div64_u64(100 * (delta_time - delta_idle), delta_time);
 
-	cpufreq_device->time_in_idle[cpu] = now_idle;
-	cpufreq_device->time_in_idle_timestamp[cpu] = now;
+	cpufreq_device->time_in_idle[cpu_idx] = now_idle;
+	cpufreq_device->time_in_idle_timestamp[cpu_idx] = now;
 
 	return load;
 }
@@ -508,6 +510,38 @@ static int cpufreq_get_cur_state(struct thermal_cooling_device *cdev,
 	return 0;
 }
 
+#ifdef CONFIG_HOTPLUG_CPU
+static void enable_cpus(void)
+{
+	int cpu, ret;
+
+	for_each_possible_cpu(cpu) {
+		ret = cpu_up(cpu);
+		if (ret)
+			pr_warn("Error taking CPU%d up: %d\n", cpu, ret);
+	}
+
+	pr_info("%s enable nonboot cpus\n", __func__);
+}
+
+static void disable_cpus(void)
+{
+	int cpu, first_cpu, ret;
+
+	first_cpu = cpumask_first(cpu_online_mask);
+
+	for_each_online_cpu(cpu) {
+		if (cpu == first_cpu)
+			continue;
+		ret = cpu_down(cpu);
+		if (ret)
+			pr_warn("Error taking CPU%d down: %d\n", cpu, ret);
+	}
+
+	pr_info("%s disable nonboot cpus\n", __func__);
+}
+#endif
+
 /**
  * cpufreq_set_cur_state - callback function to set the current cooling state.
  * @cdev: thermal cooling device pointer.
@@ -536,6 +570,16 @@ static int cpufreq_set_cur_state(struct thermal_cooling_device *cdev,
 	clip_freq = cpufreq_device->freq_table[state];
 	cpufreq_device->cpufreq_state = state;
 	cpufreq_device->clipped_freq = clip_freq;
+
+#ifdef CONFIG_HOTPLUG_CPU
+	if (cdev->hotplug_cpu) {
+		if (state == cpufreq_device->max_level) {
+			disable_cpus();
+		} else {
+			enable_cpus();
+		}
+	}
+#endif
 
 	cpufreq_update_policy(cpu);
 
@@ -598,7 +642,7 @@ static int cpufreq_get_requested_power(struct thermal_cooling_device *cdev,
 		u32 load;
 
 		if (cpu_online(cpu))
-			load = get_load(cpufreq_device, cpu);
+			load = get_load(cpufreq_device, cpu, i);
 		else
 			load = 0;
 
@@ -855,14 +899,6 @@ __cpufreq_cooling_register(struct device_node *np,
 		goto free_power_table;
 	}
 
-	snprintf(dev_name, sizeof(dev_name), "thermal-cpufreq-%d",
-		 cpufreq_dev->id);
-
-	cool_dev = thermal_of_cooling_device_register(np, dev_name, cpufreq_dev,
-						      &cpufreq_cooling_ops);
-	if (IS_ERR(cool_dev))
-		goto remove_idr;
-
 	/* Fill freq-table in descending order of frequencies */
 	for (i = 0, freq = -1; i <= cpufreq_dev->max_level; i++) {
 		freq = find_next_max(table, freq);
@@ -874,6 +910,14 @@ __cpufreq_cooling_register(struct device_node *np,
 		else
 			pr_debug("%s: freq:%u KHz\n", __func__, freq);
 	}
+
+	snprintf(dev_name, sizeof(dev_name), "thermal-cpufreq-%d",
+		 cpufreq_dev->id);
+
+	cool_dev = thermal_of_cooling_device_register(np, dev_name, cpufreq_dev,
+						      &cpufreq_cooling_ops);
+	if (IS_ERR(cool_dev))
+		goto remove_idr;
 
 	cpufreq_dev->clipped_freq = cpufreq_dev->freq_table[0];
 	cpufreq_dev->cool_dev = cool_dev;

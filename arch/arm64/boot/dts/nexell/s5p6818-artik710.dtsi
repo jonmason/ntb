@@ -1,0 +1,246 @@
+/*
+ * Copyright (C) 2016  Nexell Co., Ltd.
+ * Author: Youngbok, Park <ybpark@nexell.co.kr>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+/memreserve/ 0x7de00000 0x00100000; /* OP-TEE SHM */
+#include <dt-bindings/interrupt-controller/irq.h>
+#include "s5p6818.dtsi"
+
+/ {
+	memory {
+		device_type = "memory";
+		reg = <0x40000000 0x3df00000>;
+	};
+
+	soc {
+		#include "s5p6818-pinctrl.dtsi"
+
+		clocks {
+			uart0:uart@c00a9000 { clock-frequency = <147500000>; };
+			uart1:uart@c00a8000 { clock-frequency = <147500000>; };
+			uart2:uart@c00aa000 { clock-frequency = <147500000>; };
+			uart3:uart@c00ab000 { clock-frequency = <147500000>; };
+			uart4:uart@c006e000 { clock-frequency = <147500000>; };
+			uart5:uart@c0084000 { clock-frequency = <147500000>; };
+			pwm0:pwm0@c00ba000 { clock-frequency = <24000000>; };
+			pwm2:pwm2@c00be000 { clock-frequency = <24000000>; };
+			i2c0:i2c@c00ae000  { clock-frequency = <200000000>; };
+			i2c1:i2c@c00af000  { clock-frequency = <200000000>; };
+			i2c2:i2c@c00b0000  { clock-frequency = <200000000>; };
+		};
+
+		amba {
+			pl08xdma0:pl08xdma@c0000000 {
+				use_isr;
+
+				ch12 {
+					slave_wait_flush_dma;
+				};
+
+				ch13 {
+					slave_wait_flush_dma;
+				};
+
+				ch14 {
+					slave_wait_flush_dma;
+				};
+
+				ch15 {
+					slave_wait_flush_dma;
+				};
+			};
+
+			pl08xdma1:pl08xdma@c0001000 {
+				use_isr;
+
+				ch0 {
+					slave_wait_flush_dma;
+				};
+
+				ch1 {
+					slave_wait_flush_dma;
+				};
+			};
+		};
+
+		dw_mmc_2:dw_mmc@c0069000 {
+			num-slots = <1>;
+			bus-width = <4>;
+			cap-mmc-highspeed;
+			broken-cd;
+			non-removable;
+			clock-frequency = <100000000>;
+			card-detect-delay = <200>;
+			disable-wp;
+			status = "okay";
+			nexell,drive_dly = <0x0>;
+			nexell,drive_shift = <0x02>;
+			nexell,sample_dly = <0x00>;
+			nexell,sample_shift = <0x01>;
+			disable-data-tag;
+			cap-mmc-hw-reset;
+		};
+
+		dynamic-freq@bb000 {
+			supply_name = "vdd_core_regulator";
+			vdd_core_regulator-supply = <&VCC_DCDC0>;
+		};
+
+		tmuctrl_0: tmuctrl@c0096000 {
+			status = "okay";
+		};
+
+		thermal-zones {
+			cpu0_thermal: cpu0-thermal {
+				thermal-sensors = <&tmuctrl_0>;
+				polling-delay-passive = <1000>;
+				polling-delay = <1000>;
+				trips {
+					cpu_alert0: cpu-alert-0 {
+						temperature = <70000>;
+						hysteresis = <100000>;
+						type = "active";
+					};
+					cpu_alert1: cpu-alert-1 {
+						temperature = <80000>;
+						hysteresis = <100000>;
+						type = "passive";
+					};
+					cpu_alert2: cpu-alert-2 {
+						temperature = <90000>;
+						hysteresis = <100000>;
+						type = "passive";
+					};
+					cpu-crit-0 {
+						temperature = <115000>;
+						hysteresis = <100000>;
+						type = "critical";
+					};
+				};
+
+				cooling-maps {
+					map0 {
+						trip = <&cpu_alert0>;
+						cooling-device = <&cpu0 1 1>;
+					};
+					map1 {
+						trip = <&cpu_alert1>;
+						cooling-device = <&cpu0 4 4>;
+					};
+					map2 {
+						trip = <&cpu_alert2>;
+						cooling-device = <&cpu0 10 10>;
+					};
+				};
+			};
+		};
+
+		pinctrl@C0010000 {
+			bt_cfg_hostwake:bt_cfg_hostwake {
+				nexell,pins = "alive-4";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <0>;
+				nexell,pin-strength = <0>;
+			};
+			bt_cfg_btwake:bt_cfg_btwake {
+				nexell,pins = "gpiod-30";
+				nexell,pin-function = <1>;
+				nexell,pin-pull = <2>;
+				nexell,pin-strength = <0>;
+			};
+			bt_cfg_en:bt_cfg_en {
+				nexell,pins = "gpiod-29";
+				nexell,pin-function = <1>;
+				nexell,pin-pull = <2>;
+				nexell,pin-strength = <0>;
+			};
+
+			cfg_wlanen: cfg-wlanen {
+				nexell,pins ="gpiod-28";
+				nexell,pin-function = <1>;
+				nexell,pin-pull = <2>;
+				nexell,pin-strength = <0>;
+			};
+
+			cfg_wlanhostwake: cfg-wlanhostwake {
+				nexell,pins = "alive-3";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <0>;
+				nexell,pin-strength = <0>;
+			};
+		};
+
+		serial1:serial@c00a0000 {
+			status = "okay";
+			pinctrl-0 = <&serial1_pin>, <&serial1_flow>;
+		};
+	};	/*** soc ***/
+
+	artik_zb_power {
+		compatible = "samsung,artik_zb_power";
+		vdd_zb-supply = <&VCC_DCDC2>;
+		reset-gpio = <&gpio_c 8 0>;
+		bootloader-gpio = <&gpio_c 28 0>;
+		status = "okay";
+	};
+
+	artik_bt_control {
+		compatible = "broadcom,bcm43455bt";
+		gpios = <&gpio_d 29 0	/* GPIOD29=BT_EN, output */
+			&gpio_d 30 0		/* GPIOD30=BT_WAKE, output */
+			&alive_0 4 1		/* AliveGPIO4=BT_HOST_WAKE, input */
+			>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&bt_cfg_hostwake &bt_cfg_btwake &bt_cfg_en>;
+		status = "okay";
+	};
+
+	artik_s3t9mf {
+		compatible = "samsung,s3t9mf";
+		reset-gpio = <&gpio_b 26 0>;
+		pwms = <&pwm 1 1000 0>;
+		pwm-names = "pwm_t9mf";
+		status = "okay";
+	};
+
+	wlan {
+		compatible = "samsung,brcm-wlan";
+		gpios = <&gpio_d 28 0  /* WLAN_EN */
+			 &alive_0 3 1>; /* WLAN_HOST_WAKE */
+		status = "okay";
+	};
+};
+
+&dw_mmc_1 {
+	num-slots = <1>;
+	bus-width = <4>;
+	cap-sd-highspeed;
+	cd-type-external;
+	broken-cd;
+	pm-ignore-notify;
+	keep-power-in-suspend;
+	powered-resumed-nonremovable-card;
+	cd-type = <2>;
+	clock-frequency = <100000000>;
+	nexell,drive_dly = <0x0>;
+	nexell,drive_shift = <0x02>;
+	nexell,sample_dly = <0x00>;
+	nexell,sample_shift = <0x01>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdmmc1_cclk &sdmmc1_cmd &sdmmc1_bus4
+		     &cfg_wlanen &cfg_wlanhostwake>;
+	status = "okay";
+};

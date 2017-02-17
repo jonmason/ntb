@@ -1,0 +1,22 @@
+Secure Element Control driver for S3T9MF
+
+This binding defines secure element control interface to control ARTIK's
+secure element(eq. S3T9MF).
+
+Required properties:
+- compatible : "samsung,s3t9mf"
+- reset-gpio: Reset GPIO pin
+- pwms : PWM property to point to the PWM device (phandle)/port (id) and to
+  specify the period time to be used: <&phandle id period_ns>;
+- pwm-names : (optional) Name to be used by the PWM subsystem for the PWM device
+  For the pwms and pwm-names property please refer to:
+  Documentation/devicetree/bindings/pwm/pwm.txt
+
+Example:
+	artik_s3t9mf {
+		compatible = "samsung,s3t9mf";
+		reset-gpio = <&gpio_b 26 0>;
+		pwms = <&pwm 1 121 0>
+		pwm-names = "pwm_t9mf";
+		status = "okay";
+	};

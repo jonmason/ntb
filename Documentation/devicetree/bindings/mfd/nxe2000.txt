@@ -1,0 +1,105 @@
+NEXELL NXE2000 Multi-Function Device
+
+The NEXELL NXE2000 is a multi-function device which includes voltage/current
+regulators, real time clock, battery charging controller and several
+other sub-blocks. It is interfaced using an I2C interface. Each sub-block
+is addressed by the host system using different i2c slave address.
+
+NXE2000 additionally contains PMIC (with DCDC/LDO regulators), charger and Fuel Gauge.
+
+
+Required properties:
+- compatible : Must be "nexell,nxe2000" or "nexell,nxe1500".
+- reg : I2C slave address for pmic.
+- nx,irq : IRQ line for the chip.
+- nx,irq_base : The sub interrupt controller.
+- nx,irq_type : IRQ line status.
+
+
+Example:
+
+#include <dt-bindings/interrupt-controller/irq.h>
+
+#define PMIC_PDATA_INIT(_id, _rname, _minuv, _maxuv, _always_on, _boot_on,	\
+						_init_uv, _init_enable, _slp_slots)	\
+		regulator-name = _rname;					\
+		regulator-min-microvolt = <_minuv>;			\
+		regulator-max-microvolt = <_maxuv>;			\
+		nx,id = <_id>;								\
+		nx,always_on = <_always_on>;				\
+		nx,boot_on = <_boot_on>;					\
+		nx,init_enable = <_init_enable>;			\
+		nx,init_uV = <_init_uv>;					\
+		nx,set_init_uV = <_set_init_uV>;			\
+		nx,sleep_slots = <_slp_slots>;
+
+nxe1500@32 {
+	compatible = "nexell,nxe1500";
+	reg = <0x32>;
+	interrupt-parent = <&alive_0>;
+	interrupts = <0x5 IRQ_TYPE_EDGE_FALLING>;
+	regulators {
+		VCC_DCDC0:
+			dcdc1	{ PMIC_PDATA_INIT( 0,
+				"nxe2000_dcdc1",
+				900000, 1500000,
+				1, 1, 1100000,
+				1, 0, 0x4) };
+		... ... ...
+		VCC_DCDC4:
+			dcdc5	{ PMIC_PDATA_INIT( 4,
+				"nxe2000_dcdc5",
+				1000000, 2000000,
+				1, 1, 1500000,
+				1, 0, 0x4) };
+		VCC_LDO0:
+			ldo1	{ PMIC_PDATA_INIT( 5,
+				"nxe2000_ldo1",
+				1000000, 3500000,
+				0, 0, 3300000,
+				0, 1, 0x0) };
+		... ... ...
+		VCC_RTC1:
+			ldortc2	{ PMIC_PDATA_INIT(16,
+				"nxe2000_rtc2",
+				1000000, 3500000,
+				1, 1, 1000000,
+				1, 1, 0xF) };
+	};
+};
+
+nxe2000@32 {
+	compatible = "nexell,nxe2000";
+	reg = <0x32>;
+	interrupt-parent = <&alive_0>;
+	interrupts = <0x5 IRQ_TYPE_EDGE_FALLING>;
+	regulators {
+		VCC_DCDC0:
+			dcdc1	{ PMIC_PDATA_INIT( 0,
+				"nxe2000_dcdc1",
+				900000, 1500000,
+				1, 1, 1100000,
+				1, 0, 0x4) };
+		... ... ...
+		VCC_DCDC4:
+			dcdc5	{ PMIC_PDATA_INIT( 4,
+				"nxe2000_dcdc5",
+				1000000, 2000000,
+				1, 1, 1500000,
+				1, 0, 0x4) };
+		VCC_LDO0:
+			ldo1	{ PMIC_PDATA_INIT( 5,
+				"nxe2000_ldo1",
+				1000000, 3500000,
+				0, 0, 3300000,
+				0, 1, 0x0) };
+		... ... ...
+		VCC_RTC1:
+			ldortc2	{ PMIC_PDATA_INIT(16,
+				"nxe2000_rtc2",
+				1000000, 3500000,
+				1, 1, 1000000,
+				1, 1, 0xF) };
+	};
+};
+

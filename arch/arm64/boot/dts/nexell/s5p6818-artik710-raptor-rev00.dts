@@ -1,0 +1,180 @@
+/*
+ * Copyright (C) 2016  Nexell Co., Ltd.
+ * Author: Youngbok, Park <ybpark@nexell.co.kr>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/dts-v1/;
+#include "s5p6818-artik710-raptor-common.dtsi"
+/ {
+	soc {
+		pinctrl@C0010000 {
+			key_up:key_up {
+				nexell,pins = "gpioa-26";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+
+			key_down:key_down {
+				nexell,pins = "gpioa-27";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+
+			key_back:key_back {
+				nexell,pins = "gpioa-25";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+
+			key_home:key_home {
+				nexell,pins = "alive-1";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+
+			key_menu:key_menu {
+				nexell,pins = "gpioa-0";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+
+			touchpanel_irq: touchpanel-irq {
+				nexell,pins = "gpiob-22";
+				nexell,pin-function = <1>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+		};
+	};	/*** soc ***/
+};
+
+&dw_mmc_0 {
+	cd-gpios = <&gpio_c 14 0>;
+};
+
+&pwm {
+	status = "okay";
+	pinctrl-0 = <&pwm0_pin &pwm1_pin>;
+	samsung,pwm-outputs = <0>, <1>;
+};
+
+&i2c_gpio3 {
+	compatible = "i2c-gpio";
+	gpios = <&gpio_c 16 0	/* sda */
+		&gpio_c 15 0	/* scl */
+		>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	touchscreen@4a {
+		compatible = "atmel,maxtouch";
+		reg = <0x4a>;
+		interrupt-parent = <&gpio_b>;
+		interrupts = <22 IRQ_TYPE_EDGE_FALLING>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&touchpanel_irq>;
+		skip-cfg-load;
+		switch-xy;
+	};
+};
+
+&i2c_gpio5 {
+	status = "disabled";
+};
+
+&i2c_2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	nxe2000@32 {
+		compatible = "nexell,nxe2000";
+		reg = <0x32>;
+		interrupt-parent = <&alive_0>;
+		interrupts = <0x5 IRQ_TYPE_EDGE_FALLING>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pmic_irq>;
+	};
+
+	touchscreen@4a {
+		status = "disabled";
+	};
+};
+
+&i2c_gpio10 {
+	status = "disabled";
+};
+
+&i2c_gpio11 {
+	status = "disabled";
+};
+
+&panel {
+	enable-gpios = <&gpio_c 17 0>;
+};
+
+&gpio_key {
+	pinctrl-names = "default";
+	pinctrl-0 = <&key_up &key_down &key_back
+			&key_pwr &key_home &key_menu>;
+	up {
+		label = "Up";
+		gpios = <&gpio_a 26 1>;
+		linux,code = <KEY_UP>;
+	};
+	down {
+		label = "Down";
+		gpios = <&gpio_a 27 1>;
+		linux,code = <KEY_DOWN>;
+	};
+
+	back {
+		label = "Back";
+		gpios = <&gpio_a 25 1>;
+		linux,code = <KEY_BACK>;
+	};
+
+	home {
+		label = "Home";
+		gpios = <&alive_0 1 1>;
+		linux,code = <KEY_HOME>;
+	};
+
+	menu {
+		label = "Menu";
+		gpios = <&gpio_a 0 1>;
+		linux,code = <KEY_MENU>;
+	};
+};
+
+&spi_0 {
+	status = "okay";
+	cs-gpios = <&gpio_c 30 0>;
+	spidev@0 {
+		compatible = "linux,spidev";
+		reg = <0>;
+		spi-max-frequency = <10000000>;
+		controller-data {
+			samsung,spi-feedback-delay = <0>;
+		};
+	};
+};

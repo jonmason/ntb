@@ -28,6 +28,9 @@
 #include <asm/system_misc.h>
 #include <asm/smp_plat.h>
 #include <asm/suspend.h>
+#ifdef CONFIG_ARCH_S5P4418
+#include <asm/cacheflush.h>
+#endif
 
 /*
  * While a 64-bit OS can make calls with SMC32 calling conventions, for some
@@ -233,6 +236,11 @@ static int psci_system_suspend(unsigned long unused)
 
 static int psci_system_suspend_enter(suspend_state_t state)
 {
+#ifdef CONFIG_ARCH_S5P4418
+	/* FIXME: move this to bl1 codes */
+	flush_cache_all();
+	outer_disable();
+#endif
 	return cpu_suspend(0, psci_system_suspend);
 }
 

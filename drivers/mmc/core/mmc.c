@@ -333,6 +333,9 @@ static void mmc_manage_gp_partitions(struct mmc_card *card, u8 *ext_csd)
 	}
 }
 
+/* Minimum partition switch timeout in milliseconds */
+#define MMC_MIN_PART_SWITCH_TIME	300
+
 /*
  * Decode extended CSD.
  */
@@ -397,6 +400,10 @@ static int mmc_decode_ext_csd(struct mmc_card *card, u8 *ext_csd)
 
 		/* EXT_CSD value is in units of 10ms, but we store in ms */
 		card->ext_csd.part_time = 10 * ext_csd[EXT_CSD_PART_SWITCH_TIME];
+		/* Some eMMC set the value too low so set a minimum */
+		if (card->ext_csd.part_time &&
+		    card->ext_csd.part_time < MMC_MIN_PART_SWITCH_TIME)
+			card->ext_csd.part_time = MMC_MIN_PART_SWITCH_TIME;
 
 		/* Sleep / awake timeout in 100ns units */
 		if (sa_shift > 0 && sa_shift <= 0x17)
@@ -562,7 +569,8 @@ static int mmc_decode_ext_csd(struct mmc_card *card, u8 *ext_csd)
 			card->ext_csd.data_sector_size = 512;
 
 		if ((ext_csd[EXT_CSD_DATA_TAG_SUPPORT] & 1) &&
-		    (ext_csd[EXT_CSD_TAG_UNIT_SIZE] <= 8)) {
+		    (ext_csd[EXT_CSD_TAG_UNIT_SIZE] <= 8) &&
+		    !(card->host->caps2 & MMC_CAP2_NO_DATA_TAG)) {
 			card->ext_csd.data_tag_unit_size =
 			((unsigned int) 1 << ext_csd[EXT_CSD_TAG_UNIT_SIZE]) *
 			(card->ext_csd.data_sector_size);
@@ -574,6 +582,17 @@ static int mmc_decode_ext_csd(struct mmc_card *card, u8 *ext_csd)
 			ext_csd[EXT_CSD_MAX_PACKED_WRITES];
 		card->ext_csd.max_packed_reads =
 			ext_csd[EXT_CSD_MAX_PACKED_READS];
+
+		if(!(card->ext_csd.rst_n_function & EXT_CSD_RST_N_EN_MASK)) {
+			err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
+				EXT_CSD_RST_N_FUNCTION,
+				card->ext_csd.rst_n_function | EXT_CSD_RST_N_ENABLED,
+				card->ext_csd.generic_cmd6_time);
+			if(!err)
+				card->ext_csd.rst_n_function |= EXT_CSD_RST_N_ENABLED;
+			else
+				err = 0;
+		}
 	} else {
 		card->ext_csd.data_sector_size = 512;
 	}
@@ -1076,8 +1095,7 @@ static int mmc_select_hs400(struct mmc_card *card)
 	mmc_set_clock(host, max_dtr);
 
 	/* Switch card to HS mode */
-	val = EXT_CSD_TIMING_HS |
-	      card->drive_strength << EXT_CSD_DRV_STR_SHIFT;
+	val = EXT_CSD_TIMING_HS;
 	err = __mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
 			   EXT_CSD_HS_TIMING, val,
 			   card->ext_csd.generic_cmd6_time,
@@ -1160,8 +1178,7 @@ int mmc_hs400_to_hs200(struct mmc_card *card)
 	mmc_set_clock(host, max_dtr);
 
 	/* Switch HS400 to HS DDR */
-	val = EXT_CSD_TIMING_HS |
-	      card->drive_strength << EXT_CSD_DRV_STR_SHIFT;
+	val = EXT_CSD_TIMING_HS;
 	err = __mmc_switch(card, EXT_CSD_CMD_SET_NORMAL, EXT_CSD_HS_TIMING,
 			   val, card->ext_csd.generic_cmd6_time,
 			   true, send_status, true);

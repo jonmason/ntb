@@ -1,0 +1,959 @@
+/*
+ * Copyright (C) 2016  Nexell Co., Ltd.
+ * Author: Youngbok, Park <ybpark@nexell.co.kr>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include <dt-bindings/tieoff/s5p6818-tieoff.h>
+#include <dt-bindings/soc/s5p6818-base.h>
+#include <dt-bindings/reset/nexell,s5p6818-reset.h>
+#include <dt-bindings/interrupt-controller/s5p6818-irq.h>
+#include <dt-bindings/media/nexell-vip.h>
+
+/ {
+	model = "nexell soc";
+	compatible = "nexell,s5p6818";
+	#address-cells = <0x1>;
+	#size-cells = <0x1>;
+
+	aliases {
+		serial0 = &serial0;
+		serial1 = &serial1;
+		serial2 = &serial2;
+		serial3 = &serial3;
+		serial4 = &serial4;
+		serial5 = &serial5;
+		i2s0	= &i2s_0;
+		i2s1	= &i2s_1;
+		i2s2	= &i2s_2;
+		spi0	= &spi_0;
+		spi1	= &spi_1;
+		spi2	= &spi_2;
+		i2c0	= &i2c_0;
+		i2c1	= &i2c_1;
+		i2c2	= &i2c_2;
+
+		pinctrl0 = &pinctrl_0;
+	};
+
+	psci {
+		compatible = "arm,psci-0.2";
+		method = "smc";
+	};
+
+	cpus {
+		#address-cells = <0x2>;
+		#size-cells = <0x0>;
+
+		cpu0: cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0 0x0>;
+			enable-method = "psci";
+			cpu-release-addr = < 0x1 0xc0010230 >;
+			#cooling-cells = <2>;
+			cpu-idle-states =<&CPU_SLEEP>;
+		};
+
+		cpu1: cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0 0x1>;
+			enable-method = "psci";
+			cpu-release-addr = < 0x1 0xc0010230 >;
+			cpu-idle-states =<&CPU_SLEEP>;
+		};
+
+		cpu2: cpu@2 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0 0x2>;
+			enable-method = "psci";
+			cpu-release-addr = < 0x1 0xc0010230 >;
+			cpu-idle-states =<&CPU_SLEEP>;
+		};
+
+		cpu3: cpu@3 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0 0x3>;
+			enable-method = "psci";
+			cpu-release-addr = < 0x1 0xc0010230 >;
+			cpu-idle-states =<&CPU_SLEEP>;
+		};
+
+		cpu4: cpu@4 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0 0x100>;
+			enable-method = "psci";
+			cpu-release-addr = < 0x1 0xc0010230 >;
+			cpu-idle-states =<&CPU_SLEEP>;
+		};
+
+		cpu5: cpu@5 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0 0x101>;
+			enable-method = "psci";
+			cpu-release-addr = < 0x1 0xc0010230 >;
+			cpu-idle-states =<&CPU_SLEEP>;
+		};
+
+		cpu6: cpu@6 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0 0x102>;
+			enable-method = "psci";
+			cpu-release-addr = < 0x1 0xc0010230 >;
+			cpu-idle-states =<&CPU_SLEEP>;
+		};
+
+		cpu7: cpu@7 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0 0x103>;
+			enable-method = "psci";
+			cpu-release-addr = < 0x1 0xc0010230 >;
+			cpu-idle-states =<&CPU_SLEEP>;
+		};
+
+		cpu-map {
+			cluster0 {
+				core0 {
+					cpu = <&cpu0>;
+				};
+				core1 {
+					cpu = <&cpu1>;
+				};
+				core2 {
+					cpu = <&cpu2>;
+				};
+				core3 {
+					cpu = <&cpu3>;
+				};
+			};
+			cluster1 {
+				core0 {
+					cpu = <&cpu4>;
+				};
+				core1 {
+					cpu = <&cpu5>;
+				};
+				core2 {
+					cpu = <&cpu6>;
+				};
+				core3 {
+					cpu = <&cpu7>;
+				};
+			};
+		};
+
+		idle-states {
+			CPU_SLEEP: sleep {
+				compatible = "nexell,idle-state";
+				arm,psci-suspend-param = <0x0000000>;
+				entry-latency-us = <150>;
+				exit-latency-us = <200>;
+				min-residency-us = <2000>;
+			};
+		};
+	};
+
+	pmu {
+		compatible = "arm,armv8-pmuv3";
+		interrupt-parent = <&gic>;
+		interrupts = <0 IRQ_P0_PMUIRQ0 0>,
+			     <0 IRQ_P0_PMUIRQ1 0>,
+			     <0 IRQ_P0_PMUIRQ2 0>,
+			     <0 IRQ_P0_PMUIRQ3 0>,
+			     <0 IRQ_P1_PMUIRQ0 0>,
+			     <0 IRQ_P1_PMUIRQ1 0>,
+			     <0 IRQ_P1_PMUIRQ2 0>,
+			     <0 IRQ_P1_PMUIRQ3 0>;
+		interrupt-affinity = <&cpu0>,
+				     <&cpu1>,
+				     <&cpu2>,
+				     <&cpu3>,
+				     <&cpu4>,
+				     <&cpu5>,
+				     <&cpu6>,
+				     <&cpu7>;
+	};
+
+	refclk:oscillator {
+		compatible = "nexell,s5pxx18,pll";
+		reg = <0xc0010000 0x1000>;
+		ref-freuecny = <24000000>;
+	};
+
+	nx-v4l2 {
+		compatible = "nexell,nx-v4l2";
+		status = "disabled";
+	};
+
+	nx-devfreq {
+		compatible = "nexell,s5pxx18-devfreq";
+		pll = <0>;
+		supply_name = "vdd_arm_regulator";
+		vdd_arm_regulator-supply = <&VCC_DCDC1>;
+		status = "disabled";
+	};
+
+	soc {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0xc0000000 0x300000>;
+		interrupt-parent = <&gic>;
+		ranges;
+
+		#include "s5p6818-soc.dtsi"
+
+		gic:interrupt-controller@c0009000 {
+			compatible = "arm,gic-400";
+			interrupt-controller;
+			#interrupt-cells = <3>;
+			reg	= <0xC0009000 0x1000>, <0xC000a000 0x100>;
+		};
+
+		timer@c0017000 {
+			compatible = "nexell,s5p6818-timer";
+			reg = <PHYS_BASE_TIMER 0x1000>;
+			interrupts = <0 IRQ_TIMER1 0>;
+			clksource = <0>;
+			clkevent = <1>;
+			clocks =  <&timer0>, <&timer1>, <&pclk>;
+			clock-names = "timer0", "timer1", "pclk";
+		};
+
+		tieoff@c0011000 {
+			compatible = "nexell,tieoff";
+			reg = <PHYS_BASE_TIEOFF 0x1000>;
+		};
+
+		dynamic-freq@bb000 {
+			compatible = "nexell,s5pxx18-cpufreq";
+			reg = <0xc00bb000 0x30000>;
+		};
+
+		serial0:serial@c00a1000 {
+			compatible = "nexell,s5p6818-uart";
+			reg = <PHYS_BASE_UART0 0x1000>;
+			interrupts = <0 IRQ_UART0  0>;
+			clock-names = "uart", "clk_uart_baud0";
+			clocks = <&uart0>, <&uart0>;
+			resets  = <&nexell_reset RESET_ID_UART0>;
+			reset-names = "uart-reset";
+			soc,tieoff = <NX_TIEOFF_UART0_USESMC 0>,
+					<NX_TIEOFF_UART0_SMCTXENB 0>,
+					<NX_TIEOFF_UART0_SMCRXENB 0> ;
+			pinctrl-names = "default";
+			pinctrl-0 = <&serial0_pin>;
+			status = "disabled";
+		};
+
+		serial1:serial@c00a0000 {
+			compatible = "nexell,s5p6818-uart";
+			reg = <PHYS_BASE_UART1 0x1000>;
+			interrupts = <0 IRQ_UART1  0>;
+			clock-names = "uart", "clk_uart_baud0";
+			clocks = <&uart1>, <&uart1>;
+			resets  = <&nexell_reset RESET_ID_UART1>;
+			reset-names = "uart-reset";
+			soc,tieoff = <NX_TIEOFF_UART1_USESMC 0>,
+					<NX_TIEOFF_UART1_SMCTXENB 0>,
+					<NX_TIEOFF_UART1_SMCRXENB 0> ;
+			pinctrl-names = "default";
+			pinctrl-0 = <&serial1_pin>;
+			status = "disabled";
+		};
+
+		serial2:serial@c00a2000 {
+			compatible = "nexell,s5p6818-uart";
+			reg = <PHYS_BASE_UART2 0x1000>;
+			interrupts = <0 IRQ_UART2  0>;
+			clock-names = "uart", "clk_uart_baud0";
+			clocks = <&uart2>, <&uart2>;
+			resets  = <&nexell_reset RESET_ID_UART2>;
+			reset-names = "uart-reset";
+			soc,tieoff = <NX_TIEOFF_UART2_USESMC 0>,
+					<NX_TIEOFF_UART2_SMCTXENB 0>,
+					<NX_TIEOFF_UART2_SMCRXENB 0> ;
+			pinctrl-names = "default";
+			pinctrl-0 = <&serial2_pin>;
+			status = "disabled";
+		};
+
+		serial3:serial@c00a3000 {
+			compatible = "nexell,s5p6818-uart";
+			reg = <PHYS_BASE_UART3 0x1000>;
+			interrupts = <0 IRQ_UART3  0>;
+			clock-names = "uart", "clk_uart_baud0";
+			clocks = <&uart3>, <&uart3>;
+			resets  = <&nexell_reset RESET_ID_UART3>;
+			reset-names = "uart-reset";
+			soc,tieoff = <NX_TIEOFF_UART3_USESMC 0>,
+					<NX_TIEOFF_UART3_SMCTXENB 0>,
+					<NX_TIEOFF_UART3_SMCRXENB 0> ;
+			pinctrl-names = "default";
+			pinctrl-0 = <&serial3_pin>;
+			status = "disabled";
+		};
+
+		serial4:serial@c006d000 {
+			compatible = "nexell,s5p6818-uart";
+			reg = <PHYS_BASE_UART4 0x1000>;
+			interrupts = <0 IRQ_UART4  0>;
+			clock-names = "uart", "clk_uart_baud0";
+			clocks = <&uart4>, <&uart4>;
+			resets  = <&nexell_reset RESET_ID_UART4>;
+			reset-names = "uart-reset";
+			soc,tieoff = <NX_TIEOFF_UART4_USESMC 0>,
+					<NX_TIEOFF_UART4_SMCTXENB 0>,
+					<NX_TIEOFF_UART4_SMCRXENB 0> ;
+			pinctrl-names = "default";
+			pinctrl-0 = <&serial4_pin>;
+			status = "disabled";
+		};
+
+		serial5:serial@c006f000 {
+			compatible = "nexell,s5p6818-uart";
+			reg = <PHYS_BASE_UART5 0x1000>;
+			interrupts = <0 IRQ_UART5  0>;
+			clock-names = "uart", "clk_uart_baud0";
+			clocks = <&uart5>, <&uart5>;
+			resets  = <&nexell_reset RESET_ID_UART5>;
+			reset-names = "uart-reset";
+			soc,tieoff = <NX_TIEOFF_UART5_USESMC 0>,
+					<NX_TIEOFF_UART5_SMCTXENB 0>,
+					<NX_TIEOFF_UART5_SMCRXENB 0> ;
+			pinctrl-names = "default";
+			pinctrl-0 = <&serial5_pin>;
+			status = "disabled";
+		};
+
+		nexell_reset:reset@c0012000 {
+			#reset-cells = <1>;
+			compatible = "nexell,s5pxx18-reset";
+			reg = <0xC0012000 0x3>;
+			status = "okay";
+		};
+
+		pwm:pwm@c0018000 {
+			compatible = "nexell,s5p6818-pwm";
+			reg = <PHYS_BASE_PWM 0x1000>;
+			reset-names = "pwm-reset";
+			resets  = <&nexell_reset RESET_ID_PWM>;
+			clock-names = "timers", "pwm-tclk0", "pwm-tclk1";
+			clocks =  <&pclk>, <&pwm0>, <&pwm2>;
+			#pwm-cells = <3>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pwm0_pin &pwm1_pin &pwm2_pin &pwm3_pin>;
+			samsung,pwm-outputs = <0>, <1>, <2>, <3>;
+			status = "disabled";
+		};
+
+		i2c_0:i2c@c00a4000 {
+			compatible = "nexell,s5p6818-i2c";
+			reg = <PHYS_BASE_I2C0 0x100>;
+			interrupts = <0 IRQ_I2C0 0>;
+			clock-names = "i2c";
+			clocks = <&i2c0>;
+			samsung,i2c-sda-delay = <100>;
+			samsung,i2c-max-bus-freq = <100000>;
+			samsung,i2c-slave-addr = <0x66>;
+			resets  = <&nexell_reset RESET_ID_I2C0>;
+			reset-names = "i2c-reset";
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c0_pin>;
+			status = "disabled";
+		};
+
+		i2c_1:i2c@c00a5000 {
+			compatible = "nexell,s5p6818-i2c";
+			reg = <PHYS_BASE_I2C1 0x100>;
+			interrupts = <0 IRQ_I2C1 0>;
+			clock-names = "i2c";
+			clocks = <&i2c1>;
+			samsung,i2c-sda-delay = <100>;
+			samsung,i2c-max-bus-freq = <100000>;
+			samsung,i2c-slave-addr = <0x66>;
+			resets  = <&nexell_reset RESET_ID_I2C1>;
+			reset-names = "i2c-reset";
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c1_pin>;
+			status = "disabled";
+		};
+
+		i2c_2:i2c@c00a6000 {
+			compatible = "nexell,s5p6818-i2c";
+			reg = <PHYS_BASE_I2C2 0x100>;
+			interrupts = <0 IRQ_I2C2 0>;
+			clock-names = "i2c";
+			clocks = <&i2c2>;
+			samsung,i2c-sda-delay = <100>;
+			samsung,i2c-max-bus-freq = <100000>;
+			samsung,i2c-slave-addr = <0x66>;
+			resets  = <&nexell_reset RESET_ID_I2C2>;
+			reset-names = "i2c-reset";
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c2_pin>;
+			status = "disabled";
+		};
+
+		dw_mmc_2:dw_mmc@c0069000 {
+			compatible = "nexell,s5p6818-dw-mshc";
+			interrupts = <0 IRQ_SDMMC2 0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <PHYS_BASE_SDMMC2 0x1000>;
+			resets  = <&nexell_reset RESET_ID_SDMMC2>;
+			reset-names = "dw_mmc-reset";
+			clock-names = "biu","ciu";
+			clocks = <&sdhc2>, <&sdhc2>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&sdmmc2_cclk &sdmmc2_cmd &sdmmc2_bus4>;
+			fifo-detph = <0x20>;
+			status = "disabled";
+		};
+
+		dw_mmc_1:dw_mmc@c0068000 {
+			compatible = "nexell,s5p6818-dw-mshc";
+			interrupts = <0 IRQ_SDMMC1 0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <PHYS_BASE_SDMMC1 0x1000>;
+			resets  = <&nexell_reset RESET_ID_SDMMC1>;
+			reset-names = "dw_mmc-reset";
+			clock-names = "biu","ciu";
+			clocks = <&sdhc1>, <&sdhc1>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&sdmmc1_cclk &sdmmc1_cmd &sdmmc1_bus4>;
+			fifo-detph = <0x20>;
+			status = "disabled";
+		};
+
+		dw_mmc_0:dw_mmc@c0062000 {
+			compatible = "nexell,s5p6818-dw-mshc";
+			interrupts = <0 IRQ_SDMMC0 0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <PHYS_BASE_SDMMC0 0x1000>;
+			resets  = <&nexell_reset RESET_ID_SDMMC0>;
+			reset-names = "dw_mmc-reset";
+			clock-names = "biu", "ciu";
+			clocks = <&sdhc0>, <&sdhc0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&sdmmc0_cclk &sdmmc0_cmd &sdmmc0_bus4>;
+			fifo-detph = <0x20>;
+			status = "disabled";
+		};
+
+		i2s_0:i2s@c0055000 {
+			  compatible = "nexell,nexell-i2s";
+			  reg = <PHYS_BASE_I2S0 0x1000>;
+			  dmas = <&pl08xdma0 12 0>, <&pl08xdma0 13 0>;
+			  dma-names = "tx", "rx";
+			  clocks = <&i2s0>;
+			  clock-names = "i2s0";
+			  resets = <&nexell_reset RESET_ID_I2S0>;
+			  reset-names = "i2s-reset";
+			  pinctrl-names = "default";
+			  pinctrl-0 = <&i2s0_bus>;
+			  master-mode = <1>;
+			  mclk-in = <0>;
+			  trans-mode = <0>;
+			  frame-bit = <32>;
+			  sample-rate = <48000>;
+			  pre-supply-mclk = <1>;
+			  status = "disabled";
+		};
+
+		i2s_1:i2s@c0056000 {
+			  compatible = "nexell,nexell-i2s";
+			  reg = <PHYS_BASE_I2S1 0x1000>;
+			  dmas = <&pl08xdma0 14 0>, <&pl08xdma0 15 0>;
+			  dma-names = "tx", "rx";
+			  clocks = <&i2s1>;
+			  clock-names = "i2s1";
+			  resets = <&nexell_reset RESET_ID_I2S1>;
+			  reset-names = "i2s-reset";
+			  pinctrl-names = "default";
+			  pinctrl-0 = <&i2s1_bus>;
+			  master-mode = <1>;
+			  mclk-in = <0>;
+			  trans-mode = <0>;
+			  frame-bit = <32>;
+			  sample-rate = <48000>;
+			  pre-supply-mclk = <1>;
+			  status = "disabled";
+		};
+
+		i2s_2:i2s@c0057000 {
+			  compatible = "nexell,nexell-i2s";
+			  reg = <PHYS_BASE_I2S2 0x1000>;
+			  dmas = <&pl08xdma1 0 0>, <&pl08xdma1 1 0>;
+			  dma-names = "tx", "rx";
+			  clocks = <&i2s2>;
+			  clock-names = "i2s2";
+			  resets = <&nexell_reset RESET_ID_I2S2>;
+			  reset-names = "i2s-reset";
+			  pinctrl-names = "default";
+			  pinctrl-0 = <&i2s2_bus>;
+			  master-mode = <1>;
+			  mclk-in = <0>;
+			  trans-mode = <0>;
+			  frame-bit = <32>;
+			  sample-rate = <48000>;
+			  pre-supply-mclk = <1>;
+			  status = "disabled";
+		};
+
+		nexell_usbphy: nexell-usbphy@c0012000 {
+			compatible = "nexell,nexell-usb2-phy";
+			reg = <PHYS_BASE_TIEOFF 0x100>;
+			clocks = <&usbhost>;
+			clock-names = "phy";
+			#phy-cells = <1>;
+			status = "disabled";
+		};
+
+		ehci@c0030000 {
+			compatible = "nexell,nexell-ehci";
+			reg = <PHYS_BASE_EHCI 0x10000>;
+			interrupts = <0 IRQ_USB20HOST 0>;
+			clocks = <&usbhost>;
+			clock-names = "usbhost";
+			resets = <&nexell_reset RESET_ID_USB20HOST>;
+			reset-names = "usbhost-reset";
+			status = "disabled";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			port@0 {
+				reg = <0>;
+				phys = <&nexell_usbphy 1>;
+				status = "disabled";
+			};
+			port@1 {
+				reg = <1>;
+				phys = <&nexell_usbphy 2>;
+				status = "disabled";
+			};
+		};
+
+		ohci@c0020000 {
+			compatible = "nexell,nexell-ohci";
+			reg = <PHYS_BASE_OHCI 0x10000>;
+			interrupts = <0 IRQ_USB20HOST 0>;
+			clocks = <&usbhost>;
+			clock-names = "usbhost";
+			resets = <&nexell_reset RESET_ID_USB20HOST>;
+			reset-names = "usbhost-reset";
+			status = "disabled";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			port@0 {
+				reg = <0>;
+				phys = <&nexell_usbphy 1>;
+				status = "disabled";
+			};
+		};
+
+		dwc2otg@c0040000 {
+			compatible = "nexell,nexell-dwc2otg";
+			reg = <PHYS_BASE_HSOTG 0x11000>;
+			interrupts = <0 IRQ_USB20OTG 0>;
+			clocks = <&otg>;
+			clock-names = "otg";
+			resets = <&nexell_reset RESET_ID_USB20OTG>;
+			reset-names = "usbotg-reset";
+			phys = <&nexell_usbphy 0>;
+			phy-names = "usb2-phy";
+			dr_mode = "otg";
+			g-use-dma = <1>;
+			g-rx-fifo-size = <1064>;
+			g-np-tx-fifo-size = <512>;
+			g-tx-fifo-size = <512 512 256 256 256 256 256 256 256
+			    256 256 256 256 256 256>;
+			status = "disabled";
+		};
+
+		gmac0:ethernet@c0060000 {
+			compatible = "nexell,s5p6818-gmac";
+			clocks = <&pclk>, <&gmac>;
+			clock-names = "stmmaceth", "nexell_gmac_tx";
+			resets = <&nexell_reset RESET_ID_DWC_GMAC>;
+			reset-names = "stmmaceth";
+			reg = <PHYS_BASE_GMAC 0x2000>;
+			interrupt-parent = <&gic>;
+			interrupts = <0 IRQ_GMAC 0>;
+			interrupt-names = "macirq";
+			mac-address = [000000000000]; /* Filled in by U-Boot */
+			phy-mode = "rgmii";
+			snps,multicast-filter-bins = <256>;
+			status = "disable";
+		};
+
+		adc:adc@c0053000 {
+			compatible = "nexell,s5p6818-adc";
+			reg = <PHYS_BASE_ADC 0x1000>;
+			interrupts = <0 IRQ_ADC 0>;
+			resets = <&nexell_reset RESET_ID_ADC>;
+			reset-names = "adc-reset";
+			clocks = <&pclk>;
+			clock-names = "adc";
+			sample_rate = <200000>;
+			#io-channel-cells = <1>;
+			status = "disabled";
+		};
+
+		spi_0:spi@c005b000 {
+			compatible = "nexell,s5p6818-spi";
+			reg = <PHYS_BASE_SSP0 0x100>;
+			interrupts = <0 IRQ_SSP0 0>;
+			dmas = <&pl08xdma0 6 0>, <&pl08xdma0 7 0>;
+			dma-names = "tx", "rx";
+			resets = <&nexell_reset RESET_ID_SSP0_P>,
+			       <&nexell_reset RESET_ID_SSP0>;
+			reset-names = "pre-reset","spi-reset";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			samsung,spi-src-clk = <0>;
+			num-cs = <1>;
+			clocks = <&spi0>, <&spi0>;
+			clock-names = "spi", "spi_busclk0";
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi0_bus>;
+			status ="disable";
+		};
+
+		spi_1:spi@c005c000 {
+			compatible = "nexell,s5p6818-spi";
+			reg = <PHYS_BASE_SSP1 0x100>;
+			interrupts = <0 IRQ_SSP1 0>;
+			dmas = <&pl08xdma0 8 0>, <&pl08xdma0 9 0>;
+			dma-names = "tx", "rx";
+			resets = <&nexell_reset RESET_ID_SSP1_P>,
+			       <&nexell_reset RESET_ID_SSP1>;
+			reset-names = "pre-reset","spi-reset";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			samsung,spi-src-clk = <0>;
+			num-cs = <1>;
+			clocks = <&spi1>, <&spi1>;
+			clock-names = "spi", "spi_busclk0";
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi1_bus>;
+			status ="disable";
+		};
+
+		spi_2:spi@c005f000 {
+			compatible = "nexell,s5p6818-spi";
+			reg = <PHYS_BASE_SSP2 0x100>;
+			interrupts = <0 IRQ_SSP2 0>;
+			dmas = <&pl08xdma0 10 0>, <&pl08xdma0 11 0>;
+			dma-names = "tx", "rx";
+			resets = <&nexell_reset RESET_ID_SSP2_P>,
+			       <&nexell_reset RESET_ID_SSP2>;
+			reset-names = "pre-reset","spi-reset";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			samsung,spi-src-clk = <0>;
+			num-cs = <1>;
+			clocks = <&spi2>, <&spi2>;
+			clock-names = "spi", "spi_busclk0";
+			pinctrl-names = "default";
+			pinctrl-0 = <&spi2_bus>;
+			status ="disable";
+		};
+
+		watchdog@c0019000 {
+			compatible = "nexell,nexell-wdt";
+			reg = <PHYS_BASE_WDT 0x1000>;
+			interrupts = <0 IRQ_WDT 0>;
+			resets = <&nexell_reset RESET_ID_WDT>,
+			       <&nexell_reset RESET_ID_WDT_POR>;
+			reset-names = "wdt-reset","wdt-por-reset";
+			clocks = <&pclk>;
+			clock-names = "watchdog";
+			status = "disabled";
+		};
+
+		spdif_tx: spdiftx@c0059000 {
+			compatible = "nexell,nexell-spdif-tx";
+			reg = <PHYS_BASE_SPDIF_TX 0x1000>;
+			interrupts = <0 IRQ_SPDIFTX 0>;
+			dmas = <&pl08xdma1 6 0>;
+			dma-names = "tx";
+			resets = <&nexell_reset RESET_ID_SPDIFTX>;
+			reset-names = "spdiftx-reset";
+			clocks = <&spdiftx>;
+			clock-names = "spdif-tx";
+			pcm-bit = <16>;
+			sample_rate = <48000>;
+			status = "disabled";
+		};
+
+		tmuctrl_0: tmuctrl@c0096000 {
+			compatible = "nexell,s5p6818-tmu";
+			reg = <PHYS_BASE_TMU0 0x100>;
+			interrupts = <0 IRQ_TMU0 0>;
+			clocks = <&pclk>;
+			clock-names = "tmu_apbif";
+			#include "s5p6818-tmu-sensor-conf.dtsi"
+			soc,tieoff = <NX_TIEOFF_Inst_TMU0_SENSING_START 1>;
+			status = "disabled";
+		};
+
+		tmuctrl_1: tmuctrl@c0097000 {
+			compatible = "nexell,s5p6818-tmu";
+			reg = <PHYS_BASE_TMU1 0x100>;
+			interrupts = <0 IRQ_TMU1 0>;
+			clocks = <&pclk>;
+			clock-names = "tmu_apbif";
+			#include "s5p6818-tmu-sensor-conf.dtsi"
+			soc,tieoff = <NX_TIEOFF_Inst_TMU1_SENSING_START 1>;
+			status = "disabled";
+		};
+
+		mipi_csi:mipi_csi@c00d0000 {
+			compatible = "nexell,mipi_csi";
+			reg = <PHYS_BASE_MIPI 0x1000>;
+			clock-names = "mipi";
+			clocks = <&mipi>;
+			reset-names = "mipi-reset", "mipi_csi-reset", "mipi_phy_s-reset";
+			resets = <&nexell_reset RESET_ID_MIPI>,
+				 <&nexell_reset RESET_ID_MIPI_CSI>,
+				 <&nexell_reset RESET_ID_MIPI_PHY_S>;
+			soc,tieoff = <NX_TIEOFF_MIPI0_NX_DPSRAM_1R1W_EMAA 3>;
+			data_lane = <2>;
+			swap_clocklane = <0>;
+			swap_datalane = <0>;
+			pllval = <750>;
+			status = "disabled";
+		};
+
+		vip_0:vip@c0063000 {
+			compatible = "nexell,vip";
+			reg = <PHYS_BASE_VIP0 0x1000>;
+			interrupts = <0 IRQ_VIP0 0>;
+			clock-names = "vip0";
+			clocks = <&vip0>;
+			reset-names = "vip0-reset";
+			resets = <&nexell_reset RESET_ID_VIP0>;
+			module = <0>;
+			status = "disabled";
+		};
+
+		vip_1:vip@c0064000 {
+			compatible = "nexell,vip";
+			reg = <PHYS_BASE_VIP1 0x1000>;
+			interrupts = <0 IRQ_VIP1 0>;
+			clock-names = "vip1";
+			clocks = <&vip1>;
+			reset-names = "vip1-reset";
+			resets = <&nexell_reset RESET_ID_VIP1>;
+			module = <1>;
+			status = "disabled";
+		};
+
+		vip_2:vip@c0099000 {
+			compatible = "nexell,vip";
+			reg = <PHYS_BASE_VIP2 0x1000>;
+			interrupts = <0 IRQ_VIP2 0>;
+			clock-names = "vip2";
+			clocks = <&vip2>;
+			reset-names = "vip2-reset";
+			resets = <&nexell_reset RESET_ID_VIP2>;
+			module = <2>;
+			status = "disabled";
+		};
+
+		clipper_0:clipper0@c0063000 {
+			compatible = "nexell,nx-clipper";
+			module = <0>;
+			status = "disabled";
+		};
+
+		clipper_1:clipper1@c0064000 {
+			compatible = "nexell,nx-clipper";
+			module = <1>;
+			status = "disabled";
+		};
+
+		clipper_2:clipper2@c0064000 {
+			compatible = "nexell,nx-clipper";
+			module = <2>;
+			status = "disabled";
+		};
+
+		decimator_0:decimator0@c0063000 {
+			compatible = "nexell,nx-decimator";
+			module = <0>;
+			status = "disabled";
+		};
+
+		dp_drm: display_drm {
+			compatible = "nexell,s5pxx18-drm";
+			reg = <0xc0102800 0x100>, <0xc0102c00 0x100>,
+				<0xc0102000 0x100>, <0xc0102400 0x100>;
+			reg-names = "dpc.0", "dpc.1", "mlc.0", "mlc.1";
+
+			interrupts = < 0 IRQ_DPC_P 0 >, <0 IRQ_DPC_S 0>;
+			interrupts-names = "dpc.0", "dpc.1";
+
+			resets = <&nexell_reset RESET_ID_DISPLAY>,
+					<&nexell_reset RESET_ID_DISP_TOP>;
+			reset-names = "rsc-display", "rsc-display-top";
+
+			status = "disabled";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				port@0 { };
+				port@1 { };
+			};
+		};
+
+		dp_drm_rgb: display_drm_rgb {
+			compatible = "nexell,s5pxx18-drm-rgb";
+			reg = <0xc0101000 0x100>;
+			resets = <&nexell_reset RESET_ID_DISP_TOP>;
+			reset-names = "rsc-display-top";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		dp_drm_lvds: display_drm_lvds {
+			compatible = "nexell,s5pxx18-drm-lvds";
+			reg = <0xc0101000 0x100>;
+			resets = <&nexell_reset RESET_ID_DISP_TOP>;
+			reset-names = "rsc-display-top";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+
+			dp-resource {
+				reg_base = <0xc010a000 0x100>;
+				clk_base = <0xc0108000 3>;
+				resets = <&nexell_reset RESET_ID_LVDS>;
+				reset-names = "rsc-lvds-phy";
+			};
+		};
+
+		dp_drm_mipi: display_drm_mipi {
+			compatible = "nexell,s5pxx18-drm-mipi";
+			reg = <0xc0101000 0x100>;
+			resets = <&nexell_reset RESET_ID_DISP_TOP>;
+			reset-names = "rsc-display-top";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+
+			dp-resource {
+				reg_base = <0xc00d0000 0x100>;
+				clk_base = <0xc0105000 2>;
+
+				resets = <&nexell_reset RESET_ID_MIPI>,
+					<&nexell_reset RESET_ID_MIPI_DSI>,
+					<&nexell_reset RESET_ID_MIPI_PHY_S>,
+					<&nexell_reset RESET_ID_MIPI_PHY_M>;
+				reset-names = "rsc-mipi", "rsc-mipi-dsi",
+					"rsc-mipi-phy-s", "rsc-mipi-phy-m";
+				soc,tieoff = <NX_TIEOFF_MIPI0_NX_DPSRAM_1R1W_EMAA 3>,
+					<NX_TIEOFF_MIPI0_NX_DPSRAM_1R1W_EMAB 3>;
+			};
+		};
+
+		dp_drm_hdmi: display_drm_hdmi{
+			compatible = "nexell,s5pxx18-drm-hdmi";
+			reg = <0xc0101000 0x100>;
+			interrupts = < 0 IRQ_HDMI 0 >;
+			resets = <&nexell_reset RESET_ID_DISP_TOP>;
+			reset-names = "rsc-display-top";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+
+			dp-resource {
+				reg_base = <0xc0000000 0x300000>;
+				clk_base = <0xc0109000 4>, <0xc0105000 2>;
+				resets = <&nexell_reset RESET_ID_HDMI_VIDEO>,
+						<&nexell_reset RESET_ID_HDMI_SPDIF>,
+						<&nexell_reset RESET_ID_HDMI_TMDS>,
+						<&nexell_reset RESET_ID_HDMI>,
+						<&nexell_reset RESET_ID_HDMI_PHY>;
+				reset-names = "rsc-hdmi-video", "rsc-hdmi-spdif",
+						"rsc-hdmi-tmds", "rsc-hdmi", "rsc-hdmi-phy";
+				soc,tieoff = <NX_TIEOFF_DISPLAYTOP0_i_HDMI_PHY_REFCLK_SEL 1>;
+			};
+		};
+
+		video-codec@c0080000 {
+			compatible = "nexell, nx-vpu";
+			reg = <0xc0080000 0x4000>;
+			interrupts = <0 IRQ_CODA960_HOST 0>,
+				<0 IRQ_CODA960_JPG 0>;
+			resets = <&nexell_reset RESET_ID_CODA_A>,
+				<&nexell_reset RESET_ID_CODA_P>,
+				<&nexell_reset RESET_ID_CODA_C>;
+			reset-names = "vpu-a-reset", "vpu-p-reset",
+				"vpu-c-reset";
+			clocks = <&pclk>, <&bclk>;
+			status = "disabled";
+		};
+
+		rtc@c0010c00 {
+		    compatible = "nexell,nx-rtc";
+		    reg = <PHYS_BASE_RTC 0x100>, <0xc0010200 0x100>;
+		    interrupts = <0 IRQ_RTC 0>;
+		    status = "disabled";
+		};
+
+		scaler@c0066000 {
+			compatible = "nexell,scaler";
+			reg = <PHYS_BASE_SCALER 0x1000>;
+			interrupts = <0 IRQ_SCALER 0>;
+			clock-names = "scaler";
+			clocks = <&scaler>;
+			reset-names = "scaler-reset";
+			resets = <&nexell_reset RESET_ID_SCALER>;
+			status = "disabled";
+		};
+
+		gpu@c0070000 {
+			compatible = "arm,mali-400", "arm,mali-utgard";
+			reg = <PHYS_BASE_VR 0x10000>;
+			interrupts = <0 IRQ_VR 0>, <0 IRQ_VR 0>, <0 IRQ_VR 0>,
+				<0 IRQ_VR 0>, <0 IRQ_VR 0>, <0 IRQ_VR 0>,
+				<0 IRQ_VR 0>, <0 IRQ_VR 0>, <0 IRQ_VR 0>,
+				<0 IRQ_VR 0>, <0 IRQ_VR 0>;
+			interrupt-names = "IRQGP", "IRQGPMMU", "IRQPP0",
+				"IRQPPMMU0", "IRQPP1", "IRQPPMMU1",
+				"IRQPP2", "IRQPPMMU2", "IRQPP3",
+				"IRQPPMMU3", "IRQPMU";
+			pmu_domain_config = <0x1 0x4 0x8 0x10 0x20 0x0 0x0 0x0
+						0x0 0x2 0x0 0x0>;
+			pmu_switch_delay = <0xff>;
+			clocks = <&vr>;
+			clock-names = "clk_mali";
+			resets = <&nexell_reset RESET_ID_VR>;
+			reset-names = "vr-reset";
+		};
+	}; /*** soc ***/
+};

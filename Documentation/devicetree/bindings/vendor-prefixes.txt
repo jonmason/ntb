@@ -155,6 +155,7 @@ netgear	NETGEAR
 netlogic	Broadcom Corporation (formerly NetLogic Microsystems)
 netxeon		Shenzhen Netxeon Technology CO., LTD
 newhaven	Newhaven Display International
+nexell	Nexell Co., Ltd.
 nintendo	Nintendo
 nokia	Nokia
 nuvoton	Nuvoton Technology Corporation
@@ -251,3 +252,4 @@ zyxel	ZyXEL Communications Corp.
 zarlink	Zarlink Semiconductor
 zii	Zodiac Inflight Innovations
 zte	ZTE Corp.
+dongguan Dong guan GT Display Co., Ltd.

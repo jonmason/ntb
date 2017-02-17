@@ -1,0 +1,21 @@
+config VIDEO_NEXELL_CLIPPER
+	bool "Enable capture clipper video device"
+	default n
+	---help---
+	  Say y here to enable Nexell S5Pxx18 series VIP clipper video device.
+	  Clipper video device can crop source crop and has memory interface.
+	  If you want to enable only clipper subdev, don't check this.
+
+config VIDEO_NEXELL_DECIMATOR
+	bool "Enable capture decimator video device"
+	default n
+	---help---
+	  Say y here to enable Nexell S5Pxx18 series VIP decimator video device.
+	  Decimator video device can scale down and has memory interface.
+
+config VIDEO_NEXELL_REARCAM
+	bool "Enable fast preview of rear camera device"
+	default n
+	---help---
+	  Say y here, you cna view cmaera as soon as kernel booting, and this
+	  driver switch on/off camera by gpio interrupt.

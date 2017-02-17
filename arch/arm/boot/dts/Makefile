@@ -777,6 +777,17 @@ dtb-$(CONFIG_ARCH_MEDIATEK) += \
 	mt8127-moose.dtb \
 	mt8135-evbp1.dtb
 dtb-$(CONFIG_ARCH_ZX) += zx296702-ad1.dtb
+dtb-$(CONFIG_ARCH_S5P4418) += \
+	s5p4418-drone.dtb \
+	s5p4418-artik530-raptor-rev00.dtb \
+	s5p4418-artik530-raptor-rev03.dtb \
+	s5p4418-artik532-raptor-rev03.dtb \
+	s5p4418-artik530-explorer.dtb \
+	s5p4418-artik532-explorer.dtb \
+	s5p4418-avn_ref-rev00.dtb \
+	s5p4418-navi_ref-rev00.dtb \
+	s5p4418-navi_ref-rev01.dtb \
+	s5p4418-smart_voice.dtb
 endif
 
 dtstree		:= $(srctree)/$(src)

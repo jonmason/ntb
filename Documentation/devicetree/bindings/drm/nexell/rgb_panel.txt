@@ -1,0 +1,85 @@
+Device-Tree bindings for Nexell DRM generic RGB panel output driver
+
+Required properties for display soc panel driver:
+ - compatible: value should be "nexell,s5pxx18-drm-rgb".
+ - remote-endpoint: the RGB lcd-panel node can contain one 'port' child node
+    with one child 'endpoint' node, according to the bindings defined in [2]. This
+    node should describe panel's video bus.
+ - width-mm: physical panel width [mm]
+ - height-mm: physical panel height [mm]
+ - display-timing: typical videomode of lcd panel. Multiple video modes
+    can be listed if the panel supports multiple timings, but the 'native-mode'
+    should be the preferred/default resolution.  Refer to
+    Documentation/devicetree/bindings/video/display-timing.txt for display
+    timing binding details.
+
+ - panel-mpu: support mpu type RGB LCD
+
+  - dp_control: sub node to config display port hw parameters.
+   - clk_src_lv0: select display clock source of clock generator '0'
+      0:PLL0, 1:PLL1, 2:SVLCK, 3:P(S)VCLK, 4:~P(S)VCLK, 5:AVCLK
+      6:~SVLCK, 7:ClKGEN0's Output( Only use Clock generator1 )
+   - clk_div_lv0: set display clock divisor of specified clock generator '0' (1 ~ 256)
+   - clk_src_lv1: select display clock source of clock generator '1'
+      0:PLL0, 1:PLL1, 2:SVLCK, 3:P(S)VCLK, 4:~P(S)VCLK, 5:AVCLK
+      6:~SVLCK, 7:ClKGEN0's Output( Only use Clock generator1 )
+   - clk_div_lv1: set clock display divisor of specified clock generator '1' (1 ~ 256)
+   - out_format: specifies display out data format
+   - invert_field: pecifies internal field polarity
+      0: normal field(low is odd), 1: invert field(low is even)
+   - swap_rb: swap red and blue component for rgb output
+   - yc_order: output order for YCbCr Output
+   - delay_mask: to adjust delay (rgb_pvd, hsync_cp1, vsync_fram, de_cp2)
+      if 0, set defalut delays
+   - d_rgb_pvd: the delay value for RGB/PVD signal
+   - d_hsync_cp1: the delay value for HSYNC/CP1 signal
+   - d_vsync_fram: the delay value for VSYNC/FRAM signal
+   - d_de_cp2: the delay value for DE/CP2 signal
+   - vs_start_offset: start veritcal sync offset
+   - vs_end_offset: end veritcla sync offset
+   - ev_start_offset: start even veritcal sync offset
+   - ev_end_offset: end even veritcal sync offset
+   - vck_select: specifies the pixel clock polarity
+
+Example:
+
+SOC specific portion:
+
+/ {
+	...
+	soc {
+		dp_drm_rgb: display_drm_rgb {
+    			compatible = "nexell,s5pxx18-drm-rgb";
+		};
+	};
+};
+
+Board Specific portion:
+
+&dp_drm_rgb {
+	remote-endpoint = <&rgb_panel>;
+	panel-mpu = <0>;
+
+	display-timing {
+	        clock-frequency = <65000000>;
+        	hactive = <1024>;
+	        hsync-len = <20>;
+        	hback-porch = <160>;
+	        hfront-porch = <160>;
+        	hsync-active = <1>;
+	        vactive = <600>;
+	        vsync-len = <3>;
+        	vback-porch = <23>;
+	        vfront-porch = <12>;
+	        vsync-active = <1>;
+	};
+
+	dp_control {
+		clk_src_lv0 = <0>;
+		clk_div_lv0 = <16>;
+		clk_src_lv1 = <7>;
+		clk_div_lv1 = <1>;
+		.....
+	};
+    };
+};

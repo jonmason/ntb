@@ -1,0 +1,82 @@
+/*
+ * Copyright (C) 2016  Nexell Co., Ltd.
+ * Author: Youngbok, Park <ybpark@nexell.co.kr>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include "../skeleton.dtsi"
+
+#include <dt-bindings/tieoff/s5p4418-tieoff.h>
+#include <dt-bindings/soc/s5p4418-base.h>
+#include <dt-bindings/reset/nexell,s5p4418-reset.h>
+#include <dt-bindings/interrupt-controller/s5p4418-irq.h>
+#include <dt-bindings/media/nexell-vip.h>
+#include "s5p4418.dtsi"
+
+/ {
+	soc {
+		/delete-node/	dw_mmc@c0069000;
+		/delete-node/	dw_mmc@c0068000;
+		/delete-node/	dw_mmc@c0062000;
+
+		dw_mmc_0:dwmmc@c0062000 {
+			compatible = "nexell,s5p6818-dw-mshc";
+			interrupts = <IRQ_SDMMC0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <PHYS_BASE_SDMMC0 0x1000>;
+			resets  = <&nexell_reset RESET_ID_SDMMC0>;
+			reset-names = "dw_mmc-reset";
+			clock-names = "biu", "ciu";
+			clocks = <&sdhc0>, <&sdhc0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&sdmmc0_cclk &sdmmc0_cmd &sdmmc0_bus4>;
+			fifo-detph = <0x20>;
+			status = "disabled";
+		};
+
+		dw_mmc_1:dwmmc@c0068000 {
+			compatible = "nexell,s5p6818-dw-mshc";
+			interrupts = <IRQ_SDMMC1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <PHYS_BASE_SDMMC1 0x1000>;
+			resets  = <&nexell_reset RESET_ID_SDMMC1>;
+			reset-names = "dw_mmc-reset";
+			clock-names = "biu", "ciu";
+			clocks = <&sdhc1>, <&sdhc1>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&sdmmc1_cclk &sdmmc1_cmd &sdmmc1_bus4>;
+			fifo-detph = <0x20>;
+			status = "disabled";
+		};
+
+		dw_mmc_2:dwmmc@c0069000 {
+			compatible = "nexell,s5p6818-dw-mshc";
+			interrupts = <IRQ_SDMMC2>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <PHYS_BASE_SDMMC2 0x1000>;
+			resets  = <&nexell_reset RESET_ID_SDMMC2>;
+			reset-names = "dw_mmc-reset";
+			clock-names = "biu","ciu";
+			clocks = <&sdhc2>, <&sdhc2>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&sdmmc2_cclk &sdmmc2_cmd &sdmmc2_bus4>;
+			fifo-detph = <0x20>;
+			status = "disabled";
+		};
+	}; /*** soc ***/
+};

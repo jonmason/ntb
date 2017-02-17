@@ -589,7 +589,11 @@ void __init prepare_namespace(void)
 			saved_root_name);
 		while (driver_probe_done() != 0 ||
 			(ROOT_DEV = name_to_dev_t(saved_root_name)) == 0)
+#ifndef CONFIG_REDUCE_BOOT_TIME
 			msleep(100);
+#else
+			msleep(20);
+#endif
 		async_synchronize_full();
 	}
 

@@ -1,0 +1,25 @@
+Nexell V4L2 Video Codec Device Tree bindings
+=============================================
+
+nx-vpu driver is top logical driver for all video codec of Nexell.
+
+Required properties:
+- compatible : must contain "nexell, nx-vpu"
+- status : To enable nx-vpu, should set to "okay"
+- sram : To enable SRAM, should set to <0xFFFF0000 0x8000>
+         (base_address size)
+
+Example:
+
+video-codec@c0080000 {
+	compatible = "nexell, nx-vpu";
+	reg = <0xc0080000 0x4000>;
+	interrupts = <0 IRQ_CODA960_HOST 0>;
+	resets = <&nexell_reset RESET_ID_CODA_A>,
+		<&nexell_reset RESET_ID_CODA_P>,
+		<&nexell_reset RESET_ID_CODA_C>;
+	reset-names = "vpu-a-reset", "vpu-p-reset", "vpu-c-reset";
+	clocks = <&pclk>, <&bclk>;
+	status = "okay";
+	sram = <0xFFFF0000 0x8000>;
+};

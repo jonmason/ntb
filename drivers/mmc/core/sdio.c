@@ -379,7 +379,11 @@ static unsigned mmc_sdio_get_max_clock(struct mmc_card *card)
 		 * high-speed, but it seems that 50 MHz is
 		 * mandatory.
 		 */
+#ifdef CONFIG_ARM_S5Pxx18_DEVFREQ
+		max_dtr = 52000000;
+#else
 		max_dtr = 50000000;
+#endif
 	} else {
 		max_dtr = card->cis.max_dtr;
 	}
@@ -541,8 +545,8 @@ static int mmc_sdio_init_uhs_card(struct mmc_card *card)
 	 * SDR104 mode SD-cards. Note that tuning is mandatory for SDR104.
 	 */
 	if (!mmc_host_is_spi(card->host) &&
-	    ((card->sw_caps.sd3_bus_mode & SD_MODE_UHS_SDR50) ||
-	     (card->sw_caps.sd3_bus_mode & SD_MODE_UHS_SDR104)))
+	    ((card->host->ios.timing == MMC_TIMING_UHS_SDR50) ||
+	      (card->host->ios.timing == MMC_TIMING_UHS_SDR104)))
 		err = mmc_execute_tuning(card);
 out:
 	return err;
@@ -636,7 +640,7 @@ try_again:
 	 */
 	if (!powered_resume && (rocr & ocr & R4_18V_PRESENT)) {
 		err = mmc_set_signal_voltage(host, MMC_SIGNAL_VOLTAGE_180,
-					ocr);
+					ocr_card);
 		if (err == -EAGAIN) {
 			sdio_reset(host);
 			mmc_go_idle(host);
@@ -963,7 +967,8 @@ static int mmc_sdio_resume(struct mmc_host *host)
 	}
 
 	/* No need to reinitialize powered-resumed nonremovable cards */
-	if (mmc_card_is_removable(host) || !mmc_card_keep_power(host)) {
+	if (!(host->pm_caps & MMC_PM_IGNORE_REINIT_SDIO) &&
+		(mmc_card_is_removable(host) || !mmc_card_keep_power(host))) {
 		sdio_reset(host);
 		mmc_go_idle(host);
 		mmc_send_if_cond(host, host->card->ocr);

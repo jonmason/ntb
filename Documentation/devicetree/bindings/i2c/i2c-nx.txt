@@ -1,0 +1,55 @@
+* Nexell's I2C controller
+
+The Nexell's I2C controller is used to interface with I2C devices.
+
+Required properties:
+  - compatible: value should be either of the following.
+      (a) "nexell, s5p4418-i2c", for i2c compatible with s5p4418 i2c.
+  - reg: physical base address of the controller and length of memory mapped
+    region.
+  - interrupts: interrupt number to the cpu.
+  - clock-names : shall be "i2c"
+  - clocks : clock provider specifier
+  - resets : phandle to the parent reset controller.(only Nexell Soc.)
+      - "nexell_reset" - reset-controller,
+      - "RESET_ID_I2C0" - Nth Reset control id (N = 0, 1, ...)
+  - reset-names : input names of resets used by the controller(only Nexell Soc.)
+  - gpios: The order of the gpios should be the following: <SDA, SCL>.
+  - pinctrl-names: Should contain only one value - "default".
+  - pinctrl-0: Pin control group(i2c mode) to be used for this controller.
+  - pinctrl-1: Pin control group(gpio mode) to be used for this controller.
+
+Optional properties:
+  - sda-delay: Delay (in us) to set delay between sda and scl when start/stop.
+  - retry-delay: Delay (in us) to retry data transfer.
+  - retry-cnt: retry times to retry data transfer.
+  - rate: Desired frequency in Hz of the bus.
+    If not specified, the default value in Hz is 100000.
+
+Example:
+
+	i2c_0:i2c@c00a4000 {
+		compatible = "nexell,s5p4418-i2c";
+		reg = <PHYS_BASE_I2C0 0x100>;
+		interrupts = <IRQ_I2C0>;
+		clock-names = "i2c";
+		clocks = <&i2c0>;
+		resets  = <&nexell_reset RESET_ID_I2C0>;
+		reset-names = "i2c-reset";
+		gpios = <&gpio_d 3 0 /* SDA */
+			 &gpio_d 2 0 /* SCL */>;
+		pinctrl-names = "default", "mode_gpio";
+		pinctrl-0 = <&i2c0_pin_dft>;
+		pinctrl-1 = <&i2c0_gpio_mode>;
+		sda-delay = <1>;
+		retry-delay = <100>;
+		retry-cnt = <3>;
+		rate = <100000>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		es8316: es8316@11 {
+			compatible = "everest,es8316";
+			reg = <0x11>;
+		};
+	};

@@ -1,0 +1,33 @@
+* Nexell tieoff.
+
+Tieoff block is a set of registers that includes special registers which
+ don’t need to be set in normal mode operation.
+Tieoff block includes special function registers for ARM, HDMI, DRAM controller,
+ UART, USB2.0 HOST controller/ Phy, USB2.0 OTG controller/ Phy,
+ Ethernet controller, AXI buses and the internal SRAM timing margin controls.
+
+Add the following properties for each device node using the tieoff.
+
+Required properties:
+
+- compatible: should be "nexell,tieoff".
+- reg: physical base address of the controller and length of memory mapped
+  region.
+- soc,tieoff: add to device node of each driver, <tieoff index, tieoff value>
+  so on. You can find defines of tieoff index
+  at dt-bindings/tieoff/s5p6818-tieoff.h and tieoff value is device specific so
+  refer to TRM.
+
+Example:
+	tieoff@c0011000 {
+		compatible = "nexell,tieoff";
+		reg = <PHYS_BASE_TIEOFF 0x1000>;
+	};
+
+	serial0:serial@c00a1000 {
+		....
+		soc,tieoff = <NX_TIEOFF_UART0_USESMC 0>,
+			     <NX_TIEOFF_UART0_SMCTXENB 0>,
+			     <NX_TIEOFF_UART0_SMCRXENB 0>;
+	}
+

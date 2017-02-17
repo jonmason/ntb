@@ -3573,6 +3573,7 @@ static void hci_pkt_type_change_evt(struct hci_dev *hdev, struct sk_buff *skb)
 
 static void hci_pscan_rep_mode_evt(struct hci_dev *hdev, struct sk_buff *skb)
 {
+#ifndef CONFIG_MARVELL_DRIVERS
 	struct hci_ev_pscan_rep_mode *ev = (void *) skb->data;
 	struct inquiry_entry *ie;
 
@@ -3587,6 +3588,7 @@ static void hci_pscan_rep_mode_evt(struct hci_dev *hdev, struct sk_buff *skb)
 	}
 
 	hci_dev_unlock(hdev);
+#endif
 }
 
 static void hci_inquiry_result_with_rssi_evt(struct hci_dev *hdev,

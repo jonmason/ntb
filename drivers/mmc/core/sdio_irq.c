@@ -114,7 +114,8 @@ static int sdio_irq_thread(void *_host)
 	 * hence we poll for them in that case.
 	 */
 	idle_period = msecs_to_jiffies(10);
-	period = (host->caps & MMC_CAP_SDIO_IRQ) ?
+	period = (host->caps & MMC_CAP_SDIO_IRQ || host->caps2
+			  & MMC_CAP2_OOB_SDIO_IRQ) ?
 		MAX_SCHEDULE_TIMEOUT : idle_period;
 
 	pr_debug("%s: IRQ thread started (poll period = %lu jiffies)\n",
@@ -157,7 +158,8 @@ static int sdio_irq_thread(void *_host)
 		 * that an interrupt will be closely followed by more.
 		 * This has a substantial benefit for network devices.
 		 */
-		if (!(host->caps & MMC_CAP_SDIO_IRQ)) {
+		if (!(host->caps & MMC_CAP_SDIO_IRQ || host->caps2
+					   & MMC_CAP2_OOB_SDIO_IRQ)) {
 			if (ret > 0)
 				period /= 2;
 			else {

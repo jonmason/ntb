@@ -1,0 +1,112 @@
+/ {
+	soc {
+		clocks {
+			timer0:timer@c00b9000 {
+				clk-input = <(CLK_INPUT_TIMER & ~I_PLL2)>;
+			};
+
+			timer1:timer@c00bb000 {
+				clk-input = <(CLK_INPUT_TIMER & ~I_PLL2)>;
+			};
+
+			timer2:timer@c00bc000 {
+				clk-input = <(CLK_INPUT_TIMER & ~I_PLL2)>;
+			};
+
+			timer3:timer@c00bd000 {
+				clk-input = <(CLK_INPUT_TIMER & ~I_PLL2)>;
+			};
+
+			uart0:uart@c00a9000 {
+				clk-input = <(CLK_INPUT_UART & ~I_PLL2)>;
+			};
+
+			uart1:uart@c00a8000 {
+				clk-input = <(CLK_INPUT_UART & ~I_PLL2)>;
+			};
+
+			uart2:uart@c00aa000 {
+				clk-input = <(CLK_INPUT_UART & ~I_PLL2)>;
+			};
+
+			uart3:uart@c00ab000 {
+				clk-input = <(CLK_INPUT_UART & ~I_PLL2)>;
+			};
+
+			pwm0:pwm0@c00ba000 {
+				clk-input = <(CLK_INPUT_PWM & ~I_PLL2)>;
+			};
+
+			pwm1:pwm1@c00ba000 {
+				clk-input = <(CLK_INPUT_PWM & ~I_PLL2)>;
+			};
+
+			pwm2:pwm2@c00be000 {
+				clk-input = <(CLK_INPUT_PWM & ~I_PLL2)>;
+			};
+
+			pwm3:pwm3@c00be000 {
+				clk-input = <(CLK_INPUT_PWM & ~I_PLL2)>;
+			};
+
+			sdhc0:sdhc@c00c5000 {
+				clk-input = <(CLK_INPUT_SDHC & ~I_PLL2)>;
+			};
+
+			sdhc1:sdhc@c00cc000 {
+				clk-input = <(CLK_INPUT_SDHC & ~I_PLL2)>;
+			};
+
+			sdhc2:sdhc@c00cd000 {
+				clk-input = <(CLK_INPUT_SDHC & ~I_PLL2)>;
+			};
+
+			spi0:spi@c00ac000 {
+				clk-input = <(CLK_INPUT_SPI & ~I_PLL2)>;
+			};
+
+			spi1:spi@c00ad000 {
+				clk-input = <(CLK_INPUT_SPI & ~I_PLL2)>;
+			};
+
+			spi2:spi@c00a7000 {
+				clk-input = <(CLK_INPUT_SPI & ~I_PLL2)>;
+			};
+
+			vip0:vip@c00c1000 {
+				clk-input = <(CLK_INPUT_VIP0 & ~I_PLL2)>;
+			};
+
+			vip1:vip@c00c2000 {
+				clk-input = <(CLK_INPUT_VIP1 & ~I_PLL2)>;
+			};
+
+			mipi:mipi@c00ca000 {
+				clk-input = <(CLK_INPUT_MIPI & ~I_PLL2)>;
+			};
+
+			gmac:gmac@c00c8000 {
+				clk-input = <(CLK_INPUT_GMAC & ~I_PLL2)>;
+				clk-input1 = <(CLK_INPUT_GMAC_IN1 & ~I_PLL2)>;
+			};
+
+			spdiftx:spdiftx@c00b8000 {
+				clk-input = <(CLK_INPUT_SPDIFTX & ~I_PLL2)>;
+			};
+
+			ppm:pppm@c00c4000 {
+				clk-input = <(CLK_INPUT_PPM & ~I_PLL2)>;
+			};
+
+			usbhost:usbhost@c006b000 {
+				clk-input = <(CLK_INPUT_EHCI & ~I_PLL2)>;
+				clk-input1 = <(CLK_INPUT_EHCI_IN1 & ~I_PLL2)>;
+			};
+
+			otg:otg@6c00b000 {
+				clk-input = <(CLK_INPUT_OTG & ~I_PLL2)>;
+				clk-input1 = <(CLK_INPUT_OTG_IN1 & ~I_PLL2)>;
+			};
+		};
+	};
+};

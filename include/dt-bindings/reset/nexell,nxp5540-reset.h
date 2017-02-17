@@ -1,0 +1,349 @@
+/*
+ * Copyright (C) 2016  Nexell Co., Ltd.
+ * Author: Bon-gyu, KOO <freestyle@nexell.co.kr>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#define PHYS_BASE_SYS_RSTCON		(0x20108000)
+#define PHYS_BASE_TBUS_RSTCON		(0x20118000)
+#define PHYS_BASE_LBUS_RSTCON		(0x20128000)
+#define PHYS_BASE_BBUS_RSTCON		(0x20138000)
+#define PHYS_BASE_CODA_RSTCON		(0x20218000)
+#define PHYS_BASE_DISP_RSTCON		(0x20228000)
+#define PHYS_BASE_USB_RSTCON		(0x20238000)
+#define PHYS_BASE_HDMI_RSTCON		(0x20248000)
+#define PHYS_BASE_WAVE_RSTCON		(0x20268000)
+#define PHYS_BASE_DREX_RSTCON		(0x20278000)
+#define PHYS_BASE_WAVE420_RSTCON	(0x20298000)
+#define PHYS_BASE_CPU_RSTCON		(0x202D8000)
+#define PHYS_BASE_PERICLK_RSTCON	(0x202E8000)
+
+/*
+ * Reset ID
+ */
+
+#define RESET_BANK_SYS				0
+#define RESET_BANK_TBUS				1
+#define RESET_BANK_LBUS				2
+#define RESET_BANK_BBUS				3
+#define RESET_BANK_CODA				4
+#define RESET_BANK_DISP				5
+#define RESET_BANK_USB				6
+#define RESET_BANK_HDMI				7
+#define RESET_BANK_WAVE				8
+#define RESET_BANK_DREX				9
+#define RESET_BANK_WAVE420			10
+#define RESET_BANK_CPU				11
+#define RESET_BANK_PERICLK			12
+
+/* RESET_BANK_SYS */
+#define	RESET_ID_CCI400_0_AXI			0
+#define	RESET_ID_TIEOFF_CCI_0_AXI		1
+#define	RESET_ID_SYS_0_AHB			2
+#define	RESET_ID_SYS_0_APB			3
+#define	RESET_ID_TIMER_0_APB			4
+#define	RESET_ID_TIMER_4_APB			5
+#define	RESET_ID_PWM_0_APB			6
+#define	RESET_ID_PWM_4_APB			7
+#define	RESET_ID_PWM_8_APB			8
+#define	RESET_ID_PWM_12_APB			9
+#define	RESET_ID_SYSCTRL_0_APB			10
+#define	RESET_ID_HPM_0_APB			11
+#define	RESET_ID_Q_ENHANCER_0_APB		12
+#define	RESET_ID_CRYPTO_0_APB			13
+#define	RESET_ID_WDT_0_APB			14
+#define	RESET_ID_WDT_0_POR			15
+#define	RESET_ID_WDT_1_APB			16
+#define	RESET_ID_WDT_1_POR			17
+#define	RESET_ID_TZPC_0_APB			18
+#define	RESET_ID_ECID_0_APB			19
+#define	RESET_ID_DMAC_0_APB			20
+#define	RESET_ID_DMAC_1_APB			21
+#define	RESET_ID_SDMAC_0_APB			22
+#define	RESET_ID_SDMAC_1_APB			23
+#define	RESET_ID_MDMAC_0_APB			24
+#define	RESET_ID_SYSTIEOFF_0_APB		25
+#define	RESET_ID_MCUS_0_APB			26
+#define	RESET_ID_ISP_CMU_0			27
+#define	RESET_ID_DISP_CMU_0			28
+#define	RESET_ID_USB_CMU_0			29
+#define	RESET_ID_CODA_CMU_0			30
+#define	RESET_ID_GPU_CMU_0			31
+#define	RESET_ID_HDMI_CMU_0			32
+#define	RESET_ID_WAVE_CMU_0			33
+#define	RESET_ID_WAVE420_CMU_0			34
+#define	RESET_ID_DREX_CMU_0			35
+#define	RESET_ID_CPU_CMU_0			36
+#define	RESET_ID_PERICLK_CMU_0			37
+#define	RESET_ID_PDM_0_APB			38
+#define	RESET_ID_PDM_1_APB			39
+#define	RESET_ID_PDM_2_APB			40
+#define	RESET_ID_PDM_3_APB			41
+#define	RESET_ID_AUDIO_IO_CTRL_0_APB		42
+#define	RESET_ID_PKA_0_CORE			43
+#define	RESET_ID_CSSYS_SRC_0_AXI		44
+#define	RESET_ID_MCUSTOP_0			45
+#define	RESET_ID_BUS_DMAC_0_AXI			46
+#define	RESET_ID_DMAC_0_AXI			47
+#define	RESET_ID_DMAC_1_AXI			48
+#define	RESET_ID_SDMAC_0_AXI			49
+#define	RESET_ID_SDMAC_1_AXI			50
+#define	RESET_ID_MDMAC_0_AXI			51
+#define	RESET_ID_GIC400_0_AXI			52
+
+/* RESET_BANK_TBUS */
+#define	RESET_ID_TBUS_0_AXI			0
+#define	RESET_ID_TBUS_0_AHB			1
+#define	RESET_ID_TBUS_0_APB			2
+#define	RESET_ID_I2S_0_APB			3
+#define	RESET_ID_I2S_1_APB			4
+#define	RESET_ID_I2S_2_APB			5
+#define	RESET_ID_I2S_3_APB			6
+#define	RESET_ID_AC97_0_APB			7
+#define	RESET_ID_I2C_0_APB			8
+#define	RESET_ID_I2C_1_APB			9
+#define	RESET_ID_I2S_0_CORE			10
+#define	RESET_ID_I2S_1_CORE			11
+#define	RESET_ID_I2S_2_CORE			12
+#define	RESET_ID_I2S_3_CORE			13
+
+/* RESET_BANK_LBUS */
+#define	RESET_ID_LBUS_0_AXI			0
+#define	RESET_ID_LBUS_0_AHB			1
+#define	RESET_ID_GMAC_0_AHB			2
+#define	RESET_ID_MP2TS_0_AHB			3
+#define	RESET_ID_LBUS_0_APB			4
+#define	RESET_ID_GMAC_0_CSR			5
+#define	RESET_ID_LBUSTIEOFF_0_APB		6
+#define	RESET_ID_GPIO_0_APB			7
+#define	RESET_ID_GPIO_1_APB			8
+#define	RESET_ID_I2C_2_APB			9
+#define	RESET_ID_I2C_3_APB			10
+#define	RESET_ID_I2C_4_APB			11
+#define	RESET_ID_SDMMC_0_CORE			12
+#define	RESET_ID_SDMMC_0_AXI			13
+#define	RESET_ID_SDMMC_1_CORE			14
+#define	RESET_ID_SDMMC_1_AXI			15
+#define	RESET_ID_SDMMC_2_CORE			16
+#define	RESET_ID_SDMMC_2_AXI			17
+
+/* RESET_BANK_BBUS */
+#define	RESET_ID_BBUS_0_AXI			0
+#define	RESET_ID_BBUS_0_AHB			1
+#define	RESET_ID_BBUS_0_APB			2
+#define	RESET_ID_UART_0_APB			3
+#define	RESET_ID_UART_1_APB			4
+#define	RESET_ID_UART_2_APB			5
+#define	RESET_ID_UART_3_APB			6
+#define	RESET_ID_UART_4_APB			7
+#define	RESET_ID_UART_5_APB			8
+#define	RESET_ID_UART_6_APB			9
+#define	RESET_ID_UART_7_APB			10
+#define	RESET_ID_UART_8_APB			11
+#define	RESET_ID_SPDIFTX_0_APB			12
+#define	RESET_ID_SPDIFRX_0_APB			13
+#define	RESET_ID_TMU_0_APB			14
+#define	RESET_ID_BBUSTIEOFF_0_APB		15
+#define	RESET_ID_ADC_0_APB			16
+#define	RESET_ID_GPIO_2_APB			17
+#define	RESET_ID_GPIO_3_APB			18
+#define	RESET_ID_GPIO_4_APB			19
+#define	RESET_ID_UART_0_CORE			20
+#define	RESET_ID_UART_1_CORE			21
+#define	RESET_ID_UART_2_CORE			22
+#define	RESET_ID_UART_3_CORE			23
+#define	RESET_ID_UART_4_CORE			24
+#define	RESET_ID_UART_5_CORE			25
+#define	RESET_ID_UART_6_CORE			26
+#define	RESET_ID_UART_7_CORE			27
+#define	RESET_ID_UART_8_CORE			28
+#define	RESET_ID_SPI_0_APB			29
+#define	RESET_ID_SPI_0_CORE			30
+#define	RESET_ID_SPI_1_APB			31
+#define	RESET_ID_SPI_1_CORE			32
+#define	RESET_ID_SPI_2_APB			33
+#define	RESET_ID_SPI_2_CORE			34
+#define	RESET_ID_SPDIFTX_0_CORE			35
+
+/* RESET_BANK_CODA */
+#define	RESET_ID_CODA980_0_AXI			0
+#define	RESET_ID_JPEG_0_AXI			1
+#define	RESET_ID_CODA980_0_APB			2
+#define	RESET_ID_JPEG_0_APB			3
+#define	RESET_ID_CODATIEOFF_0_APB		4
+#define	RESET_ID_CODA980_0_CORE			5
+#define	RESET_ID_CODA980_0_SRAM			6
+#define	RESET_ID_JPEG_0_CORE			7
+
+/* RESET_BANK_DISP */
+#define	RESET_ID_DISP_0_AXI			0
+#define	RESET_ID_MIPI_0_AXI			1
+#define	RESET_ID_CSI_TO_AXI_0_AXI		2
+#define	RESET_ID_CSI_TO_NXS_0_AXI		3
+#define	RESET_ID_CSI_TO_NXS_1_AXI		4
+#define	RESET_ID_CSI_TO_NXS_2_AXI		5
+#define	RESET_ID_CSI_TO_NXS_3_AXI		6
+#define	RESET_ID_MLC_0_BOTTOM0			7
+#define	RESET_ID_MLC_0_BOTTOM1			8
+#define	RESET_ID_MLC_0_BLENDER0			9
+#define	RESET_ID_MLC_0_BLENDER1			10
+#define	RESET_ID_MLC_0_BLENDER2			11
+#define	RESET_ID_MLC_0_BLENDER3			12
+#define	RESET_ID_MLC_0_BLENDER4			13
+#define	RESET_ID_MLC_0_BLENDER5			14
+#define	RESET_ID_MLC_0_BLENDER6			15
+#define	RESET_ID_MLC_0_BLENDER7			16
+#define	RESET_ID_VIP_0_AXI			17
+#define	RESET_ID_VIP_1_AXI			18
+#define	RESET_ID_VIP_2_AXI			19
+#define	RESET_ID_VIP_3_AXI			20
+#define	RESET_ID_MCD_CPUIF_0_AXI		21
+#define	RESET_ID_VIP_CPUIF_0_AXI		22
+#define	RESET_ID_VIP_PRES_CPUIF_0_AXI		23
+#define	RESET_ID_ISS_CPUIF_0_AXI		24
+#define	RESET_ID_DISP2ISP_0_AXI			25
+#define	RESET_ID_ISP2DISP_0_AXI			26
+#define	RESET_ID_ISP2DISP_1_AXI			27
+#define	RESET_ID_CROP_0_AXI			28
+#define	RESET_ID_CROP_1_AXI			29
+#define	RESET_ID_CSC_0_AXI			30
+#define	RESET_ID_CSC_1_AXI			31
+#define	RESET_ID_CSC_2_AXI			32
+#define	RESET_ID_CSC_3_AXI			33
+#define	RESET_ID_SCALER_0_AXI			34
+#define	RESET_ID_SCALER_1_AXI			35
+#define	RESET_ID_SCALER_2_AXI			36
+#define	RESET_ID_MULTI_TAP_0_AXI		37
+#define	RESET_ID_MULTI_TAP_1_AXI		38
+#define	RESET_ID_MULTI_TAP_2_AXI		39
+#define	RESET_ID_MULTI_TAP_3_AXI		40
+#define	RESET_ID_DMAR_0_AXI			41
+#define	RESET_ID_DMAR_1_AXI			42
+#define	RESET_ID_DMAR_2_AXI			43
+#define	RESET_ID_DMAR_3_AXI			44
+#define	RESET_ID_DMAR_4_AXI			45
+#define	RESET_ID_DMAR_5_AXI			46
+#define	RESET_ID_DMAR_6_AXI			47
+#define	RESET_ID_DMAR_7_AXI			48
+#define	RESET_ID_DMAR_8_AXI			49
+#define	RESET_ID_DMAR_9_AXI			50
+#define	RESET_ID_DMAW_0_AXI			51
+#define	RESET_ID_DMAW_1_AXI			52
+#define	RESET_ID_DMAW_2_AXI			53
+#define	RESET_ID_DMAW_3_AXI			54
+#define	RESET_ID_DMAW_4_AXI			55
+#define	RESET_ID_DMAW_5_AXI			56
+#define	RESET_ID_DMAW_6_AXI			57
+#define	RESET_ID_DMAW_7_AXI			58
+#define	RESET_ID_DMAW_8_AXI			59
+#define	RESET_ID_DMAW_9_AXI			60
+#define	RESET_ID_DMAW_10_AXI			61
+#define	RESET_ID_DMAW_11_AXI			62
+#define	RESET_ID_HUE_0_AXI			63
+#define	RESET_ID_HUE_1_AXI			64
+#define	RESET_ID_GAMMA_0_AXI			65
+#define	RESET_ID_GAMMA_1_AXI			66
+#define	RESET_ID_DPC_0_AXI			67
+#define	RESET_ID_DPC_1_AXI			68
+#define	RESET_ID_LVDS_0_AXI			69
+#define	RESET_ID_LVDS_0_PHY			70
+#define	RESET_ID_LVDS_1_AXI			71
+#define	RESET_ID_LVDS_1_PHY			72
+#define	RESET_ID_NXS_FIFO_0_AXI			73
+#define	RESET_ID_NXS_FIFO_1_AXI			74
+#define	RESET_ID_NXS_FIFO_2_AXI			75
+#define	RESET_ID_NXS_FIFO_3_AXI			76
+#define	RESET_ID_NXS_FIFO_4_AXI			77
+#define	RESET_ID_NXS_FIFO_5_AXI			78
+#define	RESET_ID_NXS_FIFO_6_AXI			79
+#define	RESET_ID_NXS_FIFO_7_AXI			80
+#define	RESET_ID_NXS_FIFO_8_AXI			81
+#define	RESET_ID_NXS_FIFO_9_AXI			82
+#define	RESET_ID_NXS_FIFO_10_AXI		83
+#define	RESET_ID_NXS_FIFO_11_AXI		84
+#define	RESET_ID_NXS2HDMI_0_AXI			85
+#define	RESET_ID_TPGEN_0_AXI			86
+#define	RESET_ID_DISP_0_APB			87
+#define	RESET_ID_DEINTERLACE_0_APB		88
+#define	RESET_ID_DISP_TIEOFF_0_APB		89
+#define	RESET_ID_DISP_TZPC_0_APB		90
+#define	RESET_ID_DISP_TZPC_1_APB		91
+#define	RESET_ID_MIPI_0_APBCSI			92
+#define	RESET_ID_MIPI_0_APBDSI			93
+#define	RESET_ID_MIPI_0_CSIPHY			94
+#define	RESET_ID_DPC_0_X2			95
+#define	RESET_ID_DPC_1_X2			96
+#define	RESET_ID_MIPI_0_X2			97
+#define	RESET_ID_LVDS_0_VCLK			98
+#define	RESET_ID_LVDS_1_VCLK			99
+#define	RESET_ID_DEINTERLACE_0_AXI		100
+#define	RESET_ID_MAPCONV_0_AXI			101
+#define	RESET_ID_MCD_0_VCLK			102
+
+/* RESET_BANK_USB */
+#define	RESET_ID_USB_0_AXI			0
+#define	RESET_ID_USB30_0_AXI			1
+#define	RESET_ID_USB_0_AHB			2
+#define	RESET_ID_USB_0_APB			3
+#define	RESET_ID_USB30_0_APB			4
+#define	RESET_ID_OTG_SYS_0_AHB			5
+#define	RESET_ID_OTG_SYS_0_APB			6
+#define	RESET_ID_HOST_SYS_0_EHCIAHB		7
+#define	RESET_ID_HOST_SYS_0_OHCIAHB		8
+#define	RESET_ID_HOST_SYS_0_APB			9
+#define	RESET_ID_HSIC_REFDIG_0			10
+
+/* RESET_BANK_HDMI */
+#define	RESET_ID_HDMI_0_AXI			0
+#define	RESET_ID_HDMIV2_0_AXI			1
+#define	RESET_ID_HDMIV2_0_APB			2
+#define	RESET_ID_HDMIV2_0_APBPHY		3
+#define	RESET_ID_HDMIV2_0_PHY			4
+#define	RESET_ID_HDMIV2_0_TMDS_10B		5
+#define	RESET_ID_HDMIV2_0_TMDS_20B		6
+#define	RESET_ID_HDMIV2_0_PIXELX2		7
+#define	RESET_ID_HDMIV2_0_PIXEL			8
+#define	RESET_ID_HDMIV2_0_AUDIO			9
+
+/* RESET_BANK_WAVE */
+#define	RESET_ID_WAVE_0_APB			0
+#define	RESET_ID_WAVE_V_0			1
+#define	RESET_ID_WAVE_M_0			2
+#define	RESET_ID_WAVE_C_0			3
+#define	RESET_ID_WAVE_B_0			4
+
+/* RESET_BANK_DREX */
+#define	RESET_ID_DREX0_0_DREX			0
+#define	RESET_ID_DREX0_0_DLL			1
+#define	RESET_ID_DREX0_0_MEM			2
+#define	RESET_ID_DREX0_0_AXI			3
+#define	RESET_ID_DREX0_0_APB			4
+#define	RESET_ID_DREXTIEOFF_0_APB		5
+#define	RESET_ID_DREX_REFR_0			6
+
+/* RESET_BANK_WAVE420 */
+#define	RESET_ID_WAVE420_0_APB			0
+#define	RESET_ID_WAVE420_V_0			1
+#define	RESET_ID_WAVE420_M_0			2
+#define	RESET_ID_WAVE420_C_0			3
+#define	RESET_ID_WAVE420_B_0			4
+
+/* RESET_BANK_CPU */
+#define	RESET_ID_CPUTIEOFF_0_APB		0
+
+/* RESET_BANK_PERICLK */
+#define	RESET_ID_PERICLK_0_APB			0
+#define	RESET_ID_PPM_0_APB			1
+#define	RESET_ID_MCU_0_CORE			2

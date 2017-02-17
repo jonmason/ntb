@@ -1,0 +1,70 @@
+Nexell SoC GMAC ethernet controller
+
+This is a variant of the dwmac/stmmac driver an inherits all descriptions
+present in Documentation/devicetree/bindings/net/stmmac.txt.
+
+The device node has following properties.
+
+Required properties:
+ - compatible	: Can be "nexell,s5p6818-gmac".
+ - pinctrl-names: Names corresponding to the numbered pinctrl states.
+ - pinctrl-0: pin-control mode. can be <&rgmii_pins>
+ - clocks: Should contain the GMAC main clock, and tx clock.
+   The tx clock is using rx clock and the same frequency.
+ - clock-names: Should contain the clock names "stmmaceth",
+   and "nexell_gmac_tx"
+
+
+Example:
+
+	/* soc */
+	gmac:gmac@c00c8000 {
+		#clock-cells = <0>;
+		cell-id = <CLK_ID_GMAC>;
+		reg = <PHYS_BASE_CLK_10 0x1000>;
+		clk-step   = <2>;
+		clk-input  = <CLK_INPUT_GMAC>;
+		clk-input1 = <CLK_INPUT_GMAC_IN1>;
+		clock-output-names = "gmac";
+		src-force = <4>;
+	};
+
+	gmac0:ethernet@c0060000 {
+		compatible = "nexell,s5p6818-gmac";
+		clocks = <&pclk>, <&gmac>;
+		clock-names = "stmmaceth", "nexell_gmac_tx";
+		resets = <&nexell_reset RESET_ID_DWC_GMAC>;
+		reset-names = "stmmaceth";
+		reg = <PHYS_BASE_GMAC 0x2000>;
+		interrupt-parent = <&gic>;
+		interrupts = <0 IRQ_GMAC 0>;
+		interrupt-names = "macirq";
+		mac-address = [000000000000];
+		phy-mode = "rgmii";
+		status = "disable";
+	};
+
+
+	/* board */
+	gmac0:ethernet@c0060000 {
+		pinctrl-names = "default";
+		pinctrl-0 = <&rgmii_pins>;
+
+		status = "okay";
+		#address-cells = <0x1>;
+		#size-cells = <0x0>;
+
+		snps,phy-addr = <3>;
+		snps,reset-gpio = <&gpio_a 10 0>;
+		snps,reset-active-low;
+		snps,reset-delays-us = <0 10000 10000>;
+
+		phy-handle = <&ethernet_phy>;
+
+		ethernet_phy:ethernet-phy@3 {
+			compatible = "ethernet-phy-ieee802.3-c45";
+			reg = <3>;
+			device_type = "ethernet-phy";
+		};
+	};
+

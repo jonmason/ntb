@@ -1,0 +1,95 @@
+Binding for Nexell s5p6818 pin cotroller
+========================================
+
+Nexell's ARM bases SoC's integrates a GPIO and Pin mux/config hardware
+controller. It controls the input/output settings on the available pads/pins
+and also provides ability to multiplex and configure the output of various
+on-chip controllers onto these pads.
+
+Please refer to pinctrl-bindings.txt in this directory for details of the
+common pinctrl bindings used by client devices, including the meaning of the
+phrase "pin configuration node".
+
+
+Required properties:
+  - compatible: may be "nexell,s5pxx18-pinctrl", "nexell,s5p6818-pinctrl"
+  - reg: should be register base and length as documented in the datasheet
+  - interrupts: interrupt specifier for the controller over gpio and alive pins
+
+Example:
+pinctrl_0: pinctrl@c0010000 {
+	compatible = "nexell,s5pxx18-pinctrl";
+	#address-cells = <1>;
+	#size-cells = <1>;
+	reg = <PHYS_BASE_GPIOA 0x1000
+	       PHYS_BASE_GPIOB 0x1000
+	       PHYS_BASE_GPIOC 0x1000
+	       PHYS_BASE_GPIOD 0x1000
+	       PHYS_BASE_GPIOE 0x1000
+	       PHYS_BASE_ALIVE 0x800>;
+	interrupts = <0 IRQ_GPIOA 0>,
+		     <0 IRQ_GPIOB 0>,
+		     <0 IRQ_GPIOC 0>,
+		     <0 IRQ_GPIOD 0>,
+		     <0 IRQ_GPIOE 0>,
+		     <0 IRQ_ALIVE 0>;
+};
+
+  Note: Setting up the order must always match.
+
+
+Nexell's pin configuration nodes act as a container for an arbitrary number of
+subnodes. Each of these subnodes represents some desired configuration for a
+pin, a group, or a list of pins or groups. This configuration can include the
+mux function to select on those pin(s)/group(s), and various pin configuration
+parameters.
+
+  Child nodes must be set at least one of the following settings:
+  - nexell,pins = Select pins for using this function.
+  - nexell,pin-function = Select the function for use in a selected pin.
+  - nexell,pin-pull = Pull up/down configuration.
+  - nexell,pin-strength = Drive strength configuration.
+
+  Valid values for nexell,pins are:
+     "gpioX-N" : X in {A,B,C,D,E}, N in {0-31}
+  Valid values for nexell,pin-function are:
+     "N"       : N in {0-3}.
+                 This setting means that the value is different for each pin.
+                 Please refer to datasheet.
+  Valid values for nexell,pin-pull are:
+     "N"       : 0 - Down, 1 - Up, 2 - Off
+  Valid values for nexell,pin-strength are:
+     "N"       : 0,1,2,3
+
+
+Example:
+  - pin settings
+	gmac_txd: gmac-txd {
+		nexell,pins = "gpioe-7", "gpioe-8", "gpioe-9", "gpioe-10";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <3>;
+	};
+
+	gmac_rxd: gmac-rxd {
+		nexell,pins = "gpioe-14", "gpioe-15", "gpioe-16", "gpioe-17";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <3>;
+	};
+
+	gmac_txen: gmac-txen {
+		nexell,pins = "gpioe-11";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <3>;
+	};
+
+  - used by client devices
+	gmac0:ethernet@... {
+		pinctrl-names = "default";
+		pinctrl-0 = <&gmac_txd &gmac_rxd &gmac_txen &gmac_mdc
+		             &gmac_mdio &gmac_rxclk &gmac_txclk>;
+		...
+	};
+

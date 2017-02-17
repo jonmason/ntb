@@ -23,6 +23,7 @@
 #include <linux/slab.h>
 
 #include <uapi/linux/psci.h>
+#include <linux/suspend.h>
 
 #include <asm/compiler.h>
 #include <asm/cpu_ops.h>

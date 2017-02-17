@@ -1,0 +1,192 @@
+/*
+ * Copyright (C) 2016  Nexell Co., Ltd.
+ * Author: Youngbok, Park <ybpark@nexell.co.kr>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/dts-v1/;
+#include <dt-bindings/interrupt-controller/irq.h>
+#include "s5p4418.dtsi"
+
+/ {
+	memory {
+		device_type = "memory";
+		reg = <0x40000000 0x40000000>;
+	};
+
+	soc {
+		#include "s5p4418-pinctrl.dtsi"
+		clocks {
+			uart0:uart@c00a9000 { clock-frequency = <147500000>; };
+			i2c0:i2c@c00ae000  { clock-frequency = <200000000>; };
+		};
+
+		serial0:serial@c00a1000 {
+			status ="okay";
+		};
+
+		amba {
+			pl08xdma0:pl08xdma@c0000000 {
+				use_isr;
+
+				ch12 {
+					slave_wait_flush_dma;
+				};
+
+				ch13 {
+					slave_wait_flush_dma;
+				};
+
+				ch14 {
+					slave_wait_flush_dma;
+				};
+
+				ch15 {
+					slave_wait_flush_dma;
+				};
+			};
+
+			pl08xdma1:pl08xdma@c0001000 {
+				use_isr;
+
+				ch0 {
+					slave_wait_flush_dma;
+				};
+
+				ch1 {
+					slave_wait_flush_dma;
+				};
+			};
+		};
+
+		dw_mmc_2:dw_mmc@c0069000 {
+			num-slots = <1>;
+			bus-width = <4>;
+			cap-mmc-highspeed;
+			broken-cd;
+			non-removable;
+			clock-frequency = <200000000>;
+			card-detect-delay = <200>;
+			disable-wp;
+			status = "okay";
+			nexell,drive_dly = <0x0>;
+			nexell,drive_shift = <0x03>;
+			nexell,sample_dly = <0x00>;
+			nexell,sample_shift = <0x02>;
+		};
+
+		dw_mmc_0:dw_mmc@c0062000 {
+			num-slots = <1>;
+			bus-width = <4>;
+			cap-sd-highspeed;
+			clock-frequency = <100000000>;
+			card-detect-delay = <200>;
+			disable-wp;
+			cd-gpios = <&alive_0 1>;
+			cd-inverted;
+			nexell,drive_dly = <0x0>;
+			nexell,drive_shift = <0x02>;
+			nexell,sample_dly = <0x00>;
+			nexell,sample_shift = <0x01>;
+			status = "okay";
+		};
+
+		spdiftx@c0059000 {
+			pcm-bit = <16>;
+			sample_rate = <48000>;
+			status = "okay";
+		};
+
+		watchdog@c0019000 {
+			status = "okay";
+		};
+
+		rtc@c0010c00 {
+			status = "okay";
+		};
+
+		nexell_usbphy: nexell-usbphy@c0012000 {
+			status = "okay";
+		};
+
+		ehci@c0030000 {
+			status = "okay";
+			port@0 {
+				status = "okay";
+			};
+		};
+
+		ohci@c0020000 {
+			status = "okay";
+			port@0 {
+				status = "okay";
+			};
+		};
+
+		dwc2otg@c0040000 {
+			gpios = <&gpio_d 21 0>;
+			status = "okay";
+		};
+
+		pwm:pwm@c0018000 {
+			status = "okay";
+		};
+
+		i2s_0:i2s@c0055000 {
+			master-mode = <1>;
+			mclk-in = <0>;
+			trans-mode = <0>;
+			frame-bit = <32>;
+			sample-rate = <48000>;
+			pre-supply-mclk = <1>;
+			status = "okay";
+		};
+
+		i2c_0:i2c@c00a4000 {
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			es8316: es8316@11 {
+				compatible = "everest,es8316";
+				reg = <0x11>;
+			};
+		};
+	};	/*** soc ***/
+
+	spdif_out: spdif-out {
+		compatible = "linux,spdif-dit";
+	};
+
+	spdif-transceiver {
+		compatible = "nexell,spdif-transceiver";
+		sample_rate = <48000>;
+		format = "S16";
+	};
+
+	sound {
+		compatible = "nexell,nexell-es8316";
+		ch = <0>;
+		sample-rate = <48000>;
+		format = "S16";
+		hpin-support = <1>;
+		hpin-gpio = <&gpio_b 27 0>;
+		hpin-level = <1>;
+		amp-gpio = <&gpio_d 19 0>;
+		i2s-controller = <&i2s_0>;
+		audio-codec = <&es8316>;
+	};
+};
+

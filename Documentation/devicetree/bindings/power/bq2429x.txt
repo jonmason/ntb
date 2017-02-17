@@ -1,0 +1,18 @@
+Binding for TI bq2429x Charger
+
+Required properties:
+- compatible: Should contain one of the following:
+ * "ti,bq24296"
+ * "ti,bq24297"
+- reg: i2c address of the device.
+- ti,chg_current: maximum charging current for DC/USB/ADP in mA.
+- gpios: gpio pins for charger interrupt and dc detect.
+
+Example from artik710-raptor:
+
+bq24296_charger@6b {
+	compatible = "ti,bq24296";
+	reg = <0x6b>;
+	ti,chg_current = <1000 1500 2000>;
+	gpios = <&gpio_a 10 0>;
+};

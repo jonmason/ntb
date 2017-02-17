@@ -1,0 +1,92 @@
+#
+# Copyright 2016 Nexell.
+#
+# Configuration options for the Nexell Sound
+
+config SND_NX_SOC
+	tristate "Nexell SoC Audio"
+	depends on ARCH_S5P4418 || ARCH_S5P6818 || ARCH_NXP5540
+	select AMBA_PL08X
+	help
+	  Say Y or M if you want to add support for codecs attached to
+	  the AC97 and I2S interface.
+
+config SND_NX_I2S
+	tristate
+
+config SND_NX_I2S_CH0
+	bool "I2S 0"
+	depends on SND_NX_SOC
+	select SND_NX_I2S
+	default y
+
+config SND_NX_I2S_CH1
+	bool "I2S 1"
+	depends on SND_NX_SOC
+	select SND_NX_I2S
+	default n
+
+config SND_NX_I2S_CH2
+	bool "I2S 2"
+	depends on SND_NX_SOC
+	select SND_NX_I2S
+	default n
+
+config SND_NX_SPDIF_TX
+	tristate
+
+config SND_SPDIF_TRANSCEIVER
+	tristate "SPDIF transceiver (PCM)"
+	depends on SND_NX_SOC
+	select SND_NX_SPDIF_TX
+	select SND_SOC_SPDIF
+
+config SND_NX_SPI
+	tristate "SPI receiver (PCM)"
+	depends on SND_NX_SOC
+
+choice
+	prompt "SPI device"
+	depends on SND_NX_SPI
+
+	config SND_NX_SPI_PL022
+		bool "ARM AMBA PL022 SSP controller"
+		help
+	  	  This selects the ARM(R) AMBA(R) PrimeCell PL022 SSP
+	  	  controller. If you have an embedded system with an AMBA(R)
+	  	  bus and a PL022 controller, say Y here.
+
+endchoice
+
+config SND_CODEC_NULL
+	tristate "I2S audio null codec."
+	depends on SND_NX_I2S
+
+config SND_CODEC_ES8316
+	tristate "es8316 I2S audio codec."
+	depends on SND_NX_I2S
+	select SND_SOC_ES8316
+
+config SND_CODEC_ALC5658
+	tristate "ALC5658 I2S audio codec."
+	depends on SND_NX_I2S
+	select SND_SOC_RT5659
+
+config SND_CODEC_RT5640
+	tristate "RT5640 I2S audio codec."
+	depends on SND_NX_I2S
+	select SND_SOC_RT5640
+
+config SND_CODEC_ALC5623
+	tristate "ALC5623 I2S audio codec."
+	depends on SND_NX_I2S
+	select SND_SOC_ALC5623
+
+config SND_CODEC_SMARTVOICE
+	tristate "Smart Voice spi/i2s audio codec."
+	depends on SND_NX_SPI
+
+config SND_NX_SIMPLE_CARD
+	tristate "Nexell Simple sound card support"
+	help
+	  This option enables nexell simple sound card support

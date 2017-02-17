@@ -47,11 +47,46 @@ struct alc5623_priv {
 	unsigned int jack_det_ctrl;
 };
 
+static struct reg_default init_list[] = {
+	{ALC5623_PWR_MANAG_ADD2,	0x2000},
+	{ALC5623_PWR_MANAG_ADD3,	0x8000},
+	{ALC5623_OUTPUT_MIXER_CTRL,	0x0740},
+	{ALC5623_ADC_REC_MIXER,		0x3f3f},
+	{ALC5623_STEREO_DAC_VOL,	0x0808},
+	{ALC5623_HP_OUT_VOL,		0x8888},
+	{ALC5623_SPK_OUT_VOL,		0x8080},
+	{ALC5623_DAI_CONTROL,		0x8000},
+	{ALC5623_STEREO_AD_DA_CLK_CTRL,	0x066d},
+	{ALC5623_ADD_CTRL_REG,		0x5f00},
+	{ALC5623_PWR_MANAG_ADD1,	0x8830},
+	{ALC5623_PWR_MANAG_ADD2,	0xa7f7},
+	{ALC5623_PWR_MANAG_ADD3,	0x960a},
+	{ALC5623_DAI_CONTROL,		0x8000},
+	{ALC5623_STEREO_DAC_VOL,	0x4808},
+	{ALC5623_OUTPUT_MIXER_CTRL,	0x9f00},
+	{ALC5623_SPK_OUT_VOL,		0x0000},
+	{ALC5623_HP_OUT_VOL,		0x0000},
+	{ALC5623_MIC_ROUTING_CTRL,	0xf0e0},
+	{ALC5623_MIC_CTRL,		0x0800},
+	{ALC5623_ADC_REC_MIXER,		0x3f3f},
+	{ALC5623_ADC_REC_GAIN,		0xf58b},
+};
+#define RT5623_INIT_REG_LEN ARRAY_SIZE(init_list)
+
 static inline int alc5623_reset(struct snd_soc_codec *codec)
 {
 	return snd_soc_write(codec, ALC5623_RESET, 0);
 }
 
+static int alc5623_reg_init(struct snd_soc_codec *codec)
+{
+	struct alc5623_priv *alc5623 = snd_soc_codec_get_drvdata(codec);
+	int i;
+
+	for (i = 0; i < RT5623_INIT_REG_LEN; i++)
+		regmap_write(alc5623->regmap,
+			      init_list[i].reg, init_list[i].def);
+}
 static int amp_mixer_event(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *kcontrol, int event)
 {
@@ -626,6 +661,10 @@ static int alc5623_set_dai_sysclk(struct snd_soc_dai *codec_dai,
 	struct alc5623_priv *alc5623 = snd_soc_codec_get_drvdata(codec);
 
 	switch (freq) {
+	case  2048000:
+	case  2822400:
+	case  4096000:
+	case  5644800:
 	case  8192000:
 	case 11289600:
 	case 12288000:
@@ -807,7 +846,8 @@ static int alc5623_set_bias_level(struct snd_soc_codec *codec,
 {
 	switch (level) {
 	case SND_SOC_BIAS_ON:
-		enable_power_depop(codec);
+		alc5623_reg_init(codec);
+		/*enable_power_depop(codec);*/
 		break;
 	case SND_SOC_BIAS_PREPARE:
 		break;
@@ -896,6 +936,7 @@ static int alc5623_probe(struct snd_soc_codec *codec)
 
 	alc5623_reset(codec);
 
+	alc5623_reg_init(codec);
 	if (alc5623->add_ctrl) {
 		snd_soc_write(codec, ALC5623_ADD_CTRL_REG,
 				alc5623->add_ctrl);
@@ -995,7 +1036,7 @@ static int alc5623_i2c_probe(struct i2c_client *client,
 		dev_err(&client->dev, "Failed to initialise I/O: %d\n", ret);
 		return ret;
 	}
-
+#if 0
 	ret = regmap_read(alc5623->regmap, ALC5623_VENDOR_ID1, &vid1);
 	if (ret < 0) {
 		dev_err(&client->dev, "failed to read vendor ID1: %d\n", ret);
@@ -1016,7 +1057,7 @@ static int alc5623_i2c_probe(struct i2c_client *client,
 				vid1, vid2);
 		return -ENODEV;
 	}
-
+#endif
 	dev_dbg(&client->dev, "Found codec id : alc56%02x\n", vid2);
 
 	pdata = client->dev.platform_data;
@@ -1034,7 +1075,7 @@ static int alc5623_i2c_probe(struct i2c_client *client,
 				alc5623->jack_det_ctrl = val32;
 		}
 	}
-
+	vid2 = 0x23;
 	alc5623->id = vid2;
 	switch (alc5623->id) {
 	case 0x21:

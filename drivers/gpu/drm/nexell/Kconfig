@@ -1,0 +1,82 @@
+config DRM_NX
+	tristate "DRM Support for NEXELL Display Controller"
+	depends on DRM && (ARCH_S5P6818 || ARCH_S5P4418)
+	select DRM_KMS_HELPER
+	select DRM_KMS_FB_HELPER
+	select VIDEOMODE_HELPERS
+	select FB_SYS_FILLRECT
+	select FB_SYS_COPYAREA
+	select FB_SYS_IMAGEBLIT
+	select VT_HW_CONSOLE_BINDING if FRAMEBUFFER_CONSOLE
+	help
+	  Choose this option if you have a Nexell soc chipset.
+	  This driver provides kernel mode setting and buffer
+	  management to userspace. If M is selected the module
+	  will be called nexell drm.
+
+config DRM_NX_RGB
+	bool "RGB LCD support"
+	depends on DRM_NX
+	select DRM_PANEL
+	help
+	 This selects support for RGB LCD display out.
+	 If you want to enable RGB LCD display,
+	 you should selet this option.
+
+config DRM_NX_LVDS
+	bool "LVDS LCD support"
+	depends on DRM_NX
+	select DRM_PANEL
+	help
+	 This selects support for LVDS LCD display out.
+	 If you want to enable LVDS LCD display,
+	 you should selet this option.
+
+config DRM_NX_MIPI_DSI
+	bool "MiPi DSI support"
+	depends on DRM_NX
+	select DRM_PANEL
+	select DRM_MIPI_DSI
+	help
+	 This selects support for MiPi-DSI display device.
+	 If you want to enable MiPi-DSI display device,
+	 you should selet this option.
+
+config DRM_NX_HDMI
+	bool "HDMI support"
+	depends on DRM_NX
+	help
+	 This selects support for HDMI display out.
+	 If you want to enable HDMI display,
+	 you should selet this option.
+
+config DRM_NX_TVOUT
+	bool "Tv out support"
+	depends on DRM_NX
+	select DRM_PANEL
+	help
+	 This selects support for tv display out.
+	 If you want to enable tv display,
+	 you should selet this option.
+
+config DRM_NX_CLUSTER_LCD
+	bool "Cluster LCD support"
+	depends on DRM_NX
+	select DRM_PANEL
+	default n
+	help
+	 This selects support for cluster lcd out.
+	 If you want to enable cluster lcd display,
+	 you should selet this option with LCDs type (LVDS, RGB).
+
+config DRM_CHECK_IOCTL_AUTH
+	bool "Check ioctl authentication for modesetting driver"
+	depends on DRM
+	default y
+	help
+	 Choose this option if you need check authentication
+	 for modesetting driver
+
+	  If in doubt, say "Y".
+
+

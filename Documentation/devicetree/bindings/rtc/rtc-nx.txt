@@ -1,0 +1,16 @@
+Nexell Real Time Clock
+
+Required properties:
+- compatible:
+  - "nexell,nx-rtc" - for RTC IP used similar to that on Nexell SoC family.
+- reg: Address range of rtc register set
+- interrupts: rtc timer, alarm interrupts in order
+
+Example:
+
+rtc@c0010c00 {
+	compatible = "nexell,nx-rtc";
+	reg = <PHYS_BASE_RTC 0x100>, <0xc0010200 0x100>;
+	interrupts = <0 IRQ_RTC 0>;
+	status = "okay";
+};

@@ -105,6 +105,7 @@ struct idmac_desc {
 static bool dw_mci_reset(struct dw_mci *host);
 static bool dw_mci_ctrl_reset(struct dw_mci *host, u32 reset);
 static int dw_mci_card_busy(struct mmc_host *mmc);
+static void dw_mci_parse_custom_dt(struct dw_mci *host, unsigned int id);
 
 #if defined(CONFIG_DEBUG_FS)
 static int dw_mci_req_show(struct seq_file *s, void *v)
@@ -1477,6 +1478,35 @@ static int dw_mci_get_cd(struct mmc_host *mmc)
 	return present;
 }
 
+static void dw_mci_hw_reset(struct mmc_host *mmc)
+{
+	struct dw_mci_slot *slot = mmc_priv(mmc);
+	struct dw_mci *host = slot->host;
+	int reset;
+
+#if IS_ENABLED(CONFIG_MMC_DW_IDMAC)
+	dw_mci_idmac_reset(host);
+#endif
+
+	if (!dw_mci_ctrl_reset(host, SDMMC_CTRL_DMA_RESET |
+				     SDMMC_CTRL_FIFO_RESET))
+		return;
+
+	/*
+	 * According to eMMC spec, card reset procedure:
+	 * tRstW >= 1us:   RST_n pulse width
+	 * tRSCA >= 200us: RST_n to Command time
+	 * tRSTH >= 1us:   RST_n high period
+	 */
+	reset = mci_readl(host, RST_N);
+	reset &= ~(SDMMC_RST_HWACTIVE << slot->id);
+	mci_writel(host, RST_N, reset);
+	usleep_range(1, 2);
+	reset |= SDMMC_RST_HWACTIVE << slot->id;
+	mci_writel(host, RST_N, reset);
+	usleep_range(200, 300);
+}
+
 static void dw_mci_init_card(struct mmc_host *mmc, struct mmc_card *card)
 {
 	struct dw_mci_slot *slot = mmc_priv(mmc);
@@ -1563,6 +1593,7 @@ static const struct mmc_host_ops dw_mci_ops = {
 	.set_ios		= dw_mci_set_ios,
 	.get_ro			= dw_mci_get_ro,
 	.get_cd			= dw_mci_get_cd,
+	.hw_reset               = dw_mci_hw_reset,
 	.enable_sdio_irq	= dw_mci_enable_sdio_irq,
 	.execute_tuning		= dw_mci_execute_tuning,
 	.card_busy		= dw_mci_card_busy,
@@ -2480,6 +2511,27 @@ static irqreturn_t dw_mci_interrupt(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+static void dw_mci_notify_change(void *dev_id, int state)
+{
+	struct dw_mci *host = (struct dw_mci *)dev_id;
+	unsigned long flags;
+
+	if (host) {
+		spin_lock_irqsave(&host->lock, flags);
+		if (state) {
+			dev_info(host->dev, "card inserted.\n");
+			host->pdata->quirks |=
+				DW_MCI_QUIRK_BROKEN_CARD_DETECTION;
+			dw_mci_handle_cd(host);
+		} else {
+			dev_info(host->dev, "card removed.\n");
+			host->pdata->quirks &=
+				~DW_MCI_QUIRK_BROKEN_CARD_DETECTION;
+		}
+		spin_unlock_irqrestore(&host->lock, flags);
+	}
+}
+
 #ifdef CONFIG_OF
 /* given a slot, find out the device node representing that slot */
 static struct device_node *dw_mci_of_find_slot_node(struct dw_mci_slot *slot)
@@ -2561,8 +2613,16 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
 	if (host->pdata->caps)
 		mmc->caps = host->pdata->caps;
 
-	if (host->pdata->pm_caps)
+	/*
+	 * Support MMC_CAP_ERASE by default.
+	 * It needs to use trim/discard/erase commands.
+	 */
+	mmc->caps |= MMC_CAP_ERASE;
+
+	if (host->pdata->pm_caps) {
 		mmc->pm_caps = host->pdata->pm_caps;
+		mmc->pm_flags = mmc->pm_caps;
+	}
 
 	if (host->dev->of_node) {
 		ctrl_id = of_alias_get_id(host->dev->of_node, "mshc");
@@ -2612,9 +2672,15 @@ static int dw_mci_init_slot(struct dw_mci *host, unsigned int id)
 	else
 		clear_bit(DW_MMC_CARD_PRESENT, &slot->flags);
 
+	dw_mci_parse_custom_dt(host, id);
 	ret = mmc_add_host(mmc);
 	if (ret)
 		goto err_host_allocated;
+
+	if (host->pdata->cd_type == DW_MCI_CD_EXTERNAL) {
+		host->pdata->ext_cd_init(&dw_mci_notify_change, (void *)host);
+		mmc->caps &= ~MMC_CAP_NEEDS_POLL;
+	}
 
 #if defined(CONFIG_DEBUG_FS)
 	dw_mci_init_debugfs(slot);
@@ -2754,6 +2820,8 @@ static bool dw_mci_reset(struct dw_mci *host)
 	u32 flags = SDMMC_CTRL_RESET | SDMMC_CTRL_FIFO_RESET;
 	bool ret = false;
 
+	if (mci_readl(host, VERID) == 0x5342250a)
+		flags &= ~SDMMC_CTRL_RESET;
 	/*
 	 * Reseting generates a block interrupt, hence setting
 	 * the scatter-gather pointer to NULL.
@@ -2866,6 +2934,36 @@ static struct dw_mci_of_quirks {
 	},
 };
 
+void (*notify_func_callback)(void *dev_id, int state);
+EXPORT_SYMBOL(notify_func_callback);
+void *mmc_host_dev = NULL;
+EXPORT_SYMBOL(mmc_host_dev);
+static DEFINE_MUTEX(notify_mutex_lock);
+
+static int ext_cd_init_callback(
+	void (*notify_func)(void *dev_id, int state), void *dev_id)
+{
+	mutex_lock(&notify_mutex_lock);
+	WARN_ON(notify_func_callback);
+	notify_func_callback = notify_func;
+	mmc_host_dev = dev_id;
+	mutex_unlock(&notify_mutex_lock);
+
+	return 0;
+}
+
+static int ext_cd_cleanup_callback(
+	void (*notify_func)(void *dev_id, int state), void *dev_id)
+{
+	mutex_lock(&notify_mutex_lock);
+	WARN_ON(notify_func_callback);
+	notify_func_callback = NULL;
+	mmc_host_dev = NULL;
+	mutex_unlock(&notify_mutex_lock);
+
+	return 0;
+}
+
 static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 {
 	struct dw_mci_board *pdata;
@@ -2912,13 +3010,47 @@ static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 		pdata->caps |= MMC_CAP_SD_HIGHSPEED | MMC_CAP_MMC_HIGHSPEED;
 	}
 
+	if (of_find_property(np, "cap-oob-sdio-irq", NULL))
+		pdata->caps2 |= MMC_CAP2_OOB_SDIO_IRQ;
+
+	if (of_find_property(np, "pm-ignore-notify", NULL))
+		pdata->pm_caps |= MMC_PM_IGNORE_PM_NOTIFY;
+
+	if (of_find_property(np, "powered-resumed-nonremovable-card", NULL))
+		pdata->pm_caps |= MMC_PM_IGNORE_REINIT_SDIO;
+
+	if (of_find_property(np, "cd-type-external", NULL)) {
+		pdata->cd_type = DW_MCI_CD_EXTERNAL;
+		pdata->ext_cd_init = ext_cd_init_callback;
+		pdata->ext_cd_cleanup = ext_cd_cleanup_callback;
+	}
+
 	return pdata;
 }
 
+static void dw_mci_parse_custom_dt(struct dw_mci *host, unsigned int id)
+{
+	struct device *dev = host->dev;
+	struct device_node *np = dev->of_node;
+
+	if (of_find_property(np, "supports-detect-complete", NULL)) {
+		 struct dw_mci_slot *slot = host->slot[id];
+		 if (!slot)
+			  return;
+		 slot->mmc->supports_detect_complete = true;
+		 dev_info(dev, "%s: supports detect complete\n",
+				   mmc_hostname(slot->mmc));
+	}
+}
 #else /* CONFIG_OF */
 static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 {
 	return ERR_PTR(-EINVAL);
+}
+
+static void dw_mci_parse_custom_dt(struct dw_mci *host, unsigned int id)
+{
+	return;
 }
 #endif /* CONFIG_OF */
 

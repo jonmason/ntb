@@ -1,0 +1,606 @@
+/*
+ * Copyright (C) 2016  Nexell Co., Ltd.
+ * Author: Youngbok, Park <ybpark@nexell.co.kr>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/dts-v1/;
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/input/input.h>
+#include "s5p6818-artik710.dtsi"
+
+#define PMIC_PDATA_INIT(_id, _rname, _minuv,	\
+			_maxuv, _init_uv, _init_enable,		\
+			_set_init_uV, _slp_slots)	\
+		regulator-name = _rname;		\
+		regulator-min-microvolt = <_minuv>;	\
+		regulator-max-microvolt = <_maxuv>;	\
+		nx,id = <_id>;				\
+		nx,init_enable = <_init_enable>;	\
+		nx,init_uV = <_init_uv>;		\
+		nx,set_init_uV = <_set_init_uV>;	\
+		nx,sleep_slots = <_slp_slots>;
+
+/ {
+	model = "Samsung artik710 raptor board based on s5p6818";
+	compatible = "samsung,artik710-raptor", "samsung,artik710",
+		   "nexell,s5p6818";
+
+	aliases {
+		i2c4 = &i2c_gpio4;
+		i2c7 = &i2c_gpio7;
+		i2c10 = &i2c_gpio10;
+	};
+
+	memory {
+		device_type = "memory";
+		reg = <0x40000000 0x3ce00000>;
+	};
+
+	nx-v4l2 {
+		status = "okay";
+	};
+
+	soc {
+
+		clocks {
+			vip0:vip@c00c1000 { clock-frequency = <300000000>;};
+			sdhc2:sdhc@c00cd000 {
+				      clk-input = <(I_PLL2 | I_GATE_PCLK)>;
+			};
+			pwm0:pwm0@c00ba000 {
+			      clk-input = <I_PLL2>;
+			};
+			pwm2:pwm2@c00be000 { clock-frequency = <100000000>; };
+		};
+
+		serial2:serial@c00a2000 {
+			status ="okay";
+		};
+
+		serial3:serial@c00a3000 {
+			status ="okay";
+		};
+
+		serial4:serial@c006d000 {
+			status ="okay";
+		};
+
+		serial5:serial@c006f000 {
+			status ="okay";
+		};
+
+		dw_mmc_0:dw_mmc@c0062000 {
+			num-slots = <1>;
+			bus-width = <4>;
+			cap-sd-highspeed;
+			clock-frequency = <100000000>;
+			card-detect-delay = <200>;
+			disable-wp;
+			cd-gpios = <&gpio_b 16 0>;
+			cd-inverted;
+			nexell,drive_dly = <0x0>;
+			nexell,drive_shift = <0x02>;
+			nexell,sample_dly = <0x00>;
+			nexell,sample_shift = <0x01>;
+			status = "okay";
+		};
+
+		nexell_usbphy: nexell-usbphy@c0012000 {
+			status = "okay";
+		};
+
+		ehci@c0030000 {
+			status = "okay";
+			port@0 {
+				status = "okay";
+			};
+			port@1 {
+				status = "okay";
+			};
+		};
+
+		ohci@c0020000 {
+			status = "okay";
+			port@0 {
+				status = "okay";
+			};
+		};
+
+		dwc2otg@c0040000 {
+			status = "okay";
+		};
+
+		gmac0:ethernet@c0060000 {
+			pinctrl-names = "default";
+			pinctrl-0 = <&gmac_pins>;
+
+			status = "okay";
+			#address-cells = <0x1>;
+			#size-cells = <0x0>;
+
+			snps,phy-addr = <3>;
+			snps,reset-gpio = <&gpio_a 12 0>;
+			snps,reset-active-low;
+			snps,reset-delays-us = <0 10000 30000>;
+
+			mdio {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				ethernet_phy: ethernet-phy@3 {
+					reg = <3>;
+					fixed-link {
+						speed = <1000>;
+						full-duplex;
+					};
+				};
+			};
+		};
+
+		adc:adc@c0053000 {
+			status = "okay";
+		};
+
+		watchdog@c0019000 {
+			status = "okay";
+		};
+
+		pinctrl@C0010000 {
+			key_pwr:key_pwr {
+				nexell,pins = "alive-1";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+		};
+
+		video-codec@c0080000 {
+			status = "okay";
+			sram = <0 0>;
+		};
+
+		i2s_0:i2s@c0055000 {
+			#sound-dai-cells = <1>;
+			master-mode = <1>;
+			mclk-in = <0>;
+			trans-mode = <1>;
+			frame-bit = <48>;
+			sample-rate = <48000>;
+			pre-supply-mclk = <1>;
+			status = "okay";
+		};
+
+		i2s_1:i2s@c0056000 {
+			#sound-dai-cells = <1>;
+			master-mode = <0>;
+			mclk-in = <1>;
+			trans-mode = <1>;
+			frame-bit = <48>;
+			sample-rate = <48000>;
+			pre-supply-mclk = <0>;
+			status = "okay";
+		};
+
+		vip_0:vip@c0063000 {
+			status = "okay";
+		};
+
+		i2c_0:i2c@c00a4000 {
+			samsung,i2c-max-bus-freq = <100000>;
+			status = "okay";
+		};
+
+		mipi_csi:mipi_csi@c00d0000 {
+			data_lane = <2>;
+			pllval = <750>;
+			hssettle = <7>;
+			status = "okay";
+		};
+
+		clipper_0:clipper0@c0063000 {
+			interface_type = <NX_CAPTURE_INTERFACE_MIPI_CSI>;
+			gpios = <&gpio_a 17 0 &gpio_a 3 0 &gpio_a 6 0>;
+			data_order = <NX_VIN_Y0CBY1CR>;
+			status = "okay";
+			sensor {
+				type = <NX_CAPTURE_SENSOR_I2C>;
+				i2c_name = "S5K4ECGA";
+				i2c_adapter = <0>;
+				addr = <0x56>;
+			};
+			power {
+				enable_seq = <
+					NX_ACTION_START
+					NX_ACTION_TYPE_GPIO 2 1 2
+					NX_ACTION_END
+					NX_ACTION_START
+					NX_ACTION_TYPE_GPIO 1 1 1
+					NX_ACTION_END
+					NX_ACTION_START
+					NX_ACTION_TYPE_GPIO 0 1 1
+					NX_ACTION_END
+				>;
+
+				disable_seq = <
+					NX_ACTION_START
+					NX_ACTION_TYPE_GPIO 0 0 1
+					NX_ACTION_END
+					NX_ACTION_START
+					NX_ACTION_TYPE_GPIO 1 0 1
+					NX_ACTION_END
+					NX_ACTION_START
+					NX_ACTION_TYPE_GPIO 2 0 2
+					NX_ACTION_END
+				>;
+			};
+		};
+
+		scaler@c0066000 {
+			status = "okay";
+		};
+	};	/*** soc ***/
+
+	panel: panel-simple {
+		compatible = "dongguan,gst7d0038";
+		enable-gpios = <&gpio_e 30 0>;
+		status = "okay";
+
+		port {
+			lvds_panel: endpoint {
+			};
+		};
+	};
+
+	i2c_gpio7:i2c@7 {
+		compatible = "i2c-gpio";
+		gpios = <&gpio_a 24 0 /* sda */
+			&gpio_a 23 0 /* scl */
+			>;
+		i2c-gpio,delay-us = <100>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
+
+	i2c_gpio4: i2c@4 {
+		compatible = "i2c-gpio";
+		gpios = <&gpio_a 9 0 /* sda */
+			&gpio_a 10 0 /* scl */
+			>;
+		i2c-gpio,delay-us = <1>;    /* ~100 kHz */
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		usb3503: usb3503@08 {
+			compatible = "smsc,usb3503";
+			reg = <0x08>;
+			intn-gpios = <&gpio_b 23 0>;
+			connect-gpios = <&gpio_a 18 0>;
+			reset-gpios = <&gpio_a 22 0>;
+			initial-mode = <1>;
+		};
+	};
+
+	gpio_key: gpio_keys {
+		compatible = "gpio-keys";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&key_pwr>;
+
+		power {
+			label = "Power";
+			gpios = <&alive_0 0 1>;
+			linux,code = <KEY_POWER>;
+			gpio-key,wakeup;
+		};
+	};
+
+	i2c_gpio10: i2c@10 {
+		compatible = "i2c-gpio";
+		gpios = <&gpio_c 16 0	/* sda */
+			&gpio_c 15 0	/* scl */
+			>;
+
+		i2c-gpio,delay-us = <1>;	/* ~100kHz */
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";
+
+		nxe2000@32 {
+			compatible = "nexell,nxe2000";
+			reg = <0x32>;
+			interrupt-parent = <&alive_0>;
+			interrupts = <0x5 IRQ_TYPE_EDGE_FALLING>;
+		};
+	};
+
+	regulators {
+		VCC_DCDC0:
+			dcdc1	{ PMIC_PDATA_INIT( 0,
+				"nxe2000_dcdc1",
+				900000, 1500000,
+				1100000, 1, 0, 0x4)
+				regulator-always-on;
+				regulator-boot-on;};
+		VCC_DCDC1:
+			dcdc2	{ PMIC_PDATA_INIT( 1,
+				"nxe2000_dcdc2",
+				1000000, 1500000,
+				1200000, 1, 0, 0x4)
+				regulator-always-on;
+				regulator-boot-on;};
+		VCC_DCDC2:
+			dcdc3	{ PMIC_PDATA_INIT( 2,
+				"nxe2000_dcdc3",
+				1000000, 3500000,
+				3300000, 1, 1, 0x0)
+				regulator-always-on;
+				regulator-boot-on;};
+		VCC_DCDC3:
+			dcdc4	{ PMIC_PDATA_INIT( 3,
+				"nxe2000_dcdc4",
+				1000000, 2000000,
+				1500000, 1, 0, 0xF)
+				regulator-always-on;
+				regulator-boot-on;};
+		VCC_DCDC4:
+			dcdc5	{ PMIC_PDATA_INIT( 4,
+				"nxe2000_dcdc5",
+				1000000, 2000000,
+				1500000, 1, 0, 0x4)
+				regulator-always-on;
+				regulator-boot-on;};
+		VCC_LDO0:
+			ldo1	{ PMIC_PDATA_INIT( 5,
+				"nxe2000_ldo1",
+				1000000, 3500000,
+				3300000, 0, 1, 0x0)
+				regulator-boot-on;};
+		VCC_LDO1:
+			ldo2	{ PMIC_PDATA_INIT( 6,
+				"nxe2000_ldo2",
+				1000000, 3500000,
+				3300000, 0, 1, 0x0)
+				regulator-boot-on;};
+		VCC_LDO2:
+			ldo3	{ PMIC_PDATA_INIT( 7,
+				"nxe2000_ldo3",
+				1000000, 3500000,
+				1800000, 1, 1, 0x2)
+				regulator-always-on;
+				regulator-boot-on;};
+		VCC_LDO3:
+			ldo4	{ PMIC_PDATA_INIT( 8,
+				"nxe2000_ldo4",
+				1000000, 3500000,
+				1800000, 1, 1, 0x2)
+				regulator-always-on;
+				regulator-boot-on;};
+		VCC_LDO4:
+			ldo5	{ PMIC_PDATA_INIT( 9,
+				"nxe2000_ldo5",
+				1000000, 3500000,
+				3300000, 0, 1, 0x0)
+				regulator-boot-on;};
+		VCC_LDO5:
+			ldo6	{ PMIC_PDATA_INIT(10,
+				"nxe2000_ldo6",
+				1000000, 3500000,
+				3300000, 1, 1, 0xF)
+				regulator-always-on;
+				regulator-boot-on;};
+		VCC_LDO6:
+			ldo7	{ PMIC_PDATA_INIT(11,
+				"nxe2000_ldo7",
+				1000000, 3500000,
+				3300000, 1, 1, 0x1)
+				regulator-always-on;
+				regulator-boot-on;};
+		VCC_LDO7:
+			ldo8	{ PMIC_PDATA_INIT(12,
+				"nxe2000_ldo8",
+				1000000, 3500000,
+				3300000, 0, 1, 0x0)
+				regulator-boot-on;};
+		VCC_LDO8:
+			ldo9	{ PMIC_PDATA_INIT(13,
+				"nxe2000_ldo9",
+				1000000, 3500000,
+				1800000, 0, 1, 0x0)
+				regulator-boot-on;};
+		VCC_LDO9:
+			ldo10	{ PMIC_PDATA_INIT(14,
+				"nxe2000_ldo10",
+				1000000, 3500000,
+				1200000, 1, 1, 0x0)
+				regulator-always-on;
+				regulator-boot-on;};
+		VCC_RTC0:
+			ldortc1	{ PMIC_PDATA_INIT(15,
+				"nxe2000_rtc1",
+				1700000, 3500000,
+				1800000, 1, 1, 0xF)
+				regulator-always-on;
+				regulator-boot-on;};
+		VCC_RTC1:
+			ldortc2	{ PMIC_PDATA_INIT(16,
+				"nxe2000_rtc2",
+				1000000, 3500000,
+				1000000, 1, 1, 0xF)
+				regulator-always-on;
+				regulator-boot-on;};
+	}; /* regulators */
+
+	snd_null: snd_null@10 {
+		#sound-dai-cells = <0>;
+		compatible = "nexell,snd-null";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0 0>;
+	};
+
+	sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "Artik530 raptor Audio";
+		simple-audio-card,mclk-fs = <256>;
+		status = "okay";
+
+		simple-audio-card,dai-link@0 {
+		    format = "i2s";
+		    cpu {
+			sound-dai = <&i2s_0 0>;
+		    };
+
+		    codec {
+			sound-dai = <&snd_null>;
+		    };
+		};
+
+		simple-audio-card,dai-link@1 {
+		    format = "i2s";
+		    cpu {
+			sound-dai = <&i2s_1 0>;
+		    };
+
+		    codec {
+			sound-dai = <&snd_null>;
+		    };
+		};
+	};
+};
+
+&spi_0 {
+	status = "okay";
+	cs-gpios = <&gpio_c 30 0>;
+	spidev@0 {
+		compatible = "linux,spidev";
+		reg = <0>;
+		spi-max-frequency = <10000000>;
+		controller-data {
+			samsung,spi-feedback-delay = <0>;
+		};
+	};
+};
+
+&spi_2 {
+	status = "okay";
+	cs-gpios = <&gpio_c 10 0>;
+	hierarchy = <1>; //0 : master, 1 : slave
+	spidev@0 {
+		compatible = "linux,spidev";
+		reg = <0>;
+		spi-max-frequency = <10000000>;
+		controller-data {
+			samsung,spi-feedback-delay = <0>;
+		};
+	};
+};
+
+&i2c_1 {
+	status = "okay";
+};
+
+&i2c_2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+};
+
+&pwm {
+	status = "okay";
+	pinctrl-0 = <&pwm0_pin &pwm1_pin &pwm2_pin>;
+	samsung,pwm-outputs = <0>, <1>, <2>;
+};
+
+&dp_drm {
+	status = "okay";
+	ports {
+		port@0 {
+			reg = <0>;
+			back_color = < 0x0 >;
+			color_key = < 0x0 >;
+			plane-names = "video", "primary", "rgb";
+		};
+		port@1 {
+			reg = <1>;
+			back_color = < 0x0 >;
+			color_key = < 0x0 >;
+			plane-names = "video", "primary";
+		};
+	};
+};
+
+&dp_drm_mipi {
+	hs_bitrate = <960>;
+	lp_bitrate = <100>;
+	status = "ok";
+
+	panel@0 {
+		compatible = "samsung,s6e8fa0";
+		reg = <0>;
+		vdd3-supply = <&VCC_LDO0>;
+		vci-supply = <&VCC_LDO1>;
+		reset-gpio = <&gpio_e 30 0>;
+		power-on-delay= <50>;
+		reset-delay = <100>;
+		init-delay = <100>;
+		display-timings {
+			timing-0 {
+				clock-frequency = <130361520>;
+				hactive = <1080>;
+				vactive = <1920>;
+				hfront-porch = <32>;
+				hback-porch = <16>;
+				hsync-len = <12>;
+				vfront-porch = <12>;
+				vback-porch = <3>;
+				vsync-len = <1>;
+			};
+		};
+	};
+
+	dp_control {
+		clk_src_lv0 = <3>;
+		clk_div_lv0 = <6>;
+		clk_src_lv1 = <7>;
+		clk_div_lv1 = <1>;
+		out_format = <3>;
+		vs_start_offset = <480>;
+		ev_start_offset = <480>;
+		vs_end_offset = <0>;
+		ev_end_offset = <0>;
+	};
+};
+
+&dp_drm_hdmi {
+	ddc-i2c-bus = <&i2c_gpio7>;
+	enable-gpios = <&gpio_a 21 0>;
+	status = "ok";
+};
+
+&dp_drm_lvds {
+	status = "ok";
+
+	remote-endpoint = <&lvds_panel>;
+
+	dp_control {
+		clk_src_lv0 = <3>;
+		clk_div_lv0 = <16>;
+		clk_src_lv1 = <7>;
+		clk_div_lv1 = <1>;
+		out_format = <3>;
+	};
+};

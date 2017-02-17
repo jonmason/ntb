@@ -1,0 +1,62 @@
+Device-Tree bindings for Nexell DRM generic hdmi output driver
+
+Required properties for display soc panel driver:
+ - compatible: value should be "nexell,s5pxx18-drm-hdmi".
+ - ddc-i2c-bus : phandle of an I2C controller used for DDC EDID probing
+ - enable-gpios: GPIO pin to enable or disable the HDMI level shifter
+
+ - mode: sub node to hdmi preferred
+   - width: preferred width
+   - height: preferred height
+   - refresh: preferred refresh
+optional property:
+ - q_range: video quantization range
+   	a) "0" limitied range
+	b) "1" full range
+
+Example:
+
+SOC specific portion:
+
+/ {
+	...
+	soc {
+		dp_drm_hdmi: display_drm_hdmi {
+    			compatible = "nexell,s5pxx18-drm-hdmi";
+    			reg = <0xc0101000 0x100>;
+    			resets = <&nexell_reset RESET_ID_DISP_TOP>;
+    			reset-names = "rsc-display-top";
+    			#address-cells = <1>;
+    			#size-cells = <0>;
+    			status = "disabled";
+
+    			hdmi {
+    				reg_base = <0xc0000000 0x300000>;
+    				clk_base = <0xc0109000 4>, <0xc0105000 2>;
+    				resets = <&nexell_reset RESET_ID_HDMI_VIDEO>,
+    					<&nexell_reset RESET_ID_HDMI_SPDIF>,
+    					<&nexell_reset RESET_ID_HDMI_TMDS>,
+    					<&nexell_reset RESET_ID_HDMI>,
+    					<&nexell_reset RESET_ID_HDMI_PHY>;
+    				reset-names = "rsc-hdmi-video", "rsc-hdmi-spdif",
+    					"rsc-hdmi-tmds", "rsc-hdmi", "rsc-hdmi-phy";
+    					soc,tieoff = <NX_TIEOFF_DISPLAYTOP0_i_HDMI_PHY_REFCLK_SEL 1>;
+    			};
+		};
+	};
+};
+
+Board Specific portion:
+
+&dp_drm_hdmi {
+	ddc-i2c-bus = <&i2c_gpio7>;
+	enable-gpios = <&gpio_a 21 0>;
+	status = "ok";
+	q_range = <0>;
+
+	mode {
+		width = <1280>;
+		height = <720>;
+		refresh	= <60>;
+	};
+};

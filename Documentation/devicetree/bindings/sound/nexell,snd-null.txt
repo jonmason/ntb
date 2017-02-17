@@ -1,0 +1,14 @@
+Nexell Null Codec
+
+This device supports I2S Null codec
+
+Required Properties:
+
+- compatible : should be one of the following.
+   - nexell,snd-null: for I2S Null codec.
+
+Example:
+
+snd-null {
+	compatible = "nexell,snd-null";
+};

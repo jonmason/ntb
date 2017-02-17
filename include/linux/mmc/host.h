@@ -289,6 +289,8 @@ struct mmc_host {
 #define MMC_CAP2_HSX00_1_2V	(MMC_CAP2_HS200_1_2V_SDR | MMC_CAP2_HS400_1_2V)
 #define MMC_CAP2_SDIO_IRQ_NOTHREAD (1 << 17)
 #define MMC_CAP2_NO_WRITE_PROTECT (1 << 18)	/* No physical write protect pin, assume that card is always read-write */
+#define MMC_CAP2_OOB_SDIO_IRQ	(1 << 30)	/* Use OOB interrupt */
+#define MMC_CAP2_NO_DATA_TAG	(1 << 31)	/* Don't use data tag */
 
 	mmc_pm_flag_t		pm_caps;	/* supported pm features */
 
@@ -334,6 +336,8 @@ struct mmc_host {
 	int			claim_cnt;	/* "claim" nesting count */
 
 	struct delayed_work	detect;
+	void			*detect_complete;
+	bool			supports_detect_complete;
 	int			detect_change;	/* card detect flag */
 	struct mmc_slot		slot;
 

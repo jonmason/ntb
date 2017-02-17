@@ -159,6 +159,16 @@ config VIDEO_SONY_BTF_MPX
 	  To compile this driver as a module, choose M here: the
 	  module will be called sony-btf-mpx.
 
+config VIDEO_SP2518
+        tristate "SP2518 2M pixel camera sensor support"
+        depends on VIDEO_V4L2 && I2C
+        ---help---
+	  This driver supports SuperPix SP2518
+	  SoC camera module.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called sp2518.
+
 comment "RDS decoders"
 
 config VIDEO_SAA6588
@@ -335,6 +345,17 @@ config VIDEO_TW2804
 	  To compile this driver as a module, choose M here: the
 	  module will be called tw2804.
 
+config VIDEO_TW9900
+	tristate "Intersil TW9900 video decoder"
+	depends on VIDEO_V4L2 && I2C
+	---help---
+	  Support for the Intersil/Techwell TW9900 video decoder. The video
+	  decoder decodes the base-band analog CVBS or S-video signals into
+	  digital 8-bit 4:2:2 YCbCr for output.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called tw9900.
+
 config VIDEO_TW9903
 	tristate "Techwell TW9903 video decoder"
 	depends on VIDEO_V4L2 && I2C
@@ -354,6 +375,17 @@ config VIDEO_TW9906
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called tw9906.
+
+config VIDEO_TW9992
+	tristate "Intersil TW9992 video decoder"
+	depends on VIDEO_V4L2 && I2C
+	---help---
+	  Support for the Intersil/Techwell TW9900 video decoder. TW9992 is a
+	  low power NTSC/PAL analog video decoder that is designed for
+	  automotive applications.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called tw9992.
 
 config VIDEO_VPX3220
 	tristate "vpx3220a, vpx3216b & vpx3214c video decoders"
@@ -427,6 +459,7 @@ config VIDEO_ADV7343
 config VIDEO_ADV7393
 	tristate "ADV7393 video encoder"
 	depends on I2C
+	select VIDEO_ADV_DEBUG
 	help
 	  Support for Analog Devices I2C bus based ADV7393 encoder.
 
@@ -618,6 +651,14 @@ config VIDEO_S5K5BAF
 	  This is a V4L2 sensor-level driver for Samsung S5K5BAF 2M
 	  camera sensor with an embedded SoC image signal processor.
 
+config VIDEO_S5K4ECGA
+	tristate "Samsung S5K5K4ECGA sensor support"
+	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	---help---
+	  This is a V4L2 sensor-level driver for Samsung S5K4ECGA 5M
+	  camera sensor with an embedded SoC image signal processor.
+	  This sensor is revised version of S5K4ECGX.
+
 source "drivers/media/i2c/smiapp/Kconfig"
 
 config VIDEO_S5C73M3
@@ -626,6 +667,13 @@ config VIDEO_S5C73M3
 	---help---
 	  This is a V4L2 sensor-level driver for Samsung S5C73M3
 	  8 Mpixel camera.
+
+config VIDEO_NXS_EXAMPLE_SENSOR
+       tristate "NexellStream example sensor support"
+       depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+       ---help---
+         This is a V4L2 example sensor driver for Nexell Stream Bus.
+	 This driver is not for real hardware, only for reference.
 
 comment "Flash devices"
 

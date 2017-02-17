@@ -1,0 +1,387 @@
+/*
+ * Copyright (C) 2016  Nexell Co., Ltd.
+ * Author: Youngbok, Park <ybpark@nexell.co.kr>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/dts-v1/;
+/memreserve/ 0x7ed00000 0x00100000; /* OP-TEE SHM */
+#include <dt-bindings/interrupt-controller/irq.h>
+#include "s5p6818.dtsi"
+
+#define PMIC_PDATA_INIT(_id, _rname, _minuv,	\
+			_maxuv, _always_on, _boot_on,		\
+			_init_uv, _init_enable, _slp_slots)	\
+		regulator-name = _rname;		\
+		regulator-min-microvolt = <_minuv>;	\
+		regulator-max-microvolt = <_maxuv>;	\
+		nx,id = <_id>;				\
+		nx,always_on = <_always_on>;		\
+		nx,boot_on = <_boot_on>;		\
+		nx,init_enable = <_init_enable>;	\
+		nx,init_uV = <_init_uv>;		\
+		nx,sleep_slots = <_slp_slots>;
+
+/ {
+	memory {
+		device_type = "memory";
+		reg = <0x40000000 0x3ee00000>;
+	};
+
+	nx-v4l2 {
+		status = "okay";
+	};
+
+	soc {
+		#include "s5p6818-pinctrl.dtsi"
+
+		clocks {
+			uart0:uart@c00a9000 { clock-frequency = <147500000>; };
+			uart1:uart@c00a8000 { clock-frequency = <147500000>; };
+			uart2:uart@c00aa000 { clock-frequency = <147500000>; };
+			uart3:uart@c00ab000 { clock-frequency = <147500000>; };
+			uart4:uart@c006e000 { clock-frequency = <147500000>; };
+			uart5:uart@c0084000 { clock-frequency = <147500000>; };
+			pwm0:pwm0@c00ba000 { clock-frequency = <100000000>; };
+			i2c0:i2c@c00ae000  { clock-frequency = <200000000>; };
+			vip1:vip@c00c2000 { src-force = <4>; };
+		};
+
+		serial0:serial@c00a1000 {
+			status ="okay";
+		};
+
+		amba {
+			pl08xdma0:pl08xdma@c0000000 {
+				use_isr;
+
+				ch12 {
+					slave_wait_flush_dma;
+				};
+
+				ch13 {
+					slave_wait_flush_dma;
+				};
+
+				ch14 {
+					slave_wait_flush_dma;
+				};
+
+				ch15 {
+					slave_wait_flush_dma;
+				};
+			};
+
+			pl08xdma1:pl08xdma@c0001000 {
+				use_isr;
+
+				ch0 {
+					slave_wait_flush_dma;
+				};
+
+				ch1 {
+					slave_wait_flush_dma;
+				};
+			};
+		};
+
+		dw_mmc_2:dw_mmc@c0069000 {
+			num-slots = <1>;
+			bus-width = <4>;
+			cap-mmc-highspeed;
+			broken-cd;
+			non-removable;
+			clock-frequency = <200000000>;
+			card-detect-delay = <200>;
+			disable-wp;
+			status = "okay";
+			nexell,drive_dly = <0x0>;
+			nexell,drive_shift = <0x03>;
+			nexell,sample_dly = <0x00>;
+			nexell,sample_shift = <0x02>;
+		};
+
+		dw_mmc_0:dw_mmc@c0062000 {
+			num-slots = <1>;
+			bus-width = <4>;
+			cap-sd-highspeed;
+			clock-frequency = <100000000>;
+			card-detect-delay = <200>;
+			disable-wp;
+			cd-gpios = <&alive_0 1 0>;
+			cd-inverted;
+			nexell,drive_dly = <0x0>;
+			nexell,drive_shift = <0x02>;
+			nexell,sample_dly = <0x00>;
+			nexell,sample_shift = <0x01>;
+			status = "okay";
+		};
+
+		i2c3_gpio:i2c@0 {
+			compatible = "i2c-gpio";
+			gpios = <&gpio_d 16 0	/* sda */
+				&gpio_d 20 0	/* scl */
+				>;
+			i2c-gpio,delay-us = <10>;/* ~100 kHz */
+			i2c-gpio,ch =<3>;
+		};
+
+		i2c3_gpio:i2c@0 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			axp228@34 {
+				compatible = "x-powers,axp228";
+				reg = <0x34>;
+				interrupt-parent = <&alive_0>;
+				interrupts = <0x4 IRQ_TYPE_EDGE_FALLING>;
+				nx,id = <0>;
+				/* vdd_arm-supply = <&VCC1P1_ARM_PMIC>; */
+				/* vdd_core-supply = <&VCC1P0_CORE_PMIC>; */
+				regulators {
+					VCC_LDO1:
+						axp22_rtcldo{PMIC_PDATA_INIT( 0,
+						"axp228_rtcldo",
+						3000000, 3000000, 0, 0, 3300000,
+						0, 0xF) };
+					VCC_LDO2:
+						axp22_aldo1{PMIC_PDATA_INIT( 1,
+						"axp228_3p3_alive",
+						700000, 3300000, 1, 1, 3300000,
+						1, 0xF) };
+					VCC_LDO3:
+						axp22_aldo2{PMIC_PDATA_INIT( 2,
+						"axp228_1p8_alive",
+						700000, 3300000, 1, 1, 1800000,
+						1, 0xF) };
+					VCC_LDO4:
+						axp22_aldo3{PMIC_PDATA_INIT( 3,
+						"axp228_1p0_alive",
+						700000, 3300000, 1, 1, 1000000,
+						1, 0xF) };
+					VCC_LDO5:
+						axp22_dldo1{PMIC_PDATA_INIT( 4,
+						"axp228_wide",
+						700000, 3300000, 1, 1, 3300000,
+						1, 0xF) };
+					VCC_LDO6:
+						axp22_dldo2{PMIC_PDATA_INIT( 5,
+						"axp228_1p8_cam",
+						700000, 3300000, 0, 0, 1800000,
+						0, 0xF) };
+					VCC_LDO7:
+						axp22_dldo3{PMIC_PDATA_INIT( 6,
+						"axp228_dldo3",
+						700000, 3300000, 0, 0,  700000,
+						0, 0xF) };
+					VCC_LDO8:
+						axp22_dldo4{PMIC_PDATA_INIT( 7,
+						"axp228_dldo4",
+						700000, 3300000, 0, 0,  700000,
+						0, 0xF) };
+					VCC_LDO9:
+						axp22_eldo1{PMIC_PDATA_INIT( 8,
+						"axp228_1p8_sys",
+						700000, 3300000, 1, 1, 1800000,
+						1, 0xF) };
+					VCC_LDO10:
+						axp22_eldo2{PMIC_PDATA_INIT( 9,
+						"axp228_3p3_wifi",
+						700000, 3300000, 1, 1, 3300000,
+						1, 0xF) };
+					VCC_LDO11:
+						axp22_eldo3{PMIC_PDATA_INIT(10,
+						"axp228_eldo3",
+						700000, 3300000, 0, 0,  700000,
+						0, 0xF) };
+					VCC_LDO12:
+						axp22_dc5ldo{PMIC_PDATA_INIT(11,
+						"axp228_1p2_cvbs",
+						700000, 1400000, 0, 0, 1200000,
+						0, 0xF) };
+					VCC_DCDC1:
+						axp22_dcdc1{PMIC_PDATA_INIT(12,
+						"axp228_3p3_sys",
+						1600000, 3400000, 1, 1, 3300000,
+						1, 0xF) };
+					VCC1P1_ARM_PMIC:
+						axp22_dcdc2{PMIC_PDATA_INIT(13,
+						"axp228_1p1_arm",
+						600000, 1540000, 1, 1, 1100000,
+						1, 0xF) };
+					VCC1P0_CORE_PMIC:
+						axp22_dcdc3{PMIC_PDATA_INIT(14,
+						"axp228_1p0_core",
+						600000, 1860000, 1, 1, 1100000,
+						1, 0xF) };
+					VCC_DCDC4:
+						axp22_dcdc4{PMIC_PDATA_INIT(15,
+						"axp228_1p5_sys",
+						600000, 1540000, 1, 1, 1500000,
+						1, 0xF) };
+					VCC_DCDC5:
+						axp22_dcdc5{PMIC_PDATA_INIT(16,
+						"axp228_1p5_ddr",
+						1000000, 2550000, 1, 1, 1500000,
+						1, 0xF) };
+					VCC_LDOIO0:
+						axp22_ldoio0{PMIC_PDATA_INIT(17,
+						"axp228_ldoio0",
+						700000, 3300000, 0, 0, 1800000,
+						0, 0xF) };
+					VCC_LDOIO1:
+						axp22_ldoio1{PMIC_PDATA_INIT(18,
+						"axp228_ldoio1",
+						700000, 3300000, 0, 0, 1000000,
+						0, 0xF) };
+				};
+			};
+		};
+
+		nexell_usbphy: nexell-usbphy@c0012000 {
+			status = "okay";
+		};
+
+		ehci@c0030000 {
+			status = "okay";
+			port@0 {
+				status = "okay";
+			};
+		};
+
+		ohci@c0020000 {
+			status = "okay";
+			port@0 {
+				status = "okay";
+			};
+		};
+
+		dwc2otg@c0040000 {
+			gpios = <&gpio_d 21 0>;
+			status = "okay";
+		};
+
+		i2c_0:i2c@c00a4000 {
+			status = "okay";
+		};
+
+		pwm:pwm@c0018000 {
+			status = "okay";
+		};
+
+		vip_1:vip@c0064000 {
+			status = "okay";
+		};
+
+		clipper_1:clipper1@c0064000 {
+			status = "okay";
+			pwms = <&pwm 1 41 0>; /* 1000000000/41 */
+			interface_type = <NX_CAPTURE_INTERFACE_PARALLEL>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&vid1_data_clk &vid1_sync> ;
+			port = <0>;
+			external_sync = <0>;
+			data_order = <NX_VIN_Y0CBY1CR>;
+			interlace = <0>;
+			regulator_names = "axp22_dldo2";
+			regulator_voltages = <1800000>;
+
+			gpios = <&gpio_c 4 0
+				 &gpio_c 5 0
+			         &gpio_c 6 0>;
+
+			sensor {
+				type = <NX_CAPTURE_SENSOR_I2C>;
+				i2c_name = "SP2518";
+				i2c_adapter = <0>;
+				addr = <0x30>;
+			};
+
+			power {
+				enable_seq = <
+				NX_ACTION_START NX_ACTION_TYPE_GPIO 2 1 0 NX_ACTION_END
+				NX_ACTION_START NX_ACTION_TYPE_PMIC 0 0 NX_ACTION_END
+				NX_ACTION_START NX_ACTION_TYPE_PMIC 1 0 NX_ACTION_END
+				NX_ACTION_START NX_ACTION_TYPE_GPIO 0 0 0 1 0 NX_ACTION_END
+				NX_ACTION_START NX_ACTION_TYPE_CLOCK 1 10 NX_ACTION_END
+				NX_ACTION_START NX_ACTION_TYPE_GPIO 0 0 0 NX_ACTION_END
+				NX_ACTION_START NX_ACTION_TYPE_GPIO 1 1 0 0 1 NX_ACTION_END
+				NX_ACTION_START NX_ACTION_TYPE_GPIO 1 1 100 NX_ACTION_END
+				>;
+			};
+		};
+	};	/*** soc ***/
+
+	panel: panel-simple {
+		compatible = "samsung,ltn101nt05", "simple-panel";
+		status = "okay";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&dp_rgb_vclk &dp_rgb_vsync &dp_rgb_hsync
+			&dp_rgb_de &dp_rgb_R &dp_rgb_G &dp_rgb_B>;
+		enable-gpios = <&gpio_d 17 0>;
+
+		width-mm = <210>;
+		height-mm = <158>;
+
+		port {
+			rgb_panel: endpoint {
+			};
+		};
+	};
+};
+
+&dp_drm {
+	status = "okay";
+	ports {
+		port@0 {
+			reg = <0>;
+			back_color = < 0x0 >;
+			color_key = < 0x0 >;
+			plane-names = "video", "primary", "rgb";
+		};
+		port@1 {
+			reg = <1>;
+			back_color = < 0x0 >;
+			color_key = < 0x0 >;
+			plane-names = "video", "primary", "rgb";
+		};
+	};
+};
+
+&dp_drm_rgb {
+	remote-endpoint = <&rgb_panel>;
+	status = "okay";
+
+	dp_control {
+		clk_src_lv0 = <0>;
+		clk_div_lv0 = <16>;
+		clk_src_lv1 = <7>;
+		clk_div_lv1 = <1>;
+		out_format = <2>;
+		invert_field = <0>;
+		swap_rb = <0>;
+		yc_order = <0>;
+		delay_mask = < ((1<<0) | (1<<1) | (1<<2) | (1<<3)) >;
+		d_rgb_pvd = <0>;
+		d_hsync_cp1 = <0>;
+		d_vsync_fram = <0>;
+		d_de_cp2 = <7>;
+		vs_start_offset = <863>;
+		ev_start_offset = <863>;
+		vs_end_offset = <0>;
+		ev_end_offset = <0>;
+	};
+};

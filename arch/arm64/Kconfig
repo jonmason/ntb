@@ -14,11 +14,11 @@ config ARM64
 	select ARCH_WANT_COMPAT_IPC_PARSE_VERSION
 	select ARCH_WANT_FRAME_POINTERS
 	select ARM_AMBA
-	select ARM_ARCH_TIMER
+	select ARM_ARCH_TIMER if !(ARCH_S5P6818 || ARCH_NXP5540)
 	select ARM_GIC
 	select AUDIT_ARCH_COMPAT_GENERIC
 	select ARM_GIC_V2M if PCI_MSI
-	select ARM_GIC_V3
+	select ARM_GIC_V3 if !(ARCH_S5P6818 || ARCH_NXP5540)
 	select ARM_GIC_V3_ITS if PCI_MSI
 	select ARM_PSCI_FW
 	select BUILDTIME_EXTABLE_SORT
@@ -503,6 +503,25 @@ config ARM64_VA_BITS
 	default 42 if ARM64_VA_BITS_42
 	default 47 if ARM64_VA_BITS_47
 	default 48 if ARM64_VA_BITS_48
+
+config ARM64_WORKAROUND_CCI400_DVMV7
+	bool "Work around for cci400 using dvmv7 protocol"
+	depends on SMP
+	help
+	  This option adds an alternative code sequence to work around ARMv8
+	  cores using CCI400 DVMv7 protocol.
+
+	  According to "AMBA AXI and ACE Protocol Specification" chapter C12.4,
+	  12.6, CCI400 optionally supports DVM(Distributed Virtual Message)
+	  protocol version8(DVMv8), and version8 supports ARMv8 and ARMv7 but,
+	  version7(DVMv7) supports only ARMv7.
+
+	  To work properly with DVMv7 protocol, C12.4 recommends below list.
+	  - If upper 8-bits of ASID are zero the message will be received correctly
+	  - TLB Invalidation by address range will work incorrectly
+
+	  So, this patch changes available bits of ASID and all tlb flush by address
+	  range commands to flush by ASID.
 
 config CPU_BIG_ENDIAN
        bool "Build big-endian kernel"

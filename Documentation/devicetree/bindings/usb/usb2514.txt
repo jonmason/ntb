@@ -1,0 +1,19 @@
+SMSC USB2514 High-Speed Hub Controller
+
+Required properties:
+- compatible: Should be "smsc,usb2514".
+
+Optional properties:
+- reg: Specifies the i2c slave address, it is required and should be 0x2c
+       if I2C is used.
+- reset-gpios: Should specify GPIO for reset.
+- initial-mode: Should specify initial mode.
+                (1 for HUB mode, 2 for STANDBY mode)
+
+Examples:
+	usb2514@2c {
+		compatible = "smsc,usb2514";
+		reg = <0x2c>;
+		reset-gpios = <&gpio_e 7 1>;
+		initial-mode = <1>;
+	};

@@ -1,0 +1,52 @@
+* Nxell s5p16818 Clock Controller
+
+The S5p6818 clock controller generates and supplies clock to various
+controllers within the s5p6818 SoC.
+
+Required Properties:
+
+- compatible: should be "nexell,s5p6818,clock".
+
+- reg: physical base address of the controller and length of memory mapped
+  region.
+- #size-xells: should be 1.
+- #clock-cells: should be 1.
+
+Optional Properties:
+- src-force: select clock source manually.
+
+Example: An example of a clock controller node is listed below.
+
+defines if each clocks in dtsi files.
+
+	clocks {
+		compatible = "nexell,s5pxx18,clocks";
+		reg = <0xc00bb000 0x30000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		pll0: pll0 {
+			#clock-cells = <0>;
+			clock-names = "sys-pll0";
+			clock-output-names = "pll0";
+		};
+
+		uart0:uart@c00a9000 {
+			#clock-cells = <0>;
+			clock-output-names = "uart0";
+			cell-id = <CLK_ID_UART_0>;
+			reg = <PHYS_BASE_CLK_22 0x1000>;
+			clk-step  = <1>;
+			clk-input = <CLK_INPUT_UART>;
+		};
+		...
+	};
+
+use clock device driver node.
+
+	serial0:serial@c00a1000 {
+		...
+		clock-names = "uart", "clk_uart_baud0";
+		clocks = <&uart0>, <&uart0>;
+};
