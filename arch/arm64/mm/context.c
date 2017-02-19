@@ -186,10 +186,16 @@ void check_and_switch_context(struct mm_struct *mm, unsigned int cpu)
 	raw_spin_unlock_irqrestore(&cpu_asid_lock, flags);
 
 switch_mm_fastpath:
-	cpu_switch_mm(mm->pgd, mm);
+	/*
+	 * Defer TTBR0_EL1 setting for user threads to uaccess_enable() when
+	 * emulating PAN.
+	 */
+	if (!system_uses_ttbr0_pan()) {
+		cpu_switch_mm(mm->pgd, mm);
 #ifdef CONFIG_ARM64_WORKAROUND_CCI400_DVMV7
-	flush_tlb_all();
+		flush_tlb_all();
 #endif
+	}
 }
 
 static int asids_init(void)
