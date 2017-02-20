@@ -13,6 +13,12 @@
 #include <linux/io.h>
 #include <linux/phy/phy.h>
 #include <linux/regmap.h>
+#include <soc/nexell/tieoff.h>
+#if defined(CONFIG_ARCH_S5P4418)
+#include <dt-bindings/tieoff/s5p4418-tieoff.h>
+#elif defined(CONFIG_ARCH_S5P6818)
+#include <dt-bindings/tieoff/s5p6818-tieoff.h>
+#endif
 #include "phy-samsung-usb2.h"
 
 /* Nexell USBHOST PHY registers */
@@ -158,48 +164,35 @@ enum nx_phy_id {
 
 static int nx_otg_power_on(struct samsung_usb2_phy_instance *inst)
 {
-	struct samsung_usb2_phy_driver *drv = inst->drv;
-	u32 reg;
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_ACAENB, 0);
+        nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_DCDENB, 0);
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_VDATSRCENB, 0);
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_VDATDETENB, 0);
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_CHRGSEL, 0);
 
-	writel(readl((void *)(drv->reg_phy + NX_OTG_CON3)) &
-	       ~NX_OTG_CON3_DET_N_CHG,
-	       (void *)(drv->reg_phy + NX_OTG_CON3));
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_OTGTUNE, 0);
 
-	reg  = readl((void *)(drv->reg_phy + NX_OTG_CON2)) &
-		~NX_OTG_CON2_OTGTUNE_MASK;
-	writel(reg, (void *)(drv->reg_phy +  NX_OTG_CON2));
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_ss_scaledown_mode, 0);
 
-	writel(readl((void *)(drv->reg_phy + NX_OTG_CON0)) &
-	       ~NX_OTG_CON0_SS_SCALEDOWN_MODE,
-	       (void *)(drv->reg_phy + NX_OTG_CON0));
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_WORDINTERFACE, 1);
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_WORDINTERFACE_ENB, 1);
 
-	writel(readl((void *)(drv->reg_phy + NX_OTG_CON2)) |
-	       NX_OTG_CON2_WORDINTERFACE_16,
-	       (void *)(drv->reg_phy + NX_OTG_CON2));
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_VBUSVLDEXT, 0);
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_VBUSVLDEXTSEL, 0);
 
-	writel(readl((void *)(drv->reg_phy + NX_OTG_CON1)) &
-	       NX_OTG_CON1_VBUS_INTERNAL,
-	       (void *)(drv->reg_phy + NX_OTG_CON1));
-
-	reg = readl((void *)(drv->reg_phy + NX_OTG_CON1));
-	reg &= ~NX_OTG_CON1_POR_MASK;
-	reg |= NX_OTG_CON1_POR_ENB;
-	writel(reg, (void *)(drv->reg_phy + NX_OTG_CON1));
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_POR, 0);
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_POR_ENB, 1);
 	udelay(1);
-	reg |= NX_OTG_CON1_POR_MASK;
-	writel(reg, (void *)(drv->reg_phy + NX_OTG_CON1));
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_POR, 1);
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_POR_ENB, 1);
 	udelay(1);
-	reg &= ~NX_OTG_CON1_POR;
-	writel(reg, (void *)(drv->reg_phy + NX_OTG_CON1));
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_POR, 0);
 	udelay(10);
 
-	writel(readl((void *)(drv->reg_phy + NX_OTG_CON1)) | NX_OTG_CON1_RST,
-	       (void *)(drv->reg_phy + NX_OTG_CON1));
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_nResetSync, 1);
 	udelay(1);
 
-	writel(readl((void *)(drv->reg_phy + NX_OTG_CON1)) |
-	       NX_OTG_CON1_UTMI_RST,
-	       (void *)(drv->reg_phy + NX_OTG_CON1));
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_nUtmiResetSync, 1);
 	udelay(1);
 
 	return 0;
@@ -207,24 +200,17 @@ static int nx_otg_power_on(struct samsung_usb2_phy_instance *inst)
 
 static int nx_otg_power_off(struct samsung_usb2_phy_instance *inst)
 {
-	struct samsung_usb2_phy_driver *drv = inst->drv;
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_VBUSVLDEXT, 1);
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_VBUSVLDEXTSEL, 1);
 
-	writel(readl((void *)(drv->reg_phy + NX_OTG_CON1)) |
-	       NX_OTG_CON1_VBUS_VLDEXT0,
-	       (void *)(drv->reg_phy + NX_OTG_CON1));
-
-	writel(readl((void *)(drv->reg_phy + NX_OTG_CON1)) & ~NX_OTG_CON1_RST,
-	       (void *)(drv->reg_phy + NX_OTG_CON1));
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_nResetSync, 0);
 	udelay(10);
 
-	writel(readl((void *)(drv->reg_phy + NX_OTG_CON1)) &
-	       ~NX_OTG_CON1_UTMI_RST,
-	       (void *)(drv->reg_phy + NX_OTG_CON1));
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_nUtmiResetSync, 0);
 	udelay(10);
 
-	writel(readl((void *)(drv->reg_phy + NX_OTG_CON1)) |
-	       NX_OTG_CON1_POR_MASK,
-	       (void *)(drv->reg_phy + NX_OTG_CON1));
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_POR, 1);
+	nx_tieoff_set(NX_TIEOFF_USB20OTG0_i_POR_ENB, 1);
 	udelay(10);
 
 	return 0;
@@ -232,81 +218,51 @@ static int nx_otg_power_off(struct samsung_usb2_phy_instance *inst)
 
 static int nx_host_power_on(struct samsung_usb2_phy_instance *inst)
 {
-	struct samsung_usb2_phy_driver *drv = inst->drv;
-	u32 reg;
-	u32 reg1, reg2;
-	u32 fladj_val, bit_num, bit_pos = NX_HOST_CON2_SS_FLADJ_VAL_0_OFFSET;
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_ss_fladj_val_0_i, 0x7);
 
-	fladj_val = NX_HOST_CON2_SS_FLADJ_VAL_0_SEL;
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_ss_ena_incr16_i, 1);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_ss_ena_incr8_i, 1);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_ss_ena_incr4_i, 1);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_ss_ena_incrx_align_i, 1);
 
-	reg = fladj_val;
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_ss_word_if_enb_i, 1);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_ss_word_if_i, 1);
 
-	for (bit_num = 0; bit_num < NX_HOST_CON2_SS_FLADJ_VAL_NUM; bit_num++) {
-		if (fladj_val & (1 << bit_num))
-			reg |= (NX_HOST_CON2_SS_FLADJ_VAL_MAX << bit_pos);
-		bit_pos -= NX_HOST_CON2_SS_FLADJ_VAL_OFFSET;
-	}
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_WORDINTERFACE_ENB, 1);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_WORDINTERFACE, 1);
 
-	writel(reg, (void *)(drv->reg_phy + NX_HOST_CON2));
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_ohci_susp_lgcy_i, 1);
 
-	reg = readl((void *)(drv->reg_phy + NX_HOST_CON2)) &
-		~NX_HOST_CON2_SS_DMA_BURST_MASK;
-	writel(reg | NX_HOST_CON2_EHCI_SS_ENABLE_DMA_BURST,
-	       (void *)(drv->reg_phy +	NX_HOST_CON2));
-
-	reg1 = readl((void *)(drv->reg_phy + NX_HOST_CON0)) |
-		NX_HOST_CON0_SS_WORD_IF_16;
-	reg2 = readl((void *)(drv->reg_phy + NX_HOST_CON4)) |
-		NX_HOST_CON4_WORDINTERFACE_16;
-
-	writel(reg1, (void *)(drv->reg_phy + NX_HOST_CON0));
-	writel(reg2, (void *)(drv->reg_phy + NX_HOST_CON4));
-
-	reg = readl((void *)(drv->reg_phy + NX_HOST_CON3));
-	reg |= NX_HOST_OHCI_SUSP_LGCY;
-	writel(reg, (void *)(drv->reg_phy + NX_HOST_CON3));
-
-	reg   = readl((void *)(drv->reg_phy + NX_HOST_CON3));
-	reg  &= ~NX_HOST_CON3_POR_MASK;
-	reg  |=  NX_HOST_CON3_POR_ENB;
-	writel(reg, (void *)(drv->reg_phy + NX_HOST_CON3));
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_POR_ENB, 0);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_POR, 0);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_POR_ENB, 1);
 	udelay(10);
 
-	reg = readl((void *)(drv->reg_phy + NX_HOST_CON0)) |
-		NX_HOST_CON0_N_HOST_UTMI_RESET_SYNC |
-		NX_HOST_CON0_N_HOST_PHY_RESET_SYNC;
-	writel(reg, (void *)(drv->reg_phy + NX_HOST_CON0));
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_nHostPhyResetSync, 1);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_nHostUtmiResetSync, 1);
 
-	writel(readl((void *)(drv->reg_phy + NX_HOST_CON0)) |
-	       NX_HOST_CON0_AHB_RESET_SYNC,
-	       (void *)(drv->reg_phy + NX_HOST_CON0));
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_nResetSync, 1);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_nResetSync_ohci, 1);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_nAuxWellResetSync, 1);
 
 	return 0;
 }
 
 static int nx_host_power_off(struct samsung_usb2_phy_instance *inst)
 {
-	struct samsung_usb2_phy_driver *drv = inst->drv;
-	u32 reg;
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_nResetSync, 0);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_nResetSync_ohci, 0);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_nAuxWellResetSync, 0);
 
-	writel(readl((void *)(drv->reg_phy + NX_HOST_CON0)) &
-	       ~NX_HOST_CON0_AHB_RESET_SYNC,
-	       (void *)(drv->reg_phy + NX_HOST_CON0));
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_nHostUtmiResetSync, 0);
 
-	writel(readl((void *)(drv->reg_phy + NX_HOST_CON0)) &
-	       ~NX_HOST_CON0_UTMI_RESET_SYNC,
-	       (void *)(drv->reg_phy + NX_HOST_CON0));
-
-	reg    = readl((void *)(drv->reg_phy + NX_HOST_CON3));
-	reg   &= ~NX_HOST_CON3_POR_MASK;
-	reg   |=  NX_HOST_CON3_POR_ENB;
-	writel(reg, (void *)(drv->reg_phy + NX_HOST_CON3));
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_POR_ENB, 0);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_POR, 0);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_POR_ENB, 1);
 	udelay(1);
-	reg   |=  NX_HOST_CON3_POR_MASK;
-	writel(reg, (void *)(drv->reg_phy + NX_HOST_CON3));
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_POR, 1);
 	udelay(1);
-	reg   &= ~(NX_HOST_CON3_POR);
-	writel(reg, (void *)(drv->reg_phy + NX_HOST_CON3));
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_POR, 0);
 
 	udelay(10);
 
@@ -315,58 +271,38 @@ static int nx_host_power_off(struct samsung_usb2_phy_instance *inst)
 
 static int nx_hsic_power_on(struct samsung_usb2_phy_instance *inst)
 {
-	struct samsung_usb2_phy_driver *drv = inst->drv;
-	u32 reg;
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_HSIC_FREE_CLOCK_ENB, 0);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_HSIC_480M_FROM_OTG_PHY, 0);
 
-	writel(readl((void *)(drv->reg_phy + NX_HOST_CON0)) &
-	       ~NX_HOST_CON0_HSIC_CLK_MASK,
-	       (void *)(drv->reg_phy + NX_HOST_CON0));
-	writel(readl((void *)(drv->reg_phy + NX_HOST_CON0)) |
-	       NX_HOST_CON0_HSIC_480M_FROM_OTG_PHY,
-	       (void *)(drv->reg_phy + NX_HOST_CON0));
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_HSIC_480M_FROM_OTG_PHY, 1);
 
-	writel(readl((void *)(drv->reg_phy + NX_HOST_CON0)) &
-	       ~NX_HOST_CON0_HSIC_EN_MASK,
-	       (void *)(drv->reg_phy + NX_HOST_CON0));
-	writel(readl((void *)(drv->reg_phy + NX_HOST_CON0)) |
-	       NX_HOST_CON0_HSIC_EN_PORT1,
-	       (void *)(drv->reg_phy + NX_HOST_CON0));
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_hsic_en, 0);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_hsic_en, 2);
 
-	reg = readl((void *)(drv->reg_phy + NX_HOST_CON6)) |
-		NX_HOST_CON6_HSIC_WORDINTERFACE_16;
-	writel(reg, (void *)(drv->reg_phy + NX_HOST_CON6));
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_HSIC_WORDINTERFACE_ENB, 1);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_HSIC_WORDINTERFACE, 1);
 
-	writel(readl((void *)(drv->reg_phy + NX_HOST_CON0)) |
-	       NX_HOST_CON0_HSIC_CLK_MASK,
-	       (void *)(drv->reg_phy + NX_HOST_CON0));
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_HSIC_FREE_CLOCK_ENB, 1);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_HSIC_480M_FROM_OTG_PHY, 1);
 
-	writel(readl((void *)(drv->reg_phy + NX_HOST_CON5)) &
-	       ~NX_HOST_CON5_HSIC_POR_MASK,
-	       (void *)(drv->reg_phy + NX_HOST_CON5));
-	writel(readl((void *)(drv->reg_phy + NX_HOST_CON5)) |
-	       NX_HOST_CON5_HSIC_POR_ENB,
-	       (void *)(drv->reg_phy + NX_HOST_CON5));
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_HSIC_POR_ENB, 0);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_HSIC_POR, 0);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_HSIC_POR_ENB, 1);
 
 	udelay(100);
 
-	reg = readl((void *)(drv->reg_phy + NX_HOST_CON0)) |
-		NX_HOST_CON0_N_HOST_HSIC_RESET_SYNC;
-	writel(reg, (void *)(drv->reg_phy + NX_HOST_CON0));
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_nHostHsicResetSync, 1);
 
 	return 0;
 }
 
 static int nx_hsic_power_off(struct samsung_usb2_phy_instance *inst)
 {
-	struct samsung_usb2_phy_driver *drv = inst->drv;
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_HSIC_FREE_CLOCK_ENB, 0);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_HSIC_480M_FROM_OTG_PHY, 0);
 
-	writel(readl((void *)(drv->reg_phy + NX_HOST_CON0)) &
-	       ~NX_HOST_CON0_HSIC_CLK_MASK,
-	       (void *)(drv->reg_phy + NX_HOST_CON0));
-
-	writel(readl((void *)(drv->reg_phy + NX_HOST_CON5)) |
-	       NX_HOST_CON5_HSIC_POR_MASK,
-	       (void *)(drv->reg_phy + NX_HOST_CON5));
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_HSIC_POR_ENB, 0);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_i_HSIC_POR, 0);
 
 	return 0;
 }
