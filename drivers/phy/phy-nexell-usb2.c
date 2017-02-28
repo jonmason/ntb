@@ -218,7 +218,8 @@ static int nx_otg_power_off(struct samsung_usb2_phy_instance *inst)
 
 static int nx_host_power_on(struct samsung_usb2_phy_instance *inst)
 {
-	nx_tieoff_set(NX_TIEOFF_USB20HOST0_ss_fladj_val_0_i, 0x7);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_ss_fladj_val_host_i, 0x20);
+	nx_tieoff_set(NX_TIEOFF_USB20HOST0_ss_fladj_val_5_i, 0x7);
 
 	nx_tieoff_set(NX_TIEOFF_USB20HOST0_ss_ena_incr16_i, 1);
 	nx_tieoff_set(NX_TIEOFF_USB20HOST0_ss_ena_incr8_i, 1);
