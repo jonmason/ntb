@@ -150,14 +150,15 @@ int tzlog_output_do_dump(int is_kernel)
 	do_gettimeofday(&now);
 	T = (now.tv_sec * 1000ULL) + (now.tv_usec / 1000LL);
 
-	file_full_path = (char *)vmalloc(PATH_MAX);
+	file_full_path = vmalloc(PATH_MAX);
 	if (file_full_path == NULL) {
 		tzlog_print(K_ERR, "vmalloc failed\n");
 		ret = -1;
 		goto exit_tzlog_output_do_dump;
 	}
 	snprintf(file_full_path, PATH_MAX, "%s/%sminidump_%s_%010lld.elf",
-		 tzpath_buf, ENC_DUMP_DIR_PATH, ((is_kernel == 1) ? "os" : "app"), T);
+		 tzpath_buf, ENC_DUMP_DIR_PATH,
+		 ((is_kernel == 1) ? "os" : "app"), T);
 
 	write_size = ss_file_create_object(file_full_path, tz_minidump_data,
 			tz_syspage->minidump_size);
@@ -187,13 +188,13 @@ int tzlog_output_do_dump(int is_kernel)
 
 	memset(tz_minidump_data, 0, tz_syspage->minidump_size);
 
-	tzlog_print(K_INFO, "file_full_path-dump %s \n", file_full_path);
+	tzlog_print(K_INFO, "file_full_path-dump %s\n", file_full_path);
 
 #if defined(CONFIG_INSTANCE_DEBUG) && defined(CONFIG_USB_DUMP)
 	if (ss_file_object_exist(file_full_path) == 1)
 		copy_file_to_usb(file_full_path);
 	else
-		tzlog_print(K_ERR, "file(%s) not exist \n", file_full_path);
+		tzlog_print(K_ERR, "file(%s) not exist\n", file_full_path);
 #endif
 
 	if (is_kernel == 1)

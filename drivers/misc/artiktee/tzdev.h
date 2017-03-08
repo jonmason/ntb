@@ -41,7 +41,7 @@
 #define TZMEM_CHECK_MEMORY	_IOR(TZ_IOC_MAGIC, 124, struct tzmem_region)
 
 
-#define TZIO_RSRC_CMD		_IOWR(TZ_IOC_MAGIC, 132, struct rsrc_msg )
+#define TZIO_RSRC_CMD		_IOWR(TZ_IOC_MAGIC, 132, struct rsrc_msg)
 
 struct tzio_message {
 	__u32		type;

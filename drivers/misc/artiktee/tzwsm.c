@@ -200,17 +200,20 @@ int tzwsm_register_tzdev_memory(uint64_t ctx_id, struct page **pages,
 		pleft = num_pages;
 		l1index = 0;
 
-		for (i = 0; pleft > 0 ; ++l1index) {
+		for (i = 0; pleft > 0; ++l1index) {
 			struct ns_level_registration *level1;
 
-			level1 = (struct ns_level_registration *)page_address(level1_pages[l1index]);
-			level1->num_pfns = min(pleft, (size_t)NS_PAGES_PER_LEVEL);
+			level1 = (struct ns_level_registration *)page_address(
+							level1_pages[l1index]);
+			level1->num_pfns = min(pleft,
+					(size_t)NS_PAGES_PER_LEVEL);
 			pleft -= level1->num_pfns;
 
 			tzlog_print(TZLOG_DEBUG,
 				    "Level 1 Indirection #%zd Address %llx\n",
 				    l1index,
-				    (uint64_t)page_to_phys(level1_pages[l1index]));
+				    (uint64_t)page_to_phys(
+						level1_pages[l1index]));
 
 			for (j = 0; j < level1->num_pfns; ++j, ++i) {
 				level1->address[j] = pages ?
@@ -376,8 +379,7 @@ int tzwsm_register_user_memory(uint64_t ctx_id, const void *__user ptr,
 			unsigned long trans_addr;
 			unsigned int index = 0;
 
-			pfns = (phys_addr_t *)kzalloc(
-					sizeof(phys_addr_t) * num_pages, gfp);
+			pfns = kzalloc(sizeof(phys_addr_t) * num_pages, gfp);
 
 			if (!pfns)
 				return -ENOMEM;

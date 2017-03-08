@@ -33,7 +33,7 @@
 
 #define CONFIG_PRINT_SMC_INFO
 
-typedef struct smc_status{
+typedef struct smc_status {
 	struct timeval smc_in;
 	struct timeval smc_out;
 	int  inout_status;
@@ -59,23 +59,28 @@ static void update_smc_status(int cpu, int inout_status, int function_nubmer)
 		struct timeval temp;
 		unsigned long difftime;
 
-		if ((smc_status->smc_out.tv_usec-smc_status->smc_in.tv_usec) < 0) {
+		if ((smc_status->smc_out.tv_usec -
+					smc_status->smc_in.tv_usec) < 0) {
 			temp.tv_sec =
-				smc_status->smc_out.tv_sec-smc_status->smc_in.tv_sec - 1;
+				smc_status->smc_out.tv_sec -
+				smc_status->smc_in.tv_sec - 1;
 			temp.tv_usec =
-				1000000+smc_status->smc_out.tv_usec-smc_status->smc_in.tv_usec;
+				1000000 + smc_status->smc_out.tv_usec -
+				smc_status->smc_in.tv_usec;
 		} else {
 			temp.tv_sec =
-				smc_status->smc_out.tv_sec-smc_status->smc_in.tv_sec;
+				smc_status->smc_out.tv_sec -
+				smc_status->smc_in.tv_sec;
 			temp.tv_usec =
-				smc_status->smc_out.tv_usec-smc_status->smc_in.tv_usec;
+				smc_status->smc_out.tv_usec -
+				smc_status->smc_in.tv_usec;
 		}
 		difftime = (temp.tv_sec*1000 + temp.tv_usec/1000);
 
 		if (difftime > 30)
 			tzlog_print(TZLOG_INFO,
-					"[CPU : %d ] smc call(%d) spend over %lu ms \n",
-					cpu, function_nubmer, difftime);
+				"[CPU : %d ] smc call(%d) spend over %lu ms\n",
+				cpu, function_nubmer, difftime);
 	}
 
 }
@@ -138,7 +143,8 @@ static inline void __do_call_smc_internal(struct monitor_arguments *args,
 }
 
 static inline void do_call_smc_internal(struct monitor_arguments *args,
-					struct monitor_result *result, int smc_op)
+					struct monitor_result *result,
+					int smc_op)
 {
 #ifdef CONFIG_PRINT_SMC_INFO
 	int cpu = raw_smp_processor_id();
@@ -487,7 +493,7 @@ int scm_sys_resume(void)
 int scm_resource_monitor_cmd(uint32_t cmd, uint32_t wsm_id)
 {
 	struct monitor_arguments args = {0,};
-	struct monitor_result res = {{0,}};
+	struct monitor_result res = { {0,} };
 
 	int SMC_OP = SMC_STD_RESOURCE_MONITOR;
 

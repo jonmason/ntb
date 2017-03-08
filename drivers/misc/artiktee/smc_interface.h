@@ -45,7 +45,7 @@
 #define SMC_IRQ_RESUME				13
 
 #define SMC_STD_REGISTER_PHYS_WSM	14
-// R1 - CMD, R2 - wsm_id (only for register cmd)
+/* R1 - CMD, R2 - wsm_id (only for register cmd) */
 #define SMC_STD_RESOURCE_MONITOR	15
 
 #define SMC_STD_SYNC_KERNEL_TIME	16

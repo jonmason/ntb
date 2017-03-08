@@ -82,7 +82,8 @@ static inline ssize_t __chimera_read_from_buffer(
 	if (buffer_in < 0 || buffer_in > buffer_size || buffer_size < 32
 	    || buffer_size > (0x100000) || buffer_first < 0
 	    || buffer_first > buffer_size
-	    || buffer_size > (int)buf_size_limit - (int)sizeof(struct chimera_ring_buffer)) {
+	    || buffer_size > (int)buf_size_limit -
+			(int)sizeof(struct chimera_ring_buffer)) {
 #ifdef __KERNEL__
 #ifdef __SecureOS__
 		printk(KERN_PANIC,
@@ -126,7 +127,8 @@ static inline ssize_t __chimera_read_from_buffer(
 #endif /* defined(__SecureOS__) */
 		} else
 #endif /* __KERNEL__ */
-			memcpy(data, buffer->buffer + buffer_first, (size_t)length);
+			memcpy(data, buffer->buffer + buffer_first,
+				(size_t)length);
 	} else {
 		/* need to copy both ends */
 		size_t upper = (size_t)buffer_size - (size_t)buffer_first;
@@ -204,7 +206,8 @@ static inline ssize_t __chimera_write_to_buffer(
 	if (buffer_in < 0 || buffer_in > buffer_size || buffer_size < 32
 	    || buffer_size > (0x100000) || buffer_first < 0
 	    || buffer_first > buffer_size
-	    || buffer_size > (int)buf_size_limit - (int)sizeof(struct chimera_ring_buffer)) {
+	    || buffer_size > (int)buf_size_limit -
+			(int)sizeof(struct chimera_ring_buffer)) {
 #ifdef __KERNEL__
 #ifdef __SecureOS__
 		printk(KERN_PANIC,
@@ -402,9 +405,8 @@ static inline void chimera_ring_buffer_flush(
 		size_t length)
 {
 	/* we can't flush more bytes than there are */
-	if (length > (size_t)buffer->in) {
+	if (length > (size_t)buffer->in)
 		length = (size_t)buffer->in;
-	}
 
 	buffer->in -= (int32_t)length;
 	buffer->first = (buffer->first + (int32_t)length) % buffer->size;
@@ -477,12 +479,12 @@ static inline ssize_t chimera_ring_buffer_user_write(
 #endif /* __KERNEL__ */
 
 /*!	Reads data from the ring buffer, but doesn't remove the data from it.
- * 	\param buffer The ring buffer.
- * 	\param offset The offset relative to the beginning of the data in the ring
- * 		buffer at which to start reading.
- * 	\param data The buffer to which to copy the data.
- * 	\param length The number of bytes to read at maximum.
- * 	\return The number of bytes actually read from the buffer.
+ *	\param buffer The ring buffer.
+ *	\param offset The offset relative to the beginning of the data in the
+ *		ring buffer at which to start reading.
+ *	\param data The buffer to which to copy the data.
+ *	\param length The number of bytes to read at maximum.
+ *	\return The number of bytes actually read from the buffer.
  */
 static inline ssize_t chimera_ring_buffer_peek(
 		struct chimera_ring_buffer *buffer,
@@ -551,11 +553,11 @@ static inline ssize_t chimera_ring_buffer_peek(
 }
 
 /*!	Returns iovecs describing the contents of the ring buffer.
- * 	\param buffer The ring buffer.
- * 	\param vecs Pointer to an iovec array with at least 2 elements to be filled
- * 		in by the function.
- * 	\return The number of iovecs the function has filled in to describe the
- * 		contents of the ring buffer. \c 0, if empty, \c 2 at maximum.
+ *	\param buffer The ring buffer.
+ *	\param vecs Pointer to an iovec array with at least 2 elements to be
+ *		filled in by the function.
+ *	\return The number of iovecs the function has filled in to describe the
+ *		contents of the ring buffer. \c 0, if empty, \c 2 at maximum.
  */
 static inline int chimera_ring_buffer_get_vecs(
 		struct chimera_ring_buffer *buffer,
@@ -576,7 +578,8 @@ static inline int chimera_ring_buffer_get_vecs(
 	if (buffer_in < 0 || buffer_in > buffer_size || buffer_size < 32
 		|| buffer_size > (0x100000) || buffer_first < 0
 		|| buffer_first > buffer_size
-		|| buffer_size >  (int)buf_size_limit - (int)sizeof(struct chimera_ring_buffer)) {
+		|| buffer_size >  (int)buf_size_limit -
+				(int)sizeof(struct chimera_ring_buffer)) {
 #ifdef __KERNEL__
 #ifdef __SecureOS__
 		printk(KERN_PANIC,

@@ -12,11 +12,20 @@ config ARTIK_TRUSTZONE_DRIVER
 	  This driver allows you can communicate with ARTIK Secure OS.
 	  When you use this driver, the platform has to support Secure OS.
 
-config ARTIK_USE_TZCMA_FOR_ARTIK710_CRYPTO
-	bool "ARTIK Uses TZCMA for crypto operation on ARTIK710"
-	depends on (ARTIK_TRUSTZONE_DRIVER && (ARCH_S5P6818 || ARCH_S5P4418))
+config ARTIK_USE_TZCMA_FOR_CRYPTO
+	bool "ARTIK Uses TZCMA for crypto operation on ARTIK"
+	depends on (ARTIK_TRUSTZONE_DRIVER && (ARCH_S5P6818 || ARCH_S5P4418 ||\
+				SOC_EXYNOS3250))
 	default y
 	help
 	  This driver supports to use continuous memory which is allocated
-	  by cma(continuous memory allocator) for crypto operation on artik710.
+	  by cma(continuous memory allocator) for crypto operation on artik.
+
+config ARTIK_USE_DMA
+	bool "ARTIK Uses DMA for crypto operation on ARTIK"
+	depends on (ARTIK_USE_TZCMA_FOR_CRYPTO && (ARCH_S5P6818 ||\
+				ARCH_S5P4418))
+	default y
+	help
+	  This driver supports to use dma for crypto operation on artik.
 endmenu
