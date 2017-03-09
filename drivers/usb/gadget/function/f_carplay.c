@@ -1123,7 +1123,8 @@ requeue_req:
 	}
 
 	/* wait for a request to complete */
-	ret = wait_event_interruptible(dev->read_wq, dev->rx_done);
+	ret = wait_event_interruptible_timeout(dev->read_wq, dev->rx_done,
+				       msecs_to_jiffies(1000));
 	if (ret < 0) {
 		if (ret != -ERESTARTSYS)
 			dev->error = 1;
@@ -1132,6 +1133,10 @@ requeue_req:
 		goto done;
 	}
 	if (!dev->error) {
+		if (ret == 0) {
+			r = -EAGAIN;
+			goto done;
+		}
 		/* If we got a 0-len packet, throw it back and try again. */
 		if (req->actual == 0)
 			goto requeue_req;
