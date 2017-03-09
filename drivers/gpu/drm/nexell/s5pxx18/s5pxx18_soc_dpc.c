@@ -29,7 +29,7 @@ int nx_dpc_initialize(void)
 	static int binit;
 	u32 i;
 
-	if (0 == binit) {
+	if (binit == 0) {
 		for (i = 0; i < NUMBER_OF_DPC_MODULE; i++)
 			__g_module_variables[i].pregister = NULL;
 		binit = 1;
@@ -344,7 +344,7 @@ void nx_dpc_set_clock_out_select(u32 module_index, u32 index, int bbypass)
 	pregister = __g_module_variables[module_index].pregister;
 	read_value = pregister->dpcclkgen[index][0];
 	read_value &= ~outclksel_mask;
-	if (0 == bbypass)
+	if (bbypass == 0)
 		read_value |= outclksel_mask;
 
 	writel(read_value, &pregister->dpcclkgen[index][0]);
@@ -373,7 +373,7 @@ void nx_dpc_set_clock_polarity(u32 module_index, int bpolarity)
 	pregister = __g_module_variables[module_index].pregister;
 	read_value = pregister->dpcctrl1;
 	read_value &= ~clkpol_mask;
-	if (1 == bpolarity)
+	if (bpolarity == 1)
 		read_value |= clkpol_mask;
 
 	writel(read_value, &pregister->dpcctrl1);
@@ -403,7 +403,7 @@ void nx_dpc_set_clock_out_enb(u32 module_index, u32 index, int out_clk_enb)
 	read_value = pregister->dpcclkgen[index][0];
 	read_value &= ~outclkenb_mask;
 
-	if (1 == out_clk_enb)
+	if (out_clk_enb == 1)
 		read_value |= outclkenb_mask;
 
 	writel(read_value, &pregister->dpcclkgen[index][0]);
@@ -538,15 +538,20 @@ void nx_dpc_get_delay(u32 module_index, u32 *pdelayrgb_pvd, u32 *pdelayhs_cp1,
 	register u32 temp;
 
 	temp = __g_module_variables[module_index].pregister->dpcctrl0;
-	if (NULL != pdelayrgb_pvd)
+	if (pdelayrgb_pvd)
 		*pdelayrgb_pvd = (u32) ((temp & delayrgb_mask) >> delayrgb_pos);
+
 	temp = __g_module_variables[module_index].pregister->dpcdelay0;
-	if (NULL != pdelayhs_cp1)
+
+	if (pdelayhs_cp1)
 		*pdelayhs_cp1 = (u32) ((temp & delayhs_mask) >> delayhs_pos);
-	if (NULL != pdelayvs_fram)
+
+	if (pdelayvs_fram)
 		*pdelayvs_fram = (u32) ((temp & delayvs_mask) >> delayvs_pos);
+
 	temp = __g_module_variables[module_index].pregister->dpcdelay1;
-	if (NULL != pdelayde_cp2)
+
+	if (pdelayde_cp2)
 		*pdelayde_cp2 = (u32) ((temp & delayde_mask) >> delayde_pos);
 }
 
@@ -584,13 +589,13 @@ void nx_dpc_get_dither(u32 module_index, enum nx_dpc_dither *pditherr,
 	register u32 temp;
 
 	temp = __g_module_variables[module_index].pregister->dpcctrl1;
-	if (NULL != pditherr)
+	if (pditherr)
 		*pditherr =
 		    (enum nx_dpc_dither)((temp & rdither_mask) >> rdither_pos);
-	if (NULL != pditherg)
+	if (pditherg)
 		*pditherg =
 		    (enum nx_dpc_dither)((temp & gdither_mask) >> gdither_pos);
-	if (NULL != pditherb)
+	if (pditherb)
 		*pditherb =
 		    (enum nx_dpc_dither)((temp & bdither_mask) >> bdither_pos);
 }
@@ -700,44 +705,44 @@ void nx_dpc_get_mode(u32 module_index, enum nx_dpc_format *pformat,
 	register u32 temp;
 
 	temp = __g_module_variables[module_index].pregister->dpcctrl0;
-	if (NULL != pbinterlace)
+	if (pbinterlace)
 		*pbinterlace = (temp & scanmode) ? 1 : 0;
 
-	if (NULL != pbinvertfield)
+	if (pbinvertfield)
 		*pbinvertfield = (temp & polfield) ? 1 : 0;
 
-	if (NULL != pbrgbmode)
+	if (pbrgbmode)
 		*pbrgbmode = (temp & rgbmode) ? 1 : 0;
 
-	if (NULL != pbembeddedsync)
+	if (pbembeddedsync)
 		*pbembeddedsync = (temp & seavenb) ? 1 : 0;
 
 	temp = __g_module_variables[module_index].pregister->dpcctrl1;
 
-	if (NULL != pycorder)
+	if (pycorder)
 		*pycorder =
 		    (enum nx_dpc_ycorder)((temp & ycorder_mask) >> ycorder_pos);
 
-	if (NULL != pformat)
+	if (pformat)
 		*pformat =
 		    (enum nx_dpc_format)((temp & format_mask) >> format_pos);
-	if (NULL != pbclipyc)
+	if (pbclipyc)
 		*pbclipyc = (temp & ycrange) ? 0 : 1;
-	if (NULL != pbswaprb)
+	if (pbswaprb)
 		*pbswaprb = (temp & swaprb) ? 1 : 0;
 
 	temp = __g_module_variables[module_index].pregister->dpcctrl2;
 
-	if (NULL != pclock)
+	if (pclock)
 		*pclock =
 		    (enum nx_dpc_padclk)((temp & padclksel_mask) >>
 					 padclksel_pos);
 
-	if (NULL != pbdualview)
+	if (pbdualview)
 		*pbdualview = (2 == ((temp & lcdtype_mask) >> lcdtype_pos))
 		    ? 1 : 0;
 
-	if (NULL != pbinvertclock)
+	if (pbinvertclock)
 		*pbinvertclock = nx_dpc_get_clock_out_inv(module_index, 1);
 }
 
@@ -784,15 +789,16 @@ void nx_dpc_get_hsync(u32 module_index, u32 *pavwidth, u32 *phsw, u32 *phfp,
 	hbp = hab - hsw;
 	avw = hae - hab;
 	hfp = htotal - hae;
-	if (NULL != pavwidth)
+
+	if (pavwidth)
 		*pavwidth = avw;
-	if (NULL != phsw)
+	if (phsw)
 		*phsw = hsw;
-	if (NULL != phfp)
+	if (phfp)
 		*phfp = hfp;
-	if (NULL != phbp)
+	if (phbp)
 		*phbp = hbp;
-	if (NULL != pbinvhsync)
+	if (pbinvhsync)
 		*pbinvhsync = (pregister->dpcctrl0 & polhsync) ? 1 : 0;
 }
 
@@ -850,14 +856,16 @@ void nx_dpc_get_vsync(u32 module_index, u32 *pavheight, u32 *pvsw, u32 *pvfp,
 	vbp = vab - vsw;
 	avh = vae - vab;
 	vfp = vtotal - vae;
-	if (NULL != pavheight)
+
+	if (pavheight)
 		*pavheight = avh;
-	if (NULL != pvsw)
+	if (pvsw)
 		*pvsw = vsw;
-	if (NULL != pvfp)
+	if (pvfp)
 		*pvfp = vfp;
-	if (NULL != pvbp)
+	if (pvbp)
 		*pvbp = vbp;
+
 	vtotal = (u32) pregister->dpcevtotal + 1;
 	vsw = (u32) pregister->dpcevswidth + 1;
 	vab = (u32) pregister->dpcevastart + 1;
@@ -865,15 +873,16 @@ void nx_dpc_get_vsync(u32 module_index, u32 *pavheight, u32 *pvsw, u32 *pvfp,
 	vbp = vab - vsw;
 	avh = vae - vab;
 	vfp = vtotal - vae;
-	if (NULL != peavheight)
+
+	if (peavheight)
 		*peavheight = avh;
-	if (NULL != pevsw)
+	if (pevsw)
 		*pevsw = vsw;
-	if (NULL != pevfp)
+	if (pevfp)
 		*pevfp = vfp;
-	if (NULL != pevbp)
+	if (pevbp)
 		*pevbp = vbp;
-	if (NULL != pbinvvsync)
+	if (pbinvvsync)
 		*pbinvvsync = (pregister->dpcctrl0 & polvsync) ? 1 : 0;
 }
 
@@ -901,16 +910,16 @@ void nx_dpc_get_vsync_offset(u32 module_index, u32 *pvssoffset,
 
 	pregister = __g_module_variables[module_index].pregister;
 
-	if (NULL != pvseoffset)
+	if (pvseoffset)
 		*pvseoffset = (u32) pregister->dpcvseoffset;
 
-	if (NULL != pvssoffset)
+	if (pvssoffset)
 		*pvssoffset = (u32) pregister->dpcvssoffset;
 
-	if (NULL != pevseoffset)
+	if (pevseoffset)
 		*pevseoffset = (u32) pregister->dpcevseoffset;
 
-	if (NULL != pevssoffset)
+	if (pevssoffset)
 		*pevssoffset = (u32) pregister->dpcevssoffset;
 }
 
@@ -953,11 +962,11 @@ void nx_dpc_get_horizontal_up_scaler(u32 module_index, int *pbenb,
 	    ((u32) (pregister->dpcupscalecon0 >> 8) & 0xff);
 	srcwidth = pregister->dpcupscalecon2;
 	destwidth = (srcwidth * (1 << 11)) / up_scale;
-	if (NULL != pbenb)
+	if (pbenb)
 		*pbenb = (pregister->dpcupscalecon0 & upscalerenb_mask);
-	if (NULL != psourcewidth)
+	if (psourcewidth)
 		*psourcewidth = srcwidth + 1;
-	if (NULL != pdestwidth)
+	if (pdestwidth)
 		*pdestwidth = destwidth + 1;
 }
 
@@ -987,7 +996,7 @@ void nx_dpc_set_sync(u32 module_index, enum syncgenmode sync_gen_mode,
 	writel((u32) evenvsetpixel, &pregister->dpcevseoffset);
 	writel((u32) (hfp + hsw + hbp + avwidth - evenvsclrpixel - 1),
 	       &pregister->dpcevssoffset);
-	if (1 == sync_gen_mode) {
+	if (sync_gen_mode == 1) {
 		writel((u32) (even_vfp + even_vsw + even_vbp + avheight - 1),
 		       &pregister->dpcevtotal);
 		writel((u32) (even_vsw - 1), &pregister->dpcevswidth);
@@ -1129,7 +1138,7 @@ void nx_dpc_set_index(u32 module_index, u32 index)
 	pregister = __g_module_variables[module_index].pregister;
 	writel((u32) (index & 0xffff), &pregister->dpcmpuwrdatal);
 	writel((u32) ((index >> 16) & 0xff), &pregister->dpcmpuindex);
-	if (0x22 == index) {
+	if (index == 0x22) {
 		regvalue = readl(&pregister->dpcctrl2);
 		writel((regvalue | 0x10), &pregister->dpcctrl2);
 	}
@@ -1481,9 +1490,10 @@ void nx_dpc_get_video_encoder_bandwidth(u32 module_index,
 
 	pregister = __g_module_variables[module_index].pregister;
 	temp = readl(&pregister->ntsc_ecmdb);
-	if (NULL != pluma)
+
+	if (pluma)
 		*pluma = (enum nx_dpc_bandwidth)((temp & ybw_mask) >> ybw_pos);
-	if (NULL != pchroma)
+	if (pchroma)
 		*pchroma =
 		    (enum nx_dpc_bandwidth)((temp & cbw_mask) >> cbw_pos);
 }
@@ -1509,15 +1519,16 @@ void nx_dpc_get_video_encoder_color_control(u32 module_index, int8_t *psch,
 	register struct nx_dpc_register_set *pregister;
 
 	pregister = __g_module_variables[module_index].pregister;
-	if (NULL != psch)
+
+	if (psch)
 		*psch = (int8_t) readl(&pregister->ntsc_sch);
-	if (NULL != phue)
+	if (phue)
 		*phue = (int8_t) readl(&pregister->ntsc_hue);
-	if (NULL != psat)
+	if (psat)
 		*psat = (int8_t) readl(&pregister->ntsc_sat);
-	if (NULL != pcrt)
+	if (pcrt)
 		*pcrt = (int8_t) readl(&pregister->ntsc_cont);
-	if (NULL != pbrt)
+	if (pbrt)
 		*pbrt = (int8_t) readl(&pregister->ntsc_bright);
 }
 
@@ -1566,15 +1577,16 @@ void nx_dpc_get_video_encoder_timing(u32 module_index, u32 *phsos, u32 *phsoe,
 
 	pregister = __g_module_variables[module_index].pregister;
 	hsvso = readl(&pregister->ntsc_hsvso);
-	if (NULL != phsos)
+
+	if (phsos)
 		*phsos = (u32) ((((hsvso >> 3) & 7u) << 8) |
 				(readl(&pregister->ntsc_hsob) & 0xffu)) + 1;
-	if (NULL != phsoe)
+	if (phsoe)
 		*phsoe = (u32) ((((hsvso >> 0) & 7u) << 8) |
 				(readl(&pregister->ntsc_hsoe) & 0xffu)) + 1;
-	if (NULL != pvsos)
+	if (pvsos)
 		*pvsos = (u32) ((((hsvso >> 6) & 1u) << 8) |
 				(readl(&pregister->ntsc_vsob) & 0xffu));
-	if (NULL != pvsoe)
+	if (pvsoe)
 		*pvsoe = (u32) (readl(&pregister->ntsc_vsoe) & 0x1fu);
 }

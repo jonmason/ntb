@@ -31,12 +31,7 @@
 #include <drm/nexell_drm.h>
 
 #include "nx_drm_drv.h"
-#include "nx_drm_plane.h"
-#include "nx_drm_crtc.h"
-#include "nx_drm_encoder.h"
-#include "nx_drm_connector.h"
 #include "nx_drm_fb.h"
-#include "soc/s5pxx18_dp_hdmi.h"
 
 struct hdmi_resource {
 	struct i2c_adapter *ddc_adpt;
@@ -47,32 +42,42 @@ struct hdmi_resource {
 };
 
 struct hdmi_context {
-	struct drm_connector *connector;
+	struct nx_drm_connector *connector;
+	/* lcd parameters */
+	struct delayed_work work;
+	struct gpio_desc *enable_gpio;
+	struct hdmi_resource hdmi;
+	bool plug;
+	/* properties */
 	int crtc_pipe;
 	unsigned int possible_crtcs_mask;
-	struct nx_drm_device *display;
-	struct delayed_work	 work;
-	struct gpio_desc *enable_gpio;
-	struct hdmi_resource hdmi_res;
-	spinlock_t lock;
-	bool plug;
-	int q_range;
 };
 
-#define ctx_to_hdmi(c)	(struct hdmi_resource *)(&c->hdmi_res)
+#define ctx_to_display(c)	\
+		((struct nx_drm_display *)(c->connector->display))
 
-static bool panel_hdmi_is_connected(struct device *dev,
+#define HOTPLUG_DEBOUNCE_MS		1000
+
+static bool panel_hdmi_ops_detect(struct device *dev,
 			struct drm_connector *connector)
 {
 	struct hdmi_context *ctx = dev_get_drvdata(dev);
-	struct nx_drm_panel *panel = &ctx->display->panel;
+	struct nx_drm_display *display = ctx_to_display(ctx);
 
-	panel->is_connected = ctx->plug;
+	display->is_connected = ctx->plug;
 
 	DRM_INFO("HDMI: %s\n",
 		ctx->plug ? "connect" : "disconnect");
 
 	return ctx->plug;
+}
+
+static bool panel_hdmi_ops_is_connected(struct device *dev)
+{
+	struct hdmi_context *ctx = dev_get_drvdata(dev);
+	struct nx_drm_display *display = ctx_to_display(ctx);
+
+	return display->is_connected;
 }
 
 static void panel_hdmi_dump_edid_modes(struct drm_connector *connector,
@@ -96,39 +101,48 @@ static int panel_hdmi_preferred_modes(struct device *dev,
 			struct drm_connector *connector, int num_modes)
 {
 	struct drm_display_mode *mode;
-	struct hdmi_context *ctx = dev_get_drvdata(dev);
-	struct nx_drm_panel *panel = &ctx->display->panel;
-	struct videomode *vm = &panel->vm;
+	struct nx_drm_connector *nx_connector = to_nx_connector(connector);
+	struct nx_drm_display *display = nx_connector->display;
+	struct nx_drm_display_ops *ops = display->ops;
+	struct nx_drm_hdmi_ops *hdmi_ops = ops->hdmi;
+	struct videomode *vm = &display->vm;
 	struct drm_display_mode *t;
 	bool err = false;
 
-	DRM_DEBUG_KMS("enter %d:%d:%d\n",
-		vm->hactive, vm->vactive, panel->vrefresh);
-
-	err = nx_dp_hdmi_mode_get(vm->hactive,
-				vm->vactive, panel->vrefresh, vm);
-	if (false == err)
-		return 0;
+	DRM_DEBUG_KMS("vm %d:%d:%d modes %d\n",
+		vm->hactive, vm->vactive, display->vrefresh, num_modes);
 
 	/*
 	 * if not support EDID, use default resolution
 	 */
 	if (!num_modes) {
+		if (!hdmi_ops || !hdmi_ops->get_mode)
+			return 0;
+
 		mode = drm_mode_create(connector->dev);
 		if (!mode) {
-			DRM_ERROR("fail : create a new display mode !\n");
+			DRM_ERROR("Failed to create a new display mode !\n");
 			return 0;
 		}
-		drm_display_mode_from_videomode(vm, mode);
 
-		mode->vrefresh = panel->vrefresh;
-		mode->width_mm = panel->width_mm;
-		mode->height_mm = panel->height_mm;
+		drm_display_mode_from_videomode(vm, mode);
+		mode->vrefresh = display->vrefresh;
+
+		err = hdmi_ops->get_mode(display, mode);
+		if (err)
+			return err;
+
+		mode->vrefresh = display->vrefresh;
+		mode->width_mm = display->width_mm;
+		mode->height_mm = display->height_mm;
 		connector->display_info.width_mm = mode->width_mm;
 		connector->display_info.height_mm = mode->height_mm;
 
 		mode->type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED;
+
+		drm_mode_set_name(mode);
 		drm_mode_probed_add(connector, mode);
+
 		return 1;
 	}
 
@@ -139,7 +153,7 @@ static int panel_hdmi_preferred_modes(struct device *dev,
 		mode->type &= ~DRM_MODE_TYPE_PREFERRED;
 		if (mode->hdisplay == vm->hactive &&
 			mode->vdisplay == vm->vactive &&
-			mode->vrefresh == panel->vrefresh) {
+			mode->vrefresh == display->vrefresh) {
 			mode->type |= DRM_MODE_TYPE_PREFERRED;
 			break;
 		}
@@ -147,12 +161,12 @@ static int panel_hdmi_preferred_modes(struct device *dev,
 	return num_modes;
 }
 
-static int panel_hdmi_get_modes(struct device *dev,
+static int panel_hdmi_ops_get_modes(struct device *dev,
 			struct drm_connector *connector)
 {
 	struct edid *edid;
 	struct hdmi_context *ctx = dev_get_drvdata(dev);
-	struct hdmi_resource *hdmi = &ctx->hdmi_res;
+	struct hdmi_resource *hdmi = &ctx->hdmi;
 	int num_modes = 0;
 
 	if (!hdmi->ddc_adpt)
@@ -168,123 +182,99 @@ static int panel_hdmi_get_modes(struct device *dev,
 		drm_mode_connector_update_edid_property(connector, edid);
 		num_modes = drm_add_edid_modes(connector, edid);
 		panel_hdmi_dump_edid_modes(connector, num_modes, false);
+		kfree(edid);
 	}
 
 	return panel_hdmi_preferred_modes(dev, connector, num_modes);
 }
 
-static int panel_hdmi_check_mode(struct device *dev,
+static int panel_hdmi_ops_valid_mode(struct device *dev,
 			struct drm_display_mode *mode)
 {
-	int pixelclock = mode->clock * 1000;
-	struct videomode vm;
-	bool ret;
+	struct hdmi_context *ctx = dev_get_drvdata(dev);
+	struct nx_drm_display *display = ctx_to_display(ctx);
+	struct nx_drm_display_ops *ops = display->ops;
+	struct nx_drm_hdmi_ops *hdmi = ops->hdmi;
+	int ret;
 
-	drm_display_mode_to_videomode(mode, &vm);
-
-	ret = nx_dp_hdmi_mode_valid(&vm, mode->vrefresh, pixelclock);
-	if (!ret)
+	if (!hdmi || !hdmi->is_valid)
 		return MODE_BAD;
 
-	DRM_DEBUG_KMS("OK MODE %d x %d mm, %s, %d hz %d fps\n",
-		mode->width_mm, mode->height_mm,
-		mode->flags & DRM_MODE_FLAG_INTERLACE ?
-		"interlace" : "progressive", pixelclock,
-		mode->vrefresh);
-	DRM_DEBUG_KMS("ha:%d, hf:%d, hb:%d, hs:%d\n",
-		vm.hactive, vm.hfront_porch,
-		vm.hback_porch, vm.hsync_len);
-	DRM_DEBUG_KMS("va:%d, vf:%d, vb:%d, vs:%d\n",
-		vm.vactive, vm.vfront_porch,
-		vm.vback_porch, vm.vsync_len);
-	DRM_DEBUG_KMS("flags:0x%x\n", vm.flags);
+	ret = hdmi->is_valid(display, mode);
+	if (!ret)
+		return MODE_BAD;
 
 	return MODE_OK;
 }
 
-bool panel_hdmi_mode_fixup(struct device *dev,
-			struct drm_connector *connector,
-			const struct drm_display_mode *mode,
-			struct drm_display_mode *adjusted_mode)
-{
-	return true;
-}
-
-void panel_hdmi_mode_set(struct device *dev,
+static void panel_hdmi_ops_set_mode(struct device *dev,
 			struct drm_display_mode *mode)
 {
 	struct hdmi_context *ctx = dev_get_drvdata(dev);
-	struct nx_drm_device *display = ctx->display;
-	struct hdmi_resource *hdmi = ctx_to_hdmi(ctx);
-	struct videomode *vm = &display->panel.vm;
+	struct hdmi_resource *hdmi = &ctx->hdmi;
+	struct nx_drm_display *display = ctx_to_display(ctx);
+	struct nx_drm_display_ops *ops = display->ops;
 
 	DRM_DEBUG_KMS("enter\n");
 
-	nx_dp_hdmi_mode_set(display, mode, vm, hdmi->dvi_mode, ctx->q_range);
+	if (ops->set_mode)
+		ops->set_mode(display, mode, hdmi->dvi_mode ? 1 : 0);
 }
 
-static void panel_hdmi_commit(struct device *dev)
+static void panel_hdmi_on(struct hdmi_context *ctx)
 {
-	struct hdmi_context *ctx = dev_get_drvdata(dev);
-	int pipe = drm_dev_get_dpc(ctx->display)->module;
+	struct nx_drm_connector *nx_connector = ctx->connector;
+	struct nx_drm_display *display = ctx_to_display(ctx);
+	struct nx_drm_display_ops *ops = display->ops;
 
-	nx_dp_hdmi_mode_commit(ctx->display, pipe);
-}
+	DRM_DEBUG_KMS("enter\n");
 
-static void panel_hdmi_enable(struct device *dev)
-{
-	struct hdmi_context *ctx = dev_get_drvdata(dev);
-	struct nx_drm_device *display = ctx->display;
-
-	if (display->suspended)
+	if (nx_connector->suspended)
 		return;
 
-	nx_dp_hdmi_power(display, true);
+	if (ops->enable)
+		ops->enable(display);
 }
 
-static void panel_hdmi_disable(struct device *dev)
+static void panel_hdmi_off(struct hdmi_context *ctx)
 {
-	struct hdmi_context *ctx = dev_get_drvdata(dev);
-	struct nx_drm_device *display = ctx->display;
+	struct nx_drm_connector *nx_connector = ctx->connector;
+	struct nx_drm_display *display = ctx_to_display(ctx);
+	struct nx_drm_display_ops *ops = display->ops;
 
-	if (display->suspended)
+	DRM_DEBUG_KMS("enter\n");
+
+	if (nx_connector->suspended)
 		return;
 
-	nx_dp_hdmi_power(display, false);
+	if (ops->disable)
+		ops->disable(display);
 }
 
-static void panel_hdmi_dmps(struct device *dev, int mode)
+static void panel_hdmi_ops_enable(struct device *dev)
 {
-	DRM_DEBUG_KMS("dpms.%d\n", mode);
-
-	switch (mode) {
-	case DRM_MODE_DPMS_ON:
-		panel_hdmi_enable(dev);
-		break;
-
-	case DRM_MODE_DPMS_STANDBY:
-	case DRM_MODE_DPMS_SUSPEND:
-	case DRM_MODE_DPMS_OFF:
-		panel_hdmi_disable(dev);
-		break;
-	default:
-		DRM_ERROR("fail : unspecified mode %d\n", mode);
-		break;
-	}
+	DRM_DEBUG_KMS("enter\n");
+	panel_hdmi_on(dev_get_drvdata(dev));
 }
 
-static struct nx_drm_ops panel_hdmi_ops = {
-	.is_connected = panel_hdmi_is_connected,
-	.get_modes = panel_hdmi_get_modes,
-	.check_mode = panel_hdmi_check_mode,
-	.mode_fixup = panel_hdmi_mode_fixup,
-	.mode_set = panel_hdmi_mode_set,
-	.commit = panel_hdmi_commit,
-	.dpms = panel_hdmi_dmps,
+static void panel_hdmi_ops_disable(struct device *dev)
+{
+	DRM_DEBUG_KMS("enter\n");
+	panel_hdmi_off(dev_get_drvdata(dev));
+}
+
+static struct nx_drm_connect_drv_ops hdmi_connector_ops = {
+	.detect = panel_hdmi_ops_detect,
+	.is_connected = panel_hdmi_ops_is_connected,
+	.get_modes = panel_hdmi_ops_get_modes,
+	.valid_mode = panel_hdmi_ops_valid_mode,
+	.set_mode = panel_hdmi_ops_set_mode,
+	.enable = panel_hdmi_ops_enable,
+	.disable = panel_hdmi_ops_disable,
 };
 
-static struct nx_drm_device hdmi_dp_dev = {
-	.ops = &panel_hdmi_ops,
+static struct nx_drm_connector hdmi_connector_dev = {
+	.ops = &hdmi_connector_ops,
 };
 
 static int panel_hdmi_bind(struct device *dev,
@@ -292,30 +282,34 @@ static int panel_hdmi_bind(struct device *dev,
 {
 	struct drm_device *drm = data;
 	struct hdmi_context *ctx = dev_get_drvdata(dev);
-	struct hdmi_resource *hdmi = &ctx->hdmi_res;
-	struct platform_driver *pdrv = to_platform_driver(dev->driver);
+	struct hdmi_resource *hdmi = &ctx->hdmi;
+	struct drm_connector *connector = &ctx->connector->connector;
+	struct nx_drm_display *display = ctx_to_display(ctx);
+	struct nx_drm_display_ops *ops = display->ops;
+	struct nx_drm_hdmi_ops *hdmi_ops = ops->hdmi;
 	int pipe = ctx->crtc_pipe;
-	unsigned int possible_crtcs = ctx->possible_crtcs_mask;
+	int err = 0;
 
-	DRM_DEBUG_KMS("enter\n");
+	DRM_INFO("Bind %s panel\n", nx_panel_get_name(NX_PANEL_TYPE_HDMI));
 
-	ctx->connector = nx_drm_connector_create_and_attach(drm, ctx->display,
-					pipe, possible_crtcs,
-					dp_panel_type_hdmi, ctx);
-	if (IS_ERR(ctx->connector)) {
-		if (pdrv->remove)
-			pdrv->remove(to_platform_device(dev));
+	err = nx_drm_connector_attach(drm, connector,
+			pipe, ctx->possible_crtcs_mask, NX_PANEL_TYPE_HDMI);
+	if (err < 0) {
+		struct platform_driver *drv = to_platform_driver(dev->driver);
+
+		if (drv->remove)
+			drv->remove(to_platform_device(dev));
 		return 0;
 	}
 
-	/*
-	 * check connect status at boot time
-	 */
-	if (nx_dp_hdmi_is_connected()) {
-		struct nx_drm_priv *priv = drm->dev_private;
+	/* check connect status at boot time */
+	if (hdmi_ops->is_connected) {
+		if (hdmi_ops->is_connected(display)) {
+			struct nx_drm_private *private = drm->dev_private;
 
-		ctx->plug = nx_dp_hdmi_is_connected();
-		priv->force_detect = true;
+			ctx->plug = hdmi_ops->is_connected(display);
+			private->force_detect = true;
+		}
 	}
 
 	/*
@@ -324,7 +318,6 @@ static int panel_hdmi_bind(struct device *dev,
 	 */
 	enable_irq(hdmi->hpd_irq);
 
-	DRM_DEBUG_KMS("done\n");
 	return 0;
 }
 
@@ -332,13 +325,16 @@ static void panel_hdmi_unbind(struct device *dev,
 			struct device *master, void *data)
 {
 	struct hdmi_context *ctx = dev_get_drvdata(dev);
-	struct hdmi_resource *hdmi = &ctx->hdmi_res;
+	struct hdmi_resource *hdmi = &ctx->hdmi;
+	struct drm_connector *connector = &ctx->connector->connector;
 
-	if (ctx->connector)
-		nx_drm_connector_destroy_and_detach(ctx->connector);
-
-	if (INVALID_IRQ != hdmi->hpd_irq)
+	if (hdmi->hpd_irq != INVALID_IRQ)
 		disable_irq(hdmi->hpd_irq);
+
+	cancel_delayed_work_sync(&ctx->work);
+
+	if (connector)
+		nx_drm_connector_detach(connector);
 }
 
 static const struct component_ops panel_comp_ops = {
@@ -349,31 +345,45 @@ static const struct component_ops panel_comp_ops = {
 static void panel_hdmi_hpd_work(struct work_struct *work)
 {
 	struct hdmi_context *ctx;
+	struct drm_connector *connector;
+	struct nx_drm_display *display;
+	struct nx_drm_display_ops *ops;
 	bool plug;
 
 	ctx = container_of(work, struct hdmi_context, work.work);
 	if (!ctx->connector)
 		return;
 
-	plug = nx_dp_hdmi_is_connected();
+	display = ctx_to_display(ctx);
+	ops = display->ops;
+	if (!ops->hdmi->is_connected) {
+		DRM_INFO("HDMI not implement connected API\n");
+		return;
+	}
+
+	plug = ops->hdmi->is_connected(display);
 	if (plug == ctx->plug)
 		return;
 
-	ctx->plug = plug;
-
 	DRM_INFO("HDMI %s\n", plug ? "plug" : "unplug");
 
-	drm_helper_hpd_irq_event(ctx->connector->dev);
+	ctx->plug = plug;
+	connector = &ctx->connector->connector;
+	drm_helper_hpd_irq_event(connector->dev);
 }
-
-#define HOTPLUG_DEBOUNCE_MS		1000
 
 static irqreturn_t panel_hdmi_hpd_irq(int irq, void *data)
 {
 	struct hdmi_context *ctx = data;
+	struct nx_drm_display *display = ctx_to_display(ctx);
+	struct nx_drm_display_ops *ops = display->ops;
+	struct nx_drm_hdmi_ops *hdmi_ops = ops->hdmi;
 	u32 event;
 
-	event = nx_dp_hdmi_hpd_event(irq);
+	if (!hdmi_ops->hpd_status)
+		return IRQ_HANDLED;
+
+	event = hdmi_ops->hpd_status(display);
 
 	if (event & (HDMI_EVENT_PLUG | HDMI_EVENT_UNPLUG))
 		mod_delayed_work(system_wq, &ctx->work,
@@ -382,75 +392,59 @@ static irqreturn_t panel_hdmi_hpd_irq(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-#define parse_read_prop(n, s, v)	{ \
-	u32 _v;	\
-	if (!of_property_read_u32(n, s, &_v))	\
-		v = _v;	\
-	}
+#define property_read(n, s, v)	of_property_read_u32(n, s, &v)
 
 static int panel_hdmi_parse_dt_hdmi(struct platform_device *pdev,
 			struct hdmi_context *ctx)
 {
 	struct device *dev = &pdev->dev;
+	struct hdmi_resource *hdmi = &ctx->hdmi;
 	struct device_node *node = dev->of_node;
 	struct device_node *np;
-	struct hdmi_resource *hdmi = &ctx->hdmi_res;
 	unsigned long flags = IRQF_ONESHOT;
 	int hpd_gpio = 0, hpd_irq;
 	int err;
 
-	/*
-	 * parse hdmi default resolution
-	 */
+	/* parse hdmi default resolution */
 	np = of_find_node_by_name(node, "mode");
+	of_node_get(node);
 	if (np) {
-		struct nx_drm_panel *panel = &ctx->display->panel;
-		struct videomode *vm = &panel->vm;
+		struct nx_drm_display *display = ctx_to_display(ctx);
+		struct videomode *vm = &display->vm;
 
-		parse_read_prop(np, "width", vm->hactive);
-		parse_read_prop(np, "height", vm->vactive);
-		parse_read_prop(np, "flags", vm->flags);
-		parse_read_prop(np, "refresh", panel->vrefresh);
+		property_read(np, "width", vm->hactive);
+		property_read(np, "height", vm->vactive);
+		property_read(np, "flags", vm->flags);
+		property_read(np, "refresh", display->vrefresh);
 	}
 
-	/*
-	 * video quantization range
-	 */
-	if (of_property_read_u32(node, "q_range", &ctx->q_range)) {
-		DRM_DEBUG_KMS("fail : to get q_range property !\n");
-	}
-
-	/*
-	 * EDID ddc
-	 */
+	/* EDID ddc */
 	np = of_parse_phandle(node, "ddc-i2c-bus", 0);
 	if (!np) {
-		DRM_ERROR("fail : to find ddc adapter node for HPD !\n");
+		DRM_ERROR("Failed to find ddc adapter node for HPD !\n");
 		return -ENODEV;
 	}
 
 	hdmi->ddc_adpt = of_find_i2c_adapter_by_node(np);
 	if (!hdmi->ddc_adpt) {
-		DRM_ERROR("fail : get ddc adapter !\n");
+		DRM_ERROR("Failed to get ddc adapter !\n");
 		return -EPROBE_DEFER;
 	}
 
-	/*
-	 * HPD
-	 */
+	/* HPD */
 	hpd_gpio = of_get_named_gpio(node, "hpd-gpio", 0);
 	if (gpio_is_valid(hpd_gpio)) {
 		err = gpio_request_one(hpd_gpio, GPIOF_DIR_IN,
 						"HDMI hotplug detect");
-		if (0 > err) {
-			DRM_ERROR("fail : gpio_request_one(): %d, err %d\n",
+		if (err < 0) {
+			DRM_ERROR("Failed to gpio_request_one(): %d, err %d\n",
 				hpd_gpio, err);
 			return err;
 		}
 
 		err = gpio_to_irq(hpd_gpio);
-		if (0 > err) {
-			DRM_ERROR("fail : gpio_to_irq(): %d -> %d\n",
+		if (err < 0) {
+			DRM_ERROR("Failed to gpio_to_irq(): %d -> %d\n",
 				hpd_gpio, err);
 			gpio_free(hpd_gpio);
 			return err;
@@ -461,8 +455,8 @@ static int panel_hdmi_parse_dt_hdmi(struct platform_device *pdev,
 		DRM_INFO("hdp gpio %d\n", hpd_gpio);
 	} else {
 		err = platform_get_irq(pdev, 0);
-		if (0 > err) {
-			DRM_ERROR("fail : hdmi platform_get_irq !\n");
+		if (err < 0) {
+			DRM_ERROR("Failed, hdmi platform_get_irq !\n");
 			return -EINVAL;
 		}
 	}
@@ -472,16 +466,11 @@ static int panel_hdmi_parse_dt_hdmi(struct platform_device *pdev,
 
 	err = devm_request_threaded_irq(dev, hpd_irq, NULL,
 				panel_hdmi_hpd_irq, flags, "hdmi-hpd", ctx);
-	if (0 > err) {
-		DRM_ERROR("fail : to request IRQ#%u: %d\n", hpd_irq, err);
+	if (err < 0) {
+		DRM_ERROR("Failed to request IRQ#%u: %d\n", hpd_irq, err);
 		gpio_free(hpd_irq);
 		return err;
 	}
-
-	hdmi->hpd_gpio = hpd_gpio;
-	hdmi->hpd_irq = hpd_irq;
-
-	DRM_INFO("irq %d install for hdp\n", hpd_irq);
 
 	/*
 	 * Disable the interrupt until the connector has been
@@ -489,6 +478,11 @@ static int panel_hdmi_parse_dt_hdmi(struct platform_device *pdev,
 	 * handler.
 	 */
 	disable_irq(hpd_irq);
+
+	hdmi->hpd_gpio = hpd_gpio;
+	hdmi->hpd_irq = hpd_irq;
+
+	DRM_INFO("irq %d install for hdp\n", hpd_irq);
 
 	return 0;
 }
@@ -498,38 +492,25 @@ static int panel_hdmi_parse_dt(struct platform_device *pdev,
 {
 	struct device *dev = &pdev->dev;
 	struct device_node *node = dev->of_node;
-	struct nx_drm_device *display = ctx->display;
-	struct nx_drm_panel *panel = &ctx->display->panel;
+	struct nx_drm_display *display = ctx_to_display(ctx);
 	struct gpio_desc *desc;
 	int err;
 
 	DRM_INFO("Load HDMI panel\n");
 
-	parse_read_prop(node, "crtc-pipe", ctx->crtc_pipe);
+	property_read(node, "crtc-pipe", ctx->crtc_pipe);
 
-	/*
-	 * get possible crtcs
-	 */
-	parse_read_prop(node, "crtcs-possible-mask", ctx->possible_crtcs_mask);
+	/* get possible crtcs */
+	property_read(node, "crtcs-possible-mask", ctx->possible_crtcs_mask);
 
-	/*
-	 * parse panel output for HDMI
-	 */
-	err = nx_drm_dp_panel_dev_register(dev,
-				node, dp_panel_type_hdmi, display);
-	if (0 > err)
-		return err;
-
-	/*
-	 * parse HDMI configs
-	 */
+	/* parse HDMI configs */
 	err = panel_hdmi_parse_dt_hdmi(pdev, ctx);
-	if (0 > err)
+	if (err < 0)
 		return err;
 
 	desc = devm_gpiod_get_optional(dev, "enable", GPIOD_ASIS);
 	if (-EBUSY == (long)ERR_CAST(desc)) {
-		DRM_INFO("fail : enable-gpios is busy : %s !!!\n",
+		DRM_INFO("Failed, enable-gpios is busy : %s !!!\n",
 			node->full_name);
 		desc = NULL;
 	}
@@ -553,31 +534,35 @@ static int panel_hdmi_parse_dt(struct platform_device *pdev,
 				flags == GPIO_ACTIVE_HIGH ? "high" : "low ");
 	}
 
-	parse_read_prop(node, "width-mm", panel->width_mm);
-	parse_read_prop(node, "height-mm", panel->height_mm);
+	property_read(node, "width-mm", display->width_mm);
+	property_read(node, "height-mm", display->height_mm);
 
 	return 0;
 }
 
-static int panel_hdmi_driver_setup(struct platform_device *pdev,
+static int panel_hdmi_get_display(struct platform_device *pdev,
 			struct hdmi_context *ctx)
 {
 	struct device *dev = &pdev->dev;
-	struct nx_drm_res *res = &ctx->display->res;
-	int err;
+	struct nx_drm_connector *nx_connector = ctx->connector;
+	struct drm_connector *connector = &nx_connector->connector;
 
-	err = nx_drm_dp_panel_res_parse(dev, res, dp_panel_type_hdmi);
-	if (0 > err)
-		return -EINVAL;
+	/* get HDMI */
+	nx_connector->display =
+		nx_drm_display_get(dev,
+			dev->of_node, connector, NX_PANEL_TYPE_HDMI);
+	if (!nx_connector->display)
+		return -ENOENT;
 
 	return 0;
 }
 
 static int panel_hdmi_probe(struct platform_device *pdev)
 {
+	struct device *dev = &pdev->dev;
 	struct hdmi_resource *hdmi;
 	struct hdmi_context *ctx;
-	struct device *dev = &pdev->dev;
+	struct nx_drm_display_ops *ops;
 	int err;
 
 	DRM_DEBUG_KMS("enter (%s)\n", dev_name(dev));
@@ -586,52 +571,69 @@ static int panel_hdmi_probe(struct platform_device *pdev)
 	if (!ctx)
 		return -ENOMEM;
 
-	ctx->display = &hdmi_dp_dev;
-	ctx->display->dev = dev;
+	ctx->connector = &hdmi_connector_dev;
+	ctx->connector->dev = dev;
 
-	spin_lock_init(&ctx->lock);
-
-	hdmi = &ctx->hdmi_res;
+	hdmi = &ctx->hdmi;
 	hdmi->hpd_gpio = -1;
 	hdmi->hpd_irq = INVALID_IRQ;
 
-	err = panel_hdmi_driver_setup(pdev, ctx);
-	if (0 > err)
-		return err;
+	err = panel_hdmi_get_display(pdev, ctx);
+	if (err < 0)
+		goto err_probe;
+
+	ops = ctx_to_display(ctx)->ops;
+	if (ops->open) {
+		err = ops->open(ctx_to_display(ctx), ctx->crtc_pipe);
+		if (err)
+			goto err_probe;
+	}
 
 	err = panel_hdmi_parse_dt(pdev, ctx);
-	if (0 > err)
-		return err;
+	if (err < 0)
+		goto err_probe;
 
 	dev_set_drvdata(dev, ctx);
 
 	component_add(dev, &panel_comp_ops);
 
 	DRM_DEBUG_KMS("done\n");
+	return err;
 
+err_probe:
+	DRM_ERROR("Failed %s probe !!!\n", dev_name(dev));
+	devm_kfree(dev, ctx);
 	return err;
 }
 
 static int panel_hdmi_remove(struct platform_device *pdev)
 {
-	struct hdmi_resource *hdmi;
-	struct hdmi_context *ctx = dev_get_drvdata(&pdev->dev);
 	struct device *dev = &pdev->dev;
+	struct hdmi_context *ctx = dev_get_drvdata(&pdev->dev);
+	struct hdmi_resource *hdmi;
+	struct nx_drm_display_ops *ops;
 
 	if (!ctx)
 		return 0;
 
-	cancel_delayed_work_sync(&ctx->work);
+	component_del(dev, &panel_comp_ops);
 
-	hdmi = &ctx->hdmi_res;
-	if (INVALID_IRQ != hdmi->hpd_irq)
-		devm_free_irq(&pdev->dev, hdmi->hpd_irq, ctx);
+	hdmi = &ctx->hdmi;
+	if (hdmi->hpd_irq != INVALID_IRQ)
+		devm_free_irq(dev, hdmi->hpd_irq, ctx);
 
 	if (hdmi->ddc_adpt)
 		put_device(&hdmi->ddc_adpt->dev);
 
-	nx_drm_dp_panel_res_free(dev, &ctx->display->res);
-	nx_drm_dp_panel_dev_release(dev, ctx->display);
+	ops = ctx_to_display(ctx)->ops;
+	if (ops->close)
+		ops->close(ctx_to_display(ctx), ctx->crtc_pipe);
+
+	if (ctx->enable_gpio)
+		devm_gpiod_put(dev, ctx->enable_gpio);
+
+	nx_drm_display_put(dev, ctx_to_display(ctx));
+	devm_kfree(dev, ctx);
 
 	return 0;
 }
@@ -640,9 +642,15 @@ static int panel_hdmi_remove(struct platform_device *pdev)
 static int panel_hdmi_suspend(struct device *dev)
 {
 	struct hdmi_context *ctx = dev_get_drvdata(dev);
+	struct drm_connector *connector;
+	struct nx_drm_display *display;
+	int ret = 0;
 
-	if (!ctx || !ctx->display)
+	if (!ctx || !ctx->connector)
 		return 0;
+
+	connector = &ctx->connector->connector;
+	display = ctx_to_display(ctx);
 
 	/*
 	 * if hdmi is connected, prevent to go suspend mode.
@@ -656,19 +664,28 @@ static int panel_hdmi_suspend(struct device *dev)
 	ctx->plug = false;
 
 	cancel_delayed_work_sync(&ctx->work);
-	drm_helper_hpd_irq_event(ctx->connector->dev);
+	drm_helper_hpd_irq_event(connector->dev);
 
-	return nx_drm_dp_panel_res_suspend(dev, ctx->display);
+	if (display->ops && display->ops->suspend)
+		ret = display->ops->suspend(display);
+
+	return ret;
 }
 
 static int panel_hdmi_resume(struct device *dev)
 {
 	struct hdmi_context *ctx = dev_get_drvdata(dev);
+	struct nx_drm_display *display;
 
-	if (!ctx || !ctx->display)
+	if (!ctx || !ctx->connector)
 		return 0;
 
-	return nx_drm_dp_panel_res_resume(dev, ctx->display);
+	display = ctx_to_display(ctx);
+
+	if (display->ops && display->ops->resume)
+		display->ops->resume(display);
+
+	return 0;
 }
 #endif
 
@@ -684,7 +701,7 @@ static const struct of_device_id panel_hdmi_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, panel_hdmi_of_match);
 
-struct platform_driver panel_hdmi_driver = {
+static struct platform_driver panel_hdmi_driver = {
 	.probe = panel_hdmi_probe,
 	.remove = panel_hdmi_remove,
 	.driver = {
@@ -694,8 +711,13 @@ struct platform_driver panel_hdmi_driver = {
 		.pm = &panel_hdmi_pm,
 	},
 };
-module_platform_driver(panel_hdmi_driver);
 
-MODULE_AUTHOR("jhkim <jhkim@nexell.co.kr>");
-MODULE_DESCRIPTION("Nexell HDMI DRM Driver");
-MODULE_LICENSE("GPL");
+void panel_hdmi_init(void)
+{
+	platform_driver_register(&panel_hdmi_driver);
+}
+
+void panel_hdmi_exit(void)
+{
+	platform_driver_unregister(&panel_hdmi_driver);
+}

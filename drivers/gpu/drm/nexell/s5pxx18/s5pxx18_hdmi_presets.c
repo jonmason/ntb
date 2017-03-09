@@ -21,7 +21,7 @@
 #include <linux/reset.h>
 #include <linux/hdmi.h>
 
-#include "s5pxx18_dp_hdmi.h"
+#include "s5pxx18_hdmi.h"
 
 #define DEFAULT_SAMPLE_RATE		48000
 #define DEFAULT_BITS_PER_SAMPLE		16
@@ -2427,7 +2427,7 @@ const struct hdmi_conf hdmi_conf[] = {
 	 .phy_data = hdmiphy_preset_148_5,
 	 .support = true,
 	},
-	{ /* 8 : 1024x768@60 */
+	{ /* 9 : 1024x768@60 */
 	 .preset = &hdmi_conf_768p60,
 	 .format = &_format_2d,
 	 .phy_data = hdmiphy_preset_65,

@@ -14,6 +14,29 @@ config DRM_NX
 	  management to userspace. If M is selected the module
 	  will be called nexell drm.
 
+choice
+	prompt "Support DRM"
+
+config DRM_NX_S5PXX18
+	bool "S5PXX18"
+	depends on DRM_NX
+	help
+	 This selects support for S5PXX18 SoC DRM driver.
+	 If you want to enable S5PXX18 SoC DRM display,
+	 you should selet this option.
+
+endchoice
+
+config DRM_CHECK_PRE_INIT
+        bool "Don't reinitialize, use bootloader's Display configuration"
+        depends on DRM
+        default n
+        help
+	 Select this option if display contents should be inherited as set by
+	 the bootloader.
+
+          If in doubt, say "N".
+
 config DRM_NX_RGB
 	bool "RGB LCD support"
 	depends on DRM_NX
@@ -79,4 +102,13 @@ config DRM_CHECK_IOCTL_AUTH
 
 	  If in doubt, say "Y".
 
+config DRM_NX_FB_DISPLAY
+	bool "Support pan display for DRM frame buffer"
+	depends on DRM_NX
+	default y
+	help
+	 Choose this option if you need support frame buffer pan display
+	 for modesetting driver
+
+	  If in doubt, say "Y".
 

@@ -29,7 +29,7 @@ int nx_disp_top_initialize(void)
 	static int binit;
 	u32 i;
 
-	if (0 == binit) {
+	if (binit == 0) {
 		for (i = 0; i < NUMBER_OF_DISPTOP_MODULE; i++)
 			__g_module_variables.pregister = NULL;
 		binit = 1;

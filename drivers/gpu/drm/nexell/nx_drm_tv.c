@@ -19,6 +19,7 @@
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_panel.h>
 
+#include <linux/sched.h>
 #include <linux/component.h>
 #include <linux/of_platform.h>
 #include <linux/of_address.h>
@@ -32,12 +33,7 @@
 #include <media/v4l2-subdev.h>
 
 #include "nx_drm_drv.h"
-#include "nx_drm_plane.h"
-#include "nx_drm_crtc.h"
-#include "nx_drm_encoder.h"
-#include "nx_drm_connector.h"
 #include "nx_drm_fb.h"
-#include "soc/s5pxx18_dp_tv.h"
 
 struct tv_resource {
 	struct i2c_adapter *adpt;
@@ -49,45 +45,44 @@ struct nx_v4l2_i2c_board_info {
 };
 
 struct tv_context {
-	struct drm_connector *connector;
-	int crtc_pipe;
-	unsigned int possible_crtcs_mask;
+	struct nx_drm_connector connector;
+	/* lcd parameters */
 	struct reset_control *reset;
 	void *base;
-	struct nx_drm_device *display;
 	struct delayed_work	work;
-	struct mutex lock;
 	bool local_timing;
 	struct gpio_desc *enable_gpio;
-	struct tv_resource tv_res;
+	struct tv_resource tv;
 	bool plug;
 	int connection_cnt;
 	bool is_run;
 	bool is_enable;
-
 	struct platform_device *pdev;
-
 	struct nx_v4l2_i2c_board_info sensor_info;
 	struct v4l2_dbg_register *sensor_reg;
-
 	struct media_pad sensor_pad;
 	struct media_pad pad;
 	struct media_entity entity;
+	/* properties */
+	int crtc_pipe;
+	unsigned int possible_crtcs_mask;
 };
 
 static int register_v4l2(struct tv_context *);
-
-#define ctx_to_tv(c)	(struct tv_resource *)(&c->tv_res)
 #define CONNECTION_COUNT	10 /* 500 * CONNECTION_COUNT */
+
+#define ctx_to_display(c)	\
+		((struct nx_drm_display *)(c->connector.display))
 
 static struct v4l2_subdev *get_remote_source_subdev(struct tv_context *me)
 {
-	struct media_pad *pad =
-		media_entity_remote_pad(&me->pad);
+	struct media_pad *pad = media_entity_remote_pad(&me->pad);
+
 	if (!pad) {
 		dev_err(&me->pdev->dev, "can't find remote source device\n");
 		return NULL;
 	}
+
 	return media_entity_to_v4l2_subdev(pad->entity);
 }
 
@@ -112,55 +107,59 @@ static int call_set_register(struct tv_context *ctx)
 	return 0;
 }
 
-
-static bool panel_tv_is_connected(struct device *dev,
+static bool panel_tv_ops_detect(struct device *dev,
 			struct drm_connector *connector)
 {
 	struct tv_context *ctx = dev_get_drvdata(dev);
-	struct nx_drm_panel *panel = &ctx->display->panel;
-	struct device_node *panel_node = panel->panel_node;
-		enum dp_panel_type panel_type = dp_panel_get_type(ctx->display);
+	struct nx_drm_display *display = ctx_to_display(ctx);
+	struct nx_drm_display_ops *ops = display->ops;
+	enum nx_panel_type panel_type = nx_panel_get_type(display);
 
-	DRM_DEBUG_KMS("enter panel %s\n",
-		panel_node ? "exist" : "not exist");
+	DRM_DEBUG_KMS("panel %s\n",
+		display->panel_node ? "exist" : "not exist");
 
-	if (panel_node) {
-		struct drm_panel *drm_panel = of_drm_find_panel(panel_node);
+	if (display->panel_node) {
+		struct drm_panel *drm_panel =
+					of_drm_find_panel(display->panel_node);
 
 		if (drm_panel) {
 			int ret;
 
-			panel->panel = drm_panel;
+			display->panel = drm_panel;
 			drm_panel_attach(drm_panel, connector);
 
-			if (panel->check_panel)
-				return panel->is_connected;
+			if (display->check_panel)
+				return display->is_connected;
 
-			nx_drm_dp_tv_prepare(ctx->display, drm_panel);
+			if (ops->prepare)
+				ops->prepare(display);
+
 			ret = drm_panel_prepare(drm_panel);
 			if (!ret) {
 				drm_panel_unprepare(drm_panel);
-				nx_drm_dp_tv_unprepare(ctx->display,
-						drm_panel);
-				panel->is_connected = true;
+
+				if (ops->unprepare)
+					ops->unprepare(display);
+
+				display->is_connected = true;
 			} else {
 				drm_panel_detach(drm_panel);
-				panel->is_connected = false;
+				display->is_connected = false;
 			}
-			panel->check_panel = true;
+			display->check_panel = true;
 
 			DRM_INFO("%s: check panel %s\n",
-				dp_panel_type_name(panel_type),
-				panel->is_connected ?
-				"connected" : "disconnected");
+				nx_panel_get_name(panel_type),
+				display->is_connected ?
+					"connected" : "disconnected");
 
-			return panel->is_connected;
+			return display->is_connected;
 		}
 	}
 
-	if (!panel_node && false == ctx->local_timing) {
+	if (!display->panel_node && !ctx->local_timing) {
 		DRM_DEBUG_DRIVER("not exist %s panel & timing %s !\n",
-			dp_panel_type_name(panel_type), dev_name(dev));
+			nx_panel_get_name(panel_type), dev_name(dev));
 
 		return false;
 	}
@@ -169,33 +168,41 @@ static bool panel_tv_is_connected(struct device *dev,
 	 * support DT's timing node
 	 * when not use panel driver
 	 */
-	panel->is_connected = true;
+	display->is_connected = true;
 
 	return true;
 }
 
-static int panel_tv_get_modes(struct device *dev,
+static bool panel_tv_ops_is_connected(struct device *dev)
+{
+	struct tv_context *ctx = dev_get_drvdata(dev);
+	struct nx_drm_display *display = ctx_to_display(ctx);
+
+	return display->is_connected;
+}
+
+static int panel_tv_ops_get_modes(struct device *dev,
 			struct drm_connector *connector)
 {
 	struct drm_display_mode *mode;
 	struct tv_context *ctx = dev_get_drvdata(dev);
-	struct nx_drm_panel *panel = &ctx->display->panel;
+	struct nx_drm_display *display = ctx_to_display(ctx);
 
-	DRM_DEBUG_KMS("enter panel %s\n",
-		panel->panel ? "attached" : "detached");
+	DRM_DEBUG_KMS("panel %s\n",
+		display->panel ? "attached" : "detached");
 
-	if (panel->panel)
-		return drm_panel_get_modes(panel->panel);
+	if (display->panel)
+		return drm_panel_get_modes(display->panel);
 
 	mode = drm_mode_create(connector->dev);
 	if (!mode) {
-		DRM_ERROR("fail : create a new display mode !\n");
+		DRM_ERROR("Failed to create a new display mode !\n");
 		return 0;
 	}
 
-	drm_display_mode_from_videomode(&panel->vm, mode);
-	mode->width_mm = panel->width_mm;
-	mode->height_mm = panel->height_mm;
+	drm_display_mode_from_videomode(&display->vm, mode);
+	mode->width_mm = display->width_mm;
+	mode->height_mm = display->height_mm;
 	connector->display_info.width_mm = mode->width_mm;
 	connector->display_info.height_mm = mode->height_mm;
 
@@ -208,57 +215,64 @@ static int panel_tv_get_modes(struct device *dev,
 	return 1;
 }
 
-static int panel_tv_check_mode(struct device *dev,
+static int panel_tv_ops_valid_mode(struct device *dev,
 			struct drm_display_mode *mode)
 {
 	struct tv_context *ctx = dev_get_drvdata(dev);
-	struct nx_drm_panel *panel = &ctx->display->panel;
+	struct nx_drm_display *display = ctx_to_display(ctx);
 
-	drm_display_mode_to_videomode(mode, &panel->vm);
+	drm_display_mode_to_videomode(mode, &display->vm);
 
-	panel->width_mm = mode->width_mm;
-	panel->height_mm = mode->height_mm;
+	display->width_mm = mode->width_mm;
+	display->height_mm = mode->height_mm;
 
 	DRM_DEBUG_KMS("SYNC -> LCD %d x %d mm\n",
-		panel->width_mm, panel->height_mm);
+		display->width_mm, display->height_mm);
 	DRM_DEBUG_KMS("ha:%d, hf:%d, hb:%d, hs:%d\n",
-		panel->vm.hactive, panel->vm.hfront_porch,
-		panel->vm.hback_porch, panel->vm.hsync_len);
+		display->vm.hactive, display->vm.hfront_porch,
+		display->vm.hback_porch, display->vm.hsync_len);
 	DRM_DEBUG_KMS("va:%d, vf:%d, vb:%d, vs:%d\n",
-		panel->vm.vactive, panel->vm.vfront_porch,
-		panel->vm.vback_porch, panel->vm.vsync_len);
-	DRM_DEBUG_KMS("flags:0x%x\n", panel->vm.flags);
+		display->vm.vactive, display->vm.vfront_porch,
+		display->vm.vback_porch, display->vm.vsync_len);
+	DRM_DEBUG_KMS("flags:0x%x\n", display->vm.flags);
 
 	return MODE_OK;
 }
 
-bool panel_tv_mode_fixup(struct device *dev,
-			struct drm_connector *connector,
-			const struct drm_display_mode *mode,
-			struct drm_display_mode *adjusted_mode)
-{
-	return true;
-}
-
-static void panel_tv_commit(struct device *dev)
+static void panel_tv_ops_set_mode(struct device *dev,
+			struct drm_display_mode *mode)
 {
 	struct tv_context *ctx = dev_get_drvdata(dev);
-	int pipe = drm_dev_get_dpc(ctx->display)->module;
+	struct nx_drm_display *display = ctx_to_display(ctx);
+	struct nx_drm_display_ops *ops = display->ops;
 
-	nx_dp_tv_set_commit(ctx->display, pipe);
+	DRM_DEBUG_KMS("enter\n");
+
+	if (ops->set_mode)
+		ops->set_mode(display, mode, 0);
 }
 
-static void panel_tv_enable(struct device *dev, struct drm_panel *panel)
+static void panel_tv_on(struct tv_context *ctx, struct drm_panel *panel)
 {
-	struct tv_context *ctx = dev_get_drvdata(dev);
-	struct nx_drm_device *display = ctx->display;
+	struct nx_drm_connector *nx_connector = &ctx->connector;
+	struct nx_drm_display *display = ctx_to_display(ctx);
+	struct nx_drm_display_ops *ops = display->ops;
 	int ret = 0;
 
-	nx_drm_dp_tv_prepare(display, panel);
-	drm_panel_prepare(panel);
+	if (nx_connector->suspended) {
+		if (ops->resume)
+			ops->resume(display);
+	}
 
+	if (ops->prepare)
+		ops->prepare(display);
+
+	drm_panel_prepare(panel);
 	drm_panel_enable(panel);
-	ret = nx_drm_dp_tv_enable(display, panel);
+
+	if (ops->enable)
+		ret = ops->enable(display);
+
 	if (!ret && !ctx->is_enable) {
 		if (ctx->is_run)
 			call_set_register(ctx);
@@ -267,55 +281,61 @@ static void panel_tv_enable(struct device *dev, struct drm_panel *panel)
 	}
 }
 
-static void panel_tv_disable(struct device *dev, struct drm_panel *panel)
+static void panel_tv_off(struct tv_context *ctx, struct drm_panel *panel)
 {
-	struct tv_context *ctx = dev_get_drvdata(dev);
-	struct nx_drm_device *display = ctx->display;
+	struct nx_drm_connector *nx_connector = &ctx->connector;
+	struct nx_drm_display *display = ctx_to_display(ctx);
+	struct nx_drm_display_ops *ops = display->ops;
+
+	if (nx_connector->suspended) {
+		if (ops->suspend)
+			ops->suspend(display);
+	}
 
 	drm_panel_unprepare(panel);
 	drm_panel_disable(panel);
 
-	nx_drm_dp_tv_unprepare(display, panel);
-	nx_drm_dp_tv_disable(display, panel);
+	if (ops->unprepare)
+		ops->unprepare(display);
+
+	if (ops->disable)
+		ops->disable(display);
 }
 
-static void panel_tv_dmps(struct device *dev, int mode)
+static void panel_tv_ops_enable(struct device *dev)
 {
 	struct tv_context *ctx = dev_get_drvdata(dev);
-	struct nx_drm_panel *panel = &ctx->display->panel;
-	struct drm_panel *drm_panel = panel->panel;
+	struct nx_drm_display *display = ctx_to_display(ctx);
 
-	DRM_DEBUG_KMS("dpms.%d\n", mode);
+	DRM_DEBUG_KMS("enter\n");
 
-	switch (mode) {
-	case DRM_MODE_DPMS_ON:
-		panel_tv_enable(dev, drm_panel);
+	panel_tv_on(ctx, display->panel);
 
-		if (!panel && ctx->enable_gpio)
-			gpiod_set_value_cansleep(ctx->enable_gpio, 1);
-		break;
-
-	case DRM_MODE_DPMS_STANDBY:
-	case DRM_MODE_DPMS_SUSPEND:
-	case DRM_MODE_DPMS_OFF:
-		panel_tv_disable(dev, drm_panel);
-
-		if (!panel && ctx->enable_gpio)
-			gpiod_set_value_cansleep(ctx->enable_gpio, 0);
-		break;
-	default:
-		DRM_ERROR("fail : unspecified mode %d\n", mode);
-		break;
-	}
+	if (ctx->enable_gpio)
+		gpiod_set_value_cansleep(ctx->enable_gpio, 1);
 }
 
-static struct nx_drm_ops panel_tv_ops = {
-	.is_connected = panel_tv_is_connected,
-	.get_modes = panel_tv_get_modes,
-	.check_mode = panel_tv_check_mode,
-	.mode_fixup = panel_tv_mode_fixup,
-	.commit = panel_tv_commit,
-	.dpms = panel_tv_dmps,
+static void panel_tv_ops_disable(struct device *dev)
+{
+	struct tv_context *ctx = dev_get_drvdata(dev);
+	struct nx_drm_display *display = ctx_to_display(ctx);
+
+	DRM_DEBUG_KMS("enter\n");
+
+	panel_tv_off(ctx, display->panel);
+
+	if (ctx->enable_gpio)
+		gpiod_set_value_cansleep(ctx->enable_gpio, 0);
+}
+
+static struct nx_drm_connect_drv_ops tvout_connector_ops = {
+	.detect = panel_tv_ops_detect,
+	.is_connected = panel_tv_ops_is_connected,
+	.get_modes = panel_tv_ops_get_modes,
+	.valid_mode = panel_tv_ops_valid_mode,
+	.set_mode = panel_tv_ops_set_mode,
+	.enable = panel_tv_ops_enable,
+	.disable = panel_tv_ops_disable,
 };
 
 static int panel_tv_bind(struct device *dev,
@@ -323,31 +343,31 @@ static int panel_tv_bind(struct device *dev,
 {
 	struct drm_device *drm = data;
 	struct tv_context *ctx = dev_get_drvdata(dev);
-	struct platform_driver *pdrv = to_platform_driver(dev->driver);
-	enum dp_panel_type panel_type = dp_panel_get_type(ctx->display);
-	int pipe = ctx->crtc_pipe;
-	unsigned int possible_crtcs = ctx->possible_crtcs_mask;
+	struct drm_connector *connector = &ctx->connector.connector;
+	enum nx_panel_type panel_type = nx_panel_get_type(ctx_to_display(ctx));
+	struct platform_driver *drv;
 	int err = 0;
 
-	DRM_INFO("Bind %s panel\n", dp_panel_type_name(panel_type));
-	ctx->connector = nx_drm_connector_create_and_attach(drm,
-			ctx->display, pipe, possible_crtcs,
-			panel_type, ctx);
+	DRM_INFO("Bind %s panel\n", nx_panel_get_name(panel_type));
 
-	if (IS_ERR(ctx->connector))
+	err = nx_drm_connector_attach(drm, connector,
+			ctx->crtc_pipe, ctx->possible_crtcs_mask, panel_type);
+	if (err < 0)
 		goto err_bind;
 
 	if (!err) {
-		struct nx_drm_priv *priv = drm->dev_private;
+		struct nx_drm_private *private = drm->dev_private;
 
-		if (panel_tv_is_connected(dev, ctx->connector))
-			priv->force_detect = true;
+		if (panel_tv_ops_detect(dev, connector))
+			private->force_detect = true;
 
 		return 0;
 	}
+
 err_bind:
-	if (pdrv->remove)
-		pdrv->remove(to_platform_device(dev));
+	drv = to_platform_driver(dev->driver);
+	if (drv->remove)
+		drv->remove(to_platform_device(dev));
 
 	return 0;
 }
@@ -356,10 +376,10 @@ static void panel_tv_unbind(struct device *dev,
 			struct device *master, void *data)
 {
 	struct tv_context *ctx = dev_get_drvdata(dev);
-	/* enum dp_panel_type panel_type = dp_panel_get_type(ctx->display); */
+	struct drm_connector *connector = &ctx->connector.connector;
 
-	if (ctx->connector)
-		nx_drm_connector_destroy_and_detach(ctx->connector);
+	if (connector)
+		nx_drm_connector_detach(connector);
 }
 
 static const struct component_ops panel_comp_ops = {
@@ -370,12 +390,11 @@ static const struct component_ops panel_comp_ops = {
 static void panel_tv_work(struct work_struct *work)
 {
 	struct tv_context *ctx;
+	struct drm_connector *connector;
 	int err;
 
 	ctx = container_of(work, struct tv_context, work.work);
-	if (!ctx->connector)
-		return;
-
+	connector = &ctx->connector.connector;
 	err = register_v4l2(ctx);
 	if (err) {
 		if (ctx->connection_cnt++ < CONNECTION_COUNT)
@@ -384,7 +403,7 @@ static void panel_tv_work(struct work_struct *work)
 		else
 			cancel_delayed_work_sync(&ctx->work);
 	} else {
-		drm_helper_hpd_irq_event(ctx->connector->dev);
+		drm_helper_hpd_irq_event(connector->dev);
 
 		if (ctx->is_enable && !ctx->is_run) {
 			call_set_register(ctx);
@@ -395,12 +414,7 @@ static void panel_tv_work(struct work_struct *work)
 	}
 }
 
-#define parse_read_prop(n, s, v)	{ \
-	u32 _v;	\
-	if (!of_property_read_u32(n, s, &_v))	\
-		v = _v;	\
-	}
-
+#define property_read(n, s, v)	of_property_read_u32(n, s, &v)
 static const struct of_device_id panel_tv_of_match[];
 
 static int parse_sensor_i2c_board_info_dt(struct device_node *np,
@@ -412,17 +426,17 @@ static int parse_sensor_i2c_board_info_dt(struct device_node *np,
 	struct nx_v4l2_i2c_board_info *info = &me->sensor_info;
 
 	if (of_property_read_string(np, "i2c_name", &name)) {
-		dev_err(dev, "failed to get sensor i2c name\n");
+		dev_err(dev, "Failed to get sensor i2c name\n");
 		return -EINVAL;
 	}
 
 	if (of_property_read_u32(np, "i2c_adapter", &adapter)) {
-		dev_err(dev, "failed to get sensor i2c adapter\n");
+		dev_err(dev, "Failed to get sensor i2c adapter\n");
 		return -EINVAL;
 	}
 
 	if (of_property_read_u32(np, "addr", &addr)) {
-		dev_err(dev, "failed to get sensor i2c addr\n");
+		dev_err(dev, "Failed to get sensor i2c addr\n");
 		return -EINVAL;
 	}
 
@@ -447,7 +461,7 @@ static int parse_sensor_register_dt(struct device_node *np,
 	int count = of_property_count_elems_of_size(np, "register", 4);
 
 	if ((count%2) != 0) {
-		dev_err(dev, "failed to get dt sensor register\n");
+		dev_err(dev, "Failed to get dt sensor register\n");
 		return -EINVAL;
 	}
 
@@ -479,7 +493,7 @@ static int parse_sensor_register_dt(struct device_node *np,
 }
 
 static int parse_sensor_dt(struct device_node *np, struct device *dev,
-			   struct tv_context *me)
+			struct tv_context *me)
 {
 	int ret = 0;
 
@@ -494,49 +508,35 @@ static int parse_sensor_dt(struct device_node *np, struct device *dev,
 }
 
 static int panel_tv_parse_dt(struct platform_device *pdev,
-			struct tv_context *ctx, enum dp_panel_type panel_type)
+			struct tv_context *ctx)
 {
 	struct device *dev = &pdev->dev;
-	struct nx_drm_panel *panel = &ctx->display->panel;
-	struct nx_drm_device *display = ctx->display;
+	struct nx_drm_display *display = ctx_to_display(ctx);
 	struct device_node *node = dev->of_node;
 	struct device_node *np;
 	struct display_timing timing;
 	int err;
 
-	DRM_DEBUG_KMS("enter\n");
+	DRM_INFO("Load TV-OUT panel\n");
 
-	parse_read_prop(node, "crtc-pipe", ctx->crtc_pipe);
+	property_read(node, "crtc-pipe", ctx->crtc_pipe);
 
-	/*
-	 * get possible crtcs
-	 */
-	parse_read_prop(node, "crtcs-possible-mask", ctx->possible_crtcs_mask);
+	/* get possible crtcs */
+	property_read(node, "crtcs-possible-mask", ctx->possible_crtcs_mask);
 
-	/*
-	 * parse panel output for RGB/LVDS/MiPi-DSI
-	 */
-	err = nx_drm_dp_panel_dev_register(dev, node, panel_type, display);
-	if (0 > err)
-		return err;
-
-	/*
-	 * get panel timing from local.
-	 */
+	/* get panel timing from local. */
 	np = of_graph_get_remote_port_parent(node);
-	panel->panel_node = np;
+	display->panel_node = np;
 	if (!np) {
 		DRM_INFO("not use remote panel node (%s) !\n",
 			node->full_name);
 
-		/*
-		 * parse panel info
-		 */
+		/* parse panel info */
 		ctx->enable_gpio =
 			devm_gpiod_get_optional(dev, "enable", GPIOD_OUT_LOW);
 
-		parse_read_prop(node, "width-mm", panel->width_mm);
-		parse_read_prop(node, "height-mm", panel->height_mm);
+		property_read(node, "width-mm", display->width_mm);
+		property_read(node, "height-mm", display->height_mm);
 
 		/*
 		 * parse display timing (sync)
@@ -544,34 +544,33 @@ static int panel_tv_parse_dt(struct platform_device *pdev,
 		 * -> of_parse_display_timing
 		 */
 		err = of_get_display_timing(node, "display-timing", &timing);
-		if (0 == err) {
-			videomode_from_timing(&timing, &panel->vm);
+		if (err == 0) {
+			videomode_from_timing(&timing, &display->vm);
 			ctx->local_timing = true;
 		}
 	}
+	of_node_put(np);
 
-	/*
-	 * parse display control config
-	 */
+	/* parse display control config	 */
 	np = of_find_node_by_name(node, "dp_control");
+	of_node_get(node);
 	if (!np) {
-		DRM_ERROR("fail : not find panel's control node (%s) !\n",
+		DRM_ERROR("Failed, not find panel's control node (%s) !\n",
 			node->full_name);
 		return -EINVAL;
 	}
 
-	nx_drm_dp_panel_ctrl_parse(np, display);
-	nx_drm_dp_panel_ctrl_dump(ctx->display);
+	nx_drm_display_setup(display, np, display->panel_type);
 
-	/*
-		parse sensor
-	*/
+	/* parse sensor	*/
 	np = of_find_node_by_name(node, "sensor");
+	of_node_get(node);
 	if (!np) {
-		DRM_ERROR("fail : not find sensor node (%s) !\n",
+		DRM_ERROR("Failed, not find sensor node (%s) !\n",
 			node->full_name);
 		return -EINVAL;
 	}
+	of_node_put(np);
 
 	err = parse_sensor_dt(np, dev, ctx);
 	if (err)
@@ -580,43 +579,33 @@ static int panel_tv_parse_dt(struct platform_device *pdev,
 	return 0;
 }
 
-static int panel_tv_driver_setup(struct platform_device *pdev,
-			struct tv_context *ctx, enum dp_panel_type *panel_type)
+static int panel_tv_get_display(struct platform_device *pdev,
+			struct tv_context *ctx)
 {
-	const struct of_device_id *id;
-	enum dp_panel_type type;
 	struct device *dev = &pdev->dev;
-	struct nx_drm_res *res = &ctx->display->res;
-	int err;
+	struct nx_drm_connector *nx_connector = &ctx->connector;
+	struct drm_connector *connector = &nx_connector->connector;
 
-	/*
-	 * get panel type with of id
-	 */
-	id = of_match_node(panel_tv_of_match, pdev->dev.of_node);
-	type = (enum dp_panel_type)id->data;
-
-	DRM_INFO("Load %s panel\n", dp_panel_type_name(type));
-
-	err = nx_drm_dp_panel_res_parse(dev, res, type);
-	if (0 > err)
-		return -EINVAL;
-
-	*panel_type = type;
+	/* get TV-OUT */
+	nx_connector->display =
+		nx_drm_display_get(dev,
+			dev->of_node, connector, NX_PANEL_TYPE_TV);
+	if (!nx_connector->display)
+		return -ENOENT;
 
 	return 0;
 }
 
-static int nx_tv_link_setup(struct media_entity *entity,
+static int panel_tv_link_setup(struct media_entity *entity,
 			const struct media_pad *local,
 			const struct media_pad *remote,
 			u32 flag)
 {
-
 	return 0;
 }
 
 static const struct media_entity_operations nx_tv_media_ops = {
-	.link_setup = nx_tv_link_setup,
+	.link_setup = panel_tv_link_setup,
 };
 
 static int setup_link(struct media_pad *src, struct media_pad *dst)
@@ -659,7 +648,7 @@ static int init_media_entity(struct tv_context *me)
 
 	err = media_entity_init(entity, 1, pad, 0);
 	if (err < 0) {
-		dev_err(&me->pdev->dev, "%s: failed to media_entity_init()\n",
+		dev_err(&me->pdev->dev, "%s: Failed to media_entity_init()\n",
 			__func__);
 		return err;
 	}
@@ -700,13 +689,13 @@ static int register_sensor_subdev(struct tv_context *me)
 
 	ret = init_sensor_media_entity(me, sensor);
 	if (ret) {
-		dev_err(&me->pdev->dev, "failed to init sensor media entity\n");
+		dev_err(&me->pdev->dev, "Failed to init sensor media entity\n");
 		goto error;
 	}
 
 	ret  = nx_v4l2_register_subdev(sensor);
 	if (ret) {
-		dev_err(&me->pdev->dev, "failed to register subdev sensor\n");
+		dev_err(&me->pdev->dev, "Failed to register subdev sensor\n");
 		goto error;
 	}
 
@@ -717,11 +706,10 @@ static int register_sensor_subdev(struct tv_context *me)
 	ret = media_entity_create_link(input, pad, &sensor->entity, 0, 0);
 	if (ret < 0)
 		dev_err(&me->pdev->dev,
-			"failed to create link from sensor\n");
+			"Failed to create link from sensor\n");
 
 	ret = setup_link(&input->pads[pad], &sensor->entity.pads[0]);
-	if (ret)
-		BUG();
+	BUG_ON(ret);
 error:
 	if (client && ret < 0)
 		i2c_unregister_device(client);
@@ -745,39 +733,40 @@ static int register_v4l2(struct tv_context *me)
 static int panel_tv_probe(struct platform_device *pdev)
 {
 	struct tv_context *ctx;
-	enum dp_panel_type panel_type;
 	struct device *dev = &pdev->dev;
+	struct nx_drm_display_ops *ops;
 	size_t size;
 	int err;
 
 	DRM_DEBUG_KMS("enter (%s)\n", dev_name(dev));
 
-	size = sizeof(*ctx) + sizeof(struct nx_drm_device);
+	size = sizeof(*ctx);
 	ctx = devm_kzalloc(dev, size, GFP_KERNEL);
-	if (IS_ERR(ctx))
+	if (!ctx)
 		return -ENOMEM;
 
 	ctx->pdev = pdev;
-
-	ctx->display = (void *)ctx + sizeof(*ctx);
-	ctx->display->dev = dev;
-	ctx->display->ops = &panel_tv_ops;
+	ctx->connector.dev = dev;
+	ctx->connector.ops = &tvout_connector_ops;
 	ctx->connection_cnt = 0;
 	ctx->is_run = false;
 	ctx->is_enable = false;
 	ctx->sensor_reg = NULL;
 
-	mutex_init(&ctx->lock);
+	err = panel_tv_get_display(pdev, ctx);
+	if (err < 0)
+		goto err_probe;
 
-	err = panel_tv_driver_setup(pdev, ctx, &panel_type);
-	if (0 > err)
-		goto err_parse;
+	ops = ctx_to_display(ctx)->ops;
+	if (ops->open) {
+		err = ops->open(ctx_to_display(ctx), ctx->crtc_pipe);
+		if (err)
+			goto err_probe;
+	}
 
-	err = panel_tv_parse_dt(pdev, ctx, panel_type);
-	if (0 > err)
-		goto err_parse;
-
-	panel_type = dp_panel_get_type(ctx->display);
+	err = panel_tv_parse_dt(pdev, ctx);
+	if (err < 0)
+		goto err_probe;
 
 	err = init_media_entity(ctx);
 	if (err)
@@ -792,26 +781,29 @@ static int panel_tv_probe(struct platform_device *pdev)
 	DRM_DEBUG_KMS("done\n");
 	return err;
 
-err_parse:
-	if (ctx)
-		devm_kfree(dev, ctx);
-
+err_probe:
+	DRM_ERROR("Failed %s probe !!!\n", dev_name(dev));
+	devm_kfree(dev, ctx);
 	return err;
 }
 
 static int panel_tv_remove(struct platform_device *pdev)
 {
-	struct tv_context *ctx = dev_get_drvdata(&pdev->dev);
 	struct device *dev = &pdev->dev;
+	struct tv_context *ctx = dev_get_drvdata(&pdev->dev);
+	struct nx_drm_display_ops *ops;
 
 	if (!ctx)
 		return 0;
 
-	nx_drm_dp_panel_res_free(dev, &ctx->display->res);
-	nx_drm_dp_panel_dev_release(dev, ctx->display);
+	component_del(dev, &panel_comp_ops);
 
-	devm_kfree(&pdev->dev, ctx);
+	ops = ctx_to_display(ctx)->ops;
+	if (ops->close)
+		ops->close(ctx_to_display(ctx), ctx->crtc_pipe);
 
+	nx_drm_display_put(dev, ctx_to_display(ctx));
+	devm_kfree(dev, ctx);
 	return 0;
 }
 
@@ -836,13 +828,13 @@ static const struct dev_pm_ops panel_tv_pm = {
 static const struct of_device_id panel_tv_of_match[] = {
 	{.
 		compatible = "nexell,s5pxx18-drm-tv",
-		.data = (void *)dp_panel_type_tv
+		.data = (void *)NX_PANEL_TYPE_TV
 	},
 	{}
 };
 MODULE_DEVICE_TABLE(of, panel_tv_of_match);
 
-struct platform_driver panel_tv_driver = {
+static struct platform_driver panel_tv_driver = {
 	.probe = panel_tv_probe,
 	.remove = panel_tv_remove,
 	.driver = {
@@ -852,8 +844,13 @@ struct platform_driver panel_tv_driver = {
 		.pm = &panel_tv_pm,
 	},
 };
-module_platform_driver(panel_tv_driver);
 
-MODULE_AUTHOR("jkchoi <jkchoi@nexell.co.kr>");
-MODULE_DESCRIPTION("Nexell tv DRM Driver");
-MODULE_LICENSE("GPL");
+void panel_tv_init(void)
+{
+	platform_driver_register(&panel_tv_driver);
+}
+
+void panel_tv_exit(void)
+{
+	platform_driver_unregister(&panel_tv_driver);
+}

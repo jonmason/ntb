@@ -279,27 +279,26 @@ void nx_mipi_dsi_write_pkheader(u32 module_index, u32 data);
 void nx_mipi_dsi_write_payload(u32 module_index, u32 data);
 u32 nx_mipi_dsi_read_fifo(u32 module_index);
 u32 nx_mipi_dsi_read_fifo_status(u32 module_index);
+void nx_mipi_dsi_fifo_reset(void);
+void nx_mipi_dsi_set_i80_clock(u32 regvalue);
+void nx_mipi_dsi_set_i80_config(u32 regvalue);
 
 int nx_mipi_smoke_test(u32 module_index);
-int nx_mipi_initialize(void);
-u32 nx_mipi_get_number_of_module(void);
-u32 nx_mipi_get_size_of_register_set(void);
 void nx_mipi_set_base_address(u32 module_index, void *base_address);
 void *nx_mipi_get_base_address(u32 module_index);
 u32 nx_mipi_get_physical_address(u32 module_index);
-int nx_mipi_open_module(u32 module_index);
-int nx_mipi_close_module(u32 module_index);
-int nx_mipi_check_busy(u32 module_index);
 
-void nx_mipi_set_interrupt_enable(u32 module_index,
+void nx_mipi_dsi_set_interrupt_enable_all(u32 module_index, int enable);
+void nx_mipi_dsi_set_interrupt_enable(u32 module_index,
 				u32 int_num, int enable);
-int nx_mipi_get_interrupt_enable(u32 module_index, u32 int_num);
-int nx_mipi_get_interrupt_pending(u32 module_index, u32 int_num);
-void nx_mipi_clear_interrupt_pending(u32 module_index, u32 int_num);
-void nx_mipi_set_interrupt_enable_all(u32 module_index, int enable);
-int nx_mipi_get_interrupt_enable_all(u32 module_index);
-int nx_mipi_get_interrupt_pending_all(u32 module_index);
-void nx_mipi_clear_interrupt_pending_all(u32 module_index);
-int32_t nx_mipi_get_interrupt_pending_number(u32 module_index);
+int nx_mipi_dsi_get_interrupt_enable(u32 module_index, u32 int_num);
+int nx_mipi_dsi_get_interrupt_enable_all(u32 module_index);
+
+int nx_mipi_dsi_get_interrupt_pending(u32 module_index, u32 int_num);
+int nx_mipi_dsi_get_interrupt_pending_all(u32 module_index);
+int32_t nx_mipi_dsi_get_interrupt_pending_number(u32 module_index);
+
+void nx_mipi_dsi_clear_interrupt_pending(u32 module_index, u32 int_num);
+void nx_mipi_dsi_clear_interrupt_pending_all(u32 module_index);
 
 #endif

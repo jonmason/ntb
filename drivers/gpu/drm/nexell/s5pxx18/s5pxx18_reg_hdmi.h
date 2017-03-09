@@ -994,13 +994,4 @@
 #define HDMI_CEC_STATUS_RX_BCAST		(1<<4)
 #define HDMI_CEC_STATUS_RX_BYTES		(0xFF<<8)
 
-void hdmi_set_base(void __iomem *base);
-void hdmi_write(u32 reg, u32 val);
-void hdmi_write_mask(u32 reg, u32 val, u32 mask);
-void hdmi_writeb(u32 reg, u8 val);
-void hdmi_write_bytes(u32 reg, u8 *buf, int bytes);
-u32 hdmi_read(u32 reg);
-u8 hdmi_readb(u32 reg);
-void hdmi_read_bytes(u32 reg, u8 *buf, int bytes);
-
 #endif /* __ARCH_ARM_REGS_HDMI_H */

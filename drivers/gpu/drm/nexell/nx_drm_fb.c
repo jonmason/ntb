@@ -17,7 +17,8 @@
  */
 #include <drm/drmP.h>
 #include <drm/drm_crtc_helper.h>
-#include <linux/module.h>
+#include <drm/drm_atomic.h>
+#include <drm/drm_atomic_helper.h>
 
 #include "nx_drm_drv.h"
 #include "nx_drm_fb.h"
@@ -25,20 +26,29 @@
 
 #define PREFERRED_BPP		32
 
-static int fb_buffer_count = 1;
 static bool fb_format_bgr;
-
-MODULE_PARM_DESC(fb_buffers, "frame buffer count");
-module_param_named(fb_buffers, fb_buffer_count, int, 0600);
 
 MODULE_PARM_DESC(fb_bgr, "frame buffer BGR pixel format");
 module_param_named(fb_bgr, fb_format_bgr, bool, 0600);
 
+#ifdef CONFIG_DRM_NX_FB_DISPLAY
+static int fb_buffer_count = 1;
+static bool fb_vblank_wait;
+static uint fb_pan_crtcs = 0xff;
+
+MODULE_PARM_DESC(fb_buffers, "frame buffer count");
+module_param_named(fb_buffers, fb_buffer_count, int, 0600);
+
+MODULE_PARM_DESC(fb_vblank, "frame buffer wait vblank for pan display");
+module_param_named(fb_vblank, fb_vblank_wait, bool, 0600);
+
+MODULE_PARM_DESC(fb_pan_crtcs, "frame buffer pan display possible crtcs");
+module_param_named(fb_pan_crtcs, fb_pan_crtcs, uint, 0600);
+#endif
+
 #ifdef CONFIG_FB_PRE_INIT_FB
 #include <linux/memblock.h>
 #include <linux/of_address.h>
-#include "nx_drm_plane.h"
-#include "soc/s5pxx18_soc_mlc.h"
 
 static int fb_splash_image_copy(struct device *dev,
 			phys_addr_t map_phys, phys_addr_t map_phys_size,
@@ -58,7 +68,7 @@ static int fb_splash_image_copy(struct device *dev,
 
 	src_virt = vmap(pages, npages, VM_MAP, PAGE_KERNEL);
 	if (!src_virt) {
-		dev_err(dev, "failed to map for splash image:0x%x~0x%x\n",
+		dev_err(dev, "Failed to map for splash image:0x%x~0x%x\n",
 			map_phys, map_phys_size);
 		kfree(pages);
 		return -ENOMEM;
@@ -81,22 +91,21 @@ static int fb_splash_image_copy(struct device *dev,
 static dma_addr_t fb_get_splash_base(struct drm_fb_helper *fb_helper)
 {
 	struct drm_crtc *crtc;
-	struct dp_plane_layer *layer;
-	dma_addr_t dma_addr;
+	dma_addr_t dma_addr = 0;
 	int i;
 
 	for (i = 0; fb_helper->crtc_count > i; i++) {
 		crtc = fb_helper->crtc_info[i].mode_set.crtc;
-		layer = &to_nx_plane(crtc->primary)->layer;
-		nx_mlc_get_rgblayer_address(layer->module,
-				layer->num, &dma_addr);
-		if (dma_addr)
-			return dma_addr;
+		if (crtc->primary) {
+			dma_addr = nx_drm_plane_get_dma_addr(crtc->primary);
+			if (dma_addr)
+				return dma_addr;
+		}
 	}
 	return 0;
 }
 
-static int nxp_drm_fb_pre_logo(struct drm_fb_helper *fb_helper)
+static int nx_drm_fb_pre_logo(struct drm_fb_helper *fb_helper)
 {
 	struct device_node *node;
 	struct drm_device *drm = fb_helper->dev;
@@ -112,7 +121,7 @@ static int nxp_drm_fb_pre_logo(struct drm_fb_helper *fb_helper)
 	if (node) {
 		ret = of_address_to_resource(node, 0, &r);
 		if (ret) {
-			dev_err(drm->dev, "failed to memory-region !!!\n");
+			DRM_ERROR("Failed to memory-region !!!\n");
 			return ret;
 		}
 		of_node_put(node);
@@ -153,18 +162,190 @@ static int nxp_drm_fb_pre_logo(struct drm_fb_helper *fb_helper)
 }
 #endif
 
+#ifdef CONFIG_DRM_NX_FB_DISPLAY
+static void nx_drm_fb_pan_wait_for_vblanks(struct drm_device *dev,
+		struct drm_atomic_state *old_state)
+{
+	struct drm_crtc *crtc;
+	struct drm_crtc_state *old_crtc_state;
+	unsigned int possible_crtcs = fb_pan_crtcs;
+	int i, ret;
+
+	for_each_crtc_in_state(old_state, crtc, old_crtc_state, i) {
+		if (!(possible_crtcs & 1<<i))
+			continue;
+
+		/*
+		 * No one cares about the old state, so abuse it for tracking
+		 * and store whether we hold a vblank reference (and should
+		 * do a vblank wait) in the ->enable boolean.
+		 */
+		old_crtc_state->enable = false;
+
+		if (!crtc->state->enable)
+			continue;
+
+		/*
+		 * Legacy cursor ioctls are completely unsynced, and userspace
+		 * relies on that (by doing tons of cursor updates).
+		 */
+		if (old_state->legacy_cursor_update)
+			continue;
+
+		ret = drm_crtc_vblank_get(crtc);
+		if (ret != 0)
+			continue;
+
+		old_crtc_state->enable = true;
+		old_crtc_state->last_vblank_count = drm_crtc_vblank_count(crtc);
+	}
+
+	for_each_crtc_in_state(old_state, crtc, old_crtc_state, i) {
+		if (!(possible_crtcs & 1<<i))
+			continue;
+
+		if (!old_crtc_state->enable)
+			continue;
+
+		ret = wait_event_timeout(dev->vblank[i].queue,
+				old_crtc_state->last_vblank_count !=
+					drm_crtc_vblank_count(crtc),
+				msecs_to_jiffies(50));
+
+		drm_crtc_vblank_put(crtc);
+	}
+}
+
+static int nx_drm_fb_atomic_commit(struct drm_device *drm,
+			struct drm_atomic_state *state)
+{
+	int ret;
+
+	ret = drm_atomic_helper_prepare_planes(drm, state);
+	if (ret)
+		return ret;
+
+	drm_atomic_helper_swap_state(drm, state);
+
+	drm_atomic_helper_commit_modeset_disables(drm, state);
+	drm_atomic_helper_commit_planes(drm, state, false);
+	drm_atomic_helper_commit_modeset_enables(drm, state);
+
+	/*
+	 * wait hw vblank
+	 * skip 1st frame, vblank is not enabled at 1st,
+	 * and not changed framebuffer
+	 */
+	if (fb_vblank_wait)
+		nx_drm_fb_pan_wait_for_vblanks(drm, state);
+
+	drm_atomic_helper_cleanup_planes(drm, state);
+	drm_atomic_state_free(state);
+
+	return 0;
+}
+
+static int nx_drm_fb_pan_display_atomic(struct fb_var_screeninfo *var,
+			      struct fb_info *info)
+{
+	struct drm_fb_helper *fb_helper = info->par;
+	struct drm_device *drm = fb_helper->dev;
+	struct drm_atomic_state *state;
+	struct drm_plane *plane;
+	int i, ret = 0;
+	unsigned plane_mask;
+	unsigned int possible_crtcs = fb_pan_crtcs;
+
+	state = drm_atomic_state_alloc(drm);
+	if (!state)
+		return -ENOMEM;
+
+	state->acquire_ctx = drm->mode_config.acquire_ctx;
+retry:
+	plane_mask = 0;
+
+	for (i = 0; i < fb_helper->crtc_count; i++) {
+		struct drm_mode_set *mode_set;
+
+		if (!(possible_crtcs & 1<<i))
+			continue;
+
+		mode_set = &fb_helper->crtc_info[i].mode_set;
+		mode_set->x = var->xoffset;
+		mode_set->y = var->yoffset;
+
+		ret = __drm_atomic_helper_set_config(mode_set, state);
+		if (ret != 0)
+			goto fail;
+
+		plane = mode_set->crtc->primary;
+		plane_mask |= (1 << drm_plane_index(plane));
+		plane->old_fb = plane->fb;
+	}
+
+	ret = nx_drm_fb_atomic_commit(drm, state);
+	if (ret != 0)
+		goto fail;
+
+	info->var.xoffset = var->xoffset;
+	info->var.yoffset = var->yoffset;
+
+fail:
+	drm_atomic_clean_old_fb(drm, plane_mask, ret);
+
+	if (ret == -EDEADLK)
+		goto backoff;
+
+	if (ret != 0)
+		drm_atomic_state_free(state);
+
+	return ret;
+
+backoff:
+	drm_atomic_state_clear(state);
+	drm_atomic_legacy_backoff(state);
+
+	goto retry;
+}
+
+static int nx_drm_fb_pan_display(struct fb_var_screeninfo *var,
+			      struct fb_info *info)
+{
+	struct drm_fb_helper *fb_helper = info->par;
+	struct drm_device *drm = fb_helper->dev;
+	int ret = 0;
+
+	if (oops_in_progress)
+		return -EBUSY;
+
+	if (!fb_helper->atomic)
+		return -EINVAL;
+
+	drm_modeset_lock_all(drm);
+
+	ret = nx_drm_fb_pan_display_atomic(var, info);
+
+	drm_modeset_unlock_all(drm);
+	return ret;
+}
+#endif
+
 static void nx_drm_fb_destroy(struct drm_framebuffer *fb)
 {
 	struct nx_drm_fb *nx_fb = to_nx_drm_fb(fb);
 	int i;
 
-	for (i = 0; i < 4; i++) {
-		if (nx_fb->obj[i])
-			drm_gem_object_unreference_unlocked(
-					&nx_fb->obj[i]->base);
-	}
-
 	drm_framebuffer_cleanup(fb);
+
+	for (i = 0; i < ARRAY_SIZE(nx_fb->obj); i++) {
+		struct drm_gem_object *obj;
+
+		if (!nx_fb->obj[i])
+			continue;
+
+		obj = &nx_fb->obj[i]->base;
+		drm_gem_object_unreference_unlocked(obj);
+	}
 	kfree(nx_fb);
 }
 
@@ -292,8 +473,8 @@ static struct fb_ops nx_fb_ops = {
 	.fb_check_var	= nx_drm_fb_check_var,
 	.fb_set_par	= drm_fb_helper_set_par,
 	.fb_blank	= drm_fb_helper_blank,
-	.fb_pan_display	= drm_fb_helper_pan_display,
 	.fb_setcmap	= drm_fb_helper_setcmap,
+	.fb_pan_display	= drm_fb_helper_pan_display,
 };
 
 static struct nx_drm_fb *nx_drm_fb_alloc(struct drm_device *drm,
@@ -302,8 +483,7 @@ static struct nx_drm_fb *nx_drm_fb_alloc(struct drm_device *drm,
 			unsigned int num_planes)
 {
 	struct nx_drm_fb *nx_fb;
-	int ret;
-	int i;
+	int i, ret;
 
 	nx_fb = kzalloc(sizeof(*nx_fb), GFP_KERNEL);
 	if (!nx_fb)
@@ -316,7 +496,7 @@ static struct nx_drm_fb *nx_drm_fb_alloc(struct drm_device *drm,
 
 	ret = drm_framebuffer_init(drm, &nx_fb->fb, &nx_drm_framebuffer_funcs);
 	if (ret) {
-		dev_err(drm->dev, "failed to initialize framebuffer:%d\n", ret);
+		DRM_ERROR("Failed to initialize framebuffer:%d\n", ret);
 		kfree(nx_fb);
 		return ERR_PTR(ret);
 	}
@@ -347,7 +527,7 @@ static struct drm_framebuffer *nx_drm_fb_create(struct drm_device *drm,
 		obj = drm_gem_object_lookup(drm, file_priv,
 				mode_cmd->handles[i]);
 		if (!obj) {
-			dev_err(drm->dev, "Failed to lookup GEM object\n");
+			DRM_ERROR("Failed to lookup GEM object\n");
 			ret = -ENXIO;
 			goto err_gem_object_unreference;
 		}
@@ -424,9 +604,9 @@ static uint32_t nx_drm_mode_fb_format(uint32_t bpp, uint32_t depth, bool bgr)
 static int nx_drm_fb_helper_probe(struct drm_fb_helper *fb_helper,
 			struct drm_fb_helper_surface_size *sizes)
 {
-	struct nx_drm_fbdev *fbdev = to_nx_drm_fbdev(fb_helper);
-	struct drm_mode_fb_cmd2 mode_cmd = { 0 };
+	struct nx_drm_fbdev *nx_fbdev = to_nx_drm_fbdev(fb_helper);
 	struct drm_device *drm = fb_helper->dev;
+	struct drm_mode_fb_cmd2 mode_cmd = { 0 };
 	struct nx_gem_object *nx_obj;
 	struct drm_framebuffer *fb;
 	unsigned int bytes_per_pixel;
@@ -434,7 +614,7 @@ static int nx_drm_fb_helper_probe(struct drm_fb_helper *fb_helper,
 	struct fb_info *info;
 	size_t size;
 	unsigned int flags = 0;
-	int buffers = fbdev->fb_buffers;
+	int buffers = nx_fbdev->fb_buffers;
 	int ret;
 
 	DRM_DEBUG_KMS("surface width(%d), height(%d) and bpp(%d) buffers(%d)\n",
@@ -455,46 +635,41 @@ static int nx_drm_fb_helper_probe(struct drm_fb_helper *fb_helper,
 	if (IS_ERR(nx_obj))
 		return -ENOMEM;
 
-	info = framebuffer_alloc(0, drm->dev);
-	if (!info) {
-		dev_err(drm->dev, "Failed to allocate framebuffer info.\n");
-		ret = -ENOMEM;
-		goto err_drm_gem_free_object;
-	}
-
-	fbdev->fb = nx_drm_fb_alloc(drm, &mode_cmd, &nx_obj, 1);
-	if (IS_ERR(fbdev->fb)) {
-		dev_err(drm->dev, "Failed to allocate DRM framebuffer.\n");
-		ret = PTR_ERR(fbdev->fb);
+	nx_fbdev->fb = nx_drm_fb_alloc(drm, &mode_cmd, &nx_obj, 1);
+	if (IS_ERR(fb_helper->fb)) {
+		DRM_ERROR("Failed to allocate DRM framebuffer.\n");
+		ret = PTR_ERR(fb_helper->fb);
 		goto err_framebuffer_release;
 	}
+	fb_helper->fb = &nx_fbdev->fb->fb;
+	fb = fb_helper->fb;
 
-	fb = &fbdev->fb->fb;
-	fb_helper->fb = fb;
-	fb_helper->fbdev = info;
-
+	info = drm_fb_helper_alloc_fbi(fb_helper);
+	if (IS_ERR(info)) {
+		DRM_ERROR("Failed to allocate framebuffer info.\n");
+		ret = PTR_ERR(info);
+		goto err_drm_fb_destroy;
+	}
 	info->par = fb_helper;
 	info->flags = FBINFO_FLAG_DEFAULT;
 	info->fbops = &nx_fb_ops;
-
-	ret = fb_alloc_cmap(&info->cmap, 256, 0);
-	if (ret) {
-		dev_err(drm->dev, "Failed to allocate color map.\n");
-		goto err_drm_fb_destroy;
-	}
 
 	drm_fb_helper_fill_fix(info, fb->pitches[0], fb->depth);
 	drm_fb_helper_fill_var(info, fb_helper,
 			sizes->fb_width, sizes->fb_height);
 
+#ifdef CONFIG_DRM_NX_FB_DISPLAY
 	/* for double buffer */
 	info->var.yres_virtual = fb->height * buffers;
+	if (buffers > 0)
+		info->fbops->fb_pan_display = nx_drm_fb_pan_display;
+#endif
 
 	offset = info->var.xoffset * bytes_per_pixel;
 	offset += info->var.yoffset * fb->pitches[0];
 
 	drm->mode_config.fb_base = (resource_size_t)nx_obj->dma_addr;
-	info->screen_base = nx_obj->cpu_addr + offset;
+	info->screen_base = (void __iomem *)nx_obj->cpu_addr + offset;
 	info->fix.smem_start = (unsigned long)(nx_obj->dma_addr + offset);
 	info->screen_size = size;
 	info->fix.smem_len = size;
@@ -515,18 +690,14 @@ static int nx_drm_fb_helper_probe(struct drm_fb_helper *fb_helper,
 	}
 
 #ifdef CONFIG_FB_PRE_INIT_FB
-	nxp_drm_fb_pre_logo(fb_helper);
+	nx_drm_fb_pre_logo(fb_helper);
 #endif
 	return 0;
 
 err_drm_fb_destroy:
-	drm_framebuffer_unregister_private(fb);
 	nx_drm_fb_destroy(fb);
 
 err_framebuffer_release:
-	framebuffer_release(info);
-
-err_drm_gem_free_object:
 	nx_drm_gem_destroy(nx_obj);
 
 	return ret;
@@ -536,141 +707,118 @@ static const struct drm_fb_helper_funcs nx_drm_fb_helper = {
 	.fb_probe = nx_drm_fb_helper_probe,
 };
 
-static struct nx_drm_fbdev *nx_drm_fbdev_init(struct drm_device *drm,
+static int nx_drm_framebuffer_dev_init(struct drm_device *drm,
 			unsigned int preferred_bpp, unsigned int num_crtc,
 			unsigned int max_conn_count)
 {
-	struct nx_drm_fbdev *fbdev;
+	struct nx_drm_private *private = drm->dev_private;
+	struct nx_drm_fbdev *nx_fbdev;
 	struct drm_fb_helper *fb_helper;
 	int ret;
 
-	fbdev = kzalloc(sizeof(*fbdev), GFP_KERNEL);
-	if (!fbdev)
-		return ERR_PTR(-ENOMEM);
+	nx_fbdev = kzalloc(sizeof(*nx_fbdev), GFP_KERNEL);
+	if (!nx_fbdev)
+		return -ENOMEM;
 
-	fb_helper = &fbdev->fb_helper;
-	fbdev->fb_buffers = 1;
+	private->fbdev = nx_fbdev;
+	fb_helper = &nx_fbdev->fb_helper;
 
+	nx_fbdev->fb_buffers = 1;
+
+#ifdef CONFIG_DRM_NX_FB_DISPLAY
 	if (fb_buffer_count > 0)
-		fbdev->fb_buffers = fb_buffer_count;
+		nx_fbdev->fb_buffers = fb_buffer_count;
 
-	DRM_INFO("FB counts = %d\n", fbdev->fb_buffers);
+	DRM_INFO("FB counts = %d, FB vblank %s crtcs [0x%x]\n",
+		nx_fbdev->fb_buffers, fb_vblank_wait ? "Wait" : "Pass",
+		fb_pan_crtcs);
+#endif
 
 	drm_fb_helper_prepare(drm, fb_helper, &nx_drm_fb_helper);
 
 	ret = drm_fb_helper_init(drm, fb_helper, num_crtc, max_conn_count);
 	if (ret < 0) {
-		dev_err(drm->dev, "Failed to initialize drm fb fb_helper.\n");
+		DRM_ERROR("Failed to initialize drm fb fb_helper.\n");
 		goto err_free;
 	}
 
 	ret = drm_fb_helper_single_add_all_connectors(fb_helper);
 	if (ret < 0) {
-		dev_err(drm->dev, "Failed to add connectors.\n");
+		DRM_ERROR("Failed to add connectors.\n");
 		goto err_drm_fb_helper_fini;
 
 	}
-
-	/* disable all the possible outputs/crtcs before entering KMS mode */
-	drm_helper_disable_unused_functions(drm);
 
 	ret = drm_fb_helper_initial_config(fb_helper, preferred_bpp);
 	if (ret < 0) {
-		dev_err(drm->dev, "Failed to set initial hw configuration.\n");
+		DRM_ERROR("Failed to set initial hw configuration.\n");
 		goto err_drm_fb_helper_fini;
 	}
 
-	return fbdev;
+	return 0;
 
 err_drm_fb_helper_fini:
 	drm_fb_helper_fini(fb_helper);
 err_free:
-	kfree(fbdev);
+	kfree(nx_fbdev);
+	private->fbdev = NULL;
 
-	return ERR_PTR(ret);
+	return ret;
 }
 
-static void nx_drm_fbdev_fini(struct nx_drm_fbdev *fbdev)
+static void nx_drm_framebuffer_dev_fini(struct drm_device *drm)
 {
-	if (fbdev->fb_helper.fbdev) {
-		struct fb_info *info;
-		int ret;
+	struct nx_drm_private *private = drm->dev_private;
+	struct drm_fb_helper *fb_helper;
+	struct drm_framebuffer *fb;
 
-		info = fbdev->fb_helper.fbdev;
-		ret = unregister_framebuffer(info);
-		if (ret < 0)
-			DRM_DEBUG_KMS("failed unregister_framebuffer()\n");
+	if (!private->fbdev)
+		return;
 
-		if (info->cmap.len)
-			fb_dealloc_cmap(&info->cmap);
+	fb_helper = &private->fbdev->fb_helper;
 
-		framebuffer_release(info);
+	/* release drm framebuffer and real buffer */
+	if (fb_helper->fb && fb_helper->fb->funcs) {
+		fb = fb_helper->fb;
+		if (fb) {
+			drm_framebuffer_unregister_private(fb);
+			drm_framebuffer_remove(fb);
+		}
 	}
 
-	if (fbdev->fb) {
-		drm_framebuffer_unregister_private(&fbdev->fb->fb);
-		nx_drm_fb_destroy(&fbdev->fb->fb);
-	}
+	drm_fb_helper_unregister_fbi(fb_helper);
+	drm_fb_helper_release_fbi(fb_helper);
+	drm_fb_helper_fini(fb_helper);
 
-	drm_fb_helper_fini(&fbdev->fb_helper);
-	kfree(fbdev);
+	kfree(private->fbdev);
+	private->fbdev = NULL;
 }
 
 int nx_drm_framebuffer_init(struct drm_device *drm)
 {
-	struct nx_drm_fbdev *fbdev;
-	struct nx_drm_priv *priv = drm->dev_private;
-	struct nx_framebuffer_dev *nx_framebuffer;
-	unsigned int num_crtc;
-	int bpp;
-	int ret = 0;
+	int bpp = PREFERRED_BPP;
 
 	if (!drm->mode_config.num_crtc ||
 		!drm->mode_config.num_connector)
 		return 0;
 
-	DRM_DEBUG_KMS("enter crtc num:%d, connector num:%d\n",
+	DRM_DEBUG_KMS("crtc num:%d, connector num:%d\n",
 		      drm->mode_config.num_crtc,
 		      drm->mode_config.num_connector);
 
-	nx_framebuffer = kzalloc(sizeof(*nx_framebuffer), GFP_KERNEL);
-	if (!nx_framebuffer)
-		return -ENOMEM;
-
-	priv->framebuffer_dev = nx_framebuffer;
-	num_crtc = drm->mode_config.num_crtc;
-	bpp = PREFERRED_BPP;
-
-	fbdev = nx_drm_fbdev_init(drm, bpp, num_crtc, MAX_CONNECTOR);
-	if (IS_ERR(fbdev)) {
-		ret = PTR_ERR(fbdev);
-		goto err_drm_fb_dev_free;
-	}
-
-	nx_framebuffer->fbdev = fbdev;
-
-	return 0;
-
-err_drm_fb_dev_free:
-	kfree(nx_framebuffer);
-	return ret;
+	return nx_drm_framebuffer_dev_init(drm,
+			bpp, drm->mode_config.num_crtc, MAX_CONNECTOR);
 }
 
 void nx_drm_framebuffer_fini(struct drm_device *drm)
 {
-	struct nx_drm_priv *priv = drm->dev_private;
-	struct nx_framebuffer_dev *nx_framebuffer = priv->framebuffer_dev;
-	struct nx_drm_fbdev *fbdev = nx_framebuffer->fbdev;
-
-	nx_drm_fbdev_fini(fbdev);
-	kfree(nx_framebuffer);
-	priv->framebuffer_dev = NULL;
+	nx_drm_framebuffer_dev_fini(drm);
 }
 
 /*
  * fb with gem
  */
-struct nx_gem_object *nx_drm_fb_get_gem_obj(struct drm_framebuffer *fb,
+struct nx_gem_object *nx_drm_fb_gem(struct drm_framebuffer *fb,
 			unsigned int plane)
 {
 	struct nx_drm_fb *nx_fb = to_nx_drm_fb(fb);
@@ -680,4 +828,5 @@ struct nx_gem_object *nx_drm_fb_get_gem_obj(struct drm_framebuffer *fb,
 
 	return nx_fb->obj[plane];
 }
-EXPORT_SYMBOL_GPL(nx_drm_fb_get_gem_obj);
+EXPORT_SYMBOL_GPL(nx_drm_fb_gem);
+

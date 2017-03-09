@@ -48,6 +48,12 @@ static inline struct drm_gem_object *to_gem_obj(struct nx_gem_object *nx_obj)
 }
 
 /*
+ * framebuffer with gem
+ */
+struct nx_gem_object *nx_drm_fb_gem(struct drm_framebuffer *fb,
+			unsigned int plane);
+
+/*
  * struct nx_gem_object elements
  */
 struct nx_gem_object *nx_drm_gem_create(struct drm_device *drm,

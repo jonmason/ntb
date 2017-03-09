@@ -438,7 +438,7 @@ static int nx_drm_gem_sys_contig_alloc(
 
 	if (order >= MAX_ORDER) {
 		dev_err(drm->dev,
-			"failed allocate buffer %zu over max order:%d (%d)\n",
+			"Failed to allocate buffer %zu over max order:%d (%d)\n",
 			size, order_to_size(MAX_ORDER - 1), MAX_ORDER);
 		return ret;
 	}
@@ -446,7 +446,7 @@ static int nx_drm_gem_sys_contig_alloc(
 	page = alloc_pages(GFP_HIGHUSER | __GFP_ZERO | __GFP_NOWARN, order);
 	if (!page) {
 		dev_err(drm->dev,
-			"failed allocate buffer %zu, ret:%d\n", size, ret);
+			"Failed to allocate buffer %zu, ret:%d\n", size, ret);
 		return ret;
 	}
 
@@ -555,9 +555,9 @@ static int nx_drm_gem_dma_alloc(
 	size = PAGE_ALIGN(size);
 
 	cpu_addr = dma_alloc_writecombine(drm->dev, size, &dma_addr,
-				GFP_KERNEL | __GFP_NOWARN);
+				GFP_KERNEL);
 	if (!cpu_addr) {
-		dev_err(drm->dev, "failed to allocate buffer with size %zu\n",
+		dev_err(drm->dev, "Failed to allocate buffer with size %zu\n",
 			size);
 		return -ENOMEM;
 	}
@@ -743,8 +743,8 @@ static int nx_drm_gem_buf_mmap(struct nx_gem_object *nx_obj,
 	int ret;
 
 	DRM_DEBUG_DRIVER("va:%p, pa:%pad, s:0x%lx, e:0x%lx, size:%zu\n",
-		nx_obj->cpu_addr, &nx_obj->dma_addr, vma->vm_start, vma->vm_end,
-		nx_obj->size);
+		nx_obj->cpu_addr, &nx_obj->dma_addr,
+		vma->vm_start, vma->vm_end, nx_obj->size);
 
 	/*
 	 * update cache vm prot
@@ -864,7 +864,7 @@ static int __gem_map_vm_sync(struct drm_gem_object *obj,
 		struct vm_area_struct *vma = vma_list->vma;
 
 		zap_page_range(vma, vma->vm_start,
-					vma->vm_end - vma->vm_start, NULL);
+				vma->vm_end - vma->vm_start, NULL);
 	}
 	mutex_unlock(&nx_obj->lock);
 
@@ -1359,7 +1359,7 @@ int nx_drm_gem_dumb_map_offset(struct drm_file *file_priv,
 
 	obj = drm_gem_object_lookup(drm, file_priv, handle);
 	if (!obj) {
-		dev_err(drm->dev, "failed to lookup GEM object\n");
+		dev_err(drm->dev, "Failed to lookup GEM object\n");
 		mutex_unlock(&drm->struct_mutex);
 		return -EINVAL;
 	}
@@ -1558,6 +1558,12 @@ int nx_drm_gem_create_ioctl(struct drm_device *drm, void *data,
 
 	DRM_DEBUG_DRIVER("size:%lld, flags:0x%x\n", args->size, flags);
 
+	/*
+	 * The pitch should be aligned by 8
+	 * due to restriction of mali driver
+	 */
+	args->size = ALIGN(args->size, 8);
+
 	nx_obj = nx_drm_gem_create(drm, size, flags);
 	if (IS_ERR(nx_obj))
 		return PTR_ERR(nx_obj);
@@ -1589,7 +1595,7 @@ int nx_drm_gem_sync_ioctl(struct drm_device *drm, void *data,
 
 	obj = drm_gem_object_lookup(drm, file_priv, args->handle);
 	if (!obj) {
-		dev_err(drm->dev, "failed to lookup GEM object\n");
+		dev_err(drm->dev, "Failed to lookup GEM object\n");
 		mutex_unlock(&drm->struct_mutex);
 		return -EINVAL;
 	}
@@ -1639,7 +1645,7 @@ int nx_drm_gem_get_ioctl(struct drm_device *drm, void *data,
 
 	obj = drm_gem_object_lookup(drm, file_priv, args->handle);
 	if (!obj) {
-		dev_err(drm->dev, "failed to lookup GEM object\n");
+		dev_err(drm->dev, "Failed to lookup GEM object\n");
 		mutex_unlock(&drm->struct_mutex);
 		return -EINVAL;
 	}
@@ -1707,4 +1713,3 @@ int nx_drm_gem_wait_fence(struct drm_gem_object *obj)
 #endif
 	return 0;
 }
-

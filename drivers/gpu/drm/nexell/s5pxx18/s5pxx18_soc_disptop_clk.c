@@ -32,7 +32,7 @@ int nx_disp_top_clkgen_initialize(void)
 	static int binit;
 	u32 i;
 
-	if (0 == binit) {
+	if (binit == 0) {
 		for (i = 0; i < NUMBER_OF_DISPTOP_CLKGEN_MODULE; i++)
 			__g_module_variables[i].__g_pregister = NULL;
 		binit = 1;

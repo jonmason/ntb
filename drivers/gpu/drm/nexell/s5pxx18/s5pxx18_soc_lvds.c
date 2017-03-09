@@ -28,7 +28,7 @@ int nx_lvds_initialize(void)
 	static int binit;
 	u32 i;
 
-	if (0 == binit) {
+	if (binit == 0) {
 		for (i = 0; i < NUMBER_OF_LVDS_MODULE; i++)
 			__g_pregister[i] = NULL;
 		binit = 1;

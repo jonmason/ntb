@@ -44,11 +44,7 @@
 #include "../nx-v4l2.h"
 #include "nx-vip-primitive.h"
 #include "nx-vip.h"
-#include "../../../../gpu/drm/nexell/soc/s5pxx18_dp_dev.h"
-#include "../../../../gpu/drm/nexell/soc/s5pxx18_soc_mlc.h"
-#include "../../../../gpu/drm/nexell/soc/s5pxx18_soc_dpc.h"
-#include "../../../../gpu/drm/nexell/soc/s5pxx18_soc_lvds.h"
-
+#include "../../../../gpu/drm/nexell/s5pxx18/s5pxx18_drv.h"
 #include "../../../../pinctrl/nexell/s5pxx18-gpio.h"
 
 #include "nx-rearcam-vendor.h"
@@ -400,8 +396,8 @@ struct nx_rearcam {
 
 	struct i2c_client *client;
 	struct nx_clipper_info clipper_info;
-	struct dp_ctrl_info dp_ctl;
-	struct dp_sync_info dp_sync;
+	struct nx_control_info dp_ctl;
+	struct nx_sync_info dp_sync;
 	int dp_drm_port_video_prior[2];
 
 	struct delayed_work work;
@@ -996,8 +992,8 @@ static int nx_dpc_parse_dt(struct device *dev, struct nx_rearcam *me)
 	struct device_node *t_np = NULL;
 	struct device_node *child_dpc_node = NULL;
 
-	struct dp_ctrl_info *ctl = &me->dp_ctl;
-	struct dp_sync_info *sync = &me->dp_sync;
+	struct nx_control_info *ctl = &me->dp_ctl;
+	struct nx_sync_info *sync = &me->dp_sync;
 
 	d_np = dev->of_node;
 
@@ -2124,7 +2120,7 @@ static void _set_mlc_overlay(struct nx_rearcam *me)
 	int module = me->mlc_module;
 	u32 format = me->rgb_format;
 	u32 pixelbyte = _get_pixel_byte(format);
-	struct dp_sync_info *sync = &me->dp_sync;
+	struct nx_sync_info *sync = &me->dp_sync;
 
 	u32 stride = sync->h_active_len * pixelbyte;
 	u32 layer = MLC_LAYER_RGB_OVERLAY;
@@ -2157,7 +2153,7 @@ static void _set_mlc_overlay(struct nx_rearcam *me)
 static void _mlc_rgb_overlay_draw(struct nx_rearcam *me)
 {
 	struct nx_rgb_buf *rgb_buf = &me->frame_set.rgb_buf;
-	struct dp_sync_info *sync = &me->dp_sync;
+	struct nx_sync_info *sync = &me->dp_sync;
 	u32 format = me->rgb_format;
 	u32 pixelbyte = _get_pixel_byte(format);
 
@@ -2176,7 +2172,7 @@ static void _set_mlc_layer_priority(struct nx_rearcam *me)
 	struct plane_top_format format = {
 		.module = me->mlc_module,
 		.video_priority = 1,
-		.mask = DP_PLANE_FORMAT_VIDEO_PRIORITY,
+		.mask = NX_PLANE_FORMAT_VIDEO_PRIORITY,
 	};
 	nx_soc_dp_plane_top_prev_format(&format);
 }
@@ -2184,7 +2180,7 @@ static void _set_mlc_layer_priority(struct nx_rearcam *me)
 static void _set_enable_mlc(struct nx_rearcam *me)
 {
 	int module = me->mlc_module;
-	struct dp_sync_info *sync = &me->dp_sync;
+	struct nx_sync_info *sync = &me->dp_sync;
 
 	nx_mlc_set_field_enable(module, sync->interlace);
 	nx_mlc_set_rgblayer_gama_table_power_mode(module, 0, 0, 0);
@@ -2213,7 +2209,7 @@ static void _set_mlc(struct nx_rearcam *me)
 {
 	int module = me->mlc_module;
 	unsigned int bgcolor = 0x0;
-	struct dp_sync_info *sync = &me->dp_sync;
+	struct nx_sync_info *sync = &me->dp_sync;
 
 	nx_mlc_set_clock_pclk_mode(module, nx_pclkmode_always);
 	nx_mlc_set_clock_bclk_mode(module, nx_bclkmode_always);
@@ -2303,8 +2299,8 @@ static void _dpc_set_display(struct nx_rearcam *me)
 {
 	int module = me->dpc_module;
 
-	struct dp_sync_info *sync = &me->dp_sync;
-	struct dp_ctrl_info *ctl = &me->dp_ctl;
+	struct nx_sync_info *sync = &me->dp_sync;
+	struct nx_control_info *ctl = &me->dp_ctl;
 	unsigned int out_format = ctl->out_format;
 	unsigned int delay_mask = ctl->delay_mask;
 	int rgb_pvd = 0, hsync_cp1 = 7, vsync_fram = 7, de_cp2 = 7;
@@ -2322,13 +2318,13 @@ static void _dpc_set_display(struct nx_rearcam *me)
 	int rgb_mode = 0;
 	bool lcd_rgb = false;
 
-	if (delay_mask & DP_SYNC_DELAY_RGB_PVD)
+	if (delay_mask & DPC_SYNC_DELAY_RGB_PVD)
 		rgb_pvd = ctl->d_rgb_pvd;
-	if (delay_mask & DP_SYNC_DELAY_HSYNC_CP1)
+	if (delay_mask & DPC_SYNC_DELAY_HSYNC_CP1)
 		hsync_cp1 = ctl->d_hsync_cp1;
-	if (delay_mask & DP_SYNC_DELAY_VSYNC_FRAM)
+	if (delay_mask & DPC_SYNC_DELAY_VSYNC_FRAM)
 		vsync_fram = ctl->d_vsync_fram;
-	if (delay_mask & DP_SYNC_DELAY_DE_CP)
+	if (delay_mask & DPC_SYNC_DELAY_DE_CP)
 		de_cp2 = ctl->d_de_cp2;
 
 	if (ctl->vs_start_offset != 0 ||
@@ -2742,7 +2738,7 @@ static void lvds_phy_reset(struct nx_rearcam *me)
 
 static void _set_enable_lvds(struct nx_rearcam *me)
 {
-	int clkid = dp_clock_lvds;
+	int clkid = NX_CLOCK_LVDS;
 	int module = me->dpc_module;
 
 	nx_disp_top_clkgen_set_clock_divisor_enable(clkid, 1);
@@ -2751,7 +2747,7 @@ static void _set_enable_lvds(struct nx_rearcam *me)
 
 static void _set_disable_lvds(struct nx_rearcam *me)
 {
-	int clkid = dp_clock_lvds;
+	int clkid = NX_CLOCK_LVDS;
 
 	nx_disp_top_clkgen_set_clock_divisor_enable(clkid, 0);
 }
@@ -2759,9 +2755,9 @@ static void _set_disable_lvds(struct nx_rearcam *me)
 static int lvds_setup(struct nx_rearcam *me)
 {
 	unsigned int val;
-	int clkid = dp_clock_lvds;
-	enum dp_lvds_format format = dp_lvds_format_jeida;
-	struct dp_ctrl_info *ctrl = &me->dp_ctl;
+	int clkid = NX_CLOCK_LVDS;
+	enum nx_lvds_format format = NX_LVDS_FORMAT_JEIDA;
+	struct nx_control_info *ctrl = &me->dp_ctl;
 
 	/*
 	 *-------- predefined type.
@@ -3150,7 +3146,7 @@ static void _deinit_gpio_event_worker(struct nx_rearcam *me)
 static int get_rotate_width_rate(struct nx_rearcam *me, enum FRAME_KIND type)
 {
 	int width = me->clipper_info.width;
-	struct dp_sync_info *sync = &me->dp_sync;
+	struct nx_sync_info *sync = &me->dp_sync;
 
 	switch (type) {
 	case Y:
@@ -3320,7 +3316,7 @@ static int _alloc_rgb_memory(struct nx_rearcam *me)
 	int width;
 	int height;
 	struct nx_rgb_buf *buf = NULL;
-	struct dp_sync_info *sync = &me->dp_sync;
+	struct nx_sync_info *sync = &me->dp_sync;
 
 	u32 format = me->rgb_format;
 	u32 pixelbyte = _get_pixel_byte(format);

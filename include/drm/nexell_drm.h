@@ -20,4 +20,19 @@
 
 #include <uapi/drm/nexell_drm.h>
 
+#define	MIPI_DSI_FB_FLIP	1
+#define	MIPI_DSI_FB_FLUSH	2
+
+struct nx_mipi_dsi_nb_data {
+	struct mipi_dsi_device *dsi;
+	struct drm_framebuffer *fb;
+	void __iomem *framebuffer;
+	int fifo_size;
+};
+
+int nx_drm_mipi_register_notifier(struct device *dev,
+			struct notifier_block *nb, unsigned int events);
+int nx_drm_mipi_unregister_notifier(struct device *dev,
+			struct notifier_block *nb);
+
 #endif

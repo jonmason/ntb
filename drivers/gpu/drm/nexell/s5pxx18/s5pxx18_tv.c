@@ -22,27 +22,31 @@
 
 #include <linux/io.h>
 
-#include "s5pxx18_dp_dev.h"
-#include "s5pxx18_dp_tv.h"
-#include "s5pxx18_dp_hdmi.h"
+#include "s5pxx18_drv.h"
+#include "s5pxx18_hdmi.h"
 #include "s5pxx18_reg_hdmi.h"
 
-#define	display_to_dpc(d)	(&d->ctrl.dpc)
+static void __iomem *hdmi_base;
+#define	hdmi_write(r, v)	writel(v, hdmi_base + r)
+#define	hdmi_read(r)		readl(hdmi_base + r)
 
-static int hdmi_clock_on_27MHz(struct nx_drm_res *res);
+static int hdmi_clock_on_27MHz(struct nx_control_res *res);
 
-static void nx_soc_dp_tv_set_base(struct dp_control_dev *dpc, void **base,
-	int num)
+static int tvout_ops_open(struct nx_drm_display *display, int pipe)
 {
-	hdmi_set_base(base[0]);
-	BUG_ON(!base);
+	struct nx_tvout_dev *tvout = display->context;
+	struct nx_control_res *res = &tvout->control.res;
+
+	pr_debug("%s: dev TV\n", __func__);
+	hdmi_base = res->sub_bases[0];
+	return 0;
 }
 
 static bool wait_for_hdmi_phy_ready(void)
 {
 	bool is_hdmi_phy_ready = false;
 
-	while (is_hdmi_phy_ready == false) {
+	while (!is_hdmi_phy_ready) {
 		if (hdmi_read(HDMI_PHY_STATUS_0) & 0x01)
 			is_hdmi_phy_ready = true;
 	}
@@ -50,18 +54,18 @@ static bool wait_for_hdmi_phy_ready(void)
 	return is_hdmi_phy_ready;
 }
 
-static int hdmi_clock_on_27MHz(struct nx_drm_res *res)
+static int hdmi_clock_on_27MHz(struct nx_control_res *res)
 {
 	int err = 0;
 
 	nx_tieoff_set(res->tieoffs[0][0], res->tieoffs[0][1]);
 	nx_disp_top_clkgen_set_clock_pclk_mode(hdmi_clkgen, nx_pclkmode_always);
 
-	reset_control_assert(res->dev_resets[4]);
-	reset_control_assert(res->dev_resets[3]);
+	reset_control_assert(res->sub_resets[4]);
+	reset_control_assert(res->sub_resets[3]);
 
-	reset_control_deassert(res->dev_resets[4]);
-	reset_control_deassert(res->dev_resets[3]);
+	reset_control_deassert(res->sub_resets[4]);
+	reset_control_deassert(res->sub_resets[3]);
 
 	nx_disp_top_clkgen_set_clock_pclk_mode(hdmi_clkgen, nx_pclkmode_always);
 
@@ -142,10 +146,11 @@ static int hdmi_clock_on_27MHz(struct nx_drm_res *res)
 	return err;
 }
 
-int nx_dp_tv_set_commit(struct nx_drm_device *display, int pipe)
+static int tvout_commit(struct nx_drm_display *display)
 {
-	struct nx_drm_res *res = &display->res;
-	struct dp_ctrl_info *ctrl = &display->ctrl.dpc.ctrl;
+	struct nx_tvout_dev *tvout = display->context;
+	struct nx_control_res *res = &tvout->control.res;
+	struct nx_control_info *ctrl = &tvout->control.ctrl;
 	int ret = 0;
 
 	if (ctrl->clk_src_lv0 == 4) {
@@ -155,16 +160,15 @@ int nx_dp_tv_set_commit(struct nx_drm_device *display, int pipe)
 			return -1;
 		}
 	}
-
 	return 0;
 }
 
-static int nx_soc_dp_tv_set_prepare(struct dp_control_dev *dpc,
-			unsigned int flags)
+static int tvout_ops_prepare(struct nx_drm_display *display)
 {
-	struct dp_sync_info *sync = &dpc->sync;
-	struct dp_ctrl_info *ctrl = &dpc->ctrl;
-	int module = dpc->module;
+	struct nx_tvout_dev *tvout = display->context;
+	struct nx_sync_info *sync = &tvout->control.sync;
+	struct nx_control_info *ctrl = &tvout->control.ctrl;
+	int module = tvout->control.module;
 	unsigned int out_format = ctrl->out_format;
 	int interlace = sync->interlace;
 	int invert_field = ctrl->invert_field;
@@ -183,6 +187,8 @@ static int nx_soc_dp_tv_set_prepare(struct dp_control_dev *dpc,
 		pr_err("tvout just support CCIR656 now!\n");
 		return -1;
 	}
+
+	tvout_commit(display);
 
 	r_dither = g_dither = b_dither = nx_dpc_dither_bypass;
 
@@ -220,7 +226,7 @@ static int nx_soc_dp_tv_set_prepare(struct dp_control_dev *dpc,
 	nx_dpc_set_dither(module, r_dither, g_dither, b_dither);
 
 	pr_debug("%s: %s dev.%d (x=%4d, hfp=%3d, hbp=%3d, hsw=%3d)\n",
-		 __func__, dp_panel_type_name(dpc->panel_type), module,
+		 __func__, nx_panel_get_name(display->panel_type), module,
 		 sync->h_active_len, sync->h_front_porch,
 		 sync->h_back_porch, sync->h_sync_width);
 	pr_debug("%s: dev.%d (y=%4d, vfp=%3d, vbp=%3d, vsw=%3d)\n",
@@ -237,16 +243,11 @@ static int nx_soc_dp_tv_set_prepare(struct dp_control_dev *dpc,
 	return 0;
 }
 
-static int nx_soc_dp_tv_set_unprepare(struct dp_control_dev *dpc)
+static int tvout_ops_enable(struct nx_drm_display *display)
 {
-	return 0;
-}
-
-static int nx_soc_dp_tv_set_enable(struct dp_control_dev *dpc,
-			unsigned int flags)
-{
-	struct dp_sync_info *sync = &dpc->sync;
-	int module = dpc->module;
+	struct nx_tvout_dev *tvout = display->context;
+	struct nx_sync_info *sync = &tvout->control.sync;
+	int module = tvout->control.module;
 
 	nx_dpc_set_reg_flush(module);
 
@@ -259,36 +260,50 @@ static int nx_soc_dp_tv_set_enable(struct dp_control_dev *dpc,
 	return 0;
 }
 
-static int nx_soc_dp_tv_set_disable(struct dp_control_dev *dpc)
+static int tvout_ops_disable(struct nx_drm_display *display)
 {
-	int module = dpc->module;
+	struct nx_tvout_dev *tvout = display->context;
+	int module = tvout->control.module;
 
 	nx_dpc_set_dpc_enable(module, 0);
 	nx_dpc_set_clock_divisor_enable(module, 0);
-
 	return 0;
 }
 
-static struct dp_control_ops tv_dp_ops = {
-	.set_base = nx_soc_dp_tv_set_base,
-	.prepare = nx_soc_dp_tv_set_prepare,
-	.unprepare = nx_soc_dp_tv_set_unprepare,
-	.enable = nx_soc_dp_tv_set_enable,
-	.disable = nx_soc_dp_tv_set_disable,
+static int tvout_ops_set_mode(struct nx_drm_display *display,
+			struct drm_display_mode *mode, unsigned int flags)
+{
+	nx_display_mode_to_sync(mode, display);
+	return 0;
+}
+
+static int tvout_ops_resume(struct nx_drm_display *display)
+{
+	nx_display_resume_resource(display);
+	return 0;
+}
+
+static struct nx_drm_display_ops tvout_ops = {
+	.open = tvout_ops_open,
+	.prepare = tvout_ops_prepare,
+	.enable = tvout_ops_enable,
+	.disable = tvout_ops_disable,
+	.set_mode = tvout_ops_set_mode,
+	.resume = tvout_ops_resume,
 };
 
-int nx_soc_dp_tv_register(struct device *dev,
-			struct device_node *np, struct dp_control_dev *dpc)
+void *nx_drm_display_tvout_get(struct device *dev,
+			struct device_node *node,
+			struct nx_drm_display *display)
 {
-	struct dp_tv_dev *out;
+	struct nx_tvout_dev *tvout;
 
-	out = devm_kzalloc(dev, sizeof(*out), GFP_KERNEL);
-	if (IS_ERR(out))
-		return -ENOMEM;
+	tvout = kzalloc(sizeof(*tvout), GFP_KERNEL);
+	if (!tvout)
+		return NULL;
 
-	dpc->panel_type = dp_panel_type_tv;
-	dpc->dp_output = out;
-	dpc->ops = &tv_dp_ops;
+	display->context = tvout;
+	display->ops = &tvout_ops;
 
-	return 0;
+	return &tvout->control;
 }

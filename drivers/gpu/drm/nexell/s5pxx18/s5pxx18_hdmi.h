@@ -19,9 +19,6 @@
 #define _S5PXX18_DP_HDMI_H_
 
 #include <drm/drmP.h>
-#include <video/videomode.h>
-
-#include "s5pxx18_drm_dp.h"
 
 struct hdmi_reg_tg {
 	u8 cmd;
@@ -167,8 +164,10 @@ struct hdmi_conf {
 #define HDMI_AUI_LENGTH			0x0a
 
 enum HDMI_3D_EXT_DATA {
-	/* refer to Table H-3 3D_Ext_Data - Additional video format
-	 * information for Side-by-side(half) 3D structure */
+	/*
+	 * refer to Table H-3 3D_Ext_Data - Additional video format
+	 * information for Side-by-side(half) 3D structure
+	 */
 
 	/** Horizontal sub-sampleing */
 	HDMI_H_SUB_SAMPLE = 0x1
@@ -185,28 +184,7 @@ enum HDMI_AUDIO_CODEC {
 	HDMI_AUDIO_MP3
 };
 
-/* HPD events */
-#define	HDMI_EVENT_PLUG		(1<<0)
-#define	HDMI_EVENT_UNPLUG	(1<<1)
-#define	HDMI_EVENT_HDCP		(1<<2)
-
 extern const struct hdmi_conf hdmi_conf[];
 extern const int num_hdmi_presets;
-
-int nx_dp_device_hdmi_register(struct device *dev,
-			struct device_node *np, struct dp_control_dev *dpc);
-
-u32  nx_dp_hdmi_hpd_event(int irq);
-bool nx_dp_hdmi_is_connected(void);
-bool nx_dp_hdmi_mode_valid(struct videomode *vm, int refresh, int pixelclock);
-bool nx_dp_hdmi_mode_get(int width, int height, int refresh,
-			struct videomode *vm);
-int nx_dp_hdmi_mode_set(struct nx_drm_device *display,
-			struct drm_display_mode *mode, struct videomode *vm,
-			bool dvi_mode, int q_range);
-int  nx_dp_hdmi_mode_commit(struct nx_drm_device *display, int crtc);
-void nx_dp_hdmi_power(struct nx_drm_device *display, bool on);
-int nx_dp_hdmi_resume(struct nx_drm_device *display);
-int nx_dp_hdmi_suspend(struct nx_drm_device *display);
 
 #endif

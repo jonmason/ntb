@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <linux/types.h>
+#include <linux/version.h>
 #include <linux/io.h>
 
 #include "s5pxx18_soc_disptop.h"
@@ -28,6 +29,17 @@ static struct nx_mipi_register_set *__g_pregister[NUMBER_OF_MIPI_MODULE];
 
 static u32 __mipi_phys = PHY_BASEADDR_MIPI_MODULE;
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(4, 4, 19)
+#define	__writel(v, a)	\
+	write_sec_reg_by_id((void *)(__mipi_phys +	\
+		(long)((void *)a - (void *)__g_pregister[0])), v,\
+			NEXELL_MIPI_SEC_ID)
+
+#define	__readl(a)	\
+	read_sec_reg_by_id((void *)(__mipi_phys +	\
+		(long)((void *)a - (void *)__g_pregister[0])),\
+			NEXELL_MIPI_SEC_ID)
+#else
 #define	__writel(v, a)	\
 	write_sec_reg((void *)(__mipi_phys +	\
 		(long)((void *)a - (void *)__g_pregister[0])), v)
@@ -35,6 +47,7 @@ static u32 __mipi_phys = PHY_BASEADDR_MIPI_MODULE;
 #define	__readl(a)	\
 	read_sec_reg((void *)(__mipi_phys +	\
 		(long)((void *)a - (void *)__g_pregister[0])))
+#endif
 #else
 #define	__writel(v, a)	writel(v, a)
 #define	__readl(a)	readl(a)
@@ -43,49 +56,35 @@ static u32 __mipi_phys = PHY_BASEADDR_MIPI_MODULE;
 int nx_mipi_smoke_test(u32 module_index)
 {
 	register struct nx_mipi_register_set *pregister;
+	register u32 regvalue;
 
 	pregister = __g_pregister[module_index];
 
-	if (0x000000FC != __readl(&pregister->csis_config_ch0))
+	regvalue = __readl(&pregister->csis_config_ch0);
+	if (regvalue != 0x000000FC)
 		return false;
 
-	if (0xB337FFFF != __readl(&pregister->dsim_intmsk))
+	regvalue = __readl(&pregister->dsim_intmsk);
+	if (regvalue != 0xB337FFFF)
 		return false;
 
 	__writel(0xDEADC0DE, &pregister->csis_dphyctrl);
 	__writel(0xFFFFFFFF, &pregister->csis_ctrl2);
 	__writel(0xDEADC0DE, &pregister->dsim_msync);
 
-	if (0xDE80001E != __readl(&pregister->csis_dphyctrl))
+	regvalue = __readl(&pregister->csis_dphyctrl);
+	if (regvalue != 0xDE80001E)
 		return false;
 
-	if (0xEEE00010 != (__readl(&pregister->csis_ctrl2) & (~1)))
+	regvalue = __readl(&pregister->csis_ctrl2) & (~1);
+	if (regvalue != 0xEEE00010)
 		return false;
 
-	if (0xDE80C0DE != __readl(&pregister->dsim_msync))
+	regvalue =  __readl(&pregister->dsim_msync);
+	if (regvalue != 0xDE80C0DE)
 		return false;
 
 	return true;
-}
-
-int nx_mipi_initialize(void)
-{
-	static int binit;
-
-	if (0 == binit)
-		binit = 1;
-
-	return 1;
-}
-
-u32 nx_mipi_get_number_of_module(void)
-{
-	return NUMBER_OF_MIPI_MODULE;
-}
-
-u32 nx_mipi_get_size_of_register_set(void)
-{
-	return sizeof(struct nx_mipi_register_set);
 }
 
 void nx_mipi_set_base_address(u32 module_index, void *base_address)
@@ -106,142 +105,68 @@ u32 nx_mipi_get_physical_address(u32 module_index)
 	return physical_addr[module_index];
 }
 
-int nx_mipi_open_module(u32 module_index)
-{
-	register struct nx_mipi_register_set *pregister;
-
-	pregister = __g_pregister[module_index];
-
-	__writel(0, &pregister->csis_dphyctrl_1);
-	__writel((22 << 24), &pregister->csis_dphyctrl);
-
-	return true;
-}
-
-int nx_mipi_close_module(u32 module_index)
-{
-	return true;
-}
-
-int nx_mipi_check_busy(u32 module_index)
-{
-	return false;
-}
-
-#define __nx_mipi_valid_csi_intmask__ (~((1 << 3)))
 #define __nx_mipi_valid_dsi_intmask__	\
 	(~((1 << 26) | (1 << 23) | (1 << 22) | (1 << 19)))
 
-void nx_mipi_set_interrupt_enable(u32 module_index, u32 int_num, int enable)
-{
-	register struct nx_mipi_register_set *pregister;
-	register u32 regvalue;
-
-	pregister = __g_pregister[module_index];
-	if (int_num < 32) {
-		regvalue = __readl(&pregister->csis_intmsk);
-		regvalue &= ~(1ul << int_num);
-		regvalue |= (u32)enable << int_num;
-		__writel(regvalue, &pregister->csis_intmsk);
-	} else {
-		regvalue = __readl(&pregister->dsim_intmsk);
-		regvalue &= ~(1ul << (int_num - 32));
-		regvalue |= (u32)enable << (int_num - 32);
-		__writel(regvalue, &pregister->dsim_intmsk);
-	}
-}
-
-int nx_mipi_get_interrupt_enable(u32 module_index, u32 int_num)
-{
-	register struct nx_mipi_register_set *pregister;
-	register u32 regvalue;
-	int ret;
-
-	pregister = __g_pregister[module_index];
-
-	if (int_num < 32) {
-		regvalue = __readl(&pregister->csis_intmsk);
-		ret = (int)((regvalue >> int_num) & 0x01);
-	} else {
-		regvalue = __readl(&pregister->dsim_intmsk);
-		ret = (int)((regvalue >> (int_num - 32)) & 0x01);
-	}
-
-	return ret;
-}
-
-int nx_mipi_get_interrupt_pending(u32 module_index, u32 int_num)
-{
-	register struct nx_mipi_register_set *pregister;
-	register u32 regvalue;
-	int ret;
-
-	pregister = __g_pregister[module_index];
-	if (int_num < 32) {
-		regvalue = __readl(&pregister->csis_intmsk);
-		regvalue &= __readl(&pregister->csis_intsrc);
-		ret = (int)((regvalue >> int_num) & 0x01);
-	} else {
-		regvalue = __readl(&pregister->dsim_intmsk);
-		regvalue &= __readl(&pregister->dsim_intsrc);
-		ret = (int)((regvalue >> (int_num - 32)) & 0x01);
-	}
-
-	return ret;
-}
-
-void nx_mipi_clear_interrupt_pending(u32 module_index, u32 int_num)
-{
-	register struct nx_mipi_register_set *pregister;
-
-	pregister = __g_pregister[module_index];
-	if (int_num < 32)
-		__writel(1ul << int_num, &pregister->csis_intsrc);
-	else
-		__writel(1ul << (int_num - 32), &pregister->dsim_intsrc);
-}
-
-void nx_mipi_set_interrupt_enable_all(u32 module_index, int enable)
+void nx_mipi_dsi_set_interrupt_enable_all(u32 module_index, int enable)
 {
 	register struct nx_mipi_register_set *pregister;
 
 	pregister = __g_pregister[module_index];
 	if (enable) {
-		__writel(__nx_mipi_valid_csi_intmask__,
-			&pregister->csis_intmsk);
 		__writel(__nx_mipi_valid_dsi_intmask__,
 			&pregister->dsim_intmsk);
 	} else {
-		__writel(0, &pregister->csis_intmsk);
-		__writel(0, &pregister->dsim_intmsk);
+		__writel(0xffffffff, &pregister->dsim_intmsk);
 	}
 }
 
-int nx_mipi_get_interrupt_enable_all(u32 module_index)
-{
-	if (__readl(&__g_pregister[module_index]->csis_intmsk))
-		return true;
-
-	if (__readl(&__g_pregister[module_index]->dsim_intmsk))
-		return true;
-
-	return false;
-}
-
-int nx_mipi_get_interrupt_pending_all(u32 module_index)
+void nx_mipi_dsi_set_interrupt_enable(u32 module_index, u32 int_num, int enable)
 {
 	register struct nx_mipi_register_set *pregister;
 	register u32 regvalue;
 
 	pregister = __g_pregister[module_index];
-	regvalue = __readl(&pregister->csis_intmsk);
-	regvalue &= __readl(&pregister->csis_intsrc);
-
-	if (regvalue)
-		return true;
 
 	regvalue = __readl(&pregister->dsim_intmsk);
-	regvalue &= __readl(&pregister->dsim_intsrc);
+	regvalue &= ~((u32)enable << int_num);
+
+	__writel(regvalue, &pregister->dsim_intmsk);
+}
+
+int nx_mipi_dsi_get_interrupt_enable(u32 module_index, u32 int_num)
+{
+	register struct nx_mipi_register_set *pregister;
+	register u32 regvalue;
+	int ret;
+
+	pregister = __g_pregister[module_index];
+	regvalue = __readl(&pregister->dsim_intmsk);
+	ret = !(int)((regvalue >> int_num) & 0x01);
+
+	return ret;
+}
+
+int nx_mipi_dsi_get_interrupt_enable_all(u32 module_index)
+{
+	register struct nx_mipi_register_set *pregister;
+	register u32 regvalue;
+
+	pregister = __g_pregister[module_index];
+	regvalue = __readl(&__g_pregister[module_index]->dsim_intmsk);
+	if (regvalue != 0xffffffff)
+		return true;
+
+	return false;
+}
+
+int nx_mipi_dsi_get_interrupt_pending_all(u32 module_index)
+{
+	register struct nx_mipi_register_set *pregister;
+	register u32 regvalue;
+
+	pregister = __g_pregister[module_index];
+	regvalue = __readl(&pregister->dsim_intsrc);
 
 	if (regvalue)
 		return true;
@@ -249,36 +174,28 @@ int nx_mipi_get_interrupt_pending_all(u32 module_index)
 	return false;
 }
 
-void nx_mipi_clear_interrupt_pending_all(u32 module_index)
+int nx_mipi_dsi_get_interrupt_pending(u32 module_index, u32 int_num)
 {
 	register struct nx_mipi_register_set *pregister;
+	register u32 regvalue;
+	int ret;
 
 	pregister = __g_pregister[module_index];
-	__writel(__nx_mipi_valid_csi_intmask__, &pregister->csis_intsrc);
-	__writel(__nx_mipi_valid_dsi_intmask__, &pregister->dsim_intsrc);
+	regvalue = __readl(&pregister->dsim_intsrc);
+	ret = (int)((regvalue >> int_num) & 0x01);
+
+	return ret;
 }
 
-int32_t nx_mipi_get_interrupt_pending_number(u32 module_index)
+int32_t nx_mipi_dsi_get_interrupt_pending_number(u32 module_index)
 {
 	register struct nx_mipi_register_set *pregister;
 	register u32 regvalue;
 	int i;
 
 	pregister = __g_pregister[module_index];
-	regvalue = __readl(&pregister->csis_intmsk);
-	regvalue &= __readl(&pregister->csis_intsrc);
-
-	if (0 != regvalue) {
-		for (i = 0; i < 32; i++) {
-			if (regvalue & 1ul)
-				return i;
-			regvalue >>= 1;
-		}
-	}
-
-	regvalue = __readl(&pregister->dsim_intmsk);
-	regvalue &= __readl(&pregister->dsim_intsrc);
-	if (0 != regvalue) {
+	regvalue = __readl(&pregister->dsim_intsrc);
+	if (regvalue != 0) {
 		for (i = 0; i < 32; i++) {
 			if (regvalue & 1ul)
 				return i + 32;
@@ -286,6 +203,22 @@ int32_t nx_mipi_get_interrupt_pending_number(u32 module_index)
 		}
 	}
 	return -1;
+}
+
+void nx_mipi_dsi_clear_interrupt_pending(u32 module_index, u32 int_num)
+{
+	register struct nx_mipi_register_set *pregister;
+
+	pregister = __g_pregister[module_index];
+	__writel(1ul << (int_num), &pregister->dsim_intsrc);
+}
+
+void nx_mipi_dsi_clear_interrupt_pending_all(u32 module_index)
+{
+	register struct nx_mipi_register_set *pregister;
+
+	pregister = __g_pregister[module_index];
+	__writel(__nx_mipi_valid_dsi_intmask__, &pregister->dsim_intsrc);
 }
 
 #define writereg(regname, mask, value) do { \
@@ -348,12 +281,28 @@ void nx_mipi_dsi_get_status(u32 module_index, u32 *pulps, u32 *pstop,
 void nx_mipi_dsi_software_reset(u32 module_index)
 {
 	register struct nx_mipi_register_set *pregister;
+	u32 intmask;
 
 	pregister = __g_pregister[module_index];
+
+	/* save intmask */
+	intmask = __readl(&pregister->dsim_intmsk);
+
 	__writel(0x00010001, &pregister->dsim_swrst);
 
 	while (0 != (__readl(&pregister->dsim_status) & (1 << 20)))
 		;
+
+	/* restore intmask */
+	__writel(intmask, &pregister->dsim_intmsk);
+}
+
+void nx_mipi_dsi_set_i80_clock(u32 regvalue)
+{
+	register struct nx_mipi_register_set *pregister;
+
+	pregister = __g_pregister[0];
+	__writel(regvalue, &pregister->dsim_clkctrl);
 }
 
 void nx_mipi_dsi_set_clock(u32 module_index, int enable_txhsclock,
@@ -454,6 +403,24 @@ void nx_mipi_dsi_set_config_video_mode(u32 module_index,
 	__writel(newvalue, &pregister->dsim_msync);
 }
 
+void nx_mipi_dsi_set_i80_config(u32 regvalue)
+{
+	register struct nx_mipi_register_set *pregister;
+
+	pregister = __g_pregister[0];
+
+	writereg(dsim_config, 0xFFFFFFFF, regvalue);
+}
+
+void nx_mipi_dsi_fifo_reset(void)
+{
+	register struct nx_mipi_register_set *pregister;
+	u32 regvalue;
+
+	pregister = __g_pregister[0];
+	writereg(dsim_fifoctrl, (1 << 3), (1 << 3));
+}
+
 void nx_mipi_dsi_set_config_command_mode(u32 module_index,
 					 int
 					 enable_auto_flush_main_display_fifo,
@@ -471,6 +438,7 @@ void nx_mipi_dsi_set_config_command_mode(u32 module_index,
 	newvalue |= (enable_eo_tpacket << 28);
 	newvalue |= (number_of_virtual_channel << 18);
 	newvalue |= (format << 12);
+	pr_debug("%s: dsim_config ==> 0x%x\n", __func__, newvalue);
 	writereg(dsim_config, 0xFFFFFF00, newvalue);
 }
 
@@ -670,6 +638,5 @@ u32 nx_mipi_dsi_read_fifo_status(u32 module_index)
 	register struct nx_mipi_register_set *pregister;
 
 	pregister = __g_pregister[module_index];
-
 	return __readl(&pregister->dsim_fifoctrl);
 }

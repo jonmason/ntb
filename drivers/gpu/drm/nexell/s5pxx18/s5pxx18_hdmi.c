@@ -20,7 +20,10 @@
 #include <linux/delay.h>
 #include <linux/reset.h>
 #include <linux/hdmi.h>
-#include "s5pxx18_dp_hdmi.h"
+#include <video/of_display_timing.h>
+
+#include "s5pxx18_drv.h"
+#include "s5pxx18_hdmi.h"
 #include "s5pxx18_reg_hdmi.h"
 
 #define DEFAULT_SAMPLE_RATE		48000
@@ -32,7 +35,33 @@
 #define	HDMI_CHECK_REFRESH		(1<<0)
 #define	HDMI_CHECK_PIXCLOCK		(1<<1)
 
-#define	display_to_dpc(d)	(&d->ctrl.dpc)
+static void __iomem *hdmi_io_base;
+
+static inline void hdmi_set_base(void __iomem *base)
+{
+	hdmi_io_base = base;
+}
+
+static inline void hdmi_write(u32 reg, u32 val)
+{
+	writel(val, hdmi_io_base + reg);
+}
+
+static inline void hdmi_write_mask(u32 reg, u32 val, u32 mask)
+{
+	val = (val & mask) | (readl(hdmi_io_base + reg) & ~mask);
+	writel(val, hdmi_io_base + reg);
+}
+
+static inline void hdmi_writeb(u32 reg, u8 val)
+{
+	writeb(val, hdmi_io_base + reg);
+}
+
+static inline u32 hdmi_read(u32 reg)
+{
+	return readl(hdmi_io_base + reg);
+}
 
 static int hdmi_hpd_status(void)
 {
@@ -162,22 +191,20 @@ static void hdmi_phy_set(const struct hdmi_conf *conf, int size)
 	hdmi_write(HDMI_PHY_REG7C, (1 << 7));
 }
 
-static void hdmi_dp_set(struct dp_control_dev *dpc, struct videomode *vm)
+static void hdmi_dp_set(struct nx_hdmi_dev *hdmi, struct videomode *vm)
 {
-	struct dp_ctrl_info *ctrl = &dpc->ctrl;
+	struct nx_control_info *ctrl = &hdmi->control.ctrl;
 
 	/*
-	 * FIX dpc clock source, from HDMI phy
+	 * FIX control clock source, from HDMI phy
 	 */
 	ctrl->clk_src_lv0 = 4;
 	ctrl->clk_div_lv0 = 1;
 	ctrl->clk_src_lv1 = 7;
 	ctrl->clk_div_lv1 = 1;
-
-	ctrl = &dpc->ctrl;
 	ctrl->out_format = outputformat_rgb888;
-	ctrl->delay_mask = (DP_SYNC_DELAY_RGB_PVD | DP_SYNC_DELAY_HSYNC_CP1 |
-			    DP_SYNC_DELAY_VSYNC_FRAM | DP_SYNC_DELAY_DE_CP);
+	ctrl->delay_mask = (DPC_SYNC_DELAY_RGB_PVD | DPC_SYNC_DELAY_HSYNC_CP1 |
+			    DPC_SYNC_DELAY_VSYNC_FRAM | DPC_SYNC_DELAY_DE_CP);
 	ctrl->d_rgb_pvd = 0;
 	ctrl->d_hsync_cp1 = 0;
 	ctrl->d_vsync_fram = 0;
@@ -387,7 +414,8 @@ static u8 hdmi_chksum(u32 start, u8 len, u32 hdr_sum)
 
 	/* hdr_sum : header0 + header1 + header2
 	 * start : start address of packet byte1
-	 * len : packet bytes - 1 */
+	 * len : packet bytes - 1
+	 */
 	for (i = 0; i < len; ++i)
 		hdr_sum += hdmi_read(start + i * 4);
 
@@ -613,11 +641,11 @@ static void hdmi_set_acr(int sample_rate, bool dvi_mode)
 	hdmi_write(HDMI_ACR_N1, HDMI_ACR_N1_VAL(n));
 	hdmi_write(HDMI_ACR_N2, HDMI_ACR_N2_VAL(n));
 
-	/* transfer ACR packet */
+	/* dsi_transfer ACR packet */
 	hdmi_write(HDMI_ACR_CON, HDMI_ACR_CON_TX_MODE_MESURED_CTS);
 }
 
-void hdmi_spdif_init(int audio_codec, int bits_per_sample)
+static void hdmi_spdif_init(int audio_codec, int bits_per_sample)
 {
 	u32 val;
 	int bps, rep_time;
@@ -669,7 +697,7 @@ static void hdmi_audio_init(const struct hdmi_conf *conf)
 	hdmi_spdif_init(audio_codec, bits_per_sample);
 }
 
-void hdmi_dvi_mode_set(bool dvi_mode)
+static void hdmi_dvi_mode_set(bool dvi_mode)
 {
 	u32 val;
 
@@ -723,7 +751,29 @@ static inline void hdmi_enable(const struct hdmi_conf *conf, bool on)
 	nx_disp_top_hdmi_set_vsync_hsstart_end(v_sync_hs_se0, v_sync_hs_se1);
 }
 
-int hdmi_find_mode(struct videomode *vm, int refresh,
+static void hdmi_power(struct nx_hdmi_dev *hdmi, bool on)
+{
+	const struct hdmi_conf *conf;
+	bool dvi_mode;
+
+	pr_debug("%s %s\n", __func__, on ? "on" : "off");
+
+	conf = hdmi->preset_data;
+	if (!conf || !conf->preset)
+		return;
+
+	dvi_mode = conf->preset->dvi_mode;
+
+	if (on)
+		hdmi_enable(conf, true);
+	else
+		hdmi_enable(conf, false);
+
+	if (on && dvi_mode)
+		hdmi_write(HDMI_GCP_CON, HDMI_GCP_CON_NO_TRAN);
+}
+
+static int hdmi_find_mode(struct videomode *vm, int refresh,
 		   int pixelclock, unsigned int flags)
 {
 	const struct hdmi_conf *conf;
@@ -739,7 +789,7 @@ int hdmi_find_mode(struct videomode *vm, int refresh,
 		const struct hdmi_preset *preset = conf[i].preset;
 		const struct hdmi_res_mode *mode = &preset->mode;
 
-		if (false == conf[i].support)
+		if (!conf[i].support)
 			continue;
 
 		if (mode->h_as != vm->hactive || mode->v_as != vm->vactive)
@@ -752,7 +802,7 @@ int hdmi_find_mode(struct videomode *vm, int refresh,
 		    (mode->pixelclock != pixelclock))
 			continue;
 
-		if (0 == mode->pixelclock)
+		if (mode->pixelclock == 0)
 			continue;
 
 		pr_debug("[%s] Ok Find %2d %s ha=%4d, va=%4d, %2d fps, %dhz\n",
@@ -765,201 +815,44 @@ int hdmi_find_mode(struct videomode *vm, int refresh,
 	return -EINVAL;
 }
 
-static void hdmi_ops_base(struct dp_control_dev *dpc,
-				void __iomem **base, int num)
+static int hdmi_ops_open(struct nx_drm_display *display, int pipe)
 {
-	u32 hdp_mask = (1 << 6) | (1 << 3) | (1 << 2);
+	struct nx_hdmi_dev *hdmi = display->context;
+	struct nx_control_res *res = &hdmi->control.res;
+	u32 hpd_mask = (1 << 6) | (1 << 3) | (1 << 2);
 
-	hdmi_set_base(base[0]);
+	hdmi_set_base(res->sub_bases[0]);
 
 	/* HPD interrupt control: INTC_CON */
-	hdmi_write(HDMI_INTC_CON_0, hdp_mask);
+	hdmi_write(HDMI_INTC_CON_0, hpd_mask);
+
+	return 0;
 }
 
-int hdmi_ops_resume(struct dp_control_dev *dpc)
+static int hdmi_ops_resume(struct nx_drm_display *display)
 {
-
-	u32 hdp_mask = (1 << 6) | (1 << 3) | (1 << 2);
+	u32 hpd_mask = (1 << 6) | (1 << 3) | (1 << 2);
 
 	pr_debug("%s\n", __func__);
 
+	nx_display_resume_resource(display);
+
 	/* HPD interrupt control: INTC_CON */
-	hdmi_write(HDMI_INTC_CON_0, hdp_mask);
+	hdmi_write(HDMI_INTC_CON_0, hpd_mask);
 
 	return 0;
 }
 
-int nx_dp_hdmi_suspend(struct nx_drm_device *display)
+static int hdmi_ops_enable(struct nx_drm_display *display)
 {
-	pr_debug("%s\n", __func__);
-
-	return 0;
-}
-
-bool nx_dp_hdmi_is_connected(void)
-{
-	int state = hdmi_hpd_status();
-
-	pr_debug("%s: %s\n", __func__, state ? "connected" : "disconnected");
-
-	return state ? true : false;
-}
-
-u32 nx_dp_hdmi_hpd_event(int irq)
-{
-	u32 flags, event = 0;
-
-	flags = hdmi_read(HDMI_INTC_FLAG_0);
-
-	pr_debug("%s: flags 0x%x\n", __func__, flags);
-
-	if (flags & HDMI_INTC_FLAG_HPD_UNPLUG) {
-		hdmi_write_mask(HDMI_INTC_FLAG_0, ~0,
-				HDMI_INTC_FLAG_HPD_UNPLUG);
-		event |= HDMI_EVENT_UNPLUG;
-		pr_debug("%s: UNPLUG\n", __func__);
-	}
-
-	if (flags & HDMI_INTC_FLAG_HPD_PLUG) {
-		hdmi_write_mask(HDMI_INTC_FLAG_0, ~0, HDMI_INTC_FLAG_HPD_PLUG);
-		event |= HDMI_EVENT_PLUG;
-		pr_debug("%s: PLUG\n", __func__);
-	}
-
-	if (flags & HDMI_INTC_FLAG_HDCP) {
-		event |= HDMI_EVENT_HDCP;
-		pr_debug("%s: hdcp not implenent !\n", __func__);
-	}
-
-	return event;
-}
-
-bool nx_dp_hdmi_mode_valid(struct videomode *vm, int refresh, int pixelclock)
-{
-	unsigned int flags = HDMI_CHECK_PIXCLOCK;
-	int err;
-
-	err = hdmi_find_mode(vm, refresh, pixelclock, flags);
-
-	return 0 > err ? false : true;
-}
-
-bool nx_dp_hdmi_mode_get(int width, int height, int refresh,
-			 struct videomode *vm)
-{
-	const struct hdmi_conf *conf;
-	const struct hdmi_res_mode *mode;
-	unsigned int flags = HDMI_CHECK_REFRESH;
-	int err;
-
-	vm->hactive = width;
-	vm->vactive = height;
-
-	if (!width || !height)
-		return false;
-
-	err = hdmi_find_mode(vm, refresh, 0, flags);
-	if (0 > err)
-		return false;
-
-	conf = &hdmi_conf[err];
-	mode = &conf->preset->mode;
-
-	vm->pixelclock = mode->pixelclock;
-	vm->hactive = mode->h_as;
-	vm->hfront_porch = mode->h_fp;
-	vm->hback_porch = mode->h_bp;
-	vm->hsync_len = mode->h_sw;
-	vm->vactive = mode->v_as;
-	vm->vfront_porch = mode->v_fp;
-	vm->vback_porch = mode->v_bp;
-	vm->vsync_len = mode->v_sw;
-
-	return true;
-}
-
-static void hdmi_mode_to_display_mode(struct hdmi_res_mode *hm,
-			struct drm_display_mode *dmode)
-{
-	dmode->hdisplay = hm->h_as;
-	dmode->hsync_start = dmode->hdisplay + hm->h_fp;
-	dmode->hsync_end = dmode->hsync_start + hm->h_sw;
-	dmode->htotal = dmode->hsync_end + hm->h_bp;
-
-	dmode->vdisplay = hm->v_as;
-	dmode->vsync_start = dmode->vdisplay + hm->v_fp;
-	dmode->vsync_end = dmode->vsync_start + hm->v_sw;
-	dmode->vtotal = dmode->vsync_end + hm->v_bp;
-
-}
-
-int nx_dp_hdmi_mode_set(struct nx_drm_device *display,
-			struct drm_display_mode *mode, struct videomode *vm,
-			bool dvi_mode, int q_range)
-{
-	struct dp_hdmi_dev *out;
-	const struct hdmi_conf *conf;
-	struct hdmi_preset *preset;
-	struct dp_control_dev *dpc = display_to_dpc(display);
-	unsigned int flags = HDMI_CHECK_PIXCLOCK;
-	int refresh = mode->vrefresh;
-	int pixelclock = mode->clock * 1000;
-	int err;
-
-	BUG_ON(!dpc);
-
-	drm_display_mode_to_videomode(mode, vm);
-
-	pr_debug("%s %s\n",
-		 __func__, dvi_mode ? "dvi monitor" : "hdmi monitor");
-
-	err = hdmi_find_mode(vm, refresh, pixelclock, flags);
-	if (0 > err) {
-		pr_err("%s: not found vm mode !\n", __func__);
-		return -ENODEV;
-	}
-
-	conf = &hdmi_conf[err];
-
-	preset = (struct hdmi_preset *)conf->preset;
-	preset->aspect_ratio = HDMI_PICTURE_ASPECT_16_9;
-	preset->dvi_mode = dvi_mode;
-	/* video quantization range is configuable
-	 * but fixed to limited range at artik710
-	 */
-	if (q_range == 0)
-		preset->color_range = AVI_LIMITED_RANGE;
-	else /* (q_range == 1) */
-		preset->color_range = AVI_FULL_RANGE;
-
-	out = dpc->dp_output;
-	out->preset_data = (void *)conf;
-
-	/*
-	 * set display control config
-	 */
-	hdmi_dp_set(dpc, vm);
-
-	/* set display mode values */
-	hdmi_mode_to_display_mode(&preset->mode, mode);
-
-	pr_debug("%s %s done\n", __func__, preset->mode.name);
-	return 0;
-}
-
-int nx_dp_hdmi_mode_commit(struct nx_drm_device *display, int pipe)
-{
-	struct dp_hdmi_dev *out;
-	const struct hdmi_conf *conf;
+	struct nx_hdmi_dev *hdmi = display->context;
+	struct nx_control_res *res = &hdmi->control.res;
+	const struct hdmi_conf *conf = hdmi->preset_data;
 	const struct hdmi_preset *preset;
-	struct dp_control_dev *dpc = display_to_dpc(display);
-	struct nx_drm_res *res = &display->res;
+	int pipe = hdmi->control.module;
 	u32 input = 0;
 
 	pr_debug("%s pipe.%d\n", __func__, pipe);
-
-	out = dpc->dp_output;
-	conf = out->preset_data;
 
 	if (!conf)
 		return -EINVAL;
@@ -968,11 +861,11 @@ int nx_dp_hdmi_mode_commit(struct nx_drm_device *display, int pipe)
 	pr_debug("%s %s\n", __func__, preset->mode.name);
 
 	/* HDMI setup */
-	hdmi_reset(res->dev_resets, res->num_dev_resets);
+	hdmi_reset(res->sub_resets, res->num_sub_resets);
 
 	hdmi_phy_set(conf, HDMI_PHY_TABLE_SIZE);
 
-	if (false == hdmi_wait_phy_ready())
+	if (!hdmi_wait_phy_ready())
 		return -EIO;
 
 	switch (pipe) {
@@ -1002,55 +895,213 @@ int nx_dp_hdmi_mode_commit(struct nx_drm_device *display, int pipe)
 	hdmi_audio_enable(true);
 	hdmi_dvi_mode_set(preset->dvi_mode);
 
+	hdmi_power(hdmi, true);
+
 	pr_debug("%s done\n", __func__);
 
 	return 0;
 }
 
-void nx_dp_hdmi_power(struct nx_drm_device *display, bool on)
+static int hdmi_ops_disable(struct nx_drm_display *display)
 {
-	struct dp_hdmi_dev *out;
-	const struct hdmi_conf *conf;
-	struct dp_control_dev *dpc = display_to_dpc(display);
-	bool dvi_mode;
+	struct nx_hdmi_dev *hdmi = display->context;
 
-	pr_debug("%s %s\n", __func__, on ? "on" : "off");
-
-	out = dpc->dp_output;
-	conf = out->preset_data;
-
-	if (!conf || !conf->preset)
-		return;
-
-	dvi_mode = conf->preset->dvi_mode;
-
-	if (on)
-		hdmi_enable(conf, true);
-	else
-		hdmi_enable(conf, false);
-
-	if (on && dvi_mode)
-		hdmi_write(HDMI_GCP_CON, HDMI_GCP_CON_NO_TRAN);
-}
-
-static struct dp_control_ops hdmi_dp_ops = {
-	.set_base = hdmi_ops_base,
-	.resume = hdmi_ops_resume,
-};
-
-int nx_dp_device_hdmi_register(struct device *dev,
-			struct device_node *np, struct dp_control_dev *dpc)
-{
-	struct dp_hdmi_dev *out;
-
-	out = kzalloc(sizeof(*out), GFP_KERNEL);
-	if (!out)
-		return -ENOMEM;
-
-	dpc->panel_type = dp_panel_type_hdmi;
-	dpc->dp_output = out;
-	dpc->ops = &hdmi_dp_ops;
+	hdmi_power(hdmi, false);
 
 	return 0;
 }
 
+static int hdmi_ops_is_connected(struct nx_drm_display *display)
+{
+	int state = hdmi_hpd_status();
+
+	pr_debug("%s: %s\n", __func__, state ? "connected" : "disconnected");
+
+	return state ? 1 : 0;
+}
+
+static u32 hdmi_ops_hpd_status(struct nx_drm_display *display)
+{
+	u32 flags, event = 0;
+
+	flags = hdmi_read(HDMI_INTC_FLAG_0);
+
+	pr_debug("%s: flags 0x%x\n", __func__, flags);
+
+	if (flags & HDMI_INTC_FLAG_HPD_UNPLUG) {
+		hdmi_write_mask(HDMI_INTC_FLAG_0, ~0,
+				HDMI_INTC_FLAG_HPD_UNPLUG);
+		event |= HDMI_EVENT_UNPLUG;
+		pr_debug("%s: UNPLUG\n", __func__);
+	}
+
+	if (flags & HDMI_INTC_FLAG_HPD_PLUG) {
+		hdmi_write_mask(HDMI_INTC_FLAG_0, ~0, HDMI_INTC_FLAG_HPD_PLUG);
+		event |= HDMI_EVENT_PLUG;
+		pr_debug("%s: PLUG\n", __func__);
+	}
+
+	if (flags & HDMI_INTC_FLAG_HDCP) {
+		event |= HDMI_EVENT_HDCP;
+		pr_debug("%s: hdcp not implenent !\n", __func__);
+	}
+
+	return event;
+}
+
+static int hdmi_ops_is_valid(struct nx_drm_display *display,
+			struct drm_display_mode *mode)
+{
+	struct videomode vm;
+	int refresh = mode->vrefresh;
+	int pixelclock = mode->clock * 1000;
+	unsigned int flags = HDMI_CHECK_PIXCLOCK;
+	int err;
+
+	drm_display_mode_to_videomode(mode, &vm);
+
+	err = hdmi_find_mode(&vm, refresh, pixelclock, flags);
+
+	return err < 0 ? 0 : 1;
+}
+
+static int hdmi_ops_get_mode(struct nx_drm_display *display,
+			struct drm_display_mode *mode)
+{
+	const struct hdmi_conf *conf;
+	const struct hdmi_res_mode *pmode;
+	int refresh =  mode->vrefresh;
+	unsigned int flags = HDMI_CHECK_REFRESH;
+	struct videomode vm;
+	int err;
+
+	vm.hactive = mode->hdisplay;
+	vm.vactive = mode->vdisplay;
+
+	err = hdmi_find_mode(&vm, refresh, 0, flags);
+	if (err < 0)
+		return err;
+
+	conf = &hdmi_conf[err];
+	pmode = &conf->preset->mode;
+
+	vm.pixelclock = pmode->pixelclock;
+	vm.hactive = pmode->h_as;
+	vm.hfront_porch = pmode->h_fp;
+	vm.hback_porch = pmode->h_bp;
+	vm.hsync_len = pmode->h_sw;
+	vm.vactive = pmode->v_as;
+	vm.vfront_porch = pmode->v_fp;
+	vm.vback_porch = pmode->v_bp;
+	vm.vsync_len = pmode->v_sw;
+
+	drm_display_mode_from_videomode(&vm, mode);
+
+	return 0;
+}
+
+static void hdmi_mode_to_display_mode(struct hdmi_res_mode *hm,
+			struct drm_display_mode *dmode)
+{
+	dmode->hdisplay = hm->h_as;
+	dmode->hsync_start = dmode->hdisplay + hm->h_fp;
+	dmode->hsync_end = dmode->hsync_start + hm->h_sw;
+	dmode->htotal = dmode->hsync_end + hm->h_bp;
+
+	dmode->vdisplay = hm->v_as;
+	dmode->vsync_start = dmode->vdisplay + hm->v_fp;
+	dmode->vsync_end = dmode->vsync_start + hm->v_sw;
+	dmode->vtotal = dmode->vsync_end + hm->v_bp;
+}
+
+static int hdmi_ops_set_mode(struct nx_drm_display *display,
+			struct drm_display_mode *mode, unsigned int mode_flags)
+{
+	struct nx_hdmi_dev *hdmi = display->context;
+	const struct hdmi_conf *conf;
+	struct hdmi_preset *preset;
+	struct videomode *vm;
+	unsigned int flags = HDMI_CHECK_PIXCLOCK;
+	int refresh = mode->vrefresh;
+	int pixelclock = mode->clock * 1000;
+	bool dvi_mode = mode_flags ? true : false;
+	int err;
+
+	BUG_ON(!hdmi);
+
+	vm = &display->vm;
+	drm_display_mode_to_videomode(mode, vm);
+
+	pr_debug("%s %s\n",
+		 __func__, dvi_mode ? "dvi monitor" : "hdmi monitor");
+
+	err = hdmi_find_mode(vm, refresh, pixelclock, flags);
+	if (err < 0) {
+		pr_err("%s: not found vm mode !\n", __func__);
+		return -ENODEV;
+	}
+
+	conf = &hdmi_conf[err];
+
+	preset = (struct hdmi_preset *)conf->preset;
+	preset->aspect_ratio = HDMI_PICTURE_ASPECT_16_9;
+	preset->dvi_mode = dvi_mode;
+
+	hdmi->preset_data = (void *)conf;
+
+	/* video quantization range is configuable
+	 * but fixed to limited range at artik710
+	 */
+	if (hdmi->q_range == 0)
+		preset->color_range = AVI_LIMITED_RANGE;
+	else /* (q_range == 1) */
+		preset->color_range = AVI_FULL_RANGE;
+
+	/*
+	 * set display control config
+	 */
+	hdmi_dp_set(hdmi, vm);
+
+	/* set display mode values */
+	hdmi_mode_to_display_mode(&preset->mode, mode);
+	nx_display_mode_to_sync(mode, display);
+
+	pr_debug("%s %s done\n", __func__, preset->mode.name);
+	return 0;
+}
+
+static struct nx_drm_hdmi_ops dev_ops = {
+	.hpd_status = hdmi_ops_hpd_status,
+	.get_mode = hdmi_ops_get_mode,
+	.is_connected = hdmi_ops_is_connected,
+	.is_valid = hdmi_ops_is_valid,
+};
+
+static struct nx_drm_display_ops hdmi_ops = {
+	.open = hdmi_ops_open,
+	.enable = hdmi_ops_enable,
+	.disable = hdmi_ops_disable,
+	.set_mode = hdmi_ops_set_mode,
+	.resume = hdmi_ops_resume,
+	.hdmi = &dev_ops,
+};
+
+void *nx_drm_display_hdmi_get(struct device *dev,
+			struct device_node *node,
+			struct nx_drm_display *display)
+{
+	struct nx_hdmi_dev *hdmi;
+
+	hdmi = kzalloc(sizeof(*hdmi), GFP_KERNEL);
+	if (!hdmi)
+		return NULL;
+
+	/* video quantization range */
+	if (of_property_read_u32(node, "q_range", &hdmi->q_range))
+		DRM_DEBUG_KMS("Failed to get q_range property !\n");
+
+	display->context = hdmi;
+	display->ops = &hdmi_ops;
+
+	return &hdmi->control;
+}

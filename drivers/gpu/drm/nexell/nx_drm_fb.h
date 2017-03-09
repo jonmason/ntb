@@ -20,10 +20,9 @@
 
 #include <drm/drm_fb_helper.h>
 #include <linux/fb.h>
-#include <video/videomode.h>
 
 struct nx_drm_fb {
-	struct drm_framebuffer	fb;
+	struct drm_framebuffer fb;
 	struct nx_gem_object *obj[4];
 };
 
@@ -31,10 +30,6 @@ struct nx_drm_fbdev {
 	struct drm_fb_helper fb_helper;
 	struct nx_drm_fb *fb;
 	int fb_buffers;
-};
-
-struct nx_framebuffer_dev {
-	struct nx_drm_fbdev *fbdev;
 };
 
 static inline struct nx_drm_fbdev *to_nx_drm_fbdev(struct drm_fb_helper *helper)
@@ -54,9 +49,4 @@ struct drm_framebuffer *nx_drm_fb_mode_create(struct drm_device *dev,
 			struct drm_file *file_priv,
 			struct drm_mode_fb_cmd2 *mode_cmd);
 
-/*
- * nexell framebuffer with gem
- */
-struct nx_gem_object *nx_drm_fb_get_gem_obj(struct drm_framebuffer *fb,
-			unsigned int plane);
 #endif

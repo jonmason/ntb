@@ -323,11 +323,6 @@ enum g3daddrchangeallowed {
 	primandsecon = 3
 };
 
-void nx_mlc_set_mlctop_control_parameter(u32 module_index,
-						int field_enable, int mlcenable,
-						u8 priority,
-						enum g3daddrchangeallowed
-						g3daddr_change_allowed);
 void nx_mlc_set_rgb0layer_control_parameter(u32 module_index,
 						   int layer_enable,
 						   int grp3denable,
@@ -403,7 +398,7 @@ void nx_mlc_set_gamma_control_parameter(u32 module_index,
 					       int yuvalphaarray,
 					       int dither_enb);
 
-void nx_mlc_set_layer_alpha256(u32 module_index, u32 layer, u32 alpha);
+void nx_mlc_set_layer_alpha256(u32 module_index, u32 layer, int alpha);
 int nx_mlc_is_under_flow(u32 module_index);
 
 struct nx_mlc_gamma_table_parameter {
