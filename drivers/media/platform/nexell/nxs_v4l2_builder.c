@@ -233,11 +233,6 @@ static struct nxs_video_format supported_formats[] = {
 		.name		= "YUV 4:2:2",
 	},
 	{
-		.format		= V4L2_PIX_FMT_YYUV,
-		.bpp		= 16,
-		.name		= "YUV 4:2:2",
-	},
-	{
 		.format		= V4L2_PIX_FMT_YVYU,
 		.bpp		= 16,
 		.name		= "YVU 4:2:2",
@@ -284,26 +279,6 @@ static struct nxs_video_format supported_mplane_formats[] = {
 		.format		= V4L2_PIX_FMT_NV42,
 		.bpp		= 24,
 		.name		= "Y/CrCb 4:4:4",
-	},
-	{
-		.format		= V4L2_PIX_FMT_NV12M,
-		.bpp		= 12,
-		.name		= "Y/CbCr 4:2:0",
-	},
-	{
-		.format		= V4L2_PIX_FMT_NV21M,
-		.bpp		= 12,
-		.name		= "Y/CrCb 4:2:0",
-	},
-	{
-		.format		= V4L2_PIX_FMT_NV16M,
-		.bpp		= 16,
-		.name		= "Y/CbCr 4:2:2",
-	},
-	{
-		.format		= V4L2_PIX_FMT_NV61M,
-		.bpp		= 16,
-		.name		= "Y/CrCb 4:2:2",
 	},
 };
 
@@ -1076,7 +1051,9 @@ static int generic_g_fmt(void *fh, struct v4l2_format *f)
 
 	if (video->type == NXS_VIDEO_TYPE_CAPTURE ||
 	    video->type == NXS_VIDEO_TYPE_RENDER)
-		cur_format = &vfh->format;
+		cur_format = is_output(f->type) ? &vfh->format :
+			&vfh->dst_format;
+		/*cur_format = &vfh->format;*/
 	else if (video->type == NXS_VIDEO_TYPE_M2M)
 		cur_format = is_output(f->type) ? &vfh->format :
 			&vfh->dst_format;
@@ -1204,8 +1181,28 @@ static int generic_s_fmt(void *fh, struct v4l2_format *f)
 	struct nxs_video *video = vfh->video;
 
 	if (is_supported_format(vfh, f)) {
-		memcpy(&vfh->format, f, sizeof(*f));
-		vfh->type = f->type;
+		if (is_output(f->type)) {
+			/* source path */
+			memcpy(&vfh->format, f, sizeof(*f));
+			vfh->type = f->type;
+			get_info_of_format(f, &vfh->num_planes,
+					   vfh->strides, vfh->sizes,
+					   &vfh->width, &vfh->height,
+					   &vfh->field, &vfh->pixelformat);
+			pr_info("[%s] size:%d, stride:%d\n",
+				__func__, vfh->sizes, vfh->strides);
+		} else {
+			/* dst path */
+			memcpy(&vfh->dst_format, f, sizeof(*f));
+			vfh->dst_type = f->type;
+			get_info_of_format(f, &vfh->dst_num_planes,
+					   vfh->dst_strides, vfh->dst_sizes,
+					   &vfh->dst_width, &vfh->dst_height,
+					   &vfh->dst_field,
+					   &vfh->dst_pixelformat);
+			pr_info("[%s] size:%d, stride:%d\n",
+				__func__, vfh->dst_sizes, vfh->dst_strides);
+		}
 		/* init crop, selection by format */
 		if (vfh->crop.type == 0) {
 			vfh->crop.type = f->type;
@@ -1248,14 +1245,41 @@ static int generic_s_fmt(void *fh, struct v4l2_format *f)
 			}
 		}
 
-		get_info_of_format(f, &vfh->num_planes, vfh->strides,
-				   vfh->sizes, &vfh->width, &vfh->height,
-				   &vfh->field, &vfh->pixelformat);
-
 		return nxs_vbq_init(vfh, f->type);
 	}
 
 	return -EINVAL;
+}
+
+static int generic_s_src_fmt(void *fh, struct v4l2_format *f)
+{
+	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
+	struct nxs_video *video = vfh->video;
+
+	pr_info("[%s] dev name: %s\n", __func__, video->name);
+	memcpy(&vfh->format, f, sizeof(*f));
+	vfh->type = f->type;
+	get_info_of_format(f, &vfh->num_planes,
+			   vfh->strides, vfh->sizes,
+			   &vfh->width, &vfh->height,
+			   &vfh->field, &vfh->pixelformat);
+	return 0;
+}
+
+static int generic_s_dst_fmt(void *fh, struct v4l2_format *f)
+{
+	struct nxs_video_fh *vfh = to_nxs_video_fh(fh);
+	struct nxs_video *video = vfh->video;
+
+	pr_info("[%s] dev name: %s\n", __func__, video->name);
+	memcpy(&vfh->dst_format, f, sizeof(*f));
+	vfh->dst_type = f->type;
+	get_info_of_format(f, &vfh->dst_num_planes,
+			   vfh->dst_strides, vfh->dst_sizes,
+			   &vfh->dst_width, &vfh->dst_height,
+			   &vfh->dst_field,
+			   &vfh->dst_pixelformat);
+	return 0;
 }
 
 static int nxs_vidioc_s_fmt_vid_cap(struct file *file, void *fh,
@@ -1266,6 +1290,15 @@ static int nxs_vidioc_s_fmt_vid_cap(struct file *file, void *fh,
 
 	if (is_m2m(video))
 		return m2m_s_fmt(fh, f);
+
+	/*
+	 * To check the size whether
+	 * this format information is related to any memory or not
+	 * so if the format is not related to any memory,
+	 * it means the format is for setting the source format of a nxs_dev
+	 */
+	if (f->fmt.pix.sizeimage == 0)
+		return generic_s_src_fmt(fh, f);
 
 	return generic_s_fmt(fh, f);
 }
@@ -1279,6 +1312,16 @@ static int nxs_vidioc_s_fmt_vid_out(struct file *file, void *fh,
 	if (is_m2m(video))
 		return m2m_s_fmt(fh, f);
 
+	/*
+	 * To check the size whether
+	 * this format information is related to any memory or not
+	 * so if the format is not related to any memory,
+	 * it means the format is for setting
+	 * the destination format of a nxs_dev
+	 */
+	if (f->fmt.pix.sizeimage == 0)
+		return generic_s_dst_fmt(fh, f);
+
 	return generic_s_fmt(fh, f);
 }
 
@@ -1291,6 +1334,16 @@ static int nxs_vidioc_s_fmt_vid_cap_mplane(struct file *file, void *fh,
 	if (is_m2m(video))
 		return m2m_s_fmt(fh, f);
 
+	/*
+	 * To check the number of planes whether
+	 * this format information is related to any memory or not
+	 * so if the format is not related to any memory,
+	 * it means the format is for setting
+	 * the source format of a nxs_dev
+	 */
+	if (f->fmt.pix_mp.num_planes == 0)
+		return generic_s_src_fmt(fh, f);
+
 	return generic_s_fmt(fh, f);
 }
 
@@ -1302,6 +1355,16 @@ static int nxs_vidioc_s_fmt_vid_out_mplane(struct file *file, void *fh,
 
 	if (is_m2m(video))
 		return m2m_s_fmt(fh, f);
+
+	/*
+	 * To check the number of planes whether
+	 * this format information is related to any memory or not
+	 * so if the format is not related to any memory,
+	 * it means the format is for setting
+	 * the destination format of a nxs_dev
+	 */
+	if (f->fmt.pix_mp.num_planes == 0)
+		return generic_s_dst_fmt(fh, f);
 
 	return generic_s_fmt(fh, f);
 }
@@ -1933,17 +1996,29 @@ static int nxs_vb2_queue_setup(struct vb2_queue *q,
 	struct nxs_video_fh *vfh = vb2_get_drv_priv(q);
 	struct nxs_video *video = vfh->video;
 	int i;
+	u32 type, planes;
+	u32 *size;
 
-	if (vfh->format.type == 0) {
-		dev_err(&video->vdev.dev, "%s: format is not set\n", __func__);
+	pr_info("[%s]q->type:%d\n", __func__, q->type);
+	if (is_output(q->type)) {
+		type = vfh->format.type;
+		planes = vfh->num_planes;
+		size = vfh->sizes;
+	} else {
+		type = vfh->dst_format.type;
+		planes = vfh->dst_num_planes;
+		size = vfh->dst_sizes;
+	}
+	if (type == 0) {
+		pr_err("%s: format is not set\n", __func__);
 		return -EINVAL;
 	}
 
-	*num_planes = vfh->num_planes;
-	memcpy(sizes, vfh->sizes, vfh->num_planes * sizeof(unsigned int));
-
-	for (i = 0; i < *num_planes; i++)
+	*num_planes = planes;
+	for (i = 0; i < *num_planes; i++) {
+		sizes[i] = size[i];
 		alloc_ctxs[i] = video->vb2_alloc_ctx;
+	}
 
 	/* do not need to set num_buffers
 	 * use user value
