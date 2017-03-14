@@ -185,6 +185,99 @@ static int nx_drm_fb_dirty(struct drm_framebuffer *fb,
 	return 0;
 }
 
+static int nx_drm_fb_check_var(struct fb_var_screeninfo *var,
+			       struct fb_info *info)
+{
+	struct drm_fb_helper *fb_helper = info->par;
+	struct drm_framebuffer *fb = fb_helper->fb;
+	int depth;
+
+	if (var->pixclock != 0 || in_dbg_master())
+		return -EINVAL;
+
+	/* Need to resize the fb object !!! */
+	if (var->bits_per_pixel > fb->bits_per_pixel ||
+	    var->xres > fb->width || var->yres > fb->height ||
+	    var->xres_virtual > info->var.xres_virtual ||
+	    var->yres_virtual > info->var.yres_virtual) {
+		pr_err("fb userspace requested width/height/bpp is greater than current fb "
+			  "request %dx%d-%d (virtual %dx%d) > %dx%d-%d (virtual %dx%d)\n",
+			  var->xres, var->yres, var->bits_per_pixel,
+			  var->xres_virtual, var->yres_virtual,
+			  fb->width, fb->height, fb->bits_per_pixel,
+			  info->var.xres_virtual, info->var.yres_virtual);
+		return -EINVAL;
+	}
+
+	switch (var->bits_per_pixel) {
+	case 16:
+		depth = (var->green.length == 6) ? 16 : 15;
+		break;
+	case 32:
+		depth = (var->transp.length > 0) ? 32 : 24;
+		break;
+	default:
+		depth = var->bits_per_pixel;
+		break;
+	}
+
+	switch (depth) {
+	case 8:
+		var->red.offset = 0;
+		var->green.offset = 0;
+		var->blue.offset = 0;
+		var->red.length = 8;
+		var->green.length = 8;
+		var->blue.length = 8;
+		var->transp.length = 0;
+		var->transp.offset = 0;
+		break;
+	case 15:
+		var->red.offset = 10;
+		var->green.offset = 5;
+		var->blue.offset = 0;
+		var->red.length = 5;
+		var->green.length = 5;
+		var->blue.length = 5;
+		var->transp.length = 1;
+		var->transp.offset = 15;
+		break;
+	case 16:
+		var->red.offset = 11;
+		var->green.offset = 5;
+		var->blue.offset = 0;
+		var->red.length = 5;
+		var->green.length = 6;
+		var->blue.length = 5;
+		var->transp.length = 0;
+		var->transp.offset = 0;
+		break;
+	case 24:
+		var->red.offset = 16;
+		var->green.offset = 8;
+		var->blue.offset = 0;
+		var->red.length = 8;
+		var->green.length = 8;
+		var->blue.length = 8;
+		var->transp.length = 0;
+		var->transp.offset = 0;
+		break;
+	case 32:
+		var->red.offset = 16;
+		var->green.offset = 8;
+		var->blue.offset = 0;
+		var->red.length = 8;
+		var->green.length = 8;
+		var->blue.length = 8;
+		var->transp.length = 8;
+		var->transp.offset = 24;
+		break;
+	default:
+		return -EINVAL;
+	}
+	return 0;
+}
+
 static struct drm_framebuffer_funcs nx_drm_framebuffer_funcs = {
 	.destroy = nx_drm_fb_destroy,
 	.create_handle = nx_drm_fb_create_handle,
@@ -196,7 +289,7 @@ static struct fb_ops nx_fb_ops = {
 	.fb_fillrect	= sys_fillrect,
 	.fb_copyarea	= sys_copyarea,
 	.fb_imageblit	= sys_imageblit,
-	.fb_check_var	= drm_fb_helper_check_var,
+	.fb_check_var	= nx_drm_fb_check_var,
 	.fb_set_par	= drm_fb_helper_set_par,
 	.fb_blank	= drm_fb_helper_blank,
 	.fb_pan_display	= drm_fb_helper_pan_display,
