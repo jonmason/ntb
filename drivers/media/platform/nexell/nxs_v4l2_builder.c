@@ -790,11 +790,6 @@ static void nxs_video_irqcallback(struct nxs_dev *nxs_dev, void *data)
 		 */
 		if (nxs_dev != first)
 			first->set_dirty(first, NXS_DEV_DIRTY_NORMAL);
-
-		if (atomic_read(&vfh->underflow)) {
-			nxs_function_start(video->nxs_function);
-			atomic_set(&vfh->underflow, 0);
-		}
 	}
 
 	v4l2_get_timestamp(&done_buffer->vb.timestamp);
@@ -1461,7 +1456,6 @@ static int nxs_vidioc_qbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 	ret = is_m2m(video) ? v4l2_m2m_qbuf(file, vfh->m2m_ctx, b) :
 		vb2_qbuf(&vfh->queue, b);
 	mutex_unlock(&video->queue_lock);
-
 	return ret;
 }
 
@@ -2077,6 +2071,46 @@ static int nxs_vb2_buf_prepare(struct vb2_buffer *buf)
 	return 0;
 }
 
+static void clear_underflow(struct nxs_video_fh *vfh)
+{
+	struct nxs_video *video = vfh->video;
+	struct nxs_video_buffer *next_buffer;
+
+	next_buffer = get_next_video_buffer(vfh, false);
+	if (next_buffer) {
+		struct nxs_function *f = video->nxs_function;
+		struct nxs_dev *nxs_dev, *first = NULL;
+		struct nxs_address_info info;
+
+		first = list_first_entry(&f->dev_list, struct nxs_dev,
+					 func_list);
+
+		if (video->type == NXS_VIDEO_TYPE_CAPTURE)
+			nxs_dev = list_last_entry(&f->dev_list, struct nxs_dev,
+						  func_list);
+		else if (video->type == NXS_VIDEO_TYPE_RENDER)
+			nxs_dev = first;
+
+		nxs_get_address_info(&next_buffer->vb,
+				     vfh->strides,
+				     &info);
+		nxs_dev_set_buffer(nxs_dev, &info);
+
+		if (nxs_dev->set_dirty)
+			nxs_dev->set_dirty(nxs_dev, NXS_DEV_DIRTY_NORMAL);
+
+		/**
+		 * HACK
+		 * dirty of first nxs_dev must be set to apply change
+		 */
+		if (nxs_dev != first)
+			first->set_dirty(first, NXS_DEV_DIRTY_NORMAL);
+
+		nxs_function_start(f);
+		atomic_set(&vfh->underflow, 0);
+	}
+}
+
 static void nxs_vb2_buf_queue(struct vb2_buffer *buf)
 {
 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(buf);
@@ -2087,6 +2121,9 @@ static void nxs_vb2_buf_queue(struct vb2_buffer *buf)
 	spin_lock_irqsave(&vfh->bufq_lock, flags);
 	list_add_tail(&buffer->list, &vfh->bufq);
 	spin_unlock_irqrestore(&vfh->bufq_lock, flags);
+
+	if (atomic_read(&vfh->underflow))
+	    clear_underflow(vfh);
 }
 
 static bool need_camera_sensor(struct nxs_video *video);
