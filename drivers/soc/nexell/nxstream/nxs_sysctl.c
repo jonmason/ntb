@@ -23,6 +23,7 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 
+#include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_sysctl.h>
 
 #define ATTR_MODE 0644

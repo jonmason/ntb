@@ -173,7 +173,7 @@ struct clk;
 struct device;
 struct list_head;
 
-#define NXS_MAX_SERVICES 8
+#define NXS_MAX_SERVICES NXS_CONTROL_MAX /*8*/
 
 struct nxs_dev {
 	struct list_head list; /* connected to nxs_res_manager dev_list */
@@ -247,5 +247,7 @@ int nxs_dev_register_irq_callback(struct nxs_dev *pthis, u32 type,
 int nxs_dev_unregister_irq_callback(struct nxs_dev *pthis, u32 type,
 				    struct nxs_irq_callback *callback);
 void nxs_dev_print(const struct nxs_dev *pthis, char *prefix);
-
+void nxs_dump_register(struct nxs_dev *nxs_dev,
+		       struct regmap *reg,
+		       u32 offset, u32 size);
 #endif

@@ -24,10 +24,33 @@
 #include <linux/slab.h>
 #include <linux/of_address.h>
 #include <linux/platform_device.h>
+#include <linux/regmap.h>
 
 #include <dt-bindings/soc/nxs_tid.h>
 #include <linux/soc/nexell/nxs_function.h>
+#include <linux/soc/nexell/nxs_sysctl.h>
 #include <linux/soc/nexell/nxs_dev.h>
+
+void nxs_dump_register(struct nxs_dev *nxs_dev, struct regmap *reg,
+		       u32 offset, u32 size)
+{
+	if (nxs_get_trace_mode()) {
+		u32 i = 0, status = 0;
+
+		dev_info(nxs_dev->dev,
+			 "==============================================\n");
+		dev_info(nxs_dev->dev,
+			 "[%s], offset:0x%4x, register size:0x%x\n",
+			 __func__, offset, size);
+		for (i = 0; i < size; i += 4) {
+			regmap_read(reg, offset+i, &status);
+			dev_info(nxs_dev->dev, "[0x%4x] 0x%8x\n", (offset+i),
+				 status);
+		}
+		dev_info(nxs_dev->dev,
+			 "==============================================\n");
+	}
+}
 
 int nxs_set_control(const struct nxs_dev *pthis, int type,
 		    const struct nxs_control *pparam)
