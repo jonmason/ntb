@@ -1,0 +1,992 @@
+/*
+ * Copyright (C) 2016  Nexell Co., Ltd.
+ * Author: Youngbok, Park <ybpark@nexell.co.kr>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include <dt-bindings/clock/nxp5540-clk.h>
+
+/{
+	fin_pll: xxti {
+		compatible = "fixed-clock";
+		clock-output-names = "fin_pll";
+		#clock-cells = <0>;
+		clock-frequency =  <24000000>;
+	};
+
+	usb_ophy: usb_ophy {
+		compatible = "fixed-clock";
+		clock-output-names = "usb_ophy";
+		#clock-cells = <0>;
+	};
+
+	usb_hphy: usb_hphy {
+		compatible = "fixed-clock";
+		clock-output-names = "usb_hphy";
+		#clock-cells = <0>;
+	};
+
+	hdmi_pixel_in: hdmi_pixel_in {
+		compatible = "fixed-clock";
+		clock-output-names = "hdmi_pixel";
+		#clock-cells = <0>;
+	};
+
+	hdmi_tmds: hdmi_tmds {
+		compatible = "fixed-clock";
+		clock-output-names = "hdmi_tmds";
+		#clock-cells = <0>;
+	};
+
+	clock_pll0: cmu@0 {
+		compatible = "nexell,nxp5540,pll";
+		reg = <0x20100000 10000>;
+		#clock-cells = <0>;
+		clocks = <&fin_pll>;
+		clock-name = "fin_pll";
+	};
+
+	clock_pll1: cmu@1 {
+		compatible = "nexell,nxp5540,pll";
+		reg = <0x20100000 10000>;
+		#clock-cells = <0>;
+		clocks = <&fin_pll>;
+		clock-name = "fin_pll";
+	};
+
+	clock_pll2: cmu@2 {
+		compatible = "nexell,nxp5540,pll";
+		reg = <0x20100000 10000>;
+		#clock-cells = <0>;
+		clocks = <&fin_pll>;
+		clock-name = "fin_pll";
+	};
+
+	clock_pll3: cmu@3 {
+		compatible = "nexell,nxp5540,pll";
+		reg = <0x20100000 10000>;
+		#clock-cells = <0>;
+		clocks = <&fin_pll>;
+		clock-name = "fin_pll";
+	};
+
+	clock_pll4: cmu@4 {
+		compatible = "nexell,nxp5540,pll";
+		reg = <0x20100000 10000>;
+		#clock-cells = <0>;
+		clocks = <&fin_pll>;
+		clock-name = "fin_pll";
+	};
+
+	clock_pll5: cmu@5 {
+		compatible = "nexell,nxp5540,pll";
+		reg = <0x20100000 10000>;
+		#clock-cells = <0>;
+		clocks = <&fin_pll>;
+		clock-name = "fin_pll";
+	};
+
+	clock_pll6: cmu@6 {
+		compatible = "nexell,nxp5540,pll";
+		reg = <0x20100000 10000>;
+		#clock-cells = <0>;
+		clocks = <&fin_pll>;
+		clock-name = "fin_pll";
+	};
+
+	clock_pll7: cmu@7 {
+		compatible = "nexell,nxp5540,pll";
+		reg = <0x20100000 10000>;
+		#clock-cells = <0>;
+		clocks = <&fin_pll>;
+		clock-name = "fin_pll";
+	};
+
+	cmu_tbus_core:cmu_tbus_core {
+		compatible = "nexell,nxp5540-cmu-tbus-core";
+		reg = <0x20110400 0x30000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		#clock-cells = <1>;
+		ranges;
+
+		tbus_i2s0: tbus_i2s0 {
+			#clock-cells = <1>;
+			clock-frequency = <400000000>;
+			clock-output-names = I2S0_NAME;
+			cell-id = <I2S0_CLK>;
+			reg = <I2S0_BASE 0x200>;
+		};
+
+		tbus_i2s1: tbus_i2s1 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = I2S1_NAME;
+			cell-id = <I2S1_CLK>;
+			reg = <I2S1_BASE 0x200>;
+		};
+
+		tbus_i2s2: tbus_i2s2 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = I2S2_NAME;
+			cell-id = <I2S2_CLK>;
+			reg = <I2S2_BASE 0x200>;
+		};
+
+		tbus_i2s3: tbus_i2s3 {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = I2S3_NAME;
+			cell-id = <I2S3_CLK>;
+			reg = <I2S3_BASE 0x200>;
+		};
+	};
+
+	cmu_lbus_core:cmu_lbus_core {
+		compatible = "nexell,nxp5540-cmu-lbus-core";
+		reg = <0x20120400 0x30000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		#clock-cells = <1>;
+		ranges;
+
+		lbus_sd0: lbus_sd0 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = SDMMC0_CORE_NAME;
+			cell-id = <SDMMC0_CORE_CLK>;
+			reg = <SDMMC0_CORE_BASE 0x200>;
+		};
+
+		lbus_sd0_axi: lbus_sd0_axi {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = SDMMC0_AXI_NAME;
+			cell-id = <SDMMC0_AXI_CLK>;
+			reg = <SDMMC0_AXI_BASE 0x200>;
+		};
+
+		lbus_sd1: lbus_sd1 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = SDMMC1_CORE_NAME;
+			cell-id = <SDMMC1_CORE_CLK>;
+			reg = <SDMMC1_CORE_BASE 0x200>;
+		};
+
+		lbus_sd1_axi: lbus_sd1_axi {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = SDMMC1_AXI_NAME;
+			cell-id = <SDMMC1_AXI_CLK>;
+			reg = <SDMMC1_AXI_BASE 0x200>;
+		};
+
+		lbus_sd2: lbus_sd2 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = SDMMC2_CORE_NAME;
+			cell-id = <SDMMC2_CORE_CLK>;
+			reg = <SDMMC2_CORE_BASE 0x200>;
+		};
+
+		lbus_sd2_axi: lbus_sd2_axi {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = SDMMC2_AXI_NAME;
+			cell-id = <SDMMC2_AXI_CLK>;
+			reg = <SDMMC2_AXI_BASE 0x200>;
+		};
+
+		lbus_mii: lbus_mii {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = GMAC_MII_NAME;
+			cell-id = <GMAC_MII_CLK>;
+			reg = <GMAC_MII_BASE 0x200>;
+		};
+
+		lbus_tx: lbus_tx {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-names = GMAC_MII_NAME;
+			clock-output-names = GMAC_TX_NAME;
+			cell-id = <GMAC_TX_CLK>;
+			reg = <GMAC_TX_BASE 0x200>;
+		};
+	};
+
+	cmu_bbus_core:cmu_bbus_core {
+		compatible = "nexell,nxp5540-cmu-bbus-core";
+		reg = <0x20130400 0x30000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		#clock-cells = <1>;
+		ranges;
+
+		bbus_uart0: bbus_uart0 {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = UART0_CORE_NAME;
+			cell-id = <UART0_CORE_CLK>;
+			reg = <UART0_CORE_BASE 0x200>;
+		};
+
+		bbus_uart1: bbus_uart1 {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = UART1_CORE_NAME;
+			cell-id = <UART1_CORE_CLK>;
+			reg = <UART1_CORE_BASE 0x200>;
+		};
+
+		bbus_uart2: bbus_uart2 {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = UART2_CORE_NAME;
+			cell-id = <UART2_CORE_CLK>;
+			reg = <UART2_CORE_BASE 0x200>;
+		};
+
+		bbus_uart3: bbus_uart3 {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = UART3_CORE_NAME;
+			cell-id = <UART3_CORE_CLK>;
+			reg = <UART3_CORE_BASE 0x200>;
+		};
+
+		bbus_uart4: bbus_uart4 {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = UART4_CORE_NAME;
+			cell-id = <UART4_CORE_CLK>;
+			reg = <UART4_CORE_BASE 0x200>;
+		};
+
+		bbus_uart5: bbus_uart5 {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = UART5_CORE_NAME;
+			cell-id = <UART5_CORE_CLK>;
+			reg = <UART5_CORE_BASE 0x200>;
+		};
+
+		bbus_uart6: bbus_uart6 {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = UART6_CORE_NAME;
+			cell-id = <UART6_CORE_CLK>;
+			reg = <UART6_CORE_BASE 0x200>;
+		};
+
+		bbus_uart7: bbus_uart7 {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = UART7_CORE_NAME;
+			cell-id = <SPI0_APB_CLK>;
+			reg = <UART7_CORE_BASE 0x200>;
+		};
+
+		bbus_spi0_apb: bbus_spi0_apb {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = SPI0_APB_NAME;
+			cell-id = <SPI0_APB_CLK>;
+			reg = <SPI0_APB_BASE 0x200>;
+		};
+
+		bbus_spi0: bbus_spi0 {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = SPI0_CORE_NAME;
+			cell-id = <SPI0_CORE_CLK>;
+			reg = <SPI0_CORE_BASE 0x200>;
+		};
+
+		bbus_spi1_apb: bbus_spi1_apb {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = SPI1_APB_NAME;
+			cell-id = <SPI1_APB_CLK>;
+			reg = <SPI1_APB_BASE 0x200>;
+		};
+
+		bbus_spi1: bbus_spi1 {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = SPI1_CORE_NAME;
+			cell-id = <SPI1_CORE_CLK>;
+			reg = <SPI1_CORE_BASE 0x200>;
+		};
+
+		bbus_spi2_apb: bbus_spi2_apb {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = SPI2_APB_NAME;
+			cell-id = <SPI2_APB_CLK>;
+			reg = <SPI2_APB_BASE 0x200>;
+		};
+
+		bbus_spi2: bbus_spi2 {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = SPI2_CORE_NAME;
+			cell-id = <SPI2_CORE_CLK>;
+			reg = <SPI2_CORE_BASE 0x200>;
+		};
+
+		bbus_spdif: bbus_spdif {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = SPDIFTX0_CORE_NAME;
+			cell-id = <SPDIFTX0_CORE_CLK>;
+			reg = <SPDIFTX0_CORE_BASE 0x200>;
+		};
+	};
+
+	cmu_hdmi_core:cmu_hdmi_core {
+		compatible = "nexell,nxp5540-cmu-hdmi-core";
+		reg = <0x20240400 0x30000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		#clock-cells = <1>;
+		ranges;
+
+		hdmi_tmds_10: hdmi_tmds_10 {
+			#clock-cells = <1>;
+			clock-frequency =  <100000000>;
+			clock-output-names = HDMIV2_0_TMDS_10B_NAME;
+			cell-id = <HDMIV2_0_TMDS_10B_CLK>;
+			reg = <HDMIV2_0_TMDS_10B_BASE 0x200>;
+		};
+
+		hdmi_tmds_20: hdmi_tmds_20 {
+			#clock-cells = <1>;
+			clock-frequency =  <100000000>;
+			clock-output-names = HDMIV2_0_TMDS_20B_NAME;
+			cell-id = <HDMIV2_0_TMDS_20B_CLK>;
+			reg = <HDMIV2_0_TMDS_20B_BASE 0x200>;
+		};
+
+		hdmi_pixel2: hdmi_pixel2 {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = HDMIV2_0_PIXELX2_NAME;
+			cell-id = <HDMIV2_0_PIXELX2_CLK>;
+			reg = <HDMIV2_0_PIXELX2_BASE 0x200>;
+		};
+
+		hdmi_pixel: hdmi_pixel {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = HDMIV2_0_PIXELX_NAME;
+			cell-id = <HDMIV2_0_PIXELX_CLK>;
+			reg = <HDMIV2_0_PIXELX_BASE 0x200>;
+		};
+
+		hdmi_audio: hdmi_audio {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = HDMIV2_0_AUDIO_NAME;
+			cell-id = <HDMIV2_0_AUDIO_CLK>;
+			reg = <HDMIV2_0_AUDIO_BASE 0x200>;
+		};
+	};
+
+	cmu_wave_core:cmu_wave_core {
+		compatible = "nexell,nxp5540-cmu-wave-core";
+		reg = <0x20260400 0x30000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		#clock-cells = <1>;
+		ranges;
+
+		wave_v: wave_v {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = WAVE_V_0_NAME;
+			cell-id = <WAVE_V_0_CLK>;
+			reg = <WAVE_V_0_BASE 0x200>;
+		};
+
+		wave_m: wave_m {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = WAVE_M_0_NAME;
+			cell-id = <WAVE_M_0_CLK>;
+			reg = <WAVE_M_0_BASE 0x200>;
+		};
+
+		wave_c: wave_c {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = WAVE_C_0_NAME;
+			cell-id = <WAVE_C_0_CLK>;
+			reg = <WAVE_C_0_BASE 0x200>;
+		};
+
+		wave_b: wave_b {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names = WAVE_B_0_NAME;
+			cell-id = <WAVE_B_0_CLK>;
+			reg = <WAVE_B_0_BASE 0x200>;
+		};
+	};
+
+	cmu_sys_core:cmu_sys_core {
+		compatible = "nexell,nxp5540-cmu-sys-core";
+		reg = <0x20101e00 0x30000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		#clock-cells = <1>;
+		ranges;
+
+		sys_pdm_apb0: sys_pdm_apb0 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PDM_APB0_NAME;
+			cell-id = <PDM_APB0_CLK>;
+			reg = <PDM_APB0_BASE 0x200>;
+		};
+
+		sys_pdm_apb1: sys_pdm_apb1 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PDM_APB1_NAME;
+			cell-id = <PDM_APB1_CLK>;
+			reg = <PDM_APB1_BASE 0x200>;
+		};
+
+		sys_pdm_apb2: sys_pdm_apb2 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PDM_APB2_NAME;
+			cell-id = <PDM_APB2_CLK>;
+			reg = <PDM_APB2_BASE 0x200>;
+		};
+
+		sys_pdm_apb3: sys_pdm_apb3 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PDM_APB3_NAME;
+			cell-id = <PDM_APB3_CLK>;
+			reg = <PDM_APB3_BASE 0x200>;
+		};
+
+		sys_audio_io: sys_audio_io {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = AUDIO_IO_NAME;
+			cell-id = <AUDIO_IO_CLK>;
+			reg = <AUDIO_IO_BASE 0x200>;
+		};
+
+		sys_pka: sys_pka {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PKA_CORE_NAME;
+			cell-id = <PKA_CORE_CLK>;
+			reg = <PKA_CORE_BASE 0x200>;
+		};
+
+		sys_cssys: sys_cssys {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = CSSYS_SRC_NAME;
+			cell-id = <CSSYS_SRC_CLK>;
+			reg = <CSSYS_SRC_BASE 0x200>;
+		};
+
+		sys_mcu_stop: sys_mcu_stop {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = MCUSTOP_NAME;
+			cell-id = <MCUSTOP_CLK>;
+			reg = <MCUSTOP_BASE 0x200>;
+		};
+
+		sys_timer0: sys_timer0 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = TIMER0_NAME;
+			cell-id = <TIMER0_TCLK>;
+			reg = <TIMER0_BASE 0x200>;
+		};
+
+		sys_timer1: sys_timer1 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = TIMER1_NAME;
+			cell-id = <TIMER1_TCLK>;
+			reg = <TIMER1_BASE 0x200>;
+		};
+
+		sys_timer2: sys_timer2 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = TIMER2_NAME;
+			cell-id = <TIMER2_TCLK>;
+			reg = <TIMER2_BASE 0x200>;
+		};
+
+		sys_timer3: sys_timer3 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = TIMER3_NAME;
+			cell-id = <TIMER3_TCLK>;
+			reg = <TIMER3_BASE 0x200>;
+		};
+
+		sys_timer4: sys_timer4 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = TIMER4_NAME;
+			cell-id = <TIMER4_TCLK>;
+			reg = <TIMER4_BASE 0x200>;
+		};
+
+		sys_timer5: sys_timer5 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = TIMER5_NAME;
+			cell-id = <TIMER5_TCLK>;
+			reg = <TIMER5_BASE 0x200>;
+		};
+
+		sys_timer6: sys_timer6 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = TIMER6_NAME;
+			cell-id = <TIMER6_TCLK>;
+			reg = <TIMER6_BASE 0x200>;
+		};
+
+		sys_timer7: sys_timer7 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = TIMER7_NAME;
+			cell-id = <TIMER7_TCLK>;
+			reg = <TIMER7_BASE 0x200>;
+		};
+
+		sys_pwm0: sys_pwm0 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PWM_0_NAME;
+			cell-id = <PWM_0_TCLK>;
+			reg = <PWM_0_BASE 0x200>;
+		};
+
+		sys_pwm1: sys_pwm1 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PWM_1_NAME;
+			cell-id = <PWM_1_TCLK>;
+			reg = <PWM_1_BASE 0x200>;
+		};
+
+		sys_pwm2: sys_pwm2 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PWM_2_NAME;
+			cell-id = <PWM_2_TCLK>;
+			reg = <PWM_2_BASE 0x200>;
+		};
+
+		sys_pwm3: sys_pwm3 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PWM_3_NAME;
+			cell-id = <PWM_3_TCLK>;
+			reg = <PWM_3_BASE 0x200>;
+		};
+
+		sys_pwm4: sys_pwm4 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PWM_4_NAME;
+			cell-id = <PWM_4_TCLK>;
+			reg = <PWM_4_BASE 0x200>;
+		};
+
+		sys_pwm5: sys_pwm5 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PWM_5_NAME;
+			cell-id = <PWM_5_TCLK>;
+			reg = <PWM_5_BASE 0x200>;
+		};
+
+		sys_pwm6: sys_pwm6 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PWM_6_NAME;
+			cell-id = <PWM_6_TCLK>;
+			reg = <PWM_6_BASE 0x200>;
+		};
+
+		sys_pwm7: sys_pwm7 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PWM_7_NAME;
+			cell-id = <PWM_7_TCLK>;
+			reg = <PWM_7_BASE 0x200>;
+		};
+
+		sys_pwm8: sys_pwm8 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PWM_8_NAME;
+			cell-id = <PWM_8_TCLK>;
+			reg = <PWM_8_BASE 0x200>;
+		};
+
+		sys_pwm9: sys_pwm9 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PWM_9_NAME;
+			cell-id = <PWM_9_TCLK>;
+			reg = <PWM_9_BASE 0x200>;
+		};
+
+		sys_pwm10: sys_pwm10 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PWM_10_NAME;
+			cell-id = <PWM_10_TCLK>;
+			reg = <PWM_10_BASE 0x200>;
+		};
+
+		sys_pwm11: sys_pwm11 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PWM_11_NAME;
+			cell-id = <PWM_11_TCLK>;
+			reg = <PWM_11_BASE 0x200>;
+		};
+
+		sys_pwm12: sys_pwm12 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PWM_12_NAME;
+			cell-id = <PWM_12_TCLK>;
+			reg = <PWM_12_BASE 0x200>;
+		};
+
+		sys_pwm13: sys_pwm13 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PWM_13_NAME;
+			cell-id = <PWM_13_TCLK>;
+			reg = <PWM_13_BASE 0x200>;
+		};
+
+		sys_pwm14: sys_pwm14 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PWM_14_NAME;
+			cell-id = <PWM_14_TCLK>;
+			reg = <PWM_14_BASE 0x200>;
+		};
+
+		sys_pwm15: sys_pwm15 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PWM_15_NAME;
+			cell-id = <PWM_15_TCLK>;
+			reg = <PWM_15_BASE 0x200>;
+		};
+
+		sys_po0: sys_po0 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PO_0_OUT_NAME;
+			cell-id = <PO_0_OUT_CLK>;
+			reg = <PO_0_OUT_BASE 0x200>;
+		};
+
+		sys_po1: sys_po1 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PO_1_OUT_NAME;
+			cell-id = <PO_1_OUT_CLK>;
+			reg = <PO_1_OUT_BASE 0x200>;
+		};
+
+		sys_po2: sys_po2 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PO_2_OUT_NAME;
+			cell-id = <PO_2_OUT_CLK>;
+			reg = <PO_2_OUT_BASE 0x200>;
+		};
+
+		sys_po3: sys_po3 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PO_3_OUT_NAME;
+			cell-id = <PO_3_OUT_CLK>;
+			reg = <PO_3_OUT_BASE 0x200>;
+		};
+
+		sys_po4: sys_po4 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = PO_4_OUT_NAME;
+			cell-id = <PO_4_OUT_CLK>;
+			reg = <PO_4_OUT_BASE 0x200>;
+		};
+
+		sys_dma_bus: sys_dma_bus {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = DMA_BUS_AXI_NAME;
+			cell-id = <DMA_BUS_AXI_CLK>;
+			reg = <DMA_BUS_AXI_BASE 0x200>;
+		};
+
+		sys_gic400: sys_gic400 {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names = GIC400_AXI_NAME;
+			cell-id = <GIC400_AXI_CLK>;
+			reg = <GIC400_AXI_BASE 0x200>;
+		};
+	};
+
+	cmu_sys:cmu_sys {
+		compatible = "nexell,nxp5540-cmu-sys-axi";
+		reg = <0x20100000 0x30000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		#clock-cells = <1>;
+		ranges;
+
+		sys_axi: sys_axi {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names =  SYS_AXI_NAME;
+			cell-id = <SYS_AXI_CLK>;
+		};
+
+		sys_ahb: sys_ahb {
+			#clock-cells = <1>;
+			clock-frequency =  <100000000>;
+			clock-names = SYS_AXI_NAME;
+			clock-output-names = SYS_AHB_NAME;
+			cell-id = <SYS_AHB_CLK>;
+		};
+
+		sys_apb: sys_apb {
+			clock-frequency =  <50000000>;
+			clock-names = SYS_AHB_NAME;
+			clock-output-names = SYS_APB_NAME;
+			cell-id = <SYS_APB_CLK>;
+		};
+	};
+
+	cmu_tbus:cmu_tbus {
+		compatible = "nexell,nxp5540-cmu-tbus-axi";
+		reg = <0x20110000 0x1000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		#clock-cells = <1>;
+		ranges;
+
+		tbus_axi: tbus_axi {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names =  TBUS_AXI_NAME;
+			cell-id = <TBUS_AXI_CLK>;
+		};
+
+		tbus_ahb: tbus_ahb {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-names = TBUS_AXI_NAME;
+			clock-output-names =  TBUS_AHB_NAME;
+			cell-id = <TBUS_AHB_CLK>;
+		};
+
+		tbus_apb: tbus_apb {
+			#clock-cells = <1>;
+			clock-frequency =  <100000000>;
+			clock-names = TBUS_AHB_NAME;
+			clock-output-names =  TBUS_APB_NAME;
+			cell-id = <TBUS_APB_CLK>;
+		};
+	};
+
+	cmu_lbus:cmu_lbus {
+		compatible = "nexell,nxp5540-cmu-lbus-axi";
+		reg = <0x20120000 0x30000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		#clock-cells = <1>;
+		ranges;
+
+		lbus_axi: lbus_axi {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names =  LBUS_AXI_NAME;
+			cell-id = <LBUS_AXI_CLK>;
+		};
+
+		lbus_ahb: lbus_ahb {
+			#clock-cells = <1>;
+			clock-frequency =  <100000000>;
+			clock-names = LBUS_AXI_NAME;
+			clock-output-names = LBUS_AHB_NAME;
+			cell-id = <LBUS_AHB_CLK>;
+		};
+
+		lbus_apb: lbus_apb {
+			clock-frequency =  <50000000>;
+			clock-names = LBUS_AHB_NAME;
+			clock-output-names = LBUS_APB_NAME;
+			cell-id = <LBUS_APB_CLK>;
+		};
+	};
+
+	cmu_bbus:cmu_bbus {
+		compatible = "nexell,nxp5540-cmu-bbus-axi";
+		reg = <0x20130200 0x30000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		#clock-cells = <1>;
+		ranges;
+
+		bbus_axi: bbus_axi {
+			#clock-cells = <1>;
+			clock-frequency =  <400000000>;
+			clock-output-names =  BBUS_AXI_NAME;
+			cell-id = <BBUS_AXI_CLK>;
+		};
+
+		bbus_ahb: bbus_ahb {
+			#clock-cells = <1>;
+			clock-frequency =  <100000000>;
+			clock-names = BBUS_AXI_NAME;
+			clock-output-names = BBUS_AHB_NAME;
+			cell-id = <BBUS_AHB_CLK>;
+		};
+
+		bbus_apb: bbus_apb {
+			clock-frequency =  <50000000>;
+			clock-names = BBUS_AHB_NAME;
+			clock-output-names = BBUS_APB_NAME;
+			cell-id = <BBUS_APB_CLK>;
+		};
+	};
+
+	cmu_isp:cmu_isp {
+		compatible = "nexell,nxp5540-cmu-isp-axi";
+		reg = <0x20200200 0x30000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		#clock-cells = <1>;
+		ranges;
+
+		isp_axi: isp_axi {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names =  ISP_0_AXI_NAME;
+			cell-id = <ISP_0_AXI_CLK>;
+		};
+
+		isp_ahb: isp_ahb {
+			#clock-cells = <1>;
+			clock-frequency =  <100000000>;
+			clock-names = ISP_0_AXI_NAME;
+			clock-output-names = ISP_0_DIV4_NAME;
+			cell-id = <ISP_0_DIV4_CLK>;
+		};
+	};
+
+	cmu_hdmi:cmu_hdmi {
+		compatible = "nexell,nxp5540-cmu-hdmi-axi";
+		reg = <0x20240200 0x30000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		#clock-cells = <1>;
+		ranges;
+
+		hdmi_axi: hdmi_axi {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names =  HDMI_0_AXI_NAME;
+			cell-id = <HDMI_0_AXI_CLK>;
+		};
+
+		hdmi_apb: hdmi_apb {
+			#clock-cells = <1>;
+			clock-frequency =  <100000000>;
+			clock-names = HDMI_0_AXI_NAME;
+			clock-output-names = HDMI_0_APB_NAME;
+			cell-id = <HDMI_0_APB_CLK>;
+		};
+	};
+
+	cmu_wave:cmu_wave {
+		compatible = "nexell,nxp5540-cmu-wave-axi";
+		reg = <0x20240200 0x30000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		#clock-cells = <1>;
+		ranges;
+
+		wave_axi: wave_axi {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names =  WAVE_AXI_NAME;
+			cell-id = <WAVE_AXI_CLK>;
+		};
+
+		wave_apb: wave_apb {
+			#clock-cells = <1>;
+			clock-frequency =  <100000000>;
+			clock-names = WAVE_AXI_NAME;
+			clock-output-names = WAVE_APB_NAME;
+			cell-id = <WAVE_APB_CLK>;
+		};
+	};
+
+	cmu_disp:cmu_disp {
+		compatible = "nexell,nxp5540-cmu-disp-axi";
+		reg = <0x20220200 0x30000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+		#clock-cells = <1>;
+		ranges;
+
+		disp_axi: disp_axi {
+			#clock-cells = <1>;
+			clock-frequency =  <200000000>;
+			clock-output-names =  DISP_0_AXI_NAME;
+			cell-id = <DISP_0_AXI_CLK>;
+		};
+
+		disp_apb: disp_apb {
+			#clock-cells = <1>;
+			clock-frequency =  <100000000>;
+			clock-names = DISP_0_AXI_NAME;
+			clock-output-names = DISP_0_APB_NAME;
+			cell-id = <DISP_0_APB_CLK>;
+		};
+	};
+};

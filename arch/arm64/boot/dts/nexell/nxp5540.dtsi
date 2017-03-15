@@ -304,3 +304,4 @@
 
 #include "nxstream.dtsi"
 #include "nxp5540-pinctrl.dtsi"
+#include "nxp5540-cmu.dtsi"
