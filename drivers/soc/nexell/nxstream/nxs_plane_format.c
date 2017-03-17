@@ -18,9 +18,12 @@
 #include <linux/kernel.h>
 #include <linux/device.h>
 #include <linux/module.h>
-#include <linux/videodev2.h>
+
 #include <linux/soc/nexell/nxs_dev.h>
 #include <linux/soc/nexell/nxs_plane_format.h>
+
+#define fourcc_code(a, b, c, d) ((__u32)(a) | ((__u32)(b) << 8) | \
+				 ((__u32)(c) << 16) | ((__u32)(d) << 24))
 
 void nxs_print_plane_format(struct nxs_dev *nxs_dev,
 			    struct nxs_plane_format *config)
@@ -133,7 +136,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 	config->color_expand = 1;
 	switch (format) {
 	/* RGB */
-	case V4L2_PIX_FMT_ARGB555:
+	case fourcc_code('A', 'R', '1', '5'):
 		/*
 		 * ARGB-1-5-5-5
 		 * BPP = 16
@@ -161,7 +164,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p1_comp[3].startbit = 31;
 		config->p1_comp[3].bitwidth = 1;
 		break;
-	case V4L2_PIX_FMT_XRGB555:
+	case fourcc_code('X', 'R', '1', '5'):
 		/*
 		 * XRGB-1-5-5-5(X is dummy)
 		 * BPP = 16
@@ -189,7 +192,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p1_comp[3].use_userdef = 1;
 		config->p1_comp[3].userdef = ~0;
 		break;
-	case V4L2_PIX_FMT_RGB565:
+	case fourcc_code('R', 'G', 'B', 'P'):
 		/*
 		 * same as NX_B5_G6_R5
 		 * BPP = 16
@@ -217,7 +220,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p1_comp[3].use_userdef = 1;
 		config->p1_comp[3].userdef = ~0;
 		break;
-	case V4L2_PIX_FMT_BGR24:
+	case fourcc_code('B', 'G', 'R', '3'):
 		/*
 		 * BGR-8-8-8
 		 * BPP = 24
@@ -247,7 +250,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p1_comp[3].use_userdef = 1;
 		config->p1_comp[3].userdef = ~0;
 		break;
-	case V4L2_PIX_FMT_RGB24:
+	case fourcc_code('R', 'G', 'B', '3'):
 		/*
 		 * RGB-8-8-8
 		 * bpp = 24;
@@ -271,7 +274,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p1_comp[3].use_userdef = 1;
 		config->p1_comp[3].userdef = ~0;
 		break;
-	case V4L2_PIX_FMT_BGR32:
+	case fourcc_code('B', 'G', 'R', '4'):
 		/* BGR-8-8-8-8
 		 * as Packed RGB Formats,
 		 * https://www.linuxtv.org/downloads/v4l-dvb-apis-old/
@@ -280,7 +283,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		 * so currently handle same as the format ABGR32-8-8-8-8
 		 * following the site
 		 */
-	case V4L2_PIX_FMT_ABGR32:
+	case fourcc_code('A', 'R', '2', '4'):
 		/*
 		 * BGRA-8-8-8-8
 		 * BPP = 32
@@ -308,7 +311,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p1_comp[3].startbit = 56;
 		config->p1_comp[3].bitwidth = 8;
 		break;
-	case V4L2_PIX_FMT_XBGR32:
+	case fourcc_code('X', 'R', '2', '4'):
 		/*
 		 * BGRX-8-8-8-8
 		 * bpp = 32;
@@ -331,7 +334,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p1_comp[3].use_userdef = 1;
 		config->p1_comp[3].userdef = ~0;
 		break;
-	case V4L2_PIX_FMT_RGB32:
+	case fourcc_code('R', 'G', 'B', '4'):
 		/* RGB-8-8-8-8
 		 * as Packed RGB Formats,
 		 * https://www.linuxtv.org/downloads/v4l-dvb-apis-old/
@@ -340,7 +343,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		 * so currently handle same as the format ARGB32-8-8-8-8
 		 * following the site
 		 */
-	case V4L2_PIX_FMT_ARGB32:
+	case fourcc_code('B', 'A', '2', '4'):
 		/*
 		 * ARGB-8-8-8-8 same as NX_A8_R8_G8-B8
 		 * BPP = 32
@@ -368,7 +371,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p1_comp[3].startbit = 32;
 		config->p1_comp[3].bitwidth = 8;
 		break;
-	case V4L2_PIX_FMT_XRGB32:
+	case fourcc_code('B', 'X', '2', '4'):
 		/*
 		 * XRGB-8-8-8-8
 		 * bpp = 32
@@ -393,7 +396,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p1_comp[3].userdef = ~0;
 		break;
 	/* YUV422 */
-	case V4L2_PIX_FMT_YUYV:
+	case fourcc_code('Y', 'U', 'Y', 'V'):
 		/* bpp = 16 */
 		config->img_type = NXS_IMG_YUV;
 		config->total_bitwidth_1st_pl = 32;
@@ -415,7 +418,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p1_comp[3].userdef = ~0;
 		config->use_average_value = 1;
 		break;
-	case V4L2_PIX_FMT_YYUV:
+	case fourcc_code('Y', 'Y', 'V', 'U'):
 		/* bpp = 16 */
 		config->img_type = NXS_IMG_YUV;
 		config->total_bitwidth_1st_pl = 32;
@@ -437,7 +440,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p1_comp[3].userdef = ~0;
 		config->use_average_value = 1;
 		break;
-	case V4L2_PIX_FMT_YVYU:
+	case fourcc_code('Y', 'V', 'Y', 'U'):
 		/* bpp = 16 */
 		config->img_type = NXS_IMG_YUV;
 		config->total_bitwidth_1st_pl = 32;
@@ -459,7 +462,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p1_comp[3].userdef = ~0;
 		config->use_average_value = 1;
 		break;
-	case V4L2_PIX_FMT_UYVY:
+	case fourcc_code('U', 'Y', 'V', 'Y'):
 		/* bpp = 16 */
 		config->img_type = NXS_IMG_YUV;
 		config->total_bitwidth_1st_pl = 32;
@@ -481,7 +484,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p1_comp[3].userdef = ~0;
 		config->use_average_value = 1;
 		break;
-	case V4L2_PIX_FMT_VYUY:
+	case fourcc_code('V', 'Y', 'U', 'Y'):
 		/* bpp = 16 */
 		config->img_type = NXS_IMG_YUV;
 		config->total_bitwidth_1st_pl = 32;
@@ -503,7 +506,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p1_comp[3].userdef = ~0;
 		config->use_average_value = 1;
 		break;
-	case V4L2_PIX_FMT_NV24:
+	case fourcc_code('N', 'V', '2', '4'):
 		/*
 		 * Y/CbCr 4:4:4
 		 * bpp = 24
@@ -533,7 +536,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p1_comp[3].userdef = ~0;
 		config->use_average_value = 1;
 		break;
-	case V4L2_PIX_FMT_NV42:
+	case fourcc_code('N', 'V', '4', '2'):
 		/* bpp = 24 */
 		config->img_type = NXS_IMG_YUV;
 		config->total_bitwidth_1st_pl = 16;
@@ -560,8 +563,8 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p1_comp[3].userdef = ~0;
 		config->use_average_value = 1;
 		break;
-	case V4L2_PIX_FMT_NV12:
-	case V4L2_PIX_FMT_NV12M:
+	case fourcc_code('N', 'V', '1', '2'):
+	case fourcc_code('N', 'M', '1', '2'):
 		/*
 		 * Y/CbCr 4:2:0 same as NX_2P_Y08_Y18_U8_V8
 		 * bpp = 12
@@ -592,8 +595,8 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p1_comp[3].userdef = ~0;
 		config->use_average_value = 1;
 		break;
-	case V4L2_PIX_FMT_NV21:
-	case V4L2_PIX_FMT_NV21M:
+	case fourcc_code('N', 'V', '2', '1'):
+	case fourcc_code('N', 'M', '2', '1'):
 		/*
 		 * Y/CbCr 420 same as NX_2P_Y08_Y18_V8_U8
 		 * bpp = 12
@@ -624,8 +627,8 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p1_comp[3].userdef = ~0;
 		config->use_average_value = 1;
 		break;
-	case V4L2_PIX_FMT_NV16:
-	case V4L2_PIX_FMT_NV16M:
+	case fourcc_code('N', 'V', '1', '6'):
+	case fourcc_code('N', 'M', '1', '6'):
 		/*
 		 * Y/CbCr 422
 		 * bpp = 16
@@ -655,8 +658,8 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p1_comp[3].userdef = ~0;
 		config->use_average_value = 1;
 		break;
-	case V4L2_PIX_FMT_NV61:
-	case V4L2_PIX_FMT_NV61M:
+	case fourcc_code('N', 'V', '6', '1'):
+	case fourcc_code('N', 'M', '6', '1'):
 		/*
 		 * same as NX_2P_Y08_Y18_V8_U8
 		 * bpp = 16
@@ -681,6 +684,68 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p1_comp[1].is_2nd_pl = 1;
 		config->p1_comp[2].startbit = 0;
 		config->p1_comp[2].bitwidth = 8;
+		config->p1_comp[2].is_2nd_pl = 1;
+		config->p1_comp[3].use_userdef = 1;
+		config->p1_comp[3].userdef = ~0;
+		config->use_average_value = 1;
+		break;
+	case fourcc_code('N', 'I', 'U', '0'):
+		/*
+		 * Y/CbCr 4:2:0 Interleaved 10bit
+		 * bpp = 15
+		 */
+		config->img_type = NXS_IMG_YUV;
+		config->total_bitwidth_1st_pl = 20;
+		config->total_bitwidth_2nd_pl = 20;
+		config->half_height_2nd_pl = 1;
+		config->p0_comp[0].startbit = 0;
+		config->p0_comp[0].bitwidth = 10;
+		config->p0_comp[1].startbit = 0;
+		config->p0_comp[1].bitwidth = 10;
+		config->p0_comp[1].is_2nd_pl = 1;
+		config->p0_comp[2].startbit = 10;
+		config->p0_comp[2].bitwidth = 10;
+		config->p0_comp[2].is_2nd_pl = 1;
+		config->p0_comp[3].use_userdef = 1;
+		config->p0_comp[3].userdef = ~0;
+		config->p1_comp[0].startbit = 10;
+		config->p1_comp[0].bitwidth = 10;
+		config->p1_comp[1].startbit = 0;
+		config->p1_comp[1].bitwidth = 10;
+		config->p1_comp[1].is_2nd_pl = 1;
+		config->p1_comp[2].startbit = 10;
+		config->p1_comp[2].bitwidth = 10;
+		config->p1_comp[2].is_2nd_pl = 1;
+		config->p1_comp[3].use_userdef = 1;
+		config->p1_comp[3].userdef = ~0;
+		config->use_average_value = 1;
+		break;
+	case fourcc_code('N', 'I', 'V', '0'):
+		/*
+		 * Y/CbCr 4:2:0 Interleaved 10bit
+		 * bpp = 15
+		 */
+		config->img_type = NXS_IMG_YUV;
+		config->total_bitwidth_1st_pl = 20;
+		config->total_bitwidth_2nd_pl = 20;
+		config->half_height_2nd_pl = 1;
+		config->p0_comp[0].startbit = 0;
+		config->p0_comp[0].bitwidth = 10;
+		config->p0_comp[1].startbit = 10;
+		config->p0_comp[1].bitwidth = 10;
+		config->p0_comp[1].is_2nd_pl = 1;
+		config->p0_comp[2].startbit = 0;
+		config->p0_comp[2].bitwidth = 10;
+		config->p0_comp[2].is_2nd_pl = 1;
+		config->p0_comp[3].use_userdef = 1;
+		config->p0_comp[3].userdef = ~0;
+		config->p1_comp[0].startbit = 10;
+		config->p1_comp[0].bitwidth = 10;
+		config->p1_comp[1].startbit = 10;
+		config->p1_comp[1].bitwidth = 10;
+		config->p1_comp[1].is_2nd_pl = 1;
+		config->p1_comp[2].startbit = 0;
+		config->p1_comp[2].bitwidth = 10;
 		config->p1_comp[2].is_2nd_pl = 1;
 		config->p1_comp[3].use_userdef = 1;
 		config->p1_comp[3].userdef = ~0;
