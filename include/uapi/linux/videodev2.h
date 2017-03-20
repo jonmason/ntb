@@ -624,6 +624,17 @@ struct v4l2_pix_format {
 #define V4L2_PIX_FMT_Y8I      v4l2_fourcc('Y', '8', 'I', ' ') /* Greyscale 8-bit L/R interleaved */
 #define V4L2_PIX_FMT_Y12I     v4l2_fourcc('Y', '1', '2', 'I') /* Greyscale 12-bit L/R interleaved */
 #define V4L2_PIX_FMT_Z16      v4l2_fourcc('Z', '1', '6', ' ') /* Depth data 16-bit */
+/* Nexell Extension Fromat for 10Bits YUV4:2:0 Interleaved extended*/
+#define V4L2_PIX_FMT_NX_NV12_16x16 v4l2_fourcc('N', 'I', 'U', '0') /* NEXELL
+								  interleaved
+								  Y/UV 10Bits
+								  bpp-15
+								  extended*/
+#define V4L2_PIX_FMT_NX_NV21_16x16 v4l2_fourcc('N', 'I', 'V', '0') /* NEXELL
+								  interleaved
+								  Y/VU 10Bits
+								  bpp-15
+								  extended*/
 
 /* SDR formats - used only for Software Defined Radio devices */
 #define V4L2_SDR_FMT_CU8          v4l2_fourcc('C', 'U', '0', '8') /* IQ u8 */
