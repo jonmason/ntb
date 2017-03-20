@@ -322,16 +322,17 @@ static void dmaw_set_dpc_mode(struct nxs_dmaw *dmaw, bool enable)
 		awqos = 14;
 	else
 		awqos = 0;
+
 	regmap_update_bits(dmaw->reg, AXIM_DMARW_OFFSET +
 			   ((dmaw->nxs_dev.dev_inst_index * AXIM_DMARW_SIZE) +
 			    AXIM_DMARW_AWQOS_OFFSET),
 			   AXIM_DMARW_AXQOS_USE_MASK,
-			   (1 << AXIM_DMARW_AXQOS_USE_SHIFT));
+			   1 << AXIM_DMARW_AXQOS_USE_SHIFT);
 	regmap_update_bits(dmaw->reg, AXIM_DMARW_OFFSET +
 			   ((dmaw->nxs_dev.dev_inst_index * AXIM_DMARW_SIZE) +
 			    AXIM_DMARW_AWQOS_OFFSET),
 			   AXIM_DMARW_AWQOS_MASK,
-			   (awqos << AXIM_DMARW_AWQOS_SHIFT));
+			   awqos << AXIM_DMARW_AWQOS_SHIFT);
 
 }
 
@@ -384,10 +385,10 @@ static void dmaw_set_axi_control(struct nxs_dmaw *dmaw)
 		(awcache << DMAW_PL0_AXI_CTRL_AWCACHE_SHIFT) |
 		(awcache << DMAW_PL1_AXI_CTRL_AWCACHE_SHIFT));
 	regmap_update_bits(dmaw->reg, dmaw->offset + DMAW_CTRL1,
-			   (DMAW_PL0_AXI_CTRL_WID_MASK |
-			    DMAW_PL1_AXI_CTRL_WID_MASK |
-			    DMAW_PL0_AXI_CTRL_AWCACHE_MASK |
-			    DMAW_PL1_AXI_CTRL_AWCACHE_MASK),
+			   DMAW_PL0_AXI_CTRL_WID_MASK |
+			   DMAW_PL1_AXI_CTRL_WID_MASK |
+			   DMAW_PL0_AXI_CTRL_AWCACHE_MASK |
+			   DMAW_PL1_AXI_CTRL_AWCACHE_MASK,
 			   value);
 }
 
@@ -405,18 +406,35 @@ static void dmaw_set_transaction_control(struct nxs_dmaw *dmaw, u32 width)
 	for (i = 0; i < NXS_DEV_MAX_PLANES; i++) {
 		/* get num of 128*16 tr and last flush 128*16 tr for plane i*/
 		bpp = dmaw_get_bpp(dmaw, i);
-		total_bit = width * bpp;
-		div = total_bit / DMAW_TR_SIZE;
-		mod = total_bit % DMAW_TR_SIZE;
-		extra = (!mod) ? 0 : 1;
-		num_of_tr = (bpp) ? (div + (extra-1)) : 0;
-		last_flush_tr = mod;
-		div = last_flush_tr / DMAW_TR_WIDTH;
-		mod = last_flush_tr % DMAW_TR_WIDTH;
-		extra = (!mod) ? 0 : 1;
-		last_flush_tr = (div + extra) ? ((div + extra) - 1) :
-			(DMAW_TR_HEIGHT - 1);
-		bit_in_last_tr = mod;
+		if (bpp % 10) {
+			total_bit = width * bpp;
+			div = total_bit / DMAW_TR_SIZE;
+			mod = total_bit % DMAW_TR_SIZE;
+			extra = (!mod) ? 0 : 1;
+			num_of_tr = (bpp) ? (div + (extra-1)) : 0;
+			last_flush_tr = mod;
+			div = last_flush_tr / DMAW_TR_WIDTH;
+			mod = last_flush_tr % DMAW_TR_WIDTH;
+			extra = (!mod) ? 0 : 1;
+			last_flush_tr = (div + extra) ? ((div + extra) - 1) :
+				(DMAW_TR_HEIGHT - 1);
+			bit_in_last_tr = mod;
+		} else {
+			total_bit = width;
+			div = total_bit / 12;
+			mod = total_bit % 12;
+			extra = (!mod) ? 120 : (mod*10);
+			bit_in_last_tr = extra;
+			if (mod)
+				num_of_tr = div + 1;
+			else
+				num_of_tr = div;
+			div = num_of_tr / 16;
+			mod = num_of_tr % 16;
+			extra = (!mod) ? 0 : 1;
+			num_of_tr = div + (extra - 1);
+			last_flush_tr = (mod == 0) ? (16 - 1) : (mod - 1);
+		}
 
 		value = bit_in_last_tr;
 		value |= ((last_flush_tr << DMAW_PL_LAST_FLUSH_128X16_TR_SHIFT)
@@ -424,7 +442,7 @@ static void dmaw_set_transaction_control(struct nxs_dmaw *dmaw, u32 width)
 		value |= ((num_of_tr << DMAW_PL_NUM_OF_128X16_TR_SHIFT)
 			  | DMAW_PL_NUM_OF_128X16_TR_MASK);
 		regmap_update_bits(dmaw->reg, dmaw->offset + DMAW_PL0_CTRL +
-				   (DMAW_PL_CTRL_OFFSET * i),
+				   DMAW_PL_CTRL_OFFSET * i,
 				   DMAW_PL_CTRL_MASK, value);
 	}
 }
@@ -656,6 +674,7 @@ static void dmaw_clear_interrupt_pending(const struct nxs_dev *pthis,
 		mask_v |= DMAW_UPDATE_INTPEND_CLR_MASK;
 		mask_v |= DMAW_DONE_INTPEND_CLR_MASK;
 	}
+
 	if (type & NXS_EVENT_ERR) {
 		mask_v |= DMAW_RESOL_ERR_INTPEND_CLR_MASK;
 		mask_v |= DMAW_DEC_ERR_INTPEND_CLR_MASK;
@@ -737,6 +756,8 @@ static int dmaw_set_dirty(const struct nxs_dev *pthis, u32 type)
 {
 	struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
 	u32 dirty_val;
+
+	dev_info(pthis->dev, "[%s]\n", __func__);
 
 	if (type != NXS_DEV_DIRTY_NORMAL)
 		return 0;
