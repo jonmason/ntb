@@ -280,6 +280,16 @@ static struct nxs_video_format supported_mplane_formats[] = {
 		.bpp		= 24,
 		.name		= "Y/CrCb 4:4:4",
 	},
+	{
+		.format		= V4L2_PIX_FMT_NX_NV12_16x16,
+		.bpp		= 24,
+		.name		= "Y/CbCr 4:2:0",
+	},
+	{
+		.format		= V4L2_PIX_FMT_NX_NV21_16x16,
+		.bpp		= 24,
+		.name		= "Y/CbCr 4:2:0",
+	},
 };
 
 /*
