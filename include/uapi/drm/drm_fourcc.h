@@ -78,6 +78,8 @@
 #define DRM_FORMAT_XBGR8888	fourcc_code('X', 'B', '2', '4') /* [31:0] x:B:G:R 8:8:8:8 little endian */
 #define DRM_FORMAT_RGBX8888	fourcc_code('R', 'X', '2', '4') /* [31:0] R:G:B:x 8:8:8:8 little endian */
 #define DRM_FORMAT_BGRX8888	fourcc_code('B', 'X', '2', '4') /* [31:0] B:G:R:x 8:8:8:8 little endian */
+#define DRM_FORMAT_RGB8888	fourcc_code('R', 'G', 'B', '4') /* [31:0] R:G:B 8:8:8:8 little endian */
+#define DRM_FORMAT_BGR8888	fourcc_code('B', 'G', 'R', '4') /* [31:0] B:G:R 8:8:8:8 little endian */
 
 #define DRM_FORMAT_ARGB8888	fourcc_code('A', 'R', '2', '4') /* [31:0] A:R:G:B 8:8:8:8 little endian */
 #define DRM_FORMAT_ABGR8888	fourcc_code('A', 'B', '2', '4') /* [31:0] A:B:G:R 8:8:8:8 little endian */
@@ -115,7 +117,11 @@
 #define DRM_FORMAT_NV61		fourcc_code('N', 'V', '6', '1') /* 2x1 subsampled Cb:Cr plane */
 #define DRM_FORMAT_NV24		fourcc_code('N', 'V', '2', '4') /* non-subsampled Cr:Cb plane */
 #define DRM_FORMAT_NV42		fourcc_code('N', 'V', '4', '2') /* non-subsampled Cb:Cr plane */
-
+/* Nexell Extension Fromat for 10Bits YUV4:2:0 Interleaved */
+/* NEXELL interleaved YYUV 10Bits bpp-15 extended */
+#define DRM_FORMAT_NX_NV12_16x16 fourcc_code('N', 'I', 'U', '0')
+/* NEXELL interleaved YYVU 10Bits bpp-15 extended */
+#define DRM_FORMAT_NX_NX21_16x16 fourcc_code('N', 'I', 'V', '0')
 /*
  * 3 plane YCbCr
  * index 0: Y plane, [7:0] Y
