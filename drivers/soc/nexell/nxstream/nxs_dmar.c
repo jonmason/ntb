@@ -482,15 +482,29 @@ static void dmar_set_block_config(struct nxs_dmar *dmar, u32 plane_num,
 	 * for the case, it can't be calculated by bpp
 	 * so it need a recalculation for 10 bit as each format
 	 */
-	if ((((width * bpp) / 8) == stride) && (!plane_num)) {
-		readbyte = stride*height;
-		count = 1;
-		readbit = 7;
+	if (bpp % 10) {
+		if ((((width * bpp) / 8) == stride) && (!plane_num)) {
+			readbyte = stride*height;
+			count = 1;
+			readbit = 7;
+		} else {
+			/* 2planes mode can't use block count '1' */
+			readbyte = ((width*bpp) / 8);
+			count = height;
+			readbit = 7;
+		}
 	} else {
-		/* 2planes mode can't use block count '1' */
-		readbyte = ((width*bpp) / 8);
+		/* 10bit mode */
+		readbyte = ((width / 3) * 4);
 		count = height;
 		readbit = 7;
+		if ((width % 3) == 1) {
+			readbyte = readbyte + 2;
+			readbit = 1;
+		} else if ((width % 3) == 2) {
+			readbyte = readbyte + 3;
+			readbit = 3;
+		}
 
 	}
 	dev_info(dmar->nxs_dev.dev,
