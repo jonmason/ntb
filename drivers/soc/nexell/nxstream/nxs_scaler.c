@@ -389,7 +389,7 @@ static int scaler_open(const struct nxs_dev *pthis)
 	struct nxs_scaler *scaler = nxs_to_scaler(pthis);
 
 	dev_info(pthis->dev, "[%s]\n", __func__);
-	if (nxs_get_open_count(&scaler->nxs_dev) == 0) {
+	if (nxs_dev_get_open_count(&scaler->nxs_dev) == 0) {
 		struct clk *clk;
 		int ret;
 		/* clock enable */
@@ -415,7 +415,7 @@ static int scaler_open(const struct nxs_dev *pthis)
 			return ret;
 		}
 	}
-	nxs_inc_open_count(&scaler->nxs_dev);
+	nxs_dev_inc_open_count(&scaler->nxs_dev);
 	return 0;
 }
 
@@ -430,8 +430,8 @@ static int scaler_close(const struct nxs_dev *pthis)
 		return -EBUSY;
 	}
 
-	nxs_dec_open_count(&scaler->nxs_dev);
-	if (nxs_get_open_count(&scaler->nxs_dev) == 0) {
+	nxs_dev_dec_open_count(&scaler->nxs_dev);
+	if (nxs_dev_get_open_count(&scaler->nxs_dev) == 0) {
 		struct clk *clk;
 
 		scaler_reset_register(scaler);
