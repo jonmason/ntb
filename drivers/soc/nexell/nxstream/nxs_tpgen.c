@@ -133,7 +133,6 @@ struct nxs_tpgen {
 	struct regmap *reg;
 	u32 offset;
 	u32 irq;
-	atomic_t open_count;
 };
 
 #define nxs_to_tpgen(dev)	container_of(dev, struct nxs_tpgen, nxs_dev)
@@ -152,16 +151,15 @@ static irqreturn_t tpgen_irq_handler(void *priv)
 	struct nxs_irq_callback *callback;
 	unsigned long flags;
 
-	spin_lock_irqsave(&nxs_dev->irq_lock, flags);
 	dev_info(tpgen->nxs_dev.dev, "[%s] pend status = 0x%x\n",
 		 __func__, tpgen_get_interrupt_pending(nxs_dev, NXS_EVENT_ALL));
-
+	tpgen_clear_interrupt_pending
+		(nxs_dev, tpgen_get_interrupt_pending_number(tpgen));
+	spin_lock_irqsave(&nxs_dev->irq_lock, flags);
 	list_for_each_entry(callback, &nxs_dev->irq_callback, list) {
 		if (callback)
 			callback->handler(nxs_dev, callback->data);
 	}
-	tpgen_clear_interrupt_pending
-		(nxs_dev, tpgen_get_interrupt_pending_number(tpgen));
 	spin_unlock_irqrestore(&nxs_dev->irq_lock, flags);
 	return IRQ_HANDLED;
 }
@@ -274,6 +272,70 @@ static int tpgen_reset_register(struct nxs_tpgen *tpgen)
 				  1 << TPGEN_REG_CLEAR_SHIFT);
 }
 
+static u32 tpgen_get_status(struct nxs_tpgen *tpgen, u32 offset, u32 mask,
+			    u32 shift)
+{
+	u32 status;
+
+	regmap_read(tpgen->reg, tpgen->offset + offset, &status);
+	return ((status & mask) >> shift);
+}
+
+static void tpgen_dump_register(const struct nxs_dev *pthis)
+{
+	struct nxs_tpgen *tpgen = nxs_to_tpgen(pthis);
+
+	dev_info(pthis->dev, "============================================\n");
+	dev_info(pthis->dev, "Tpgen Dump Register : 0x%8x\n", tpgen->offset);
+
+	dev_info(pthis->dev,
+		 "TID:%d, Enable:%d\n",
+		 tpgen_get_status(tpgen,
+				  TPGEN_CTRL,
+				  TPGEN_ENC_TID_MASK,
+				  TPGEN_ENC_TID_SHIFT),
+		 tpgen_get_status(tpgen,
+				  TPGEN_BASIC_CTRL,
+				  TPGEN_TPGEN_ENABLE_MASK,
+				  TPGEN_TPGEN_ENABLE_SHIFT));
+
+	dev_info(pthis->dev, "Tpgen Generate Mode : %d[0:color bar]\n",
+		 tpgen_get_status(tpgen,
+				  TPGEN_BASIC_CTRL,
+				  TPGEN_TPGEN_MODE_MASK,
+				  TPGEN_TPGEN_MODE_SHIFT));
+
+	dev_info(pthis->dev,
+		 "Src image type:%d(0:YUV,1:RGB,3:RAW), width:%d, height:%d\n",
+		 tpgen_get_status(tpgen,
+				  TPGEN_CTRL,
+				  TPGEN_ENC_IMG_TYPE_MASK,
+				  TPGEN_ENC_IMG_TYPE_SHIFT),
+		 tpgen_get_status(tpgen,
+				  TPGEN_IMG_SIZE,
+				  TPGEN_ENC_WIDTH_MASK,
+				  TPGEN_ENC_WIDTH_SHIFT),
+		 tpgen_get_status(tpgen,
+				  TPGEN_IMG_SIZE,
+				  TPGEN_ENC_HEIGHT_MASK,
+				  TPGEN_ENC_HEIGHT_SHIFT));
+
+	dev_info(pthis->dev, "Realtime Mode : %s\n",
+		 (tpgen_get_realtime_mode(tpgen)) ? "TRUE" : "FALSE");
+
+	dev_info(pthis->dev,
+		 "Clk per two pixel data:%d (0:1clk, 1:2clk, 2:3clk)\n",
+		 tpgen_get_status(tpgen,
+				  TPGEN_BASIC_CTRL,
+				  TPGEN_NCLK_PER_TWOPIX_MASK,
+				  TPGEN_NCLK_PER_TWOPIX_SHIFT));
+
+	dev_info(pthis->dev, "Interrupt Status:0x%x\n",
+		 tpgen_get_status(tpgen, TPGEN_INTERRUPT, 0xFFFF, 0));
+
+	dev_info(pthis->dev, "============================================\n");
+}
+
 static void tpgen_set_interrupt_enable(const struct nxs_dev *pthis,
 				       enum nxs_event_type type,
 				       bool enable)
@@ -381,7 +443,7 @@ static int tpgen_open(const struct nxs_dev *pthis)
 	struct nxs_tpgen *tpgen = nxs_to_tpgen(pthis);
 
 	dev_info(pthis->dev, "[%s]\n", __func__);
-	if (atomic_read(&tpgen->open_count) == 0) {
+	if (nxs_dev_get_open_count(&tpgen->nxs_dev) == 0) {
 		int ret;
 		/* clock enable */
 		/* reset */
@@ -394,7 +456,7 @@ static int tpgen_open(const struct nxs_dev *pthis)
 			return ret;
 		}
 	}
-	atomic_inc(&tpgen->open_count);
+	nxs_dev_inc_open_count(&tpgen->nxs_dev);
 	return 0;
 }
 
@@ -407,8 +469,9 @@ static int tpgen_close(const struct nxs_dev *pthis)
 		dev_err(pthis->dev, "tpgen is busy\n");
 		return -EBUSY;
 	}
-	atomic_dec(&tpgen->open_count);
-	if (atomic_read(&tpgen->open_count) == 0) {
+
+	nxs_dev_dec_open_count(&tpgen->nxs_dev);
+	if (nxs_dev_get_open_count(&tpgen->nxs_dev) == 0) {
 		tpgen_reset_register(tpgen);
 		free_irq(tpgen->irq, tpgen);
 		/* clock disable */
@@ -522,7 +585,6 @@ static int nxs_tpgen_probe(struct platform_device *pdev)
 	}
 	tpgen->offset = res->start;
 	tpgen->irq = platform_get_irq(pdev, 0);
-	atomic_set(&tpgen->open_count, 0);
 
 	nxs_dev->set_interrupt_enable = tpgen_set_interrupt_enable;
 	nxs_dev->get_interrupt_enable = tpgen_get_interrupt_enable;
@@ -534,6 +596,7 @@ static int nxs_tpgen_probe(struct platform_device *pdev)
 	nxs_dev->stop = tpgen_stop;
 	nxs_dev->set_dirty = tpgen_set_dirty;
 	nxs_dev->set_tid = tpgen_set_tid;
+	nxs_dev->dump_register = tpgen_dump_register;
 	nxs_dev->set_control = nxs_set_control;
 	nxs_dev->get_control = nxs_get_control;
 	nxs_dev->dev_services[0].type = NXS_CONTROL_FORMAT;
