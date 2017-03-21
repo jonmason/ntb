@@ -198,11 +198,6 @@ static struct nxs_video_format supported_formats[] = {
 		.name		= "RGB-8-8-8",
 	},
 	{
-		.format		= V4L2_PIX_FMT_BGR32,
-		.bpp		= 32,
-		.name		= "BGR-8-8-8-8",
-	},
-	{
 		.format		= V4L2_PIX_FMT_ABGR32,
 		.bpp		= 32,
 		.name		= "BGRA-8-8-8-8",
@@ -211,11 +206,6 @@ static struct nxs_video_format supported_formats[] = {
 		.format		= V4L2_PIX_FMT_XBGR32,
 		.bpp		= 32,
 		.name		= "BGRX-8-8-8-8",
-	},
-	{
-		.format		= V4L2_PIX_FMT_RGB32,
-		.bpp		= 32,
-		.name		= "RGB-8-8-8-8",
 	},
 	{
 		.format		= V4L2_PIX_FMT_ARGB32,
@@ -283,12 +273,12 @@ static struct nxs_video_format supported_mplane_formats[] = {
 	{
 		.format		= V4L2_PIX_FMT_NX_NV12_16x16,
 		.bpp		= 24,
-		.name		= "Y/CbCr 4:2:0",
+		.name		= "Y/CbCr 4:2:0(10bit, 16bit Extended)",
 	},
 	{
 		.format		= V4L2_PIX_FMT_NX_NV21_16x16,
 		.bpp		= 24,
-		.name		= "Y/CbCr 4:2:0",
+		.name		= "Y/CrCb 4:2:0(10bit, 16bit Extended)",
 	},
 };
 
