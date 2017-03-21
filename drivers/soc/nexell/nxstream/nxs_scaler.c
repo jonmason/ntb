@@ -135,7 +135,6 @@ struct nxs_scaler {
 	struct regmap *reg;
 	u32 offset;
 	u32 irq;
-	atomic_t open_count;
 };
 
 #define nxs_to_scaler(dev)	container_of(dev, struct nxs_scaler, nxs_dev)
@@ -154,17 +153,26 @@ static irqreturn_t scaler_irq_handler(void *priv)
 	struct nxs_irq_callback *callback;
 	unsigned long flags;
 
-	spin_lock_irqsave(&nxs_dev->irq_lock, flags);
 	dev_info(nxs_dev->dev, "[%s] pending status = 0x%x\n", __func__,
 		 scaler_get_interrupt_pending(nxs_dev, NXS_EVENT_ALL));
+	scaler_clear_interrupt_pending
+		(nxs_dev, scaler_get_interrupt_pending_number(scaler));
+	spin_lock_irqsave(&nxs_dev->irq_lock, flags);
 	list_for_each_entry(callback, &nxs_dev->irq_callback, list) {
 		if (callback)
 			callback->handler(nxs_dev, callback->data);
 	}
-	scaler_clear_interrupt_pending
-		(nxs_dev, scaler_get_interrupt_pending_number(scaler));
 	spin_unlock_irqrestore(&nxs_dev->irq_lock, flags);
 	return IRQ_HANDLED;
+}
+
+static u32 scaler_get_status(struct nxs_scaler *scaler, u32 offset, u32 mask,
+			     u32 shift)
+{
+	u32 status;
+
+	regmap_read(scaler->reg, scaler->offset + offset, &status);
+	return ((status & mask) >> shift);
 }
 
 static void scaler_reset_register(struct nxs_scaler *scaler)
@@ -175,6 +183,82 @@ static void scaler_reset_register(struct nxs_scaler *scaler)
 			   1 << SCALER_REG_CLEAR_SHIFT);
 }
 
+static void scaler_dump_register(const struct nxs_dev *pthis)
+{
+	struct nxs_scaler *scaler = nxs_to_scaler(pthis);
+
+	dev_info(pthis->dev, "============================================\n");
+
+	dev_info(pthis->dev, "Scaler[%d] Dump Register : 0x%8x\n",
+		 pthis->dev_inst_index, scaler->offset);
+
+	dev_info(pthis->dev,
+		 "TID:%d, Enable:%d\n",
+		 scaler_get_status(scaler,
+				   SCALER_ENC_TID,
+				   SCALER_ENC_TID_MASK,
+				   SCALER_ENC_TID_SHIFT),
+		 scaler_get_status(scaler,
+				   SCALER_SC_ENABLE,
+				   SCALER_CFG_SC_EN_MASK,
+				   SCALER_CFG_SC_EN_SHIFT));
+	dev_info(pthis->dev,
+		 "Src image width:%d, height:%d\n",
+		 scaler_get_status(scaler,
+				   SCALER_SRC_IMG_SIZE,
+				   SCALER_SRC_IMG_WIDTH_MASK,
+				   SCALER_SRC_IMG_WIDTH_SHIFT),
+		 scaler_get_status(scaler,
+				   SCALER_SRC_IMG_SIZE,
+				   SCALER_SRC_IMG_HEIGHT_MASK,
+				   SCALER_SRC_IMG_HEIGHT_SHIFT));
+	dev_info(pthis->dev,
+		 "Dst image width:%d, height:%d\n",
+		 scaler_get_status(scaler,
+				   SCALER_DST_IMG_SIZE,
+				   SCALER_DST_IMG_WIDTH_MASK,
+				   SCALER_DST_IMG_WIDTH_SHIFT),
+		 scaler_get_status(scaler,
+				   SCALER_DST_IMG_SIZE,
+				   SCALER_DST_IMG_HEIGHT_MASK,
+				   SCALER_DST_IMG_HEIGHT_SHIFT));
+	dev_info(pthis->dev,
+		 "HFilter enable:%d, VFilter enable:%d\n",
+		 scaler_get_status(scaler,
+				   SCALER_SC_FILTER_EN,
+				   SCALER_HFILTER_EN_MASK,
+				   SCALER_HFILTER_EN_SHIFT),
+		 scaler_get_status(scaler,
+				   SCALER_SC_FILTER_EN,
+				   SCALER_VFILTER_EN_MASK,
+				   SCALER_VFILTER_EN_SHIFT));
+	dev_info(pthis->dev,
+		 "Delta X:%d, Y:%d\n",
+		 scaler_get_status(scaler,
+				   SCALER_SC_DELTA_X,
+				   SCALER_SC_DELTA_X_MASK,
+				   SCALER_SC_DELTA_X_SHIFT),
+		 scaler_get_status(scaler,
+				   SCALER_SC_DELTA_Y,
+				   SCALER_SC_DELTA_Y_MASK,
+				   SCALER_SC_DELTA_Y_SHIFT));
+	dev_info(pthis->dev,
+		 "V Soft:%d, H Soft:%d\n",
+		 scaler_get_status(scaler,
+				   SCALER_SC_SOFT,
+				   SCALER_SC_V_SOFT_MASK,
+				   SCALER_SC_V_SOFT_SHIFT),
+		 scaler_get_status(scaler,
+				   SCALER_SC_SOFT,
+				   SCALER_SC_H_SOFT_MASK,
+				   SCALER_SC_H_SOFT_SHIFT));
+	dev_info(pthis->dev, "Interrupt Status:0x%x\n",
+		 scaler_get_status(scaler, SCALER_INT, 0xFFFF, 0));
+
+	dev_info(pthis->dev, "============================================\n");
+}
+
+/* SCALER DST IMG SIZE */
 static void scaler_set_interrupt_enable(const struct nxs_dev *pthis,
 					enum nxs_event_type type,
 					bool enable)
@@ -305,7 +389,7 @@ static int scaler_open(const struct nxs_dev *pthis)
 	struct nxs_scaler *scaler = nxs_to_scaler(pthis);
 
 	dev_info(pthis->dev, "[%s]\n", __func__);
-	if (atomic_read(&scaler->open_count) == 0) {
+	if (nxs_get_open_count(&scaler->nxs_dev) == 0) {
 		struct clk *clk;
 		int ret;
 		/* clock enable */
@@ -331,7 +415,7 @@ static int scaler_open(const struct nxs_dev *pthis)
 			return ret;
 		}
 	}
-	atomic_inc(&scaler->open_count);
+	nxs_inc_open_count(&scaler->nxs_dev);
 	return 0;
 }
 
@@ -345,8 +429,9 @@ static int scaler_close(const struct nxs_dev *pthis)
 		dev_err(pthis->dev, "scaler is busy\n");
 		return -EBUSY;
 	}
-	atomic_dec(&scaler->open_count);
-	if (atomic_read(&scaler->open_count) == 0) {
+
+	nxs_dec_open_count(&scaler->nxs_dev);
+	if (nxs_get_open_count(&scaler->nxs_dev) == 0) {
 		struct clk *clk;
 
 		scaler_reset_register(scaler);
@@ -609,7 +694,6 @@ static int nxs_scaler_probe(struct platform_device *pdev)
 	}
 	scaler->offset = res->start;
 	scaler->irq = platform_get_irq(pdev, 0);
-	atomic_set(&scaler->open_count, 0);
 
 	dev_info(&pdev->dev, "offset=0x%x, linebuffer size=0x%x, irq = %d\n",
 		 scaler->offset, scaler->line_buffer_size, scaler->irq);
@@ -626,6 +710,7 @@ static int nxs_scaler_probe(struct platform_device *pdev)
 	nxs_dev->set_tid = scaler_set_tid;
 	nxs_dev->set_control = nxs_set_control;
 	nxs_dev->get_control = nxs_get_control;
+	nxs_dev->dump_register = scaler_dump_register;
 	nxs_dev->dev_services[0].type = NXS_CONTROL_FORMAT;
 	nxs_dev->dev_services[0].set_control = scaler_set_format;
 	nxs_dev->dev_services[0].get_control = scaler_get_format;
