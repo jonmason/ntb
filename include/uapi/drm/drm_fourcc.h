@@ -119,7 +119,7 @@
 /* NEXELL interleaved YYUV 10Bits bpp-15 extended */
 #define DRM_FORMAT_NX_NV12_16x16 fourcc_code('N', 'I', 'U', '0')
 /* NEXELL interleaved YYVU 10Bits bpp-15 extended */
-#define DRM_FORMAT_NX_NX21_16x16 fourcc_code('N', 'I', 'V', '0')
+#define DRM_FORMAT_NX_NV21_16x16 fourcc_code('N', 'I', 'V', '0')
 /*
  * 3 plane YCbCr
  * index 0: Y plane, [7:0] Y
