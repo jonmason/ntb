@@ -199,6 +199,8 @@ struct nxs_dev {
 	atomic_t refcount;
 	u32 max_refcount;
 
+	atomic_t open_count;
+
 	void *priv;
 
 	int irq;
@@ -253,4 +255,7 @@ void nxs_dev_print(const struct nxs_dev *pthis, char *prefix);
 void nxs_dump_register(struct nxs_dev *nxs_dev,
 		       struct regmap *reg,
 		       u32 offset, u32 size);
+u32 nxs_dev_get_open_count(const struct nxs_dev *pthis);
+void nxs_dev_dec_open_count(const struct nxs_dev *pthis);
+void nxs_dev_inc_open_count(const struct nxs_dev *pthis);
 #endif

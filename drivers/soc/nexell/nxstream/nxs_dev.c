@@ -52,6 +52,21 @@ void nxs_dump_register(struct nxs_dev *nxs_dev, struct regmap *reg,
 	}
 }
 
+u32 nxs_dev_get_open_count(const struct nxs_dev *pthis)
+{
+	return atomic_read(&pthis->open_count);
+}
+
+void nxs_dev_inc_open_count(const struct nxs_dev *pthis)
+{
+	atomic_inc(&pthis->open_count);
+}
+
+void nxs_dev_dec_open_count(const struct nxs_dev *pthis)
+{
+	atomic_dec(&pthis->open_count);
+}
+
 int nxs_set_control(const struct nxs_dev *pthis, int type,
 		    const struct nxs_control *pparam)
 {
@@ -134,6 +149,7 @@ int nxs_dev_parse_dt(struct platform_device *pdev, struct nxs_dev *pthis)
 
 	atomic_set(&pthis->refcount, 0);
 	atomic_set(&pthis->connect_count, 0);
+	atomic_set(&pthis->open_count, 0);
 
 	INIT_LIST_HEAD(&pthis->list);
 	INIT_LIST_HEAD(&pthis->func_list);
