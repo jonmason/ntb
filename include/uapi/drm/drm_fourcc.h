@@ -78,8 +78,6 @@
 #define DRM_FORMAT_XBGR8888	fourcc_code('X', 'B', '2', '4') /* [31:0] x:B:G:R 8:8:8:8 little endian */
 #define DRM_FORMAT_RGBX8888	fourcc_code('R', 'X', '2', '4') /* [31:0] R:G:B:x 8:8:8:8 little endian */
 #define DRM_FORMAT_BGRX8888	fourcc_code('B', 'X', '2', '4') /* [31:0] B:G:R:x 8:8:8:8 little endian */
-#define DRM_FORMAT_RGB8888	fourcc_code('R', 'G', 'B', '4') /* [31:0] R:G:B 8:8:8:8 little endian */
-#define DRM_FORMAT_BGR8888	fourcc_code('B', 'G', 'R', '4') /* [31:0] B:G:R 8:8:8:8 little endian */
 
 #define DRM_FORMAT_ARGB8888	fourcc_code('A', 'R', '2', '4') /* [31:0] A:R:G:B 8:8:8:8 little endian */
 #define DRM_FORMAT_ABGR8888	fourcc_code('A', 'B', '2', '4') /* [31:0] A:B:G:R 8:8:8:8 little endian */
