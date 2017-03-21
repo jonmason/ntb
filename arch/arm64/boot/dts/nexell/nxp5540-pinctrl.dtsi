@@ -177,4 +177,81 @@
 		};
 	};
 
+	/* serial */
+	serial0_pin:serial0 {
+		nexell,pins = "gpioe-24", "gpioe-25";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	serial1_pin:serial1 {
+		nexell,pins = "gpioe-26", "gpioe-27";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	serial1_flow:serial1_flow {
+		nexell,pins = "gpioe-28", "gpioe-29";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	serial2_pin:serial2 {
+		nexell,pins = "gpioe-30", "gpioe-31";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	serial2_flow:serial2_flow {
+		nexell,pins = "gpiof-0", "gpiof-1";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	serial3_pin:serial3 {
+		nexell,pins = "gpiof-2", "gpiof-3";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	serial4_pin:serial4 {
+		nexell,pins = "gpiof-4", "gpiof-5";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	serial5_pin:serial5 {
+		nexell,pins = "gpiof-6", "gpiof-7";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	serial6_pin:serial6 {
+		nexell,pins = "gpiof-8", "gpiof-9";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <1>;
+	};
+
+	serial7_pin:serial7 {
+		nexell,pins = "gpiof-10", "gpiof-11";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
+
+	serial8_pin:serial8 {
+		nexell,pins = "gpiof-12", "gpiof-13";
+		nexell,pin-function = <1>;
+		nexell,pin-pull = <2>;
+		nexell,pin-strength = <0>;
+	};
 };
