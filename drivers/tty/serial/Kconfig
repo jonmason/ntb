@@ -239,7 +239,7 @@ config SERIAL_CLPS711X_CONSOLE
 
 config SERIAL_SAMSUNG
 	tristate "Samsung SoC serial support"
-	depends on PLAT_SAMSUNG || ARCH_EXYNOS || ARCH_S5P6818
+ 	depends on PLAT_SAMSUNG || ARCH_EXYNOS || ARCH_S5P6818 || ARCH_NXP5540
 	select SERIAL_CORE
 	help
 	  Support for the on-chip UARTs on the Samsung S3C24XX series CPUs,
@@ -257,6 +257,7 @@ config SERIAL_SAMSUNG_UARTS_4
 config SERIAL_SAMSUNG_UARTS
 	int
 	depends on SERIAL_SAMSUNG
+	default 8 if ARCH_NXP5540
 	default 6 if ARCH_S5P6818
 	default 4 if SERIAL_SAMSUNG_UARTS_4 || CPU_S3C2416
 	default 3
