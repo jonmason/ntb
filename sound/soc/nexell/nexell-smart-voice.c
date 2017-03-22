@@ -241,6 +241,9 @@ static inline void __pin_stop(void)
 	pin = &svoice_pins[SVI_PIN_PDM_ISRUN];
 	val = readl(pin->base) & ~(1 << pin->offset);
 	writel(val, pin->base);
+
+	pr_debug("%s [gpio_%c.%02d] %s\n", __func__,
+		('A' + pin->group), pin->offset, pin->property);
 }
 
 static void __pin_nolrck(void *data)
@@ -272,13 +275,15 @@ static int svoice_start(struct svoice_snd *snd)
 		sv->type == SVI_DEV_SPI ?
 			__spi_clear(sv) : __i2s_clear(sv);
 
-	lrck = __pin_start(snd);
-
 	/* start */
 	list_for_each_entry(sv, &snd->list, list)
 		sv->type == SVI_DEV_SPI ?
 			__spi_start(sv) : __i2s_start(sv);
 
+	/* last set 'is run' gpio */
+	lrck = __pin_start(snd);
+
+	/* read LRCK status */
 	val = readl(pin->base + 0x18) & (1 << pin->offset);
 
 	pr_info("Smart Voice LRCK: %s (%s)\n",
@@ -597,9 +602,6 @@ static int svoice_setup(struct platform_device *pdev,
 			return -EINVAL;
 		}
 
-		if (strstr(pin->property, "spi-cs-gpio"))
-			__spi_cs_free();
-
 		dev_info(dev, "[gpio_%c.%02d] %s, %s\n",
 			('A' + pin->group), pin->offset, pin->property,
 			pin->output ? "out" : "status");
@@ -612,6 +614,9 @@ static int svoice_setup(struct platform_device *pdev,
 
 	INIT_LIST_HEAD(&snd->list);
 	spin_lock_init(&snd->lock);
+
+	/* stop pdm in */
+	__pin_stop();
 
 	dev_set_drvdata(&pdev->dev, snd);
 

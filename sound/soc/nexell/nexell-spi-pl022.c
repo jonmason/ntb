@@ -219,7 +219,7 @@ static int pl022_dma_config(struct pl022_snd *pl022)
 	dma->dfs = 0;
 
 	dev_dbg(pl022->dev, "spi-rx: %s dma, 0x%p, bus %dbyte, burst %dbyte\n",
-		 STREAM_STR(0), (void *)dma->peri_addr, dma->bus_width_byte,
+		 STREAM_STR(1), (void *)dma->peri_addr, dma->bus_width_byte,
 		 dma->max_burst_byte);
 
 	return 0;
