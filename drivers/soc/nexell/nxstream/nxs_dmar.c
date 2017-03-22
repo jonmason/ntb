@@ -271,7 +271,6 @@ struct nxs_dmar {
 	u32 offset;
 	u32 irq;
 	bool is_m2m;
-	atomic_t open_count;
 };
 
 #define nxs_to_dmar(dev)	container_of(dev, struct nxs_dmar, nxs_dev)
@@ -309,15 +308,15 @@ static irqreturn_t dmar_irq_handler(void *priv)
 	struct nxs_irq_callback *callback;
 	unsigned long flags;
 
-	spin_lock_irqsave(&nxs_dev->irq_lock, flags);
 	dev_info(nxs_dev->dev, "[%s] pend_status = 0x%x\n", __func__,
 		 dmar_get_interrupt_pending(nxs_dev, NXS_EVENT_ALL));
+	dmar_clear_interrupt_pending(nxs_dev,
+				     dmar_get_interrupt_pending_number(dmar));
+	spin_lock_irqsave(&nxs_dev->irq_lock, flags);
 	list_for_each_entry(callback, &nxs_dev->irq_callback, list) {
 		if (callback)
 			callback->handler(nxs_dev, callback->data);
 	}
-	dmar_clear_interrupt_pending(nxs_dev,
-				     dmar_get_interrupt_pending_number(dmar));
 	spin_unlock_irqrestore(&nxs_dev->irq_lock, flags);
 	return IRQ_HANDLED;
 }
@@ -430,8 +429,7 @@ static void dmar_set_img_type(struct nxs_dmar *dmar, u32 type)
 			   type << DMAR_IMG_TYPE_SHIFT);
 }
 
-static void dmar_set_size(struct nxs_dmar *dmar, u32 mplane,
-			  u32 width, u32 height)
+static void dmar_set_size(struct nxs_dmar *dmar, u32 width, u32 height)
 {
 	dev_info(dmar->nxs_dev.dev, "[%s]\n", __func__);
 	regmap_write(dmar->reg, dmar->offset + DMAR_CTRL2,
@@ -520,6 +518,182 @@ static void dmar_set_block_config(struct nxs_dmar *dmar, u32 plane_num,
 		     dmar->offset + bit_offset +
 		     (buffer_index * DMAR_PLANE_CONFIG_SIZE),
 		     value);
+}
+
+static u32 dmar_get_status(struct nxs_dmar *dmar, u32 offset, u32 mask,
+			     u32 shift)
+{
+	u32 status;
+
+	regmap_read(dmar->reg, dmar->offset + offset, &status);
+	return ((status & mask) >> shift);
+}
+
+static void dmar_dump_register(const struct nxs_dev *pthis)
+{
+	struct nxs_dmar *dmar = nxs_to_dmar(pthis);
+	int i, plane_num = 1;
+
+	dev_info(pthis->dev, "============================================\n");
+	dev_info(pthis->dev, "DMAR[%d] Dump Register : 0x%8x\n",
+		 pthis->dev_inst_index, dmar->offset);
+
+	dev_info(pthis->dev,
+		 "TID:%d, Enable:%d, is_m2m:%d\n",
+		 dmar_get_status(dmar,
+				 DMAR_CTRL1,
+				 DMAR_TID_MASK,
+				 DMAR_TID_SHIFT),
+		 dmar_get_status(dmar,
+				 DMAR_CTRL0,
+				 DMAR_CPU_START_MASK,
+				 DMAR_CPU_START_SHIFT),
+		 dmar->is_m2m);
+
+	dev_info(pthis->dev,
+		 "Image type:%s, width:%d, height:%d\n",
+		 (dmar_get_img_type(dmar)) ? "RGB" : "YUV",
+		 dmar_get_status(dmar,
+				 DMAR_CTRL2,
+				 DMAR_DMAR_WIDTH_MASK,
+				 DMAR_DMAR_WIDTH_SHIFT),
+		 dmar_get_status(dmar,
+				 DMAR_CTRL2,
+				 DMAR_DMAR_HEIGHT_MASK,
+				 DMAR_DMAR_HEIGHT_SHIFT));
+
+	dev_info(pthis->dev,
+		 "Color Expand Enable:%d, Dither Enable:%d, Put Dummy:%d\n",
+		 dmar_get_status(dmar,
+				 DMAR_DIT,
+				 DMAR_COLOR_EXPAND_MASK,
+				 DMAR_COLOR_EXPAND_SHIFT),
+		 dmar_get_status(dmar,
+				 DMAR_DIT,
+				 DMAR_COLOR_DITHER_MASK,
+				 DMAR_COLOR_DITHER_SHIFT),
+		 dmar_get_status(dmar,
+				 DMAR_FORMAT0,
+				 DMAR_PUT_DUMMY_TYPE_MASK,
+				 DMAR_PUT_DUMMY_TYPE_SHIFT));
+
+	dev_info(pthis->dev,
+		 "[1st plane] Total Bitwidth:%d, Half Height enable:%d\n",
+		 dmar_get_status(dmar,
+				 DMAR_FORMAT0,
+				 DMAR_TOTAL_BITWIDTH_1ST_PL_MASK,
+				 DMAR_TOTAL_BITWIDTH_1ST_PL_SHIFT),
+		 dmar_get_status(dmar,
+				 DMAR_CTRL59,
+				 DMAR_1P_HALF_HEIGHT_MASK,
+				 DMAR_1P_HALF_HEIGHT_SHIFT));
+
+	for (i = 0; i < DMAR_P_COMP_COUNT; i++) {
+		dev_info(pthis->dev,
+			 "[%d] start:%d, width:%d, is_2nd:%d userdef:%d-%d\n",
+			 i,
+			 dmar_get_status(dmar,
+					 DMAR_P0_COMP0 + (i * DMAR_P_COMP_SIZE),
+					 DMAR_P_COMP_STARTBIT_MASK,
+					 DMAR_P_COMP_STARTBIT_SHIFT),
+			 dmar_get_status(dmar,
+					 DMAR_P0_COMP0 + (i * DMAR_P_COMP_SIZE),
+					 DMAR_P_COMP_BITWIDTH_MASK,
+					 DMAR_P_COMP_BITWIDTH_SHIFT),
+			 dmar_get_status(dmar,
+					 DMAR_P0_COMP0 + (i * DMAR_P_COMP_SIZE),
+					 DMAR_P_COMP_IS_2ND_PL_MASK,
+					 DMAR_P_COMP_IS_2ND_PL_SHIFT),
+			 dmar_get_status(dmar,
+					 DMAR_P0_COMP0 + (i * DMAR_P_COMP_SIZE),
+					 DMAR_P_COMP_USE_USERDEF_MASK,
+					 DMAR_P_COMP_USE_USERDEF_SHIFT),
+			 dmar_get_status(dmar,
+					 DMAR_P0_COMP0 + (i * DMAR_P_COMP_SIZE),
+					 DMAR_P_COMP_USERDEF_MASK,
+					 DMAR_P_COMP_USERDEF_SHIFT));
+	}
+
+	dev_info(pthis->dev,
+		 "[2nd Plane] Total Bitwidth :%d, Half Height Enable:%d\n",
+		 dmar_get_status(dmar,
+				 DMAR_FORMAT0,
+				 DMAR_TOTAL_BITWIDTH_2ND_PL_MASK,
+				 DMAR_TOTAL_BITWIDTH_2ND_PL_SHIFT),
+		 dmar_get_status(dmar,
+				 DMAR_CTRL59,
+				 DMAR_2P_HALF_HEIGHT_MASK,
+				 DMAR_2P_HALF_HEIGHT_SHIFT));
+
+	for (i = 0; i < DMAR_P_COMP_COUNT; i++) {
+		dev_info(pthis->dev,
+			 "[%d] start:%d, width:%d, is_2nd:%d userdef:%d-%d\n",
+			 i,
+			 dmar_get_status(dmar,
+					 DMAR_P1_COMP0 + (i * DMAR_P_COMP_SIZE),
+					 DMAR_P_COMP_STARTBIT_MASK,
+					 DMAR_P_COMP_STARTBIT_SHIFT),
+			 dmar_get_status(dmar,
+					 DMAR_P1_COMP0 + (i * DMAR_P_COMP_SIZE),
+					 DMAR_P_COMP_BITWIDTH_MASK,
+					 DMAR_P_COMP_BITWIDTH_SHIFT),
+			 dmar_get_status(dmar,
+					 DMAR_P1_COMP0 + (i * DMAR_P_COMP_SIZE),
+					 DMAR_P_COMP_IS_2ND_PL_MASK,
+					 DMAR_P_COMP_IS_2ND_PL_SHIFT),
+			 dmar_get_status(dmar,
+					 DMAR_P1_COMP0 + (i * DMAR_P_COMP_SIZE),
+					 DMAR_P_COMP_USE_USERDEF_MASK,
+					 DMAR_P_COMP_USE_USERDEF_SHIFT),
+			 dmar_get_status(dmar,
+					 DMAR_P1_COMP0 + (i * DMAR_P_COMP_SIZE),
+					 DMAR_P_COMP_USERDEF_MASK,
+					 DMAR_P_COMP_USERDEF_SHIFT));
+	}
+	if (dmar_get_status(dmar, DMAR_FORMAT0,
+			    DMAR_TOTAL_BITWIDTH_2ND_PL_MASK,
+			    DMAR_TOTAL_BITWIDTH_2ND_PL_SHIFT))
+		plane_num = 2;
+
+	dev_info(pthis->dev,
+		 "Field:%s, Num of Planes:%d\n",
+		 (dmar_get_field(dmar)) ? "Interlaced" : "Progressive",
+		 plane_num);
+
+	for (i = 0; i < plane_num; i++) {
+		dev_info(pthis->dev,
+			 "[PlaneNum:%d] address:0x%8x, stride:%d\n",
+			 i,
+			 dmar_get_status(dmar,
+					 (DMAR_CTRL3 +
+					 (i * DMAR_PLANE_CONFIG_SIZE)),
+					 0xFFFF, 0),
+			 dmar_get_status(dmar,
+					 (DMAR_CTRL11 +
+					 (i * DMAR_PLANE_CONFIG_SIZE)),
+					 0xFFFF, 0));
+		dev_info(pthis->dev,
+			 "Block Read Byte:%d, Bit:%d, Count:%d\n",
+			 dmar_get_status(dmar,
+					 (DMAR_CTRL19 +
+					  (i * DMAR_PLANE_CONFIG_SIZE)),
+					 0xFFFF, 0),
+			 dmar_get_status(dmar,
+					 (DMAR_CTRL27 +
+					 (i * DMAR_PLANE_CONFIG_SIZE)),
+					 DMAR_BLOCK_READBIT_MASK,
+					 DMAR_BLOCK_READBIT_SHIFT),
+			 dmar_get_status(dmar,
+					 (DMAR_CTRL27 +
+					 (i * DMAR_PLANE_CONFIG_SIZE)),
+					 DMAR_BLOCK_COUNT_MASK,
+					 DMAR_BLOCK_COUNT_SHIFT));
+	}
+
+	dev_info(pthis->dev, "Interrupt Status:0x%x\n",
+		 dmar_get_status(dmar, DMAR_INT, 0xFFFF, 0));
+
+	dev_info(pthis->dev, "============================================\n");
 }
 
 static void dmar_set_interrupt_enable(const struct nxs_dev *pthis,
@@ -626,9 +800,10 @@ static int dmar_open(const struct nxs_dev *pthis)
 	struct nxs_dmar *dmar = nxs_to_dmar(pthis);
 
 	dev_info(pthis->dev, "[%s]\n", __func__);
-	if (atomic_read(&dmar->open_count) == 0) {
+	if (nxs_dev_get_open_count(&dmar->nxs_dev) == 0) {
 		int ret;
 		struct clk *clk;
+
 		/* clock enable */
 		clk = clk_get(pthis->dev, "dmar");
 		if (IS_ERR(clk)) {
@@ -653,7 +828,7 @@ static int dmar_open(const struct nxs_dev *pthis)
 		}
 #endif
 	}
-	atomic_inc(&dmar->open_count);
+	nxs_dev_inc_open_count(&dmar->nxs_dev);
 	return 0;
 }
 
@@ -670,8 +845,9 @@ static int dmar_close(const struct nxs_dev *pthis)
 		dev_err(pthis->dev, "dmar status is busy\n");
 		return -EBUSY;
 	}
-	atomic_dec(&dmar->open_count);
-	if (atomic_read(&dmar->open_count) == 0) {
+
+	nxs_dev_dec_open_count(&dmar->nxs_dev);
+	if (nxs_dev_get_open_count(&dmar->nxs_dev) == 0) {
 		struct clk *clk;
 
 		dmar_reset_register(dmar);
@@ -785,6 +961,7 @@ static void dmar_set_plane_format_config(struct nxs_dmar *dmar,
 	u32 value = 0, i;
 
 	nxs_print_plane_format(&dmar->nxs_dev, config);
+
 	/* set color expand and color dither */
 	if (config->color_expand)
 		value |= ((config->color_expand << DMAR_COLOR_EXPAND_SHIFT) |
@@ -795,6 +972,7 @@ static void dmar_set_plane_format_config(struct nxs_dmar *dmar,
 	regmap_update_bits(dmar->reg, dmar->offset + DMAR_DIT,
 			   DMAR_COLOR_EXPAND_MASK | DMAR_COLOR_DITHER_MASK,
 			   value);
+
 	/* dmar total bitwidth and half height configuration */
 	value = ((config->total_bitwidth_1st_pl <<
 		DMAR_TOTAL_BITWIDTH_1ST_PL_SHIFT) |
@@ -802,6 +980,10 @@ static void dmar_set_plane_format_config(struct nxs_dmar *dmar,
 	value |= ((config->total_bitwidth_2nd_pl <<
 		DMAR_TOTAL_BITWIDTH_2ND_PL_SHIFT) |
 		 DMAR_TOTAL_BITWIDTH_2ND_PL_MASK);
+	/* setting put dummy type */
+	if (config->put_dummy_type)
+		value |= ((config->put_dummy_type << DMAR_PUT_DUMMY_TYPE_SHIFT)
+			  | DMAR_PUT_DUMMY_TYPE_MASK);
 	regmap_update_bits(dmar->reg, dmar->offset + DMAR_FORMAT0,
 			   DMAR_TOTAL_BITWIDTH_1ST_PL_MASK |
 			   DMAR_TOTAL_BITWIDTH_2ND_PL_MASK,
@@ -822,6 +1004,7 @@ static void dmar_set_plane_format_config(struct nxs_dmar *dmar,
 			   DMAR_1P_HALF_HEIGHT_MASK |
 			   DMAR_2P_HALF_HEIGHT_MASK,
 			   value);
+
 	/* 1st plane - p composition */
 	for (i = 0; i < DMAR_P_COMP_COUNT; i++) {
 		value = ((config->p0_comp[i].startbit <<
@@ -843,6 +1026,7 @@ static void dmar_set_plane_format_config(struct nxs_dmar *dmar,
 			     (i * DMAR_P_COMP_SIZE),
 			     value);
 	}
+
 	/* 2nd plane - p composition */
 	for (i = 0; i < DMAR_P_COMP_COUNT; i++) {
 		value = ((config->p1_comp[i].startbit <<
@@ -874,7 +1058,7 @@ static int dmar_set_format(const struct nxs_dev *pthis,
 {
 	struct nxs_dmar *dmar = nxs_to_dmar(pthis);
 	u32 format = pparam->u.format.pixelformat;
-	u32 width, height, planes = 0;
+	u32 width, height;
 	struct nxs_plane_format config;
 
 	dev_info(pthis->dev, "[%s] widht = %d, height = %d, format = 0x%x\n",
@@ -897,7 +1081,7 @@ static int dmar_set_format(const struct nxs_dev *pthis,
 		 (config.img_type)?"RGB" : "YUV", width, height,
 		 (config.total_bitwidth_2nd_pl) ? "true" : "false");
 	dmar_set_img_type(dmar, config.img_type);
-	dmar_set_size(dmar, planes, width, height);
+	dmar_set_size(dmar, width, height);
 	dmar_set_plane_format_config(dmar, &config);
 
 	return 0;
@@ -911,8 +1095,8 @@ static int dmar_get_format(const struct nxs_dev *pthis,
 
 	dev_info(pthis->dev, "[%s]\n", __func__);
 	img_type = dmar_get_img_type(dmar);
-	dev_info(pthis->dev, "image type = [%d:%s]\n",
-		 (img_type)?"YUV":"RGB");
+	dev_info(pthis->dev, "image type = %s\n",
+		 (img_type)?"RGB":"YUV");
 	/* pparam->u.format.pixelformat; */
 	return 0;
 }
@@ -1051,7 +1235,6 @@ static int nxs_dmar_probe(struct platform_device *pdev)
 	}
 	dmar->offset = res->start;
 	dmar->irq = platform_get_irq(pdev, 0);
-	atomic_set(&dmar->open_count, 0);
 	dmar->is_m2m = false;
 
 	nxs_dev->set_interrupt_enable = dmar_set_interrupt_enable;
@@ -1064,6 +1247,7 @@ static int nxs_dmar_probe(struct platform_device *pdev)
 	nxs_dev->stop = dmar_stop;
 	nxs_dev->set_dirty = dmar_set_dirty;
 	nxs_dev->set_tid = dmar_set_tid;
+	nxs_dev->dump_register = dmar_dump_register;
 	nxs_dev->set_control = nxs_set_control;
 	nxs_dev->get_control = nxs_get_control;
 	nxs_dev->dev_services[0].type = NXS_CONTROL_FORMAT;
