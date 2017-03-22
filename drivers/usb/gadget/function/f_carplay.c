@@ -1123,8 +1123,7 @@ requeue_req:
 	}
 
 	/* wait for a request to complete */
-	ret = wait_event_interruptible_timeout(dev->read_wq, dev->rx_done,
-				       msecs_to_jiffies(1000));
+	ret = wait_event_interruptible(dev->read_wq, dev->rx_done);
 	if (ret < 0) {
 		if (ret != -ERESTARTSYS)
 			dev->error = 1;
@@ -1133,10 +1132,6 @@ requeue_req:
 		goto done;
 	}
 	if (!dev->error) {
-		if (ret == 0) {
-			r = -EAGAIN;
-			goto done;
-		}
 		/* If we got a 0-len packet, throw it back and try again. */
 		if (req->actual == 0)
 			goto requeue_req;
@@ -1245,6 +1240,7 @@ static int iap_open(struct inode *ip, struct file *fp)
 			usb_gadget_disconnect(cdev->gadget);
 			/* Cancel pending control requests */
 			usb_ep_dequeue(cdev->gadget->ep0, cdev->req);
+			dev->online = 0;
 		}
 		gether_sysunreg();
 		iap_unlock(&_iap_dev->open_excl);
@@ -1930,6 +1926,32 @@ static void iap_function_free(struct usb_function *f)
 	mutex_unlock(&opts->lock);
 }
 
+static void iap_function_suspend(struct usb_function *f)
+{
+	struct f_carplay *carplay;
+	struct f_carplay_opts *opts;
+	struct iap_dev	*dev = func_to_iap(f);
+
+	pr_debug("iap_function_suspend\n");
+
+	carplay = func_to_iap(f);
+	opts = container_of(f->fi, struct f_carplay_opts, func_inst);
+
+	if (dev->online) {
+		dev->rx_done = 1;
+		dev->error = 1;
+		wake_up(&dev->read_wq);
+	} else {
+		misc_deregister(&iap_device);
+		device_destroy(android_class, dev->dev->devt);
+		class_destroy(android_class);
+		kfree(carplay);
+		mutex_lock(&opts->lock);
+		opts->refcnt--;
+		mutex_unlock(&opts->lock);
+	}
+}
+
 /*-------------------------------------------------------------------------*/
 
 /* ethernet function driver setup/binding */
@@ -2182,6 +2204,7 @@ static struct usb_function *carplay_alloc(struct usb_function_instance *fi)
 	dev->function.setup = iap_function_setup;
 	dev->function.disable = iap_function_disable;
 	dev->function.free_func = iap_function_free;
+	dev->function.suspend = iap_function_suspend;
 
 	dev->port.wrap = ncm_wrap_ntb;
 	dev->port.unwrap = ncm_unwrap_ntb;
