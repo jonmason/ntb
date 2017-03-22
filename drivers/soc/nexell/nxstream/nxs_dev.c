@@ -31,8 +31,8 @@
 #include <linux/soc/nexell/nxs_sysctl.h>
 #include <linux/soc/nexell/nxs_dev.h>
 
-void nxs_dump_register(struct nxs_dev *nxs_dev, struct regmap *reg,
-		       u32 offset, u32 size)
+void nxs_dev_dump_register(struct nxs_dev *nxs_dev, struct regmap *reg,
+			   u32 offset, u32 size)
 {
 	if (nxs_get_trace_mode()) {
 		u32 i = 0, status = 0;

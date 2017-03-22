@@ -252,7 +252,7 @@ int nxs_dev_register_irq_callback(struct nxs_dev *pthis, u32 type,
 int nxs_dev_unregister_irq_callback(struct nxs_dev *pthis, u32 type,
 				    struct nxs_irq_callback *callback);
 void nxs_dev_print(const struct nxs_dev *pthis, char *prefix);
-void nxs_dump_register(struct nxs_dev *nxs_dev,
+void nxs_dev_dump_register(struct nxs_dev *nxs_dev,
 		       struct regmap *reg,
 		       u32 offset, u32 size);
 u32 nxs_dev_get_open_count(const struct nxs_dev *pthis);
