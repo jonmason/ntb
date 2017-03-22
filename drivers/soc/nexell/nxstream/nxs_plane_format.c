@@ -513,7 +513,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		 */
 		config->img_type = NXS_IMG_YUV;
 		config->total_bitwidth_1st_pl = 16;
-		config->total_bitwidth_1st_pl = 32;
+		config->total_bitwidth_2nd_pl = 32;
 		config->p0_comp[0].startbit = 0;
 		config->p0_comp[0].bitwidth = 8;
 		config->p0_comp[1].startbit = 0;
@@ -540,7 +540,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		/* bpp = 24 */
 		config->img_type = NXS_IMG_YUV;
 		config->total_bitwidth_1st_pl = 16;
-		config->total_bitwidth_1st_pl = 32;
+		config->total_bitwidth_2nd_pl = 32;
 		config->p0_comp[0].startbit = 0;
 		config->p0_comp[0].bitwidth = 8;
 		config->p0_comp[1].startbit = 8;
