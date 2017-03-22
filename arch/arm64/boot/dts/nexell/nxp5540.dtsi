@@ -127,6 +127,17 @@
 			reg	= <0xC0009000 0x1000>, <0xC000a000 0x100>;
 		};
 
+		timer@20620000 {
+			compatible = "nexell,s5p6818-timer";
+			reg = <PHYS_BASE_TIMER 0x1000>;
+			interrupts = <0 IRQ_TIMER0_INT1 0>;
+			clksource = <0>;
+			clkevent = <1>;
+			clocks =  <&cmu_sys_core TIMER0_TCLK>,
+				<&cmu_sys_core TIMER1_TCLK>;
+			clock-names = "timer0", "timer1";
+		};
+
 		nxp5540_reset:reset {
 			#reset-cells = <2>;
 			compatible = "nexell,nxp5540-reset";
