@@ -1812,6 +1812,7 @@ commit:
 
 	return 0;
 }
+EXPORT_SYMBOL(__drm_atomic_helper_set_config);
 
 /**
  * drm_atomic_helper_crtc_set_property - helper for crtc properties
