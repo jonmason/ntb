@@ -31,7 +31,7 @@ static bool fb_format_bgr;
 MODULE_PARM_DESC(fb_bgr, "frame buffer BGR pixel format");
 module_param_named(fb_bgr, fb_format_bgr, bool, 0600);
 
-#ifdef CONFIG_DRM_NX_FB_DISPLAY
+#ifdef CONFIG_DRM_NX_FB_PAN_DISPLAY
 static int fb_buffer_count = 1;
 static bool fb_vblank_wait;
 static uint fb_pan_crtcs = 0xff;
@@ -162,7 +162,7 @@ static int nx_drm_fb_pre_logo(struct drm_fb_helper *fb_helper)
 }
 #endif
 
-#ifdef CONFIG_DRM_NX_FB_DISPLAY
+#ifdef CONFIG_DRM_NX_FB_PAN_DISPLAY
 static void nx_drm_fb_pan_wait_for_vblanks(struct drm_device *dev,
 		struct drm_atomic_state *old_state)
 {
@@ -658,7 +658,7 @@ static int nx_drm_fb_helper_probe(struct drm_fb_helper *fb_helper,
 	drm_fb_helper_fill_var(info, fb_helper,
 			sizes->fb_width, sizes->fb_height);
 
-#ifdef CONFIG_DRM_NX_FB_DISPLAY
+#ifdef CONFIG_DRM_NX_FB_PAN_DISPLAY
 	/* for double buffer */
 	info->var.yres_virtual = fb->height * buffers;
 	if (buffers > 0)
@@ -725,7 +725,7 @@ static int nx_drm_framebuffer_dev_init(struct drm_device *drm,
 
 	nx_fbdev->fb_buffers = 1;
 
-#ifdef CONFIG_DRM_NX_FB_DISPLAY
+#ifdef CONFIG_DRM_NX_FB_PAN_DISPLAY
 	if (fb_buffer_count > 0)
 		nx_fbdev->fb_buffers = fb_buffer_count;
 

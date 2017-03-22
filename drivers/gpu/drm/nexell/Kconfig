@@ -102,7 +102,7 @@ config DRM_CHECK_IOCTL_AUTH
 
 	  If in doubt, say "Y".
 
-config DRM_NX_FB_DISPLAY
+config DRM_NX_FB_PAN_DISPLAY
 	bool "Support pan display for DRM frame buffer"
 	depends on DRM_NX
 	default y
