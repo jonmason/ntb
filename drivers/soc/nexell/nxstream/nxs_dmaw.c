@@ -135,6 +135,7 @@
 #define DMAW_P_COMP_USERDEF_SHIFT		0
 #define DMAW_P_COMP_USERDEF_MASK		GENMASK(10, 0)
 #define DMAW_P_COMP_SIZE			0x10
+#define DMAW_P_COMP_COUNT			4
 
 /* DMAW - PL0 CTRL - offset : 0x5044 */
 /* DMAW - PL1 CTRL - offset : 0x5058 */
@@ -231,7 +232,6 @@ struct nxs_dmaw {
 	u32 offset;
 	u32 irq;
 	bool is_m2m;
-	atomic_t open_count;
 };
 
 #define nxs_to_dmaw(dev)	container_of(dev, struct nxs_dmaw, nxs_dev)
@@ -271,15 +271,16 @@ static irqreturn_t dmaw_irq_handler(void *priv)
 	struct nxs_irq_callback *callback;
 	unsigned long flags;
 
-	spin_lock_irqsave(&nxs_dev->irq_lock, flags);
 	dev_info(nxs_dev->dev, "[%s] pending status = 0x%x\n", __func__,
 		 dmaw_get_interrupt_pending(nxs_dev, NXS_EVENT_ALL));
+	dmaw_clear_interrupt_pending(nxs_dev,
+				     dmaw_get_interrupt_pending_number(dmaw));
+
+	spin_lock_irqsave(&nxs_dev->irq_lock, flags);
 	list_for_each_entry(callback, &nxs_dev->irq_callback, list) {
 		if (callback)
 			callback->handler(nxs_dev, callback->data);
 	}
-	dmaw_clear_interrupt_pending(nxs_dev,
-				     dmaw_get_interrupt_pending_number(dmaw));
 	spin_unlock_irqrestore(&nxs_dev->irq_lock, flags);
 	return IRQ_HANDLED;
 }
@@ -338,7 +339,8 @@ static void dmaw_set_dpc_mode(struct nxs_dmaw *dmaw, bool enable)
 
 static void dmaw_set_interlaced_mode(struct nxs_dmaw *dmaw, bool enable)
 {
-	dev_info(dmaw->nxs_dev.dev, "[%s] %s\n", (enable)?"enable":"disable");
+	dev_info(dmaw->nxs_dev.dev, "[%s] %s\n", __func__,
+		 (enable) ? "enable" : "disable");
 	regmap_update_bits(dmaw->reg, dmaw->offset + DMAW_CTRL1,
 			   DMAW_EN_INTERLACE_MODE_MASK,
 			   enable << DMAW_EN_INTERLACE_MODE_SHIFT);
@@ -346,7 +348,8 @@ static void dmaw_set_interlaced_mode(struct nxs_dmaw *dmaw, bool enable)
 
 static void dmaw_set_start(struct nxs_dmaw *dmaw, bool enable)
 {
-	dev_info(dmaw->nxs_dev.dev, "[%s] %s\n", (enable)?"enable":"disable");
+	dev_info(dmaw->nxs_dev.dev, "[%s] %s\n", __func__,
+		 (enable) ? "enable" : "disable");
 	regmap_update_bits(dmaw->reg, dmaw->offset + DMAW_CTRL0,
 			   DMAW_EN_START_MASK, enable << DMAW_EN_START_SHIFT);
 
@@ -453,6 +456,7 @@ static void dmaw_set_plane_format(struct nxs_dmaw *dmaw,
 	u32 value = 0, i;
 
 	nxs_print_plane_format(&dmaw->nxs_dev, config);
+
 	/* set color expand and color dither */
 	if (config->color_expand)
 		value |= ((config->color_expand << DMAW_EN_EXPANDER_SHIFT) |
@@ -462,19 +466,20 @@ static void dmaw_set_plane_format(struct nxs_dmaw *dmaw,
 		value |= ((config->color_dither << DMAW_EN_DITHER_SHIFT) |
 			DMAW_EN_DITHER_MASK);
 	/*
-	 * enable addr fitting if the img_type is not bayer fomrat and not 10bit
-	 * format
+	 * enable addr fitting if the img_type is not bayer format
+	 * and not 10bit format
 	 */
-	if ((config->img_type != NXS_IMG_RAW) && (!config->color_dither))
+	if ((config->img_type != NXS_IMG_RAW) && (config->put_dummy_type))
 		value |= ((1 << DMAW_EN_ADDR_FITTING_SHIFT) |
 			  DMAW_EN_ADDR_FITTING_MASK);
-
 	regmap_update_bits(dmaw->reg, dmaw->offset + DMAW_CTRL1,
-			   DMAW_EN_EXPANDER_MASK | DMAW_EN_DITHER_MASK,
+			   (DMAW_EN_EXPANDER_MASK | DMAW_EN_DITHER_MASK |
+			    DMAW_EN_ADDR_FITTING_MASK),
 			   value);
+
 	/* half height setting */
-	value |= ((config->half_height_1st_pl <<
-		DMAW_HALF_HEIGHT_1ST_PL_SHIFT) |
+	value = ((config->half_height_1st_pl <<
+		  DMAW_HALF_HEIGHT_1ST_PL_SHIFT) |
 		 DMAW_HALF_HEIGHT_1ST_PL_MASK);
 	value |= ((config->half_height_2nd_pl <<
 		DMAW_HALF_HEIGHT_2ND_PL_SHIFT) |
@@ -486,17 +491,17 @@ static void dmaw_set_plane_format(struct nxs_dmaw *dmaw,
 	if (config->put_dummy_type)
 		value |= ((config->put_dummy_type << DMAW_PUT_DUMMY_TYPE_SHIFT)
 			  | DMAW_PUT_DUMMY_TYPE_MASK);
-
 	/* total bitwidth setting */
-	value = ((config->total_bitwidth_1st_pl <<
+	value |= ((config->total_bitwidth_1st_pl <<
 		DMAW_TOTAL_BITWIDTH_1ST_PL_SHIFT) |
 		 DMAW_TOTAL_BITWIDTH_1ST_PL_MASK);
 	value |= ((config->total_bitwidth_2nd_pl <<
 		DMAW_TOTAL_BITWIDTH_2ND_PL_SHIFT) |
 		 DMAW_TOTAL_BITWIDTH_2ND_PL_MASK);
 	regmap_write(dmaw->reg, dmaw->offset + DMAW_CTRL2, value);
+
 	/* 1st plane - p composition */
-	for (i = 0; i < NXS_DEV_MAX_FIELDS; i++) {
+	for (i = 0; i < DMAW_P_COMP_COUNT; i++) {
 		value = ((config->p0_comp[i].startbit <<
 			  DMAW_P_COMP_STARTBIT_SHIFT)
 			 | DMAW_P_COMP_STARTBIT_MASK);
@@ -517,7 +522,7 @@ static void dmaw_set_plane_format(struct nxs_dmaw *dmaw,
 			     value);
 	}
 	/* 2nd plane - p composition */
-	for (i = 0; i < NXS_DEV_MAX_FIELDS; i++) {
+	for (i = 0; i < DMAW_P_COMP_COUNT; i++) {
 		value = ((config->p1_comp[i].startbit <<
 			  DMAW_P_COMP_STARTBIT_SHIFT)
 			 | DMAW_P_COMP_STARTBIT_MASK);
@@ -538,6 +543,177 @@ static void dmaw_set_plane_format(struct nxs_dmaw *dmaw,
 			     value);
 	}
 }
+
+static u32 dmaw_get_status(struct nxs_dmaw *dmaw, u32 offset, u32 mask,
+			     u32 shift)
+{
+	u32 status;
+
+	regmap_read(dmaw->reg, dmaw->offset + offset, &status);
+	return ((status & mask) >> shift);
+}
+
+static void dmaw_dump_register(const struct nxs_dev *pthis)
+{
+	struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
+	int i, plane_num = 1;
+
+	dev_info(pthis->dev, "============================================\n");
+	dev_info(pthis->dev, "DMAW[%d] Dump Register : 0x%8x\n",
+		 pthis->dev_inst_index, dmaw->offset);
+
+	dev_info(pthis->dev,
+		 "Enable:%d, is_m2m:%d\n",
+		 dmaw_get_status(dmaw,
+				 DMAW_CTRL0,
+				 DMAW_EN_START_MASK,
+				 DMAW_EN_START_SHIFT),
+		 dmaw->is_m2m);
+
+	dev_info(pthis->dev,
+		 "Image width:%d, height:%d\n",
+		 dmaw_get_status(dmaw,
+				 DMAW_SRC_IMG_SIZE,
+				 DMAW_SRC_IMG_WIDTH_MASK,
+				 DMAW_SRC_IMG_WIDTH_SHIFT),
+		 dmaw_get_status(dmaw,
+				 DMAW_SRC_IMG_SIZE,
+				 DMAW_SRC_IMG_HEIGHT_MASK,
+				 DMAW_SRC_IMG_HEIGHT_SHIFT));
+
+	dev_info(pthis->dev,
+		 "Coler Expand Enable:%d, Dither Enable:%d\n",
+		 dmaw_get_status(dmaw,
+				 DMAW_CTRL1,
+				 DMAW_EN_EXPANDER_MASK,
+				 DMAW_EN_EXPANDER_SHIFT),
+		 dmaw_get_status(dmaw,
+				 DMAW_CTRL1,
+				 DMAW_EN_DITHER_MASK,
+				 DMAW_EN_DITHER_SHIFT));
+
+	dev_info(pthis->dev,
+		 "Put Dummy Type:%d, Use Average Value Enable:%d\n",
+		 dmaw_get_status(dmaw,
+				 DMAW_CTRL2,
+				 DMAW_PUT_DUMMY_TYPE_MASK,
+				 DMAW_PUT_DUMMY_TYPE_SHIFT),
+		 dmaw_get_status(dmaw,
+				 DMAW_CTRL2,
+				 DMAW_USE_AVERAGE_VALUE_MASK,
+				 DMAW_USE_AVERAGE_VALUE_SHIFT));
+
+	dev_info(pthis->dev,
+		 "[1st plane] Total Bitwidth:%d, Half Height enable:%d\n",
+		 dmaw_get_status(dmaw,
+				 DMAW_CTRL2,
+				 DMAW_TOTAL_BITWIDTH_1ST_PL_MASK,
+				 DMAW_TOTAL_BITWIDTH_1ST_PL_SHIFT),
+		 dmaw_get_status(dmaw,
+				 DMAW_CTRL2,
+				 DMAW_HALF_HEIGHT_1ST_PL_MASK,
+				 DMAW_HALF_HEIGHT_1ST_PL_SHIFT));
+
+	for (i = 0; i < DMAW_P_COMP_COUNT; i++) {
+		dev_info(pthis->dev,
+			 "[%d] start:%d, width:%d, is_2nd:%d userdef:%d-%d\n",
+			 i,
+			 dmaw_get_status(dmaw,
+					 DMAW_P0_COMP0 + (i * DMAW_P_COMP_SIZE),
+					 DMAW_P_COMP_STARTBIT_MASK,
+					 DMAW_P_COMP_STARTBIT_SHIFT),
+			 dmaw_get_status(dmaw,
+					 DMAW_P0_COMP0 + (i * DMAW_P_COMP_SIZE),
+					 DMAW_P_COMP_BITWIDTH_MASK,
+					 DMAW_P_COMP_BITWIDTH_SHIFT),
+			 dmaw_get_status(dmaw,
+					 DMAW_P0_COMP0 + (i * DMAW_P_COMP_SIZE),
+					 DMAW_P_COMP_IS_2ND_PL_MASK,
+					 DMAW_P_COMP_IS_2ND_PL_SHIFT),
+			 dmaw_get_status(dmaw,
+					 DMAW_P0_COMP0 + (i * DMAW_P_COMP_SIZE),
+					 DMAW_P_COMP_USE_USERDEF_MASK,
+					 DMAW_P_COMP_USE_USERDEF_SHIFT),
+			 dmaw_get_status(dmaw,
+					 DMAW_P0_COMP0 + (i * DMAW_P_COMP_SIZE),
+					 DMAW_P_COMP_USERDEF_MASK,
+					 DMAW_P_COMP_USERDEF_SHIFT));
+	}
+
+	dev_info(pthis->dev,
+		 "[1st plane] Total Bitwidth:%d, Half Height enable:%d\n",
+		 dmaw_get_status(dmaw,
+				 DMAW_CTRL2,
+				 DMAW_TOTAL_BITWIDTH_2ND_PL_MASK,
+				 DMAW_TOTAL_BITWIDTH_2ND_PL_SHIFT),
+		 dmaw_get_status(dmaw,
+				 DMAW_CTRL2,
+				 DMAW_HALF_HEIGHT_2ND_PL_MASK,
+				 DMAW_HALF_HEIGHT_2ND_PL_SHIFT));
+
+	for (i = 0; i < DMAW_P_COMP_COUNT; i++) {
+		dev_info(pthis->dev,
+			 "[%d] start:%d, width:%d, is_2nd:%d userdef:%d-%d\n",
+			 i,
+			 dmaw_get_status(dmaw,
+					 DMAW_P1_COMP0 + (i * DMAW_P_COMP_SIZE),
+					 DMAW_P_COMP_STARTBIT_MASK,
+					 DMAW_P_COMP_STARTBIT_SHIFT),
+			 dmaw_get_status(dmaw,
+					 DMAW_P1_COMP0 + (i * DMAW_P_COMP_SIZE),
+					 DMAW_P_COMP_BITWIDTH_MASK,
+					 DMAW_P_COMP_BITWIDTH_SHIFT),
+			 dmaw_get_status(dmaw,
+					 DMAW_P1_COMP0 + (i * DMAW_P_COMP_SIZE),
+					 DMAW_P_COMP_IS_2ND_PL_MASK,
+					 DMAW_P_COMP_IS_2ND_PL_SHIFT),
+			 dmaw_get_status(dmaw,
+					 DMAW_P1_COMP0 + (i * DMAW_P_COMP_SIZE),
+					 DMAW_P_COMP_USE_USERDEF_MASK,
+					 DMAW_P_COMP_USE_USERDEF_SHIFT),
+			 dmaw_get_status(dmaw,
+					 DMAW_P1_COMP0 + (i * DMAW_P_COMP_SIZE),
+					 DMAW_P_COMP_USERDEF_MASK,
+					 DMAW_P_COMP_USERDEF_SHIFT));
+	}
+
+	if (dmaw_get_status(dmaw, DMAW_CTRL2,
+			    DMAW_TOTAL_BITWIDTH_2ND_PL_MASK,
+			    DMAW_TOTAL_BITWIDTH_2ND_PL_SHIFT))
+		plane_num = 2;
+	dev_info(pthis->dev, "Num of Planes:%d\n", plane_num);
+
+	for (i = 0; i < plane_num; i++) {
+		dev_info(pthis->dev,
+			 "[PlaneNum:%d] address:0x%8x, stride:%d\n",
+			 dmaw_get_status(dmaw,
+					 (DMAW_PL0_BASEADDR +
+					 (i * DMAW_PL_CONFIG_SIZE)),
+					 0xFFFF, 0),
+			 dmaw_get_status(dmaw,
+					 (DMAW_PL0_STRIDE +
+					 (i * DMAW_PL_CONFIG_SIZE)),
+					 0xFFFF, 0));
+		dev_info(pthis->dev,
+			 "Last_flush of Transaction:%d, the Num of Transactions:%d\n",
+			 dmaw_get_status(dmaw,
+					 (DMAW_PL0_CTRL +
+					  (DMAW_PL_CTRL_OFFSET * i)),
+					 DMAW_PL_LAST_FLUSH_128X16_TR_MASK,
+					 DMAW_PL_LAST_FLUSH_128X16_TR_SHIFT),
+			 dmaw_get_status(dmaw,
+					 (DMAW_PL0_CTRL +
+					  (DMAW_PL_CTRL_OFFSET * i)),
+					 DMAW_PL_NUM_OF_128X16_TR_MASK,
+					 DMAW_PL_NUM_OF_128X16_TR_SHIFT));
+	}
+
+	dev_info(pthis->dev, "Interrupt Status:0x%x\n",
+		 dmaw_get_status(dmaw, DMAW_INT, 0xFFFF, 0));
+
+	dev_info(pthis->dev, "============================================\n");
+}
+
 
 static void dmaw_set_interrupt_enable(const struct nxs_dev *pthis,
 				      enum nxs_event_type type,
@@ -691,11 +867,13 @@ static int dmaw_open(const struct nxs_dev *pthis)
 	struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
 
 	dev_info(pthis->dev, "[%s]\n", __func__);
-	if (atomic_read(&dmaw->open_count) == 0) {
+	if (nxs_dev_get_open_count(&dmaw->nxs_dev) == 0) {
 		int ret;
 		struct clk *clk;
+		char dev_name[10] = {0, };
 
-		clk = clk_get(pthis->dev, "dmaw");
+		sprintf(dev_name, "dmaw%d", pthis->dev_inst_index);
+		clk = clk_get(pthis->dev, dev_name);
 		if (IS_ERR(clk)) {
 			dev_err(pthis->dev, "controller clock not fount\n");
 			return -ENODEV;
@@ -706,10 +884,7 @@ static int dmaw_open(const struct nxs_dev *pthis)
 				"clock failed to prepare enable:%d\n", ret);
 			return ret;
 		}
-		/* reset */
-#ifdef SIMULATE_INTERRUPT
-		setup_timer(&dmaw->timer, int_timer_func, (long)dmaw);
-#else
+#ifndef SIMULATE_INTERRUPT
 		ret = request_irq(dmaw->irq, dmaw_irq_handler,
 				  IRQF_TRIGGER_NONE, "nxs-dmaw", dmaw);
 		if (ret < 0) {
@@ -718,7 +893,10 @@ static int dmaw_open(const struct nxs_dev *pthis)
 		}
 #endif
 	}
-	atomic_inc(&dmaw->open_count);
+#ifdef SIMULATE_INTERRUPT
+	setup_timer(&dmaw->timer, int_timer_func, (long)dmaw);
+#endif
+	nxs_dev_inc_open_count(&dmaw->nxs_dev);
 	return 0;
 }
 
@@ -727,22 +905,27 @@ static int dmaw_close(const struct nxs_dev *pthis)
 	struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
 
 	dev_info(pthis->dev, "[%s]\n", __func__);
+#ifdef SIMULATE_INTERRUPT
+	if (list_empty(&pthis->irq_callback))
+		del_timer(&dmaw->timer);
+#endif
+
 	if (dmaw_check_busy(dmaw)) {
 		dev_err(pthis->dev, "dmaw is busy status\n");
 		return -EBUSY;
 	}
-	atomic_dec(&dmaw->open_count);
-	if (atomic_read(&dmaw->open_count) == 0) {
+
+	nxs_dev_dec_open_count(&dmaw->nxs_dev);
+	if (nxs_dev_get_open_count(&dmaw->nxs_dev) == 0) {
 		struct clk *clk;
+		char dev_name[10] = {0, };
 
 		dmaw_reset_register(dmaw);
-#ifdef SIMULATE_INTERRUPT
-		if (list_empty(&pthis->irq_callback))
-			del_timer(&dmaw->timer);
-#else
+#ifndef SIMULATE_INTERRUPT
 		free_irq(dmaw->irq, dmaw);
 #endif
-		clk = clk_get(pthis->dev, "dmaw");
+		sprintf(dev_name, "dmaw%d", pthis->dev_inst_index);
+		clk = clk_get(pthis->dev, dev_name);
 		if (IS_ERR(clk)) {
 			dev_err(pthis->dev, "controller clock not found\n");
 			return -ENODEV;
@@ -817,6 +1000,7 @@ static int dmaw_start(const struct nxs_dev *pthis)
 #endif
 	dmaw_set_dpc_mode(dmaw, ~(dmaw->is_m2m));
 	dmaw_set_start(dmaw, true);
+
 	return 0;
 }
 
@@ -824,12 +1008,14 @@ static int dmaw_stop(const struct nxs_dev *pthis)
 {
 	struct nxs_dmaw *dmaw = nxs_to_dmaw(pthis);
 
+	dev_info(pthis->dev, "[%s]\n", __func__);
+
 #ifdef SIMULATE_INTERRUPT
 	del_timer(&dmaw->timer);
 #endif
-	dev_info(pthis->dev, "[%s]\n", __func__);
 	dmaw_set_dpc_mode(dmaw, false);
 	dmaw_set_start(dmaw, false);
+
 	return 0;
 }
 
@@ -953,7 +1139,6 @@ static int nxs_dmaw_probe(struct platform_device *pdev)
 	}
 	dmaw->offset = res->start;
 	dmaw->irq = platform_get_irq(pdev, 0);
-	atomic_set(&dmaw->open_count, 0);
 	dmaw->is_m2m = false;
 
 	nxs_dev->set_interrupt_enable = dmaw_set_interrupt_enable;
@@ -965,6 +1150,7 @@ static int nxs_dmaw_probe(struct platform_device *pdev)
 	nxs_dev->start = dmaw_start;
 	nxs_dev->stop = dmaw_stop;
 	nxs_dev->set_dirty = dmaw_set_dirty;
+	nxs_dev->dump_register = dmaw_dump_register;
 	nxs_dev->set_control = nxs_set_control;
 	nxs_dev->get_control = nxs_get_control;
 	nxs_dev->dev_services[0].type = NXS_CONTROL_DST_FORMAT;
