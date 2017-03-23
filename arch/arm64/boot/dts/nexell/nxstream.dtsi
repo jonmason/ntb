@@ -85,8 +85,6 @@
 			tid = <NXS_TID_DEFAULT>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -103,8 +101,6 @@
 			tid = <NXS_TID_DEFAULT>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -121,8 +117,6 @@
 			tid = <NXS_TID_DEFAULT>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -139,8 +133,6 @@
 			tid = <NXS_TID_DEFAULT>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -157,8 +149,6 @@
 			tid = <NXS_TID_DEFAULT>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -175,8 +165,6 @@
 			tid = <NXS_TID_DEFAULT>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -193,8 +181,6 @@
 			tid = <NXS_TID_DEFAULT>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -211,8 +197,6 @@
 			tid = <NXS_TID_DEFAULT>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -229,8 +213,6 @@
 			tid = <NXS_TID_DEFAULT>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -247,8 +229,6 @@
 			tid = <NXS_TID_DEFAULT>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -264,8 +244,6 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_DMAW>;
 			tid = <NXS_TID_DMAW0>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -280,8 +258,6 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_DMAW>;
 			tid = <NXS_TID_DMAW1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -296,8 +272,6 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_DMAW>;
 			tid = <NXS_TID_DMAW2>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -312,8 +286,6 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_DMAW>;
 			tid = <NXS_TID_DMAW3>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -328,8 +300,6 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_DMAW>;
 			tid = <NXS_TID_DMAW4>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -344,8 +314,6 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_DMAW>;
 			tid = <NXS_TID_DMAW5>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -360,8 +328,6 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_DMAW>;
 			tid = <NXS_TID_DMAW6>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -376,8 +342,6 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_DMAW>;
 			tid = <NXS_TID_DMAW7>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -392,8 +356,6 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_DMAW>;
 			tid = <NXS_TID_DMAW8>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -408,8 +370,6 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_DMAW>;
 			tid = <NXS_TID_DMAW9>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -424,8 +384,6 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_DMAW>;
 			tid = <NXS_TID_DMAW10>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -440,8 +398,6 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_DMAW>;
 			tid = <NXS_TID_DMAW11>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -456,8 +412,6 @@
 			tid = <NXS_TID_DEFAULT>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -472,8 +426,6 @@
 			tid = <NXS_TID_DEFAULT>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -488,8 +440,6 @@
 			tid = <NXS_TID_DEFAULT>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -504,8 +454,6 @@
 			tid = <NXS_TID_DEFAULT>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -520,8 +468,6 @@
 			tid = <NXS_TID_DEFAULT>;
 			max_refcount = <2>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -536,8 +482,6 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_CROPPER>;
 			tid = <NXS_TID_CROP0>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -552,8 +496,6 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_CROPPER>;
 			tid = <NXS_TID_CROP1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -569,8 +511,6 @@
 			function = <NXS_FUNCTION_MULTITAP>;
 			tid = <NXS_TID_MULTITAP0>;
 			max_refcount = <2>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -586,8 +526,6 @@
 			function = <NXS_FUNCTION_MULTITAP>;
 			tid = <NXS_TID_MULTITAP1>;
 			max_refcount = <2>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -603,8 +541,6 @@
 			function = <NXS_FUNCTION_MULTITAP>;
 			tid = <NXS_TID_MULTITAP2>;
 			max_refcount = <2>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -620,8 +556,6 @@
 			function = <NXS_FUNCTION_MULTITAP>;
 			tid = <NXS_TID_MULTITAP3>;
 			max_refcount = <2>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -638,8 +572,6 @@
 			tid = <NXS_TID_SCALER0>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			line_buffer_size = <4096>; /* scaler specific */
 			status = "disabled";
 		};
@@ -657,8 +589,6 @@
 			tid = <NXS_TID_SCALER1>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			line_buffer_size = <4096>; /* scaler specific */
 			status = "disabled";
 		};
@@ -676,8 +606,6 @@
 			tid = <NXS_TID_SCALER2>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			line_buffer_size = <5376>; /* scaler specific */
 			status = "disabled";
 		};
@@ -693,8 +621,6 @@
 			tid = <NXS_TID_DEFAULT>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -709,8 +635,6 @@
 			tid = <NXS_TID_DEFAULT>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -727,8 +651,6 @@
 			tid = <NXS_TID_DEFAULT>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -744,8 +666,6 @@
 			tid2 = <NXS_TID_BLENDER0_SCREEN>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -761,8 +681,6 @@
 			tid2 = <NXS_TID_BLENDER1_SCREEN>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -778,8 +696,6 @@
 			tid2 = <NXS_TID_BLENDER2_SCREEN>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -795,8 +711,6 @@
 			tid2 = <NXS_TID_BLENDER3_SCREEN>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -812,8 +726,6 @@
 			tid2 = <NXS_TID_BLENDER4_SCREEN>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -829,8 +741,6 @@
 			tid2 = <NXS_TID_BLENDER5_SCREEN>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -846,8 +756,6 @@
 			tid2 = <NXS_TID_BLENDER6_SCREEN>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -863,8 +771,6 @@
 			tid2 = <NXS_TID_BLENDER7_SCREEN>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -881,8 +787,6 @@
 			tid = <NXS_TID_HUE0>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -899,8 +803,6 @@
 			tid = <NXS_TID_HUE1>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -917,8 +819,6 @@
 			tid = <NXS_TID_GAMMA0>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -935,8 +835,6 @@
 			tid = <NXS_TID_GAMMA1>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -953,8 +851,6 @@
 			tid = <NXS_TID_FIFO0>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -971,8 +867,6 @@
 			tid = <NXS_TID_FIFO1>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -989,8 +883,6 @@
 			tid = <NXS_TID_FIFO2>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -1007,8 +899,6 @@
 			tid = <NXS_TID_FIFO3>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -1025,8 +915,6 @@
 			tid = <NXS_TID_FIFO4>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -1043,8 +931,6 @@
 			tid = <NXS_TID_FIFO5>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -1061,8 +947,6 @@
 			tid = <NXS_TID_FIFO6>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -1079,8 +963,6 @@
 			tid = <NXS_TID_FIFO7>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -1097,8 +979,6 @@
 			tid = <NXS_TID_FIFO8>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -1115,8 +995,6 @@
 			tid = <NXS_TID_FIFO9>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -1133,8 +1011,6 @@
 			tid = <NXS_TID_FIFO10>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -1151,8 +1027,6 @@
 			tid = <NXS_TID_FIFO11>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -1167,8 +1041,6 @@
 			function = <NXS_FUNCTION_MAPCONV>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -1185,8 +1057,6 @@
 			tid = <NXS_TID_CSC0>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -1203,8 +1073,6 @@
 			tid = <NXS_TID_CSC1>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -1221,8 +1089,6 @@
 			tid = <NXS_TID_CSC2>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -1239,8 +1105,6 @@
 			tid = <NXS_TID_CSC3>;
 			max_refcount = <1>;
 			can_multitap_follow = <1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -1253,8 +1117,6 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_DPC>;
 			tid = <NXS_TID_DPC0>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -1266,8 +1128,6 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_DPC>;
 			tid = <NXS_TID_DPC1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -1280,8 +1140,6 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_LVDS>;
 			tid = <NXS_TID_LVDS0>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -1293,8 +1151,6 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_LVDS>;
 			tid = <NXS_TID_LVDS1>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -1309,8 +1165,6 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_MIPI_DSI>;
 			tid = <NXS_TID_MIPI_DSI>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -1325,8 +1179,6 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_HDMI>;
 			tid = <NXS_TID_HDMI>;
-			/* reset */
-			/* clock */
 			status = "disabled";
 		};
 
@@ -1346,8 +1198,6 @@
                         version = <0x0100>;
                         function = <NXS_FUNCTION_ISP>;
                         tid = <NXS_TID_ISP>;
-                        /* reset */
-                        /* clock */
                         status = "disabled";
                 };
 

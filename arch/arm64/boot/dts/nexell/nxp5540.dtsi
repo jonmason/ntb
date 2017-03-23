@@ -242,7 +242,7 @@
 			clock-names = "uart", "clk_uart_baud0";
 			clocks = <&cmu_bbus UART0_APB_CLK>,
 			       <&cmu_bbus_core UART0_CORE_CLK>;
-			resets  = <&nxp5540_reset RESET_ID_UART_0_APB>,
+			resets = <&nxp5540_reset RESET_ID_UART_0_APB>,
 				<&nxp5540_reset RESET_ID_UART_0_CORE>;
 			reset-names = "uart-reset";
 			pinctrl-names = "default";
@@ -257,7 +257,7 @@
 			clock-names = "uart", "clk_uart_baud0";
 			clocks = <&cmu_bbus UART1_APB_CLK>,
 			       <&cmu_bbus_core UART1_CORE_CLK>;
-			resets  = <&nxp5540_reset RESET_ID_UART_1_APB>,
+			resets = <&nxp5540_reset RESET_ID_UART_1_APB>,
 				<&nxp5540_reset RESET_ID_UART_1_CORE>;
 			reset-names = "uart-reset";
 			pinctrl-names = "default";
@@ -272,7 +272,7 @@
 			clock-names = "uart", "clk_uart_baud0";
 			clocks = <&cmu_bbus UART2_APB_CLK>,
 			       <&cmu_bbus_core UART2_CORE_CLK>;
-			resets  = <&nxp5540_reset RESET_ID_UART_2_APB>,
+			resets = <&nxp5540_reset RESET_ID_UART_2_APB>,
 				<&nxp5540_reset RESET_ID_UART_2_CORE>;
 			reset-names = "uart-reset";
 			pinctrl-names = "default";
@@ -287,7 +287,7 @@
 			clock-names = "uart", "clk_uart_baud0";
 			clocks = <&cmu_bbus UART3_APB_CLK>,
 			       <&cmu_bbus_core UART3_CORE_CLK>;
-			resets  = <&nxp5540_reset RESET_ID_UART_3_APB>,
+			resets = <&nxp5540_reset RESET_ID_UART_3_APB>,
 				<&nxp5540_reset RESET_ID_UART_3_CORE>;
 			reset-names = "uart-reset";
 			pinctrl-names = "default";
@@ -302,7 +302,7 @@
 			clock-names = "uart", "clk_uart_baud0";
 			clocks = <&cmu_bbus UART4_APB_CLK>,
 			       <&cmu_bbus_core UART4_CORE_CLK>;
-			resets  = <&nxp5540_reset RESET_ID_UART_4_APB>,
+			resets = <&nxp5540_reset RESET_ID_UART_4_APB>,
 				<&nxp5540_reset RESET_ID_UART_4_CORE>;
 			reset-names = "uart-reset";
 			pinctrl-names = "default";
@@ -317,7 +317,7 @@
 			clock-names = "uart", "clk_uart_baud0";
 			clocks = <&cmu_bbus UART5_APB_CLK>,
 			       <&cmu_bbus_core UART5_CORE_CLK>;
-			resets  = <&nxp5540_reset RESET_ID_UART_5_APB>,
+			resets = <&nxp5540_reset RESET_ID_UART_5_APB>,
 				<&nxp5540_reset RESET_ID_UART_5_CORE>;
 			reset-names = "uart-reset";
 			pinctrl-names = "default";
@@ -332,7 +332,7 @@
 			clock-names = "uart", "clk_uart_baud0";
 			clocks = <&cmu_bbus UART6_APB_CLK>,
 			       <&cmu_bbus_core UART6_CORE_CLK>;
-			resets  = <&nxp5540_reset RESET_ID_UART_6_APB>,
+			resets = <&nxp5540_reset RESET_ID_UART_6_APB>,
 				<&nxp5540_reset RESET_ID_UART_6_CORE>;
 			reset-names = "uart-reset";
 			pinctrl-names = "default";
@@ -347,7 +347,7 @@
 			clock-names = "uart", "clk_uart_baud0";
 			clocks = <&cmu_bbus UART7_APB_CLK>,
 			       <&cmu_bbus_core UART7_CORE_CLK>;
-			resets  = <&nxp5540_reset RESET_ID_UART_7_APB>,
+			resets = <&nxp5540_reset RESET_ID_UART_7_APB>,
 				<&nxp5540_reset RESET_ID_UART_7_CORE>;
 			reset-names = "uart-reset";
 			pinctrl-names = "default";
@@ -362,7 +362,7 @@
 			clock-names = "uart", "clk_uart_baud0";
 			clocks = <&cmu_bbus UART8_APB_CLK>,
 			       <&cmu_bbus_core UART8_CORE_CLK>;
-			resets  = <&nxp5540_reset RESET_ID_UART_8_APB>,
+			resets = <&nxp5540_reset RESET_ID_UART_8_APB>,
 				<&nxp5540_reset RESET_ID_UART_8_CORE>;
 			reset-names = "uart-reset";
 			pinctrl-names = "default";
@@ -446,6 +446,577 @@
 			status = "disabled";
 		};
 	}; /*** soc ***/
+};
+
+&dmar0 {
+	clock-names = "dmar0";
+	clocks = <&cmu_disp DMAR_0_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DMAR_0_AXI>;
+	reset-names = "DMAR0-reset";
+};
+
+&dmar1 {
+	clock-names = "dmar1";
+	clocks = <&cmu_disp DMAR_1_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DMAR_1_AXI>;
+	reset-names = "DMAR1-reset";
+};
+
+&dmar2 {
+	clock-names = "dmar2";
+	clocks = <&cmu_disp DMAR_2_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DMAR_2_AXI>;
+	reset-names = "DMAR2-reset";
+};
+
+&dmar3 {
+	clock-names = "dmar3";
+	clocks = <&cmu_disp DMAR_3_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DMAR_3_AXI>;
+	reset-names = "DMAR3-reset";
+};
+
+&dmar4 {
+	clock-names = "dmar4";
+	clocks = <&cmu_disp DMAR_4_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DMAR_4_AXI>;
+	reset-names = "DMAR4-reset";
+};
+
+&dmar5 {
+	clock-names = "dmar5";
+	clocks = <&cmu_disp DMAR_5_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DMAR_5_AXI>;
+	reset-names = "DMAR5-reset";
+};
+
+&dmar6 {
+	clock-names = "dmar6";
+	clocks = <&cmu_disp DMAR_6_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DMAR_6_AXI>;
+	reset-names = "DMAR6-reset";
+};
+
+&dmar7 {
+	clock-names = "dmar7";
+	clocks = <&cmu_disp DMAR_7_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DMAR_7_AXI>;
+	reset-names = "DMAR7-reset";
+};
+
+&dmar8 {
+	clock-names = "dmar8";
+	clocks = <&cmu_disp DMAR_8_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DMAR_8_AXI>;
+	reset-names = "DMAR8-reset";
+};
+
+&dmar9 {
+	clock-names = "dmar9";
+	clocks = <&cmu_disp DMAR_9_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DMAR_9_AXI>;
+	reset-names = "DMAR9-reset";
+};
+
+&dmaw0 {
+	clock-names = "dmaw0";
+	clocks = <&cmu_disp DMAW_0_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DMAW_0_AXI>;
+	reset-names = "DMAW0-reset";
+};
+
+&dmaw1 {
+	clock-names = "dmaw1";
+	clocks = <&cmu_disp DMAW_1_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DMAW_1_AXI>;
+	reset-names = "DMAW1-reset";
+
+};
+
+&dmaw2 {
+	clock-names = "dmaw2";
+	clocks = <&cmu_disp DMAW_2_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DMAW_2_AXI>;
+	reset-names = "DMAW2-reset";
+};
+
+&dmaw3 {
+	clock-names = "dmaw3";
+	clocks = <&cmu_disp DMAW_3_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DMAW_3_AXI>;
+	reset-names = "DMAW3-reset";
+};
+
+&dmaw4 {
+	clock-names = "dmaw4";
+	clocks = <&cmu_disp DMAW_4_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DMAW_4_AXI>;
+	reset-names = "DMAW4-reset";
+};
+
+&dmaw5 {
+	clock-names = "dmaw5";
+	clocks = <&cmu_disp DMAW_5_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DMAW_5_AXI>;
+	reset-names = "DMAW5-reset";
+};
+
+&dmaw6 {
+	clock-names = "dmaw6";
+	clocks = <&cmu_disp DMAW_6_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DMAW_6_AXI>;
+	reset-names = "DMAW6-reset";
+};
+
+&dmaw7 {
+	clock-names = "dmaw7";
+	clocks = <&cmu_disp DMAW_7_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DMAW_7_AXI>;
+	reset-names = "DMAW7-reset";
+};
+
+&dmaw8 {
+	clock-names = "dmaw8";
+	clocks = <&cmu_disp DMAW_8_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DMAW_8_AXI>;
+	reset-names = "DMAW8-reset";
+};
+
+&dmaw9 {
+	clock-names = "dmaw9";
+	clocks = <&cmu_disp DMAW_9_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DMAW_9_AXI>;
+	reset-names = "DMAW9-reset";
+};
+
+
+&dmaw10 {
+	clock-names = "dmaw10";
+	clocks = <&cmu_disp DMAW_10_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DMAW_10_AXI>;
+	reset-names = "DMAW10-reset";
+};
+
+&dmaw11 {
+	clock-names = "dmaw11";
+	clocks = <&cmu_disp DMAW_11_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DMAW_11_AXI>;
+	reset-names = "DMAW11-reset";
+};
+
+&vip0 {
+	clock-names = "vip0";
+	clocks = <&cmu_disp VIP_0_AXI_CLK>,
+		 <&cmu_disp VIP_CPUIF_0_AXI_CLK>,
+		 <&cmu_disp VIP_PRES_CPUIF_0_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_VIP_0_AXI>;
+	reset-names = "vip0-reset";
+};
+
+&vip1 {
+	clock-names = "vip1";
+	clocks = <&cmu_disp VIP_1_AXI_CLK>,
+		 <&cmu_disp VIP_CPUIF_0_AXI_CLK>,
+		 <&cmu_disp VIP_PRES_CPUIF_0_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_VIP_1_AXI>;
+	reset-names = "vip1-reset";
+};
+
+&vip2 {
+	clock-names = "vip2";
+	clocks = <&cmu_disp VIP_2_AXI_CLK>,
+		 <&cmu_disp VIP_CPUIF_0_AXI_CLK>,
+		 <&cmu_disp VIP_PRES_CPUIF_0_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_VIP_2_AXI>;
+	reset-names = "vip2-reset";
+
+};
+
+&vip3 {
+	clock-names = "vip3";
+	clocks = <&cmu_disp VIP_3_AXI_CLK>,
+		 <&cmu_disp VIP_CPUIF_0_AXI_CLK>,
+		 <&cmu_disp VIP_PRES_CPUIF_0_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_VIP_3_AXI>;
+	reset-names = "vip3-reset";
+};
+
+&mipi_csi {
+	clock-names = "mipi-csi";
+	clocks = <&cmu_disp MIPI_0_AXI_CLK>,
+		 <&cmu_disp MIPI_0_APBCSI_CLK>,
+		 <&cmu_disp MIPI_0_CSIPHY_CLK>;
+	resets = <&nxp5540_reset RESET_ID_MIPI_0_AXI>,
+		  <&nxp5540_reset RESET_ID_MIPI_0_X2>,
+		  <&nxp5540_reset RESET_ID_MIPI_0_APBCSI>,
+		  <&nxp5540_reset RESET_ID_MIPI_0_CSIPHY>;
+	reset-names = "mipi-csi-reset";
+};
+
+&cropper0 {
+	clock-names = "crop0";
+	clocks = <&cmu_disp CROP_0_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_CROP_0_AXI>;
+	reset-names = "crop0-reset";
+};
+
+&cropper1 {
+	clock-names = "crop1";
+	clocks = <&cmu_disp CROP_1_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_CROP_1_AXI>;
+	reset-names = "crop1-reset";
+};
+
+&multitap0 {
+	clock-names = "multitap0";
+	clocks = <&cmu_disp MULTI_TAP_0_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_MULTI_TAP_0_AXI>;
+	reset-names = "multitap0-reset";
+};
+
+&multitap1 {
+	clock-names = "multitap1";
+	clocks = <&cmu_disp MULTI_TAP_1_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_MULTI_TAP_1_AXI>;
+	reset-names = "multitap1-reset";
+};
+
+&multitap2 {
+	clock-names = "multitap2";
+	clocks = <&cmu_disp MULTI_TAP_2_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_MULTI_TAP_2_AXI>;
+	reset-names = "multitap2-reset";
+};
+
+&multitap3 {
+	clock-names = "multitap3";
+	clocks = <&cmu_disp MULTI_TAP_3_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_MULTI_TAP_3_AXI>;
+	reset-names = "multitap3-reset";
+};
+
+&scaler_4096_0 {
+	clock-names = "scaler0";
+	clocks = <&cmu_disp SCALER_0_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_SCALER_0_AXI>;
+	reset-names = "scaler0-reset";
+};
+
+&scaler_4096_1 {
+	clock-names = "scaler1";
+	clocks = <&cmu_disp SCALER_1_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_SCALER_1_AXI>;
+	reset-names = "scaler1-reset";
+};
+
+&scaler_5376_0 {
+	clock-names = "scaler2";
+	clocks = <&cmu_disp SCALER_2_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_SCALER_2_AXI>;
+	reset-names = "scaler2-reset";
+};
+
+&mlc_bottom0 {
+	clock-names = "mlc-bottom0";
+	clocks = <&cmu_disp MLC_0_BOTTOM0_CLK>;
+	resets = <&nxp5540_reset RESET_ID_MLC_0_BOTTOM0>;
+	reset-names = "mlc-bottom0-reset";
+};
+
+&mlc_bottom1 {
+	clock-names = "mlc-bottom1";
+	clocks = <&cmu_disp MLC_1_BOTTOM0_CLK>;
+	resets = <&nxp5540_reset RESET_ID_MLC_1_BOTTOM0>;
+	reset-names = "mlc-bottom1-reset";
+};
+
+&tpgen {
+	clock-names = "tpgen";
+	clocks = <&cmu_disp TPGEN_0_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_TPGEN_0_AXI>;
+	reset-names = "tpgen-reset";
+};
+
+&mlc_blender0 {
+	clock-names = "mlc-blender0";
+	clocks = <&cmu_disp MLC_0_BLENDER0_CLK>;
+	resets = <&nxp5540_reset RESET_ID_MLC_0_BLENDER0>;
+	reset-names = "mlc-blender0-reset";
+};
+
+&mlc_blender1 {
+	clock-names = "mlc-blender1";
+	clocks = <&cmu_disp MLC_0_BLENDER1_CLK>;
+	resets = <&nxp5540_reset RESET_ID_MLC_0_BLENDER1>;
+	reset-names = "mlc-blender1-reset";
+};
+
+&mlc_blender2 {
+	clock-names = "mlc-blender2";
+	clocks = <&cmu_disp MLC_0_BLENDER2_CLK>;
+	resets = <&nxp5540_reset RESET_ID_MLC_0_BLENDER2>;
+	reset-names = "mlc-blender2-reset";
+};
+
+&mlc_blender3 {
+	clock-names = "mlc-blender3";
+	clocks = <&cmu_disp MLC_0_BLENDER3_CLK>;
+	resets = <&nxp5540_reset RESET_ID_MLC_0_BLENDER3>;
+	reset-names = "mlc-blender3-reset";
+};
+
+&mlc_blender4 {
+	clock-names = "mlc-blender4";
+	clocks = <&cmu_disp MLC_0_BLENDER4_CLK>;
+	resets = <&nxp5540_reset RESET_ID_MLC_0_BLENDER4>;
+	reset-names = "mlc-blender4-reset";
+};
+
+&mlc_blender5 {
+	clock-names = "mlc-blender5";
+	clocks = <&cmu_disp MLC_0_BLENDER5_CLK>;
+	resets = <&nxp5540_reset RESET_ID_MLC_0_BLENDER5>;
+	reset-names = "mlc-blender5-reset";
+};
+
+&mlc_blender6 {
+	clock-names = "mlc-blender6";
+	clocks = <&cmu_disp MLC_0_BLENDER6_CLK>;
+	resets = <&nxp5540_reset RESET_ID_MLC_0_BLENDER6>;
+	reset-names = "mlc-blender6-reset";
+};
+
+&mlc_blender7 {
+	clock-names = "mlc-blender7";
+	clocks = <&cmu_disp MLC_0_BLENDER7_CLK>;
+	resets = <&nxp5540_reset RESET_ID_MLC_0_BLENDER7>;
+	reset-names = "mlc-blender7-reset";
+};
+
+&hue0 {
+	clock-names = "hue0";
+	clocks = <&cmu_disp HUE_0_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_HUE_0_AXI>;
+	reset-names = "hue0-reset";
+};
+
+&hue1 {
+	clock-names = "hue1";
+	clocks = <&cmu_disp HUE_1_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_HUE_1_AXI>;
+	reset-names = "hue1-reset";
+};
+
+&gamma0 {
+	clock-names = "gamma0";
+	clocks = <&cmu_disp GAMMA_0_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_GAMMA_0_AXI>;
+	reset-names = "gamma0-reset";
+};
+
+&gamma1 {
+	clock-names = "gamma1";
+	clocks = <&cmu_disp GAMMA_1_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_GAMMA_1_AXI>;
+	reset-names = "gamma1-reset";
+};
+
+&fifo0 {
+	clock-names = "nxs-fifo0";
+	clocks = <&cmu_disp NXS_FIFO_0_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_NXS_FIFO_0_AXI>;
+	reset-names = "nxs-fifo0-reset";
+};
+
+&fifo1 {
+	clock-names = "nxs-fifo1";
+	clocks = <&cmu_disp NXS_FIFO_0_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_NXS_FIFO_1_AXI>;
+	reset-names = "nxs-fifo1-reset";
+};
+
+&fifo2 {
+	clock-names = "nxs-fifo2";
+	clocks = <&cmu_disp NXS_FIFO_2_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_NXS_FIFO_2_AXI>;
+	reset-names = "nxs-fifo2-reset";
+};
+
+&fifo3 {
+	clock-names = "nxs-fifo3";
+	clocks = <&cmu_disp NXS_FIFO_3_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_NXS_FIFO_3_AXI>;
+	reset-names = "nxs-fifo3-reset";
+};
+
+&fifo4 {
+	clock-names = "nxs-fifo4";
+	clocks = <&cmu_disp NXS_FIFO_4_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_NXS_FIFO_4_AXI>;
+	reset-names = "nxs-fifo4-reset";
+};
+
+&fifo5 {
+	clock-names = "nxs-fifo5";
+	clocks = <&cmu_disp NXS_FIFO_5_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_NXS_FIFO_5_AXI>;
+	reset-names = "nxs-fifo5-reset";
+};
+
+&fifo6 {
+	clock-names = "nxs-fifo6";
+	clocks = <&cmu_disp NXS_FIFO_6_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_NXS_FIFO_6_AXI>;
+	reset-names = "nxs-fifo6-reset";
+};
+
+&fifo7 {
+	clock-names = "nxs-fifo7";
+	clocks = <&cmu_disp NXS_FIFO_7_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_NXS_FIFO_7_AXI>;
+	reset-names = "nxs-fifo7-reset";
+};
+
+&fifo8 {
+	clock-names = "nxs-fifo8";
+	clocks = <&cmu_disp NXS_FIFO_8_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_NXS_FIFO_8_AXI>;
+	reset-names = "nxs-fifo8-reset";
+};
+
+&fifo9 {
+	clock-names = "nxs-fifo9";
+	clocks = <&cmu_disp NXS_FIFO_9_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_NXS_FIFO_9_AXI>;
+	reset-names = "nxs-fifo9-reset";
+};
+
+&fifo10 {
+	clock-names = "nxs-fifo10";
+	clocks = <&cmu_disp NXS_FIFO_10_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_NXS_FIFO_10_AXI>;
+	reset-names = "nxs-fifo10-reset";
+};
+
+&fifo11 {
+	clock-names = "nxs-fifo11";
+	clocks = <&cmu_disp NXS_FIFO_11_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_NXS_FIFO_11_AXI>;
+	reset-names = "nxs-fifo11-reset";
+};
+
+&csc0 {
+	clock-names = "csc0";
+	clocks = <&cmu_disp CSC_0_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_CSC_0_AXI>;
+	reset-names = "csc0-reset";
+};
+
+&csc1 {
+	clock-names = "csc1";
+	clocks = <&cmu_disp CSC_1_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_CSC_1_AXI>;
+	reset-names = "csc1-reset";
+};
+
+&csc2 {
+	clock-names = "csc2";
+	clocks = <&cmu_disp CSC_2_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_CSC_2_AXI>;
+	reset-names = "csc2-reset";
+};
+
+&csc3 {
+	clock-names = "csc3";
+	clocks = <&cmu_disp CSC_3_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_CSC_3_AXI>;
+	reset-names = "csc3-reset";
+};
+
+&dpc0 {
+	clock-names = "dpc0";
+	clocks = <&cmu_disp DPC_0_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DPC_0_AXI>;
+	reset-names = "dpc0-reset";
+};
+
+&dpc1 {
+	clock-names = "dpc1";
+	clocks = <&cmu_disp DPC_1_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_DPC_1_AXI>;
+	reset-names = "dpc1-reset";
+};
+
+&lvds0 {
+	clock-names = "lvds0";
+	clocks = <&cmu_disp LVDS_0_AXI_CLK>,
+		 <&cmu_disp LVDS_0_PHY_CLK>;
+	resets = <&nxp5540_reset RESET_ID_LVDS_0_AXI>,
+		  <&nxp5540_reset RESET_ID_LVDS_0_PHY>;
+	reset-names = "lvds0-reset";
+};
+
+&lvds1 {
+	clock-names = "lvds1";
+	clocks = <&cmu_disp LVDS_1_AXI_CLK>,
+		 <&cmu_disp LVDS_1_PHY_CLK>;
+	resets = <&nxp5540_reset RESET_ID_LVDS_1_AXI>,
+		  <&nxp5540_reset RESET_ID_LVDS_1_PHY>;
+	reset-names = "lvds1-reset";
+};
+
+&mipi_dsi {
+	clock-names = "mipi-dsi";
+	clocks = <&cmu_disp MIPI_0_AXI_CLK>,
+		 <&cmu_disp MIPI_0_APBDSI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_MIPI_0_AXI>,
+		  <&nxp5540_reset RESET_ID_MIPI_0_X2>,
+		  <&nxp5540_reset RESET_ID_MIPI_0_APBDSI>;
+	reset-names = "mipi-dsi-reset";
+};
+
+&hdmi {
+	clock-names = "hdmi";
+	clocks = <&cmu_hdmi HDMI_0_AXI_CLK>,
+		 <&cmu_hdmi HDMIV2_0_AXI_CLK>,
+		 <&cmu_hdmi HDMI_0_APB_CLK>,
+		 <&cmu_hdmi HDMIV2_0_APB_CLK>,
+		 <&cmu_hdmi HDMIV2_0_APBPHY_CLK>,
+		 <&cmu_hdmi HDMIV2_0_PHY_CLK>,
+		 <&cmu_hdmi HDMIV2_0_TMDS_10B_CLK>,
+		 <&cmu_hdmi HDMIV2_0_TMDS_20B_CLK>,
+		 <&cmu_hdmi HDMIV2_0_PIXELX2_CLK>,
+		 <&cmu_hdmi HDMIV2_0_PIXELX_CLK>,
+		 <&cmu_hdmi HDMIV2_0_AUDIO_CLK>,
+		 <&cmu_sys  DOUT_SCLK_HDMI_PIXEL>,
+		 <&cmu_sys  DOUT_SCLK_HDMI_TMDS>,
+		 <&cmu_disp NXS2HDMI_0_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_HDMI_0_AXI>,
+		  <&nxp5540_reset RESET_ID_HDMIV2_0_AXI>,
+		  <&nxp5540_reset RESET_ID_HDMIV2_0_APB>,
+		  <&nxp5540_reset RESET_ID_HDMIV2_0_APBPHY>,
+		  <&nxp5540_reset RESET_ID_HDMIV2_0_PHY>,
+		  <&nxp5540_reset RESET_ID_HDMIV2_0_TMDS_10B>,
+		  <&nxp5540_reset RESET_ID_HDMIV2_0_TMDS_20B>,
+		  <&nxp5540_reset RESET_ID_HDMIV2_0_PIXELX2>,
+		  <&nxp5540_reset RESET_ID_HDMIV2_0_PIXEL>,
+		  <&nxp5540_reset RESET_ID_HDMIV2_0_AUDIO>,
+		  <&nxp5540_reset RESET_ID_NXS2HDMI_0_AXI>,
+		  <&nxp5540_reset RESET_ID_HDMI_CMU_0>;
+	reset-names = "hdmi-reset";
+};
+
+&isp {
+	clock-names = "isp";
+	clocks = <&cmu_isp ISP_0_AXI_CLK>,
+		 <&cmu_isp ISP_0_DIV4_CLK>,
+		 <&cmu_disp DISP2ISP_0_AXI_CLK>,
+		 <&cmu_disp ISP2DISP_0_AXI_CLK>,
+		 <&cmu_disp ISP2DISP_1_AXI_CLK>;
+	resets = <&nxp5540_reset RESET_ID_ISP_CMU_0>,
+		  <&nxp5540_reset RESET_ID_DISP2ISP_0_AXI>,
+		  <&nxp5540_reset RESET_ID_ISP2DISP_0_AXI>,
+		  <&nxp5540_reset RESET_ID_ISP2DISP_1_AXI>;
 };
 
 #include "nxstream.dtsi"
