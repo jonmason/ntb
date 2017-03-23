@@ -694,6 +694,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		 * Y/CbCr 4:2:0 Interleaved 10bit
 		 * bpp = 15
 		 */
+		config->color_expand = 0;
 		config->img_type = NXS_IMG_YUV;
 		config->total_bitwidth_1st_pl = 20;
 		config->total_bitwidth_2nd_pl = 20;
@@ -719,12 +720,14 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p1_comp[3].use_userdef = 1;
 		config->p1_comp[3].userdef = ~0;
 		config->use_average_value = 1;
+		config->put_dummy_type = 1;
 		break;
 	case fourcc_code('N', 'I', 'V', '0'):
 		/*
 		 * Y/CbCr 4:2:0 Interleaved 10bit
 		 * bpp = 15
 		 */
+		config->color_expand = 0;
 		config->img_type = NXS_IMG_YUV;
 		config->total_bitwidth_1st_pl = 20;
 		config->total_bitwidth_2nd_pl = 20;
@@ -750,6 +753,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p1_comp[3].use_userdef = 1;
 		config->p1_comp[3].userdef = ~0;
 		config->use_average_value = 1;
+		config->put_dummy_type = 1;
 		break;
 	default:
 		/*
