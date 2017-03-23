@@ -445,8 +445,20 @@ static int tpgen_open(const struct nxs_dev *pthis)
 	dev_info(pthis->dev, "[%s]\n", __func__);
 	if (nxs_dev_get_open_count(&tpgen->nxs_dev) == 0) {
 		int ret;
-		/* clock enable */
-		/* reset */
+		struct clk *clk;
+
+		clk = clk_get(pthis->dev, "tpgen");
+		if (IS_ERR(clk)) {
+			dev_err(pthis->dev, "controller clock not found\n");
+			return -ENODEV;
+		}
+		ret = clk_prepare_enable(clk);
+		if (ret) {
+			dev_err(pthis->dev,
+				"clock failed to prepare enable:%d\n", ret);
+			return ret;
+		}
+
 		ret = request_irq(tpgen->irq, tpgen_irq_handler,
 				  IRQF_TRIGGER_NONE,
 				  "nxs-tpgen", tpgen);
@@ -472,9 +484,17 @@ static int tpgen_close(const struct nxs_dev *pthis)
 
 	nxs_dev_dec_open_count(&tpgen->nxs_dev);
 	if (nxs_dev_get_open_count(&tpgen->nxs_dev) == 0) {
+		struct clk *clk;
+
 		tpgen_reset_register(tpgen);
 		free_irq(tpgen->irq, tpgen);
-		/* clock disable */
+
+		clk = clk_get(pthis->dev, "tpgen");
+		if (IS_ERR(clk)) {
+			dev_err(pthis->dev, "controller clock not found\n");
+			return -ENODEV;
+		}
+		clk_disable_unprepare(clk);
 	}
 	return 0;
 }
