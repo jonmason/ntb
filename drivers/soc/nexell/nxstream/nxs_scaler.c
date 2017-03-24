@@ -392,8 +392,11 @@ static int scaler_open(const struct nxs_dev *pthis)
 	if (nxs_dev_get_open_count(&scaler->nxs_dev) == 0) {
 		struct clk *clk;
 		int ret;
+		char dev_name[10] = {0, };
+
+		sprintf(dev_name, "scaler%d", pthis->dev_inst_index);
 		/* clock enable */
-		clk = clk_get(pthis->dev, "scaler");
+		clk = clk_get(pthis->dev, dev_name);
 		if (IS_ERR(clk)) {
 			dev_err(pthis->dev, "controller clock not found\n");
 			return -ENODEV;
@@ -433,12 +436,14 @@ static int scaler_close(const struct nxs_dev *pthis)
 	nxs_dev_dec_open_count(&scaler->nxs_dev);
 	if (nxs_dev_get_open_count(&scaler->nxs_dev) == 0) {
 		struct clk *clk;
+		char dev_name[10] = {0, };
 
 		scaler_reset_register(scaler);
 		/* unregister irq handler */
 		free_irq(scaler->irq, scaler);
 		/* clock disable */
-		clk = clk_get(pthis->dev, "scaler");
+		sprintf(dev_name, "scaler%d", pthis->dev_inst_index);
+		clk = clk_get(pthis->dev, dev_name);
 		if (IS_ERR(clk)) {
 			dev_err(pthis->dev, "controller clock not found\n");
 			return -ENODEV;
