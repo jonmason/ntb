@@ -352,8 +352,10 @@ static int csc_open(const struct nxs_dev *pthis)
 	if (nxs_dev_get_open_count(&csc->nxs_dev) == 0) {
 		struct clk *clk;
 		int ret;
+		char dev_name[10] = {0, };
 
-		clk = clk_get(pthis->dev, "csc");
+		sprintf(dev_name, "csc%d", pthis->dev_inst_index);
+		clk = clk_get(pthis->dev, dev_name);
 		if (IS_ERR(clk)) {
 			dev_err(pthis->dev, "controller clock not found\n");
 			return -ENODEV;
@@ -390,10 +392,12 @@ static int csc_close(const struct nxs_dev *pthis)
 	nxs_dev_dec_open_count(&csc->nxs_dev);
 	if (nxs_dev_get_open_count(&csc->nxs_dev) == 0) {
 		struct clk *clk;
+		char dev_name[10] = {0, };
 
 		csc_reset_register(csc);
 		free_irq(csc->irq, csc);
-		clk = clk_get(pthis->dev, "csc");
+		sprintf(dev_name, "csc%d", pthis->dev_inst_index);
+		clk = clk_get(pthis->dev, dev_name);
 		if (IS_ERR(clk)) {
 			dev_err(pthis->dev, "controller clock not found\n");
 			return -ENODEV;
