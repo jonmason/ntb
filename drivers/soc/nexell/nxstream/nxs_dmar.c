@@ -803,9 +803,10 @@ static int dmar_open(const struct nxs_dev *pthis)
 	if (nxs_dev_get_open_count(&dmar->nxs_dev) == 0) {
 		int ret;
 		struct clk *clk;
+		char dev_name[10] = {0, };
 
-		/* clock enable */
-		clk = clk_get(pthis->dev, "dmar");
+		sprintf(dev_name, "dmar%d", pthis->dev_inst_index);
+		clk = clk_get(pthis->dev, dev_name);
 		if (IS_ERR(clk)) {
 			dev_err(pthis->dev, "controller clock not found\n");
 			return -ENODEV;
@@ -817,9 +818,7 @@ static int dmar_open(const struct nxs_dev *pthis)
 			return ret;
 		}
 		/* reset */
-#ifdef SIMULATE_INTERRUPT
-		setup_timer(&dmar->timer, int_timer_func, (long)dmar);
-#else
+#ifndef SIMULATE_INTERRUPT
 		ret = request_irq(dmar->irq, dmar_irq_handler,
 				  IRQF_TRIGGER_NONE, "nxs-dmar", dmar);
 		if (ret < 0) {
@@ -828,6 +827,9 @@ static int dmar_open(const struct nxs_dev *pthis)
 		}
 #endif
 	}
+#ifdef SIMULATE_INTERRUPT
+	setup_timer(&dmar->timer, int_timer_func, (long)dmar);
+#endif
 	nxs_dev_inc_open_count(&dmar->nxs_dev);
 	return 0;
 }
@@ -849,11 +851,14 @@ static int dmar_close(const struct nxs_dev *pthis)
 	nxs_dev_dec_open_count(&dmar->nxs_dev);
 	if (nxs_dev_get_open_count(&dmar->nxs_dev) == 0) {
 		struct clk *clk;
+		char dev_name[10] = {0, };
 
 		dmar_reset_register(dmar);
+#ifndef SIMULATE_INTERRUPT
 		free_irq(dmar->irq, dmar);
-		/* clock disable */
-		clk = clk_get(pthis->dev, "dmar");
+#endif
+		sprintf(dev_name, "dmar%d", pthis->dev_inst_index);
+		clk = clk_get(pthis->dev, dev_name);
 		if (IS_ERR(clk)) {
 			dev_err(pthis->dev, "controller clock not found\n");
 			return -ENODEV;
@@ -943,6 +948,7 @@ static int dmar_set_dirty(const struct nxs_dev *pthis, u32 type)
 
 	dev_info(pthis->dev, "[%s] dmar index:%d, dirty_val:0x%x\n",
 		__func__, pthis->dev_inst_index, dirty_val);
+
 	return regmap_write(dmar->reg, DMAR_DIRTYSET_OFFSET, dirty_val);
 }
 
