@@ -1117,6 +1117,7 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_DPC>;
 			tid = <NXS_TID_DPC0>;
+			max_refcount = <1>;
 			status = "disabled";
 		};
 
@@ -1128,6 +1129,7 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_DPC>;
 			tid = <NXS_TID_DPC1>;
+			max_refcount = <1>;
 			status = "disabled";
 		};
 
@@ -1140,6 +1142,7 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_LVDS>;
 			tid = <NXS_TID_LVDS0>;
+			max_refcount = <1>;
 			status = "disabled";
 		};
 
@@ -1151,6 +1154,7 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_LVDS>;
 			tid = <NXS_TID_LVDS1>;
+			max_refcount = <1>;
 			status = "disabled";
 		};
 
@@ -1165,6 +1169,7 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_MIPI_DSI>;
 			tid = <NXS_TID_MIPI_DSI>;
+			max_refcount = <1>;
 			status = "disabled";
 		};
 
@@ -1179,6 +1184,7 @@
 			version = <0x0100>;
 			function = <NXS_FUNCTION_HDMI>;
 			tid = <NXS_TID_HDMI>;
+			max_refcount = <1>;
 			status = "disabled";
 		};
 
@@ -1198,6 +1204,7 @@
                         version = <0x0100>;
                         function = <NXS_FUNCTION_ISP>;
                         tid = <NXS_TID_ISP>;
+			max_refcount = <1>;
                         status = "disabled";
                 };
 
