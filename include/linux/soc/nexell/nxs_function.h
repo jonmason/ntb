@@ -41,7 +41,7 @@ struct nxs_function_elem {
 };
 
 /* below code must be synced with include/uapi/linux/nxs_ioctl.h */
-#define BLENDING_TO_OTHER       (1 << 0)
+#define BLENDING_TO_BLENDER     (1 << 0)
 #define BLENDING_TO_BOTTOM      (1 << 1)
 #define MULTI_PATH              (1 << 2)
 
@@ -52,7 +52,7 @@ struct nxs_function_request {
 	struct {
 		/* for multitap: MULTI_PATH */
 		int sibling_handle;
-		/* for blending: BLENDING_TO_OTHER */
+		/* for blending: BLENDING_TO_BLENDER */
 		uint32_t display_id;
 		/* for complete display: BLENDING_TO_BOTTOM */
 		uint32_t bottom_id;
@@ -159,10 +159,17 @@ int nxs_capture_power(struct nxs_capture_ctx *capture, bool enable);
 void nxs_capture_free(struct nxs_capture_ctx *capture);
 void nxs_free_function_request(struct nxs_function_request *req);
 struct nxs_function *nxs_function_build(struct nxs_function_request *req);
-struct nxs_function *nxs_function_make(int dev_num, bool blending,
-				       u32 disp_num, struct list_head *head);
+int nxs_get_display_index(struct nxs_function *f);
+struct nxs_function *nxs_function_create(bool blending,
+					 struct nxs_function_elem *head,
+					 u32 disp_num, u32 flags);
 struct nxs_function *nxs_function_add(struct nxs_function *f,
-				      struct list_head *head);
+				      struct nxs_function_elem *elem);
+struct nxs_function *nxs_function_create_by_list(bool blending,
+						 struct list_head *head,
+						 u32 disp_num, u32 flags);
+struct nxs_function *nxs_function_add_by_list(struct nxs_function *f,
+					      struct list_head *head);
 void nxs_function_destroy(struct nxs_function *f);
 struct nxs_function *nxs_function_get(int handle);
 struct nxs_irq_callback *
@@ -201,5 +208,7 @@ int nxs_function_dev_ready(struct nxs_function *f, u32 function, u32 index,
 			   u32 dirty_type);
 int nxs_function_dev_start(struct nxs_function *f, u32 function, u32 index);
 int nxs_function_dev_stop(struct nxs_function *f, u32 function, u32 index);
+
+void nxs_function_dump_register(struct nxs_function *f);
 
 #endif
