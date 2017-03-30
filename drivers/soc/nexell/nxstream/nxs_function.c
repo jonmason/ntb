@@ -1026,6 +1026,7 @@ static int remove_function_from_display(struct nxs_display *disp,
 		list_del_init(&f->disp_list);
 	}
 
+	f->disp = NULL;
 	nxs_display_print(disp);
 
 	mutex_unlock(&nxs_disp_lock);
@@ -1242,146 +1243,217 @@ error_out:
 }
 EXPORT_SYMBOL_GPL(nxs_function_build);
 
-struct nxs_function *nxs_function_add(struct nxs_function *f,
-				      struct nxs_function_elem *head)
+static inline void nxs_list_add(struct list_head *new,
+				struct list_head *prev,
+				struct list_head *next)
 {
-	struct nxs_dev *nxs_dev;
-	struct nxs_function_elem *elem = head;
-
-	nxs_dev = get_nxs_dev(elem->function, elem->index, elem->user,
-			      elem->multitap_follow);
-	if (!nxs_dev) {
-		pr_err("can't get nxs_dev for func %s, index 0x%x\n",
-		       nxs_function_to_str(elem->function),
-		       elem->index);
-		goto error_out;
-	}
-	list_add_tail(&nxs_dev->func_list, &f->dev_list);
-	f->req->nums_of_function++;
-
-	if (is_display_channel(f) && (!f->disp)) {
-		if (nxs_function_register_display(f)) {
-			pr_err("%s: failed to nxs_function_register_display\n",
-			       __func__);
-			goto error_out;
-		}
-		if (f->req->flags & BLENDING_TO_BLENDER) {
-			int ret;
-			int disp_id = nxs_get_display_index(f);
-
-			ret = nxs_function_add_to_display(disp_id, f);
-			if (ret) {
-				pr_err("%s: failed to nxs_function_add_to_display\n",
-				       __func__);
-				goto error_out;
-			}
-		}
-	}
-	return f;
-
-error_out:
-	if (f)
-		nxs_function_destroy(f);
-	return NULL;
-
+	next->prev = new;
+	/* for not connecting with head */
+	/* new->next = next; */
+	new->prev = prev;
+	prev->next = new;
 }
-EXPORT_SYMBOL_GPL(nxs_function_add);
 
-struct nxs_function *nxs_function_create(bool blending,
-					 struct nxs_function_elem *elem,
-					 u32 disp_num, u32 flags)
+static inline void nxs_list_add_tail(struct list_head *new,
+				     struct list_head *head)
 {
-	struct nxs_function_request *req;
-
-	req = kzalloc(sizeof(*req), GFP_KERNEL);
-	INIT_LIST_HEAD(&req->head);
-
-	if (blending) {
-		req->flags = flags;
-		if (req->flags & BLENDING_TO_BLENDER)
-			req->option.display_id = disp_num;
-	}
-
-	if (WARN(!elem, "element is not valid\n"))
-		return NULL;
-
-	list_add_tail(&elem->list, &req->head);
-	req->nums_of_function++;
-
-	return nxs_function_build(req);
+	nxs_list_add(new, head->prev, head);
 }
-EXPORT_SYMBOL_GPL(nxs_function_create);
-
-struct nxs_function *nxs_function_add_by_list(struct nxs_function *f,
-					      struct list_head *head)
+/*
+ * return value
+ * success : 0
+ * fail : the function index that is failed
+ */
+int nxs_function_add(struct nxs_function *f,
+		     struct nxs_function_elem *head)
 {
 	struct nxs_dev *nxs_dev;
 	struct nxs_function_elem *elem;
 
-	list_for_each_entry(elem, head, list) {
-		nxs_dev = get_nxs_dev(elem->function, elem->index, elem->user,
+	if (WARN(!head, "element is not valid\n"))
+		return -EINVAL;
+
+	elem = head;
+	nxs_dev = get_nxs_dev(head->function, head->index,
+			      head->user,
+			      head->multitap_follow);
+	if (!nxs_dev)
+		goto error_out;
+
+	if (!head->list.next)
+		goto out;
+
+	nxs_list_add_tail(&head->list, &f->req->head);
+	f->req->nums_of_function++;
+	list_add_tail(&nxs_dev->func_list, &f->dev_list);
+
+	list_for_each_entry(elem, &head->list, list) {
+		if (WARN(!elem, "element is not valid\n"))
+			return nxs_dev->dev_function;
+		nxs_dev = get_nxs_dev(elem->function, elem->index,
+				      elem->user,
 				      elem->multitap_follow);
-		if (!nxs_dev) {
-			pr_err("can't get nxs_dev for func %s, index 0x%x\n",
-				nxs_function_to_str(elem->function),
-				elem->index);
+		if (!nxs_dev)
 			goto error_out;
-		}
 
-		list_add_tail(&nxs_dev->func_list, &f->dev_list);
+		if (list_is_last(&elem->list.next, &f->req->head))
+			goto out;
+
+		nxs_list_add_tail(&elem->list, &f->req->head);
 		f->req->nums_of_function++;
+		list_add_tail(&nxs_dev->func_list, &f->dev_list);
 	}
-
-	if (is_display_channel(f) && (!f->disp)) {
-		if (nxs_function_register_display(f)) {
-			pr_err("%s: failed to nxs_function_register_display\n",
-			       __func__);
-			goto error_out;
-		}
-		if (f->req->flags & BLENDING_TO_BLENDER) {
-			int ret;
-			int disp_id = nxs_get_display_index(f);
-
-			ret = nxs_function_add_to_display(disp_id, f);
-			if (ret) {
-				pr_err("%s: failed to nxs_function_add_to_display\n",
-				       __func__);
-				goto error_out;
-			}
-		}
-	}
-	return f;
+	return 0;
+out:
+	list_add_tail(&elem->list, &f->req->head);
+	f->req->nums_of_function++;
+	list_add_tail(&nxs_dev->func_list, &f->dev_list);
+	return 0;
 
 error_out:
-	if (f)
-		nxs_function_destroy(f);
-	return NULL;
-}
-EXPORT_SYMBOL_GPL(nxs_function_add_by_list);
+	pr_err("can't get nxs_dev for func %s, index 0x%x\n",
+	       nxs_function_to_str(elem->function),
+	       elem->index);
 
-struct nxs_function *nxs_function_create_by_list(bool blending,
-						 struct list_head *head,
-						 u32 disp_num, u32 flags)
+	return elem->function;
+}
+EXPORT_SYMBOL_GPL(nxs_function_add);
+
+/*
+ * return value
+ * success : 0
+ * fail : the function index that is failed
+ */
+int nxs_function_add_dev(struct nxs_function *f,
+			 struct nxs_dev *dev)
+{
+	struct nxs_function_elem *elem;
+
+	elem = kzalloc(sizeof(*elem), GFP_KERNEL);
+	if (!elem) {
+		WARN_ON(1);
+		return -ENOMEM;
+	}
+	elem->function = dev->dev_function;
+	elem->index = dev->dev_inst_index;
+	elem->user = dev->user;
+	elem->multitap_follow = dev->multitap_connected;
+
+	list_add_tail(&elem->list, &f->req->head);
+	list_add_tail(&dev->func_list, &f->dev_list);
+	f->req->nums_of_function++;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(nxs_function_add_dev);
+
+int nxs_function_destroy_display(struct nxs_function *f)
+{
+	struct nxs_dev *nxs_dev;
+	struct nxs_function_elem *elem;
+	int ret = 0;
+
+	if (!is_display_channel(f))
+		return -EINVAL;
+
+	if (f->disp) {
+		ret = remove_function_from_display(f->disp, f);
+		if (WARN(ret, "%s: failed to remove_function_from_display\n",
+			 __func__))
+			return -EINVAL;
+	}
+	nxs_dev = list_last_entry(&f->dev_list, struct nxs_dev, func_list);
+	if (!nxs_dev) {
+		pr_err("can't get nxs_dev for func %s, index 0x%x\n",
+			nxs_function_to_str(nxs_dev->dev_function),
+			nxs_dev->dev_inst_index);
+		return -ENODEV;
+	}
+	list_del_init(&nxs_dev->func_list);
+	/*nxs_dev_print(nxs_dev, "PUT");*/
+	put_nxs_dev(nxs_dev);
+
+	elem = list_last_entry(&f->req->head,
+			       struct nxs_function_elem,
+			       list);
+	list_del_init(&elem->list);
+	kfree(elem);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(nxs_function_destroy_display);
+
+int nxs_function_create_display(struct nxs_function *f,
+				struct nxs_dev *nxs_dev,
+				bool blending)
+{
+	int ret;
+
+	if (f->disp) {
+		pr_err("display device is already exist for the function\n");
+		return -EINVAL;
+	}
+
+	if ((nxs_dev->dev_function != NXS_FUNCTION_DPC) &&
+	    (nxs_dev->dev_function != NXS_FUNCTION_LVDS) &&
+	    (nxs_dev->dev_function != NXS_FUNCTION_MIPI_DSI) &&
+	    (nxs_dev->dev_function != NXS_FUNCTION_HDMI)) {
+		pr_err("device is not display gadget\n");
+		return -EINVAL;
+	}
+
+	ret = nxs_function_add_dev(f, nxs_dev);
+	if (ret) {
+		pr_err("can't add the list to this function\n");
+		return ret;
+	}
+	if (blending)
+		f->req->flags = BLENDING_TO_BOTTOM;
+
+	ret = nxs_function_register_display(f);
+	if (ret) {
+		pr_err("%s: failed to nxs_function_register_display\n",
+		       __func__);
+		return ret;
+	}
+	return nxs_get_display_index(f);
+}
+EXPORT_SYMBOL_GPL(nxs_function_create_display);
+
+struct nxs_function *nxs_function_create(struct nxs_function_elem *head)
 {
 	struct nxs_function_request *req;
-
-	req = kzalloc(sizeof(*req), GFP_KERNEL);
-	INIT_LIST_HEAD(&req->head);
-
-	if (blending) {
-		req->flags = flags;
-		req->option.display_id = disp_num;
-	}
+	struct nxs_function_elem *elem;
 
 	if (WARN(!head, "element is not valid\n"))
 		return NULL;
 
-	list_add_tail(head, &req->head);
+	req = kzalloc(sizeof(*req), GFP_KERNEL);
+	INIT_LIST_HEAD(&req->head);
+
+	elem = head;
+	if (!elem->list.next)
+		goto out;
+
+	nxs_list_add_tail(&elem->list, &req->head);
 	req->nums_of_function++;
 
+	list_for_each_entry(elem, &head->list, list) {
+		if (WARN(!elem, "element is not valid\n"))
+			return NULL;
+		if (list_is_last(&elem->list.next, &head->list))
+			goto out;
+		else
+			nxs_list_add_tail(&elem->list, &req->head);
+		req->nums_of_function++;
+	}
+	return nxs_function_build(req);
+out:
+	list_add_tail(&elem->list, &req->head);
+	req->nums_of_function++;
 	return nxs_function_build(req);
 }
-EXPORT_SYMBOL_GPL(nxs_function_create_by_list);
+EXPORT_SYMBOL_GPL(nxs_function_create);
 
 void nxs_function_destroy(struct nxs_function *f)
 {

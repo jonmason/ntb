@@ -160,16 +160,15 @@ void nxs_capture_free(struct nxs_capture_ctx *capture);
 void nxs_free_function_request(struct nxs_function_request *req);
 struct nxs_function *nxs_function_build(struct nxs_function_request *req);
 int nxs_get_display_index(struct nxs_function *f);
-struct nxs_function *nxs_function_create(bool blending,
-					 struct nxs_function_elem *head,
-					 u32 disp_num, u32 flags);
-struct nxs_function *nxs_function_add(struct nxs_function *f,
-				      struct nxs_function_elem *elem);
-struct nxs_function *nxs_function_create_by_list(bool blending,
-						 struct list_head *head,
-						 u32 disp_num, u32 flags);
-struct nxs_function *nxs_function_add_by_list(struct nxs_function *f,
-					      struct list_head *head);
+struct nxs_function *nxs_function_create(struct nxs_function_elem *head);
+int nxs_function_add(struct nxs_function *f,
+		     struct nxs_function_elem *head);
+int nxs_function_add_dev(struct nxs_function *f,
+			 struct nxs_dev *dev);
+int nxs_function_create_display(struct nxs_function *f,
+				struct nxs_dev *nxs_dev,
+				bool blending);
+int nxs_function_destroy_display(struct nxs_function *f);
 void nxs_function_destroy(struct nxs_function *f);
 struct nxs_function *nxs_function_get(int handle);
 struct nxs_irq_callback *
