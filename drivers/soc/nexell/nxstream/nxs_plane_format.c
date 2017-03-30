@@ -30,10 +30,40 @@ void nxs_print_plane_format(struct nxs_dev *nxs_dev,
 {
 	dev_info(nxs_dev->dev,
 		"==========================================\n");
-	dev_info(nxs_dev->dev, "color expand is			: %s\n",
-		(config->color_expand)?"enable":"disable");
-	dev_info(nxs_dev->dev, "color dither is			: %s\n",
-		(config->color_dither)?"enable":"disable");
+
+	switch (config->img_type) {
+	case NXS_IMG_YUV:
+		dev_info(nxs_dev->dev, "the img format is YUV\n");
+		break;
+	case NXS_IMG_RGB:
+		dev_info(nxs_dev->dev, "the img format is RGB\n");
+		break;
+	case NXS_IMG_RAW:
+		dev_info(nxs_dev->dev, "the img format is BAYER\n");
+		break;
+	default:
+		dev_info(nxs_dev->dev, "unsupported image format\n");
+		break;
+	}
+
+	switch (config->img_bit) {
+	case NXS_IMG_BIT_RAW:
+		dev_info(nxs_dev->dev, "the img bit is byaer\n");
+		break;
+	case NXS_IMG_BIT_SM_10:
+		dev_info(nxs_dev->dev, "the img bit is smaller than 10bit\n");
+		break;
+	case NXS_IMG_BIT_10:
+		dev_info(nxs_dev->dev, "the img bit is 10 bit\n");
+		break;
+	case NXS_IMG_BIT_BIG_10:
+		dev_info(nxs_dev->dev, "the img bit is bigger than 10 bit\n");
+		break;
+	default:
+		dev_info(nxs_dev->dev, "unsupported image bit\n");
+		break;
+	}
+
 	dev_info(nxs_dev->dev, "total bitwidth 1st plane		: %d\n",
 		config->total_bitwidth_1st_pl);
 	dev_info(nxs_dev->dev, "[composition for 1st plane]\n");
@@ -128,12 +158,8 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 			 struct nxs_plane_format *config)
 {
 	dev_info(nxs_dev->dev, "[%s]\n", __func__);
-	/*
-	 * currently only support for 8bit format
-	 * each pixel is smaller than 10bit
-	 * so set color_expand = 1 as a defaut value
-	 */
-	config->color_expand = 1;
+
+	config->img_bit = NXS_IMG_BIT_SM_10;
 	switch (format) {
 	/* RGB */
 	case fourcc_code('A', 'R', '1', '5'):
@@ -693,28 +719,37 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		/*
 		 * Y/CbCr 4:2:0 Interleaved 10bit
 		 * bpp = 15
+		 * extended 16bit
+		 * LSB
+		 * 15 14 13 12 11 10 9  8  7  6 5  4  3  2  1  0
+		 *                  Y9 Y8 y7 Y6 Y5 Y4 Y3 y2 Y1 Y0
+		 * 15 14 13 12 11 10 9  8  7  6 5  4  3  2  1  0
+		 *                  U9 U8 U7 U6 U5 U4 U3 U2 U1 U0
+		 * 31 30 29 28 27 26 25 24 23 22 21 20 19 18 17 16
+		 *                   V9 V8 V7 V6 V5 V4 V3 V2 V1 V0
+		 *
 		 */
-		config->color_expand = 0;
 		config->img_type = NXS_IMG_YUV;
-		config->total_bitwidth_1st_pl = 20;
-		config->total_bitwidth_2nd_pl = 20;
+		config->img_bit = NXS_IMG_BIT_BIG_10;
+		config->total_bitwidth_1st_pl = 32;
+		config->total_bitwidth_2nd_pl = 32;
 		config->half_height_2nd_pl = 1;
 		config->p0_comp[0].startbit = 0;
 		config->p0_comp[0].bitwidth = 10;
 		config->p0_comp[1].startbit = 0;
 		config->p0_comp[1].bitwidth = 10;
 		config->p0_comp[1].is_2nd_pl = 1;
-		config->p0_comp[2].startbit = 10;
+		config->p0_comp[2].startbit = 16;
 		config->p0_comp[2].bitwidth = 10;
 		config->p0_comp[2].is_2nd_pl = 1;
 		config->p0_comp[3].use_userdef = 1;
 		config->p0_comp[3].userdef = ~0;
-		config->p1_comp[0].startbit = 10;
+		config->p1_comp[0].startbit = 16;
 		config->p1_comp[0].bitwidth = 10;
 		config->p1_comp[1].startbit = 0;
 		config->p1_comp[1].bitwidth = 10;
 		config->p1_comp[1].is_2nd_pl = 1;
-		config->p1_comp[2].startbit = 10;
+		config->p1_comp[2].startbit = 16;
 		config->p1_comp[2].bitwidth = 10;
 		config->p1_comp[2].is_2nd_pl = 1;
 		config->p1_comp[3].use_userdef = 1;
@@ -726,15 +761,20 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		/*
 		 * Y/CbCr 4:2:0 Interleaved 10bit
 		 * bpp = 15
+		 * extended 16bit
+		 * 15 14 13 12 11 10 9  8  7  6 5  4  3  2  1  0
+		 *                   V9 V8 V7 V6 V5 V4 V3 V2 V1 V0
+		 * 31 30 29 28 27 26 25 24 23 22 21 20 19 18 17 16
+		 *                   U9 U8 U7 U6 U5 U4 U3 U2 U1 U0
 		 */
-		config->color_expand = 0;
 		config->img_type = NXS_IMG_YUV;
-		config->total_bitwidth_1st_pl = 20;
-		config->total_bitwidth_2nd_pl = 20;
+		config->img_bit = NXS_IMG_BIT_BIG_10;
+		config->total_bitwidth_1st_pl = 32;
+		config->total_bitwidth_2nd_pl = 32;
 		config->half_height_2nd_pl = 1;
 		config->p0_comp[0].startbit = 0;
 		config->p0_comp[0].bitwidth = 10;
-		config->p0_comp[1].startbit = 10;
+		config->p0_comp[1].startbit = 16;
 		config->p0_comp[1].bitwidth = 10;
 		config->p0_comp[1].is_2nd_pl = 1;
 		config->p0_comp[2].startbit = 0;
@@ -742,9 +782,9 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		config->p0_comp[2].is_2nd_pl = 1;
 		config->p0_comp[3].use_userdef = 1;
 		config->p0_comp[3].userdef = ~0;
-		config->p1_comp[0].startbit = 10;
+		config->p1_comp[0].startbit = 16;
 		config->p1_comp[0].bitwidth = 10;
-		config->p1_comp[1].startbit = 10;
+		config->p1_comp[1].startbit = 16;
 		config->p1_comp[1].bitwidth = 10;
 		config->p1_comp[1].is_2nd_pl = 1;
 		config->p1_comp[2].startbit = 0;
@@ -763,6 +803,7 @@ u32 nxs_get_plane_format(struct nxs_dev *nxs_dev, u32 format,
 		 */
 		dev_err(nxs_dev->dev, "unsupported format\n");
 		config->img_type = NXS_IMG_MAX;
+		config->img_bit = NXS_IMG_BIT_MAX;
 		return -EINVAL;
 	}
 

@@ -25,6 +25,14 @@ enum nxs_img_type {
 	NXS_IMG_MAX
 };
 
+enum nxs_img_bit {
+	NXS_IMG_BIT_RAW = 0,
+	NXS_IMG_BIT_SM_10,
+	NXS_IMG_BIT_10,
+	NXS_IMG_BIT_BIG_10,
+	NXS_IMG_BIT_MAX
+};
+
 struct nxs_p_composite {
 	u32 startbit;
 	u32 bitwidth;
@@ -35,8 +43,7 @@ struct nxs_p_composite {
 
 struct nxs_plane_format {
 	u32 img_type;
-	u8 color_expand;
-	u8 color_dither;
+	u8 img_bit;
 	u32 total_bitwidth_1st_pl;
 	u32 total_bitwidth_2nd_pl;
 	u8 half_height_1st_pl;

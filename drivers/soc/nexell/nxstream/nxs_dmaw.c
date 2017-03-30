@@ -458,18 +458,17 @@ static void dmaw_set_plane_format(struct nxs_dmaw *dmaw,
 	nxs_print_plane_format(&dmaw->nxs_dev, config);
 
 	/* set color expand and color dither */
-	if (config->color_expand)
-		value |= ((config->color_expand << DMAW_EN_EXPANDER_SHIFT) |
-			DMAW_EN_EXPANDER_MASK);
-
-	if (config->color_dither)
-		value |= ((config->color_dither << DMAW_EN_DITHER_SHIFT) |
+	if (config->img_bit == NXS_IMG_BIT_BIG_10)
+		value |= ((1 << DMAW_EN_EXPANDER_SHIFT) |
+			  DMAW_EN_EXPANDER_MASK);
+	else if (config->img_bit == NXS_IMG_BIT_SM_10)
+		value |= ((1 << DMAW_EN_DITHER_SHIFT) |
 			DMAW_EN_DITHER_MASK);
 	/*
 	 * enable addr fitting if the img_type is not bayer format
-	 * and not 10bit format
+	 * and the img_bit is smaller than 10bit
 	 */
-	if ((config->img_type != NXS_IMG_RAW) && (config->put_dummy_type))
+	if (config->img_bit == NXS_IMG_BIT_SM_10)
 		value |= ((1 << DMAW_EN_ADDR_FITTING_SHIFT) |
 			  DMAW_EN_ADDR_FITTING_MASK);
 	regmap_update_bits(dmaw->reg, dmaw->offset + DMAW_CTRL1,

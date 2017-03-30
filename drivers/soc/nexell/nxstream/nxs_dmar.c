@@ -969,11 +969,11 @@ static void dmar_set_plane_format_config(struct nxs_dmar *dmar,
 	nxs_print_plane_format(&dmar->nxs_dev, config);
 
 	/* set color expand and color dither */
-	if (config->color_expand)
-		value |= ((config->color_expand << DMAR_COLOR_EXPAND_SHIFT) |
+	if (config->img_bit == NXS_IMG_BIT_SM_10)
+		value |= ((1 << DMAR_COLOR_EXPAND_SHIFT) |
 			DMAR_COLOR_EXPAND_MASK);
-	if (config->color_dither)
-		value |= ((config->color_dither << DMAR_COLOR_DITHER_SHIFT) |
+	else if (config->img_bit == NXS_IMG_BIT_BIG_10)
+		value |= ((1 << DMAR_COLOR_DITHER_SHIFT) |
 			DMAR_COLOR_DITHER_MASK);
 	regmap_update_bits(dmar->reg, dmar->offset + DMAR_DIT,
 			   DMAR_COLOR_EXPAND_MASK | DMAR_COLOR_DITHER_MASK,
