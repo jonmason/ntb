@@ -17477,6 +17477,15 @@ wl_cfg80211_set_rekey_data(struct wiphy *wiphy, struct net_device *dev,
 		WL_ERR(("data is NULL or wrong net device\n"));
 		return -EINVAL;
 	}
+
+#ifdef GTKOFFLOAD_ENABLE
+	/* Getting gtk_key_info iovar clears previous keys if they were already stored */
+	if (( err = wldev_iovar_getbuf(dev, "gtk_key_info", NULL, 0,
+		cfg->ioctl_buf, WLC_IOCTL_SMLEN, &cfg->ioctl_buf_sync)) < 0) {
+		WL_DBG(("getting gtk_key_info failed\n"));
+	}
+#endif /* GTKOFFLOAD_ENABLE */
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
 	prhex("kck", (uchar *) (data->kck), RSN_KCK_LENGTH);
 	prhex("kek", (uchar *) (data->kek), RSN_KEK_LENGTH);
@@ -17490,11 +17499,14 @@ wl_cfg80211_set_rekey_data(struct wiphy *wiphy, struct net_device *dev,
 	bcopy(data->kek, keyinfo.KEK, RSN_KEK_LENGTH);
 	bcopy(data->replay_ctr, keyinfo.ReplayCounter, RSN_REPLAY_LEN);
 
+#ifdef GTKOFFLOAD_ENABLE
 	if ((err = wldev_iovar_setbuf(dev, "gtk_key_info", &keyinfo, sizeof(keyinfo),
 		cfg->ioctl_buf, WLC_IOCTL_SMLEN, &cfg->ioctl_buf_sync)) < 0) {
 		WL_ERR(("seting gtk_key_info failed code=%d\n", err));
 		return err;
 	}
+#endif /* GTKOFFLOAD_ENABLE */
+
 	WL_DBG(("Exit\n"));
 	return err;
 }
