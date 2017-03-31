@@ -18,9 +18,104 @@
 
 /dts-v1/;
 #include "s5p4418-navi_ref-common.dtsi"
+#include "s5p4418-audio-dfs-pll3.dtsi"
 / {
+	soc {
+		clocks {
+			i2s0:i2s@c00b2000 {
+				clk-input = <I_PLL3>;
+			};
+
+			i2s1:i2s@c00b3000 {
+				clk-input = <I_PLL3>;
+			};
+
+			i2s2:i2s@c00b4000 {
+				clk-input = <I_EXTCLK1>;
+			};
+		};
+
+		pinctrl@C0010000 {
+			i2s2_bus:i2s2 {
+				/delete-node/ i2s2-mclk;
+			};
+		};
+
+		i2s_0:i2s@c0055000 {
+			dfs;
+			dfs-pll = <3>;
+		};
+
+		i2s_1:i2s@c0056000 {
+			dfs;
+			dfs-pll = <3>;
+		};
+
+		i2s_2:i2s@c0057000 {
+			#sound-dai-cells = <1>;
+			master-mode = <0>;
+			mclk-in = <1>;
+			trans-mode = <0>;
+			frame-bit = <32>;
+			sample-rate = <16000>;
+			pre-supply-mclk = <0>;
+			dfs;
+			status = "okay";
+		};
+
+		dwc2otg@c0040000 {
+			/delete-property/ gpios;
+		};
+
+		i2c_1:i2c@c00a5000 {
+			rate = <400000>;
+			retry-delay = <500>;
+			retry-cnt = <10>;
+		};
+	};
+
+	snd_null: snd_null@10 {
+		#sound-dai-cells = <0>;
+		compatible = "nexell,snd-null";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0 0>;
+	};
+
 	sound {
+		compatible = "nexell,simple-audio-card";
 		simple-audio-card,name = "s5p4418 navi_ref rev00 Audio";
+		/delete-property/ simple-audio-card,mclk-fs;
+
+		simple-audio-card,dai-link@0 {
+			mclk-fs = <256>;
+		};
+
+		simple-audio-card,dai-link@1 {
+			mclk-fs = <256>;
+		};
+
+		simple-audio-card,dai-link@2 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s_2 0>;
+			};
+
+			codec {
+				sound-dai = <&snd_null>;
+			};
+		};
+
+		simple-audio-card,dai-link@3 {
+			mclk-fs = <256>;
+			cpu {
+				sound-dai = <&spdif_tx 0>;
+			};
+
+			codec {
+				sound-dai = <&spdif_out>;
+			};
+		};
 	};
 };
 
