@@ -50,7 +50,7 @@
  */
 
 
-#define PARA_BUF_SIZE		(12  * 1024)
+#define PARA_BUF_SIZE		(15  * 1024)	/* 128 * (height)/16 */
 #define	TEMP_BUF_SIZE		(204 * 1024)
 #define	CODE_BUF_SIZE		(260 * 1024)
 

@@ -1273,7 +1273,7 @@ int vpu_enc_init(struct nx_vpu_ctx *ctx)
 	}
 
 	if ((pSeqArg->srcWidth == 0) || (pSeqArg->srcWidth > 1920) ||
-		(pSeqArg->srcHeight == 0) || (pSeqArg->srcHeight > 1088)) {
+		(pSeqArg->srcHeight == 0) || (pSeqArg->srcHeight > 1920)) {
 		NX_ErrMsg(("resolution pamameter error(W = %d, H = %d)\n",
 			pSeqArg->srcWidth, pSeqArg->srcHeight));
 		return -1;
