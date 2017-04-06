@@ -25,6 +25,15 @@ config DRM_NX_S5PXX18
 	 If you want to enable S5PXX18 SoC DRM display,
 	 you should selet this option.
 
+config DRM_NX_NXP5XXX
+	bool "NXP5XXX"
+	depends on DRM_NX
+	select MFD_SYSCON
+	help
+	 This selects support for NXP5XXX SoC DRM driver.
+	 If you want to enable NXP5XXX SoC DRM display,
+	 you should selet this option.
+
 endchoice
 
 config DRM_CHECK_PRE_INIT

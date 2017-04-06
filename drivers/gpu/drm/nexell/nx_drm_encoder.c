@@ -100,8 +100,12 @@ static void nx_drm_encoder_mode_set(struct drm_encoder *encoder,
 				to_nx_encoder(encoder)->connector;
 	struct drm_connector *connector;
 
-	DRM_DEBUG_KMS("encoder id:%d crtc:%p\n",
-		encoder->base.id, encoder->crtc);
+	/*
+	 * Link Encoder to CRTC
+	 */
+	DRM_DEBUG_KMS("encoder id:%d crtc.%d:%p\n",
+		encoder->base.id, to_nx_crtc(encoder->crtc)->pipe,
+		encoder->crtc);
 
 	list_for_each_entry(connector,
 		&drm->mode_config.connector_list, head) {

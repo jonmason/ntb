@@ -29,6 +29,13 @@ nx_drm-$(CONFIG_DRM_NX_HDMI) 	+= nx_drm_hdmi.o	\
 nx_drm-$(CONFIG_DRM_NX_TVOUT) 	+= nx_drm_tv.o	\
 				s5pxx18/s5pxx18_tv.o
 nx_drm-$(CONFIG_DRM_NX_CLUSTER_LCD) 	+= nx_drm_cluster_lcd.o
+
+else ifeq ($(CONFIG_DRM_NX_NXP5XXX), y)
+nx_drm-objs 	+= nxp5xxx/nxp5xxx_drv.o
+
+obj-$(CONFIG_DRM_NX_HDMI)	+= nx_drm_hdmi.o \
+				nxp5xxx/nxp5xxx_hdmi.o
+
 endif
 
 obj-$(CONFIG_DRM_NX)	+= nx_drm.o

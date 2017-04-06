@@ -77,6 +77,7 @@ static void nx_drm_plane_atomic_update(struct drm_plane *plane,
 				       struct drm_plane_state *old_state)
 {
 	struct drm_plane_state *state = plane->state;
+	struct drm_crtc *crtc = state->crtc;
 	struct nx_drm_plane *nx_plane = to_nx_plane(plane);
 	struct nx_drm_plane_ops *ops = nx_plane->ops;
 
@@ -84,7 +85,13 @@ static void nx_drm_plane_atomic_update(struct drm_plane *plane,
 		return;
 
 	DRM_DEBUG_KMS("crtc.%d plane.%d\n",
-		to_nx_crtc(state->crtc)->pipe, nx_plane->index);
+		to_nx_crtc(crtc)->pipe, nx_plane->index);
+	DRM_DEBUG_KMS("crtc.%d enable:%d, active:%d, changed:%d\n",
+		to_nx_crtc(crtc)->pipe, crtc->state->enable,
+		crtc->state->active, crtc->state->active_changed);
+
+	if (!crtc->state->enable)
+		return;
 
 	if (ops && ops->update)
 		ops->update(plane, state->fb, state->crtc_x, state->crtc_y,

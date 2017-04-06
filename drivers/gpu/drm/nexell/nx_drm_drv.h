@@ -198,9 +198,9 @@ struct nx_drm_connect_drv_ops {
 struct nx_drm_connector {
 	struct drm_connector connector;
 	struct nx_drm_encoder *encoder;	/* hard linked encoder */
-	struct device *dev;	/* panel device */
+	struct device *dev;	/* display device */
 	struct nx_drm_connect_drv_ops *ops;
-	struct nx_drm_display *display;	/* for panel control */
+	struct nx_drm_display *display;	/* for display control */
 	unsigned int possible_crtcs;
 	bool suspended;
 };
