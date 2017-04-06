@@ -23,6 +23,7 @@
 #include <linux/io.h>
 #include <linux/clk.h>
 #include <linux/reset.h>
+#include <linux/regmap.h>
 #include <linux/interrupt.h>
 #include <linux/of_address.h>
 #include <linux/platform_device.h>
@@ -43,8 +44,8 @@
 
 #define	MAX_RESOURCE_NUM	6
 
-#define	DBG(h, m...)	dev_dbg((const struct device *)&h->nxs_dev.dev, m)
-#define	ERR(h, m...)	dev_err((const struct device *)&h->nxs_dev.dev, m)
+#define	DBG(h, m...)	dev_dbg((const struct device *)h->nxs_dev.dev, m)
+#define	ERR(h, m...)	dev_err((const struct device *)h->nxs_dev.dev, m)
 
 struct nxs_hdmi {
 	struct nxs_dev nxs_dev;
@@ -1538,7 +1539,7 @@ static void hdmilink_v2_enable(void __iomem *link, bool enable)
 static int hdmi_phy_wait_ready(struct nxs_hdmi *hdmi)
 {
 	void __iomem *link  = hdmi->reg_link;
-	int count = 500;
+	int count = 50;
 	bool ret = false;
 
 	do {
@@ -2334,22 +2335,25 @@ static int hdmi_get_status(const struct nxs_dev *nxs_dev,
 	return 0;
 }
 
-static void hdmi_irq_enable(const struct nxs_dev *nxs_dev, int type,
-				     bool enable)
+static void hdmi_irq_enable(const struct nxs_dev *nxs_dev,
+			enum nxs_event_type type, bool enable)
 {
 }
 
-static u32 hdmi_irq_status(const struct nxs_dev *nxs_dev, int type)
-{
-	return 0;
-}
-
-static u32 hdmi_irq_pending(const struct nxs_dev *nxs_dev, int type)
+static u32 hdmi_irq_status(const struct nxs_dev *nxs_dev,
+			enum nxs_event_type type)
 {
 	return 0;
 }
 
-static void hdmi_irq_done(const struct nxs_dev *nxs_dev, int type)
+static u32 hdmi_irq_pending(const struct nxs_dev *nxs_dev,
+			enum nxs_event_type type)
+{
+	return 0;
+}
+
+static void hdmi_irq_done(const struct nxs_dev *nxs_dev,
+			enum nxs_event_type type)
 {
 	struct nxs_hdmi *hdmi = nxs_to_hdmi(nxs_dev);
 
