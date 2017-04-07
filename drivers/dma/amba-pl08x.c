@@ -1623,6 +1623,12 @@ static struct dma_async_tx_descriptor *pl08x_prep_slave_sg(
 	if (!txd)
 		return NULL;
 
+	if (flags & DMA_PREP_INTERRUPT)
+		txd->cctl |= PL080_CONTROL_TC_IRQ_EN;
+
+	if (flags & DMA_PREP_CONTINUE)
+		txd->cyclic = true;
+
 	for_each_sg(sgl, sg, sg_len, tmp) {
 		ret = pl08x_tx_add_sg(txd, direction, slave_addr,
 				      sg_dma_address(sg),
