@@ -989,5 +989,27 @@
 			status = "okay";
 			sram = <0 0>;
 		};
+
+		mpegts_0: mpegts0@c005d000 {
+			compatible = "nexell,nx-mpegts";
+			reg = <0xc005d000 0x4000>;
+			reset-names = "mpegts0-rst";
+			resets = <&nexell_reset RESET_ID_MPEGTSI>;
+			clock-names = "mpegts0-clk";
+			clocks = <&mpegtsi>;
+			channel_num = <0>;
+			status = "disabled";
+		};
+
+		mpegts_1: mpegts1@c005d000 {
+			compatible = "nexell,nx-mpegts";
+			reg = <0xc005d000 0x4000>;
+			reset-names = "mpegts1-rst";
+			resets = <&nexell_reset RESET_ID_MPEGTSI>;
+			clock-names = "mpegts1-clk";
+			clocks = <&mpegtsi>;
+			channel_num = <1>;
+			status = "disabled";
+		};
 	}; /*** soc ***/
 };
