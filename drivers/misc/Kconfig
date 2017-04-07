@@ -562,6 +562,13 @@ config ARTIK_S3T9MF
         help
           This driver allows you can control s3t9mf for artik board.
 
+config FCI_FC8300
+	bool "Support FCI FC8300 ISDBT MODULE"
+	depends on (I2C && VIDEO_NEXELL_MPEGTS)
+	default n
+	help
+		support FCI fc8300 isdbt.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
@@ -575,4 +582,5 @@ source "drivers/misc/genwqe/Kconfig"
 source "drivers/misc/echo/Kconfig"
 source "drivers/misc/cxl/Kconfig"
 source "drivers/misc/artiktee/Kconfig"
+
 endmenu

@@ -1,0 +1,16 @@
+FCI FC8300 MODULE Device Tree bindings
+======================================
+
+FCI FC8300 is a de-module for receiving ISDB-T broadcasts.
+
+Required properties:
+- compatible	: must contain "fci,fc8300_i2c"
+- reset-gpios	: GPIO specifier for the chips reset line
+- reg		: the register sets (physical address and length) for the FC8300
+
+Example:
+	fc8300: fc8300@58 {
+		compatible = "fci,fc8300_i2c";
+		reset-gpios = <&gpio_c 12 0>;
+		reg = <0x58>;
+	};
