@@ -604,6 +604,14 @@
 	status = "ok";
 };
 
+&i2c_1 {
+	fc8300: fc8300@58 {
+		compatible = "fci,fc8300_i2c";
+		reset-gpios = <&gpio_c 12 0>;
+		reg = <0x58>;
+	};
+};
+
 &i2c_2 {
 	#address-cells = <1>;
 	#size-cells = <0>;
