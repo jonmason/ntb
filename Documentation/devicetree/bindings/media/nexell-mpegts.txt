@@ -1,0 +1,71 @@
+Nexell Rear MPEGTS Device Tree bindings
+====================================
+
+MPEGTS is for receiving ISDB-T broadcasts.
+
+Required properties:
+- compatible	: must contain "nexell,nx-mpegts"
+- reg		: the register sets (physical address and length) for the MPEGTS
+- reset-names	: the MPEGTS reset specifier
+- resets       	: the reset reference for MPEGTS. must use value defined in reset dts
+- clock-names  	: the MPEGTS clock specifier
+- clocks        : the clock reference for MPEGTS. must use value defined in clock dts
+- channel_num	: the channel number for MPEGTS. this value depend on hardware settting
+- status	: default is "disabled". when using, set to "okay"
+- pinctrl-names : must contain "default"
+- pinctrl-0     : the pinctrl reference to MPEGTS channel and operation mothod(serrial and parallel)
+- gpios		: the MPEGTS gpio settings for power control
+- serial_mode	: set MPEGTS serial mode(1 : serial mode, 0 : parallel mode)
+- clock_pol	: set operation clock polarity for the MPEGTS(1 : high, 0 : low)
+- valid_pol	: set operation validation polarity for the MPEGTS(1 : high, 0 : low)
+- sync_pol	: set operation syncronazation polarity for the MPEGTS(1 : high, 0 : low)
+- err_pol	: set operation error polarity for the MPEGTS(1 : high, 0 : low)
+- bypass	: set stream bypass(1 : enable bypass, 0 : disable bypass)
+- xfer_mode	: set output mode(1 : enable output mode, 0 : disable output mode)
+- xfer_clk_pol	: set output clock polarity(1 : high, 0 : low)
+- encrypt_on	: set whether to encrypt stream data.
+
+Optional properties:
+- power: enable_seq	: MPEGTS power on sequence
+			  [ACTION_START_TAG][ACTION_TYPE][SEQUENCE][ACTION_END_TAG]
+			  ACTION_START_TAG : NX_ACTION_START
+			  ACTION_END_TAG : NX_ACTION_END
+			  ACTION_TYPE : NX_ACTION_TYPE_PMIC, NX_ACTION_TYPE_GPIO, NX_ACTION_TYPE_CLOCK
+			  SEQUENCE for ACTION_TYPE_GPIO: gpionum, value, delay_ms, value, delay_ms ...
+			  SEQUENCE for ACTION_TYPE_PMIC: regulator_name, value, delay_ms
+			  SEQUENCE for ACTION_TYPE_CLOCK: enable/disable, delay_ms
+
+Example:
+	mpegts_1: mpegts1@c005d000 {
+		compatible = "nexell,nx-mpegts";
+		reg = <0xc005d000 0x4000>;
+		reset-names = "mpegts1-rst";
+		resets = <&nexell_reset RESET_ID_MPEGTSI>;
+		clock-names = "mpegts1-clk";
+		clocks = <&mpegtsi>;
+		channel_num = <1>;
+		status = "disabled";
+	};
+
+
+	&mpegts_1 {
+		status = "ok";
+		pinctrl-names = "default";
+		pinctrl-0 = <&mpegts_cap1_sync &mpegts_cap1_data_clk_serial>;
+		gpios = <&gpio_a 23 0>;
+		serial_mode = <1>;
+		clock_pol = <1>;
+		valid_pol = <1>;
+		sync_pol = <1>;
+		err_pol = <1>;
+		bypass = <1>;
+		xfer_mode = <0>;
+		xfer_clk_pol = <0>;
+		encrypt_on = <0>;
+
+		power {
+			enable_seq = <
+			NX_ACTION_START NX_ACTION_TYPE_GPIO 0 1 1 0 1 1 1 NX_ACTION_END
+			>;
+	};
+};

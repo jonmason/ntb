@@ -1,0 +1,6 @@
+config VIDEO_NEXELL_MPEGTS
+	bool "Enable nexell MPEGTS video device"
+	default n
+	---help---
+	  Say y here to enable Nexell S5Pxx18 series MPEGTS video device.
+	  If you want to enable only MPEGTS video dev, don't check this.

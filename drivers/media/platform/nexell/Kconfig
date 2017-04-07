@@ -30,6 +30,17 @@ if VIDEO_NEXELL_CAPTURE
 source "drivers/media/platform/nexell/capture/Kconfig"
 endif # VIDEO_NEXELL_CAPTURE
 
+config VIDEO_NEXELL_DVB
+	bool "Nexell S5Pxx18 SoC series DVB interface"
+	depends on I2C
+	default n
+	help
+	  This is a V4L2 driver for Nexell S5Pxx18 series SoC DVB interface.
+
+if VIDEO_NEXELL_DVB
+source "drivers/media/platform/nexell/mpegts/Kconfig"
+endif # VIDEO_NEXELL_DVB
+
 endif # VIDEO_NEXELL
 
 config VIDEO_NEXELL_NXS

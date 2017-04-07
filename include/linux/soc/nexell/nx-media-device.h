@@ -23,6 +23,7 @@ enum {
 	NX_CAPTURE_START = 6,
 	NX_VPU_START = 14,
 	NX_RENDER_START = 22,
+	NX_MPEGTS_START = 30,
 };
 
 #endif
