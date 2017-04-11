@@ -164,6 +164,7 @@ enum {
 struct nxs_irq_callback {
 	struct list_head list;
 	void (*handler)(struct nxs_dev *, void *);
+	u32 type;
 	void *data;
 };
 
