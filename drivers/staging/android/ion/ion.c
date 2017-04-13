@@ -1114,6 +1114,32 @@ static void ion_dma_buf_end_cpu_access(struct dma_buf *dmabuf, size_t start,
 	mutex_unlock(&buffer->lock);
 }
 
+static void *ion_dma_buf_vmap(struct dma_buf *dmabuf)
+{
+       struct ion_buffer *buffer = dmabuf->priv;
+       void *vaddr;
+
+       if (!buffer->heap->ops->map_kernel) {
+               pr_err("%s: map kernel is not implemented by this heap.\n",
+                      __func__);
+               return NULL;
+       }
+
+       mutex_lock(&buffer->lock);
+       vaddr = ion_buffer_kmap_get(buffer);
+       mutex_unlock(&buffer->lock);
+       return vaddr;
+}
+
+static void ion_dma_buf_vunmap(struct dma_buf *dmabuf, void *cpu_addr)
+{
+	struct ion_buffer *buffer = dmabuf->priv;
+
+	mutex_lock(&buffer->lock);
+	ion_buffer_kmap_put(buffer);
+	mutex_unlock(&buffer->lock);
+}
+
 static struct dma_buf_ops dma_buf_ops = {
 	.map_dma_buf = ion_map_dma_buf,
 	.unmap_dma_buf = ion_unmap_dma_buf,
@@ -1125,6 +1151,8 @@ static struct dma_buf_ops dma_buf_ops = {
 	.kunmap_atomic = ion_dma_buf_kunmap,
 	.kmap = ion_dma_buf_kmap,
 	.kunmap = ion_dma_buf_kunmap,
+	.vmap = ion_dma_buf_vmap,
+	.vunmap = ion_dma_buf_vunmap,
 };
 
 struct dma_buf *ion_share_dma_buf(struct ion_client *client,
