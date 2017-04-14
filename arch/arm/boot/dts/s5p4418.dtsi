@@ -98,6 +98,11 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		ranges;
+
+		secure_memory@b0000000 {
+			reg = <0xB0000000 0x1000000>;
+			nop-map;
+		};
 	};
 
 	scu:0xf0000000 {
