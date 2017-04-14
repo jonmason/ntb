@@ -24,7 +24,7 @@
 / {
 	memory {
 		device_type = "memory";
-		reg = <0x40000000 0x40000000>;
+		reg = <0x40000000 0x80000000>;
 	};
 
 	psci {
@@ -560,7 +560,7 @@
 		hsync-len = <20>;
 		vfront-porch = <12>;
 		vback-porch = <20>;
-		vsync-len = <3>; }; 
+		vsync-len = <3>; };
 	dp_control {
 		clk_src_lv0 = <3>;
 		clk_div_lv0 = <16>;
