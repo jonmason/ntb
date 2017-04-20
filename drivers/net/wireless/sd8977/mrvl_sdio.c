@@ -38,6 +38,7 @@ static unsigned int num_sdio_irqs = 0;
 static struct task_struct *sdio_irq_thread = NULL;
 static int irq_enabled = 0;
 static int irq_registered = 0;
+static spinlock_t sdio_lock = __SPIN_LOCK_UNLOCKED(sdio_lock);
 
 #define MRVL_MAX_SDIO_FUNC 2
 static int suspended[MRVL_MAX_SDIO_FUNC] = {0, };
@@ -71,8 +72,13 @@ mrvl_get_gpio_from_dev_tree(void)
 static irqreturn_t
 mrvl_sdio_irq(int irq, void *dev_id)
 {
-	disable_irq_nosync(oob_irq);
-	irq_enabled = 0;
+	unsigned long flags;
+	spin_lock_irqsave(&sdio_lock, flags);
+	if(irq_enabled) {
+		disable_irq_nosync(oob_irq);
+		irq_enabled = 0;
+	}
+	spin_unlock_irqrestore(&sdio_lock, flags);
 
 	wake_up_process(sdio_irq_thread);
 
@@ -85,14 +91,15 @@ mrvl_sdio_irq_register(struct mmc_card *card)
 	int ret = 0;
 
 	irq_enabled = 1;
+	irq_registered = 1;
 	ret = request_irq(oob_irq, mrvl_sdio_irq,
 			IRQF_TRIGGER_LOW | IRQF_SHARED,
 			"mrvl_sdio_irq", card);
 
 	if (!ret) {
-		irq_registered = 1;
 		enable_irq_wake(oob_irq);
 	} else {
+		irq_registered = 0;
 		irq_enabled = 0;
 	}
 
@@ -102,15 +109,19 @@ mrvl_sdio_irq_register(struct mmc_card *card)
 static void
 mrvl_sdio_irq_unregister(struct mmc_card *card)
 {
+	unsigned long flags;
+	spin_lock_irqsave(&sdio_lock, flags);
 	if (irq_registered) {
 		irq_registered = 0;
 		disable_irq_wake(oob_irq);
 		if (irq_enabled) {
-			disable_irq(oob_irq);
+			disable_irq_nosync(oob_irq);
 			irq_enabled = 0;
 		}
+		spin_unlock_irqrestore(&sdio_lock, flags);
 		free_irq(oob_irq, card);
-	}
+	} else
+		spin_unlock_irqrestore(&sdio_lock, flags);
 }
 
 static int
@@ -122,6 +133,7 @@ mrvl_sdio_irq_thread(void *_card)
 	int i;
 	int ret;
 	struct sched_param param = { .sched_priority = 1 };
+	unsigned long flags;
 
 	sched_setscheduler(current, SCHED_FIFO, &param);
 
@@ -158,11 +170,14 @@ mrvl_sdio_irq_thread(void *_card)
 		}
 
 		set_current_state(TASK_INTERRUPTIBLE);
+		spin_lock_irqsave(&sdio_lock, flags);
 		if (irq_registered && !irq_enabled && !mrvl_sdio_is_suspended())
 		{
 			irq_enabled = 1;
 			enable_irq(oob_irq);
 		}
+		spin_unlock_irqrestore(&sdio_lock, flags);
+
 		if (!kthread_should_stop())
 			schedule();
 		set_current_state(TASK_RUNNING);
@@ -177,6 +192,7 @@ mvrl_sdio_func_intr_enable(struct sdio_func *func, sdio_irq_handler_t *handler)
 {
 	int ret;
 	unsigned char reg;
+	unsigned long flags;
 
 #ifdef MMC_QUIRK_LENIENT_FN0
 	func->card->quirks |= MMC_QUIRK_LENIENT_FN0;
@@ -190,8 +206,10 @@ mvrl_sdio_func_intr_enable(struct sdio_func *func, sdio_irq_handler_t *handler)
 	if (ret)
 		return ret;
 
+	spin_lock_irqsave(&sdio_lock, flags);
 	func->irq_handler = handler;
 	suspended[func->num-1] = 0;
+	spin_unlock_irqrestore(&sdio_lock, flags);
 
 	return ret;
 }
@@ -275,12 +293,16 @@ EXPORT_SYMBOL_GPL(mrvl_sdio_release_irq);
 int
 mrvl_sdio_suspend(struct sdio_func *func)
 {
+	unsigned long flags;
+	spin_lock_irqsave(&sdio_lock, flags);
+
 	suspended[func->num-1] = 1;
 
 	if (mrvl_sdio_is_suspended() && irq_enabled) {
 		disable_irq_nosync(oob_irq);
 		irq_enabled = 0;
 	}
+	spin_unlock_irqrestore(&sdio_lock, flags);
 
 	return 0;
 }
@@ -289,11 +311,16 @@ EXPORT_SYMBOL_GPL(mrvl_sdio_suspend);
 int
 mrvl_sdio_resume(struct sdio_func *func)
 {
+	unsigned long flags;
+	spin_lock_irqsave(&sdio_lock, flags);
+
 	if (mrvl_sdio_is_suspended()) {
 		suspended[func->num-1] = 0;
+		spin_unlock_irqrestore(&sdio_lock, flags);
 		wake_up_process(sdio_irq_thread);
 	} else {
 		suspended[func->num-1] = 0;
+		spin_unlock_irqrestore(&sdio_lock, flags);
 	}
 
 	return 0;
