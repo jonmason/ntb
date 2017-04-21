@@ -57,6 +57,8 @@
 			uart5:uart@c0084000 { clock-frequency = <147500000>; };
 			pwm0:pwm0@c00ba000 { clock-frequency = <100000000>; };
 			i2c0:i2c@c00ae000  { clock-frequency = <200000000>; };
+			i2c1:i2c@c00af000  { clock-frequency = <200000000>; };
+			i2c2:i2c@c00b0000  { clock-frequency = <200000000>; };
 		};
 
 		serial2:serial@c00a2000 {
@@ -131,6 +133,38 @@
 			nexell,sample_dly = <0x00>;
 			nexell,sample_shift = <0x01>;
 			status = "okay";
+		};
+
+		i2s_0:i2s@c0055000 {
+			#sound-dai-cells = <1>;
+			master-mode = <1>;
+			mclk-in = <0>;
+			trans-mode = <0>;
+			frame-bit = <32>;
+			sample-rate = <48000>;
+			pre-supply-mclk = <1>;
+			status = "okay";
+		};
+
+		spdif_tx: spdiftx@c0059000 {
+			#sound-dai-cells = <1>;
+			pcm-bit = <16>;
+			sample_rate = <48000>;
+			status = "okay";
+		};
+
+		i2c_2:i2c@c00a6000 {
+			status = "diabled";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			rt5640: rt5640@1c {
+				#sound-dai-cells = <0>;
+				compatible = "realtek,rt5640";
+				reg = <0x1c>;
+				realtek,ldo1-en-gpios =
+					<&gpio_c 4 GPIO_ACTIVE_HIGH>;
+			};
 		};
 
 		pinctrl@C0010000 {
@@ -248,6 +282,47 @@
 			};
 		};
 	};	/*** soc ***/
+
+	sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "s5p6818 kick-st Audio";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,widgets =
+		    "Headphone", "Out Jack",
+		    "Microphone", "In Jack";
+		simple-audio-card,routing =
+		    "Out Jack", "HPOL",
+		    "Out Jack", "HPOR",
+		    "IN2P", "In Jack",
+		    "IN2P", "In Jack";
+			status = "okay";
+
+		simple-audio-card,dai-link@0 {
+		    format = "i2s";
+		    cpu {
+			sound-dai = <&i2s_0 0>;
+		    };
+
+		    codec {
+			sound-dai = <&rt5640>;
+		    };
+		};
+
+		simple-audio-card,dai-link@1 {
+		    cpu {
+			sound-dai = <&spdif_tx 0>;
+		    };
+
+		    codec {
+			sound-dai = <&spdif_out>;
+		    };
+		};
+	};
+
+	spdif_out: spdif-out {
+		#sound-dai-cells = <0>;
+		compatible = "linux,spdif-dit";
+	};
 
 	i2c_gpio3: i2c@3 {
 		compatible = "i2c-gpio";
