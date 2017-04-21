@@ -2500,7 +2500,15 @@ static struct platform_driver samsung_serial_driver = {
 	},
 };
 
+#ifdef CONFIG_REDUCE_BOOT_TIME
+static int __init samsung_serial_init(void)
+{
+	return  platform_driver_register(&samsung_serial_driver);
+}
+subsys_initcall(samsung_serial_init)
+#else
 module_platform_driver(samsung_serial_driver);
+#endif
 
 #ifdef CONFIG_SERIAL_SAMSUNG_CONSOLE
 /*
