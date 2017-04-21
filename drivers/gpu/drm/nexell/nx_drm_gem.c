@@ -371,7 +371,7 @@ static void nx_drm_gem_sys_free(struct nx_gem_object *nx_obj)
 		DRM_DEBUG_DRIVER("[%3d] %p, va:%p, pa:0x%lx, size:%ld\n",
 			i, page, page_address(page),
 			(unsigned long)phys_to_dma(nx_obj->base.dev->dev,
-			virt_to_phys(page_address(page))),
+			page_to_phys(page)),
 			PAGE_SIZE << compound_order(page));
 
 		__free_pages(page, compound_order(page));
@@ -427,8 +427,6 @@ static int nx_drm_gem_sys_contig_alloc(
 {
 	struct drm_device *drm;
 	struct sg_table *sgt;
-	void *cpu_addr;
-	dma_addr_t dma_addr;
 	struct page *page;
 	unsigned long i;
 	int order = get_order(size);
@@ -467,13 +465,10 @@ static int nx_drm_gem_sys_contig_alloc(
 	sg_set_page(sgt->sgl, page, size, 0);
 	sg_dma_address(sgt->sgl) = sg_phys(sgt->sgl);
 
-	cpu_addr = page_address(page);
-	dma_addr = phys_to_dma(drm->dev, virt_to_phys(cpu_addr));
-
 	/* set gem object params */
 	nx_obj->sgt = sgt;
 	nx_obj->cpu_addr = __drm_gem_sys_remap(nx_obj, size);
-	nx_obj->dma_addr = dma_addr;
+	nx_obj->dma_addr = phys_to_dma(drm->dev, page_to_phys(page));
 	nx_obj->size = size;
 
 	/* cached flush */
