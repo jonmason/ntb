@@ -2273,6 +2273,7 @@ static const struct hdmi_preset hdmi_conf_768p60 = {
 		 .flags = 0,
 		 },
 };
+
 /*
  * PHY preset data tables
  */

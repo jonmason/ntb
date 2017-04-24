@@ -39,6 +39,9 @@
 
 #include "nxs_hdmi.h"
 
+#define	HDMI_IRQ_UPDATE	(1<<0)
+#define	HDMI_IRQ_HPD	(1<<1)
+
 #define HDCP_1P4_KEY_SIZE	288 /* 0x120 (HDCP 1.4) */
 #define HDCP_2P2_KEY_SIZE	320 /* 0x140 (HDCP 1.4 and HDCP 2.2) */
 
@@ -82,6 +85,11 @@ struct nxs_hdmi {
 	void __iomem *reg_cec;
 	void __iomem *reg_tieoff;
 	struct hdmi_clock *clocks;
+
+	/* interrupts */
+	int irq;	/* for syncgen */
+	int hpd_irq;	/* for hpd */
+	bool hpd_irq_enabled;
 };
 #define nxs_to_hdmi(dev)	container_of(dev, struct nxs_hdmi, nxs_dev)
 
@@ -206,7 +214,7 @@ static int hdmilink_v2_sync_pol(void __iomem *link,
 
 static void hdmilink_v2_hpd_on(void __iomem *link, bool on)
 {
-	pr_debug("%s: %s\n", __func__, on ? "on" : "off");
+	pr_info("HPD [%s]\n", on ? "ON" : "OFF");
 
 	if (!on)
 		return;
@@ -1790,7 +1798,11 @@ static int hdmi_video_run(struct nxs_hdmi *hdmi)
 
 static void hdmi_hpd_run(struct nxs_hdmi *hdmi, bool on)
 {
+	if (on && hdmi->hpd_irq_enabled)
+		return;
+
 	hdmilink_v2_hpd_on(hdmi->reg_link, on);
+	hdmi->hpd_irq_enabled = on;
 }
 
 static void hdmi_run(struct nxs_hdmi *hdmi)
@@ -2322,6 +2334,11 @@ static int hdmi_get_status(const struct nxs_dev *nxs_dev,
 
 	switch (type) {
 	case NXS_DISPLAY_STATUS_CONNECT:
+		/*
+		 * Enable the HPD interrupt after hdmi resource has been
+	 	 * connected.
+	 	 */
+		hdmi_hpd_run(hdmi, true);
 		return hdmi_is_connected(hdmi) ? 1 : 0;
 
 	case NXS_DISPLAY_STATUS_MODE:
@@ -2410,15 +2427,29 @@ static int hdmi_stop(const struct nxs_dev *nxs_dev)
 	return 0;
 }
 
+static irqreturn_t hdmi_irq_handler(int irq, void *data)
+{
+	struct nxs_hdmi *hdmi = (struct nxs_hdmi *)data;
+	struct nxs_dev *nxs_dev = &hdmi->nxs_dev;
+	struct nxs_irq_callback *cb;
+
+	list_for_each_entry(cb, &nxs_dev->irq_callback, list) {
+		if (cb) {
+			if (irq == hdmi->hpd_irq && cb->type == HDMI_IRQ_HPD)
+				cb->handler(nxs_dev, cb->data);
+			else if (irq == hdmi->irq && cb->type == HDMI_IRQ_UPDATE)
+				cb->handler(nxs_dev, cb->data);
+			else
+				pr_err("ERROR: no hdmi irq callback !!!\n");
+		}
+	}
+
+	return IRQ_HANDLED;
+}
+
 static int hdmi_open(const struct nxs_dev *nxs_dev)
 {
-	struct nxs_hdmi *hdmi = nxs_to_hdmi(nxs_dev);
-
-	DBG(hdmi, "enter\n");
-
-	/* hdmi plug detect on */
-	hdmi_hpd_run(hdmi, true);
-
+	DBG(nxs_to_hdmi(nxs_dev), "enter\n");
 	return 0;
 }
 
@@ -2472,6 +2503,8 @@ static inline void __iomem *hdmi_resource_base(struct nxs_hdmi *hdmi, int id)
 static int hdmi_probe_setup(struct platform_device *pdev, struct nxs_hdmi *hdmi)
 {
 	struct nxs_dev *nxs_dev = &hdmi->nxs_dev;
+	const char *strings[2];
+	int i, size, ret;
 
 	nxs_dev->dev = &pdev->dev;
 
@@ -2502,11 +2535,44 @@ static int hdmi_probe_setup(struct platform_device *pdev, struct nxs_hdmi *hdmi)
 
 	hdmi_clk_reset_init(hdmi);
 
+	/* HDMI Interrupts */
+	size = of_property_read_string_array(pdev->dev.of_node,
+			"interrupts-names", strings, ARRAY_SIZE(strings));
+	if (size > ARRAY_SIZE(strings))
+		return -EINVAL;
+
+	for (i = 0; i < ARRAY_SIZE(strings); i++) {
+		const char *c = strings[i];
+		int irq = platform_get_irq(pdev, i);
+
+		if (irq < 0) {
+			dev_err(&pdev->dev,
+				"failed to get irq for %s\n", c);
+			return -EINVAL;
+		}
+
+		ret = request_irq(irq, hdmi_irq_handler,
+				  IRQF_TRIGGER_NONE, "nxs-hdmi", hdmi);
+		if (ret < 0) {
+			dev_err(&pdev->dev,
+				"failed to request irq.%d (%s)\n",
+				irq, c);
+			return ret;
+		}
+
+		if (!strcasecmp(strings[i], "hpd"))
+			hdmi->hpd_irq = irq;
+
+		if (!strcasecmp(strings[i], "syncgen"))
+			hdmi->irq = irq;
+	}
+
 	return 0;
 }
 
-static int hdmi_stream_register(struct nxs_dev *nxs_dev)
+static int hdmi_stream_register(struct nxs_hdmi *hdmi)
 {
+	struct nxs_dev *nxs_dev = &hdmi->nxs_dev;
 	int ret;
 
 	nxs_dev->open = hdmi_open;
@@ -2517,6 +2583,7 @@ static int hdmi_stream_register(struct nxs_dev *nxs_dev)
 	nxs_dev->set_control = nxs_set_control;
 	nxs_dev->get_control = nxs_get_control;
 
+	nxs_dev->irq = hdmi->hpd_irq;
 	nxs_dev->set_interrupt_enable = hdmi_irq_enable;
 	nxs_dev->get_interrupt_enable = hdmi_irq_status;
 	nxs_dev->get_interrupt_pending = hdmi_irq_pending;
@@ -2553,7 +2620,7 @@ static int hdmi_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	ret = hdmi_stream_register(&hdmi->nxs_dev);
+	ret = hdmi_stream_register(hdmi);
 	if (ret)
 		return ret;
 

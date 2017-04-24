@@ -316,7 +316,8 @@ static int panel_hdmi_bind(struct device *dev,
 	 * Enable the interrupt after the connector has been
 	 * connected.
 	 */
-	enable_irq(hdmi->hpd_irq);
+	if (hdmi->hpd_irq != INVALID_IRQ)
+		enable_irq(hdmi->hpd_irq);
 
 	return 0;
 }
@@ -402,7 +403,7 @@ static int panel_hdmi_parse_dt_hdmi(struct platform_device *pdev,
 	struct device_node *node = dev->of_node;
 	struct device_node *np;
 	unsigned long flags = IRQF_ONESHOT;
-	int hpd_gpio = 0, hpd_irq;
+	int hpd_gpio = 0, hpd_irq = INVALID_IRQ;
 	int err;
 
 	/* parse hdmi default resolution */
@@ -431,7 +432,7 @@ static int panel_hdmi_parse_dt_hdmi(struct platform_device *pdev,
 		return -EPROBE_DEFER;
 	}
 
-	/* HPD */
+	/* HPD gpio */
 	hpd_gpio = of_get_named_gpio(node, "hpd-gpio", 0);
 	if (gpio_is_valid(hpd_gpio)) {
 		err = gpio_request_one(hpd_gpio, GPIOF_DIR_IN,
@@ -453,36 +454,41 @@ static int panel_hdmi_parse_dt_hdmi(struct platform_device *pdev,
 		flags = IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING |
 				IRQF_ONESHOT;
 		DRM_INFO("hdp gpio %d\n", hpd_gpio);
-	} else {
+	} else { /* HPD hardwired */
 		err = platform_get_irq(pdev, 0);
-		if (err < 0) {
-			DRM_ERROR("Failed, hdmi platform_get_irq !\n");
-			return -EINVAL;
-		}
 	}
 
-	hpd_irq = err;
+	if (err >= 0)
+		hpd_irq = err;
+
 	INIT_DELAYED_WORK(&ctx->work, panel_hdmi_hpd_work);
 
-	err = devm_request_threaded_irq(dev, hpd_irq, NULL,
+	if (hpd_irq != INVALID_IRQ) {
+		err = devm_request_threaded_irq(dev, hpd_irq, NULL,
 				panel_hdmi_hpd_irq, flags, "hdmi-hpd", ctx);
-	if (err < 0) {
-		DRM_ERROR("Failed to request IRQ#%u: %d\n", hpd_irq, err);
-		gpio_free(hpd_irq);
-		return err;
-	}
+		if (err < 0) {
+			DRM_ERROR("Failed to request IRQ#%u: %d\n", hpd_irq, err);
+			gpio_free(hpd_irq);
+			return err;
+		}
 
-	/*
-	 * Disable the interrupt until the connector has been
-	 * initialized to avoid a race in the hotplug interrupt
-	 * handler.
-	 */
-	disable_irq(hpd_irq);
+		/*
+		 * Disable the interrupt until the connector has been
+	 	* initialized to avoid a race in the hotplug interrupt
+	 	* handler.
+	 	*/
+		disable_irq(hpd_irq);
+		DRM_INFO("irq %d install for hdp\n", hpd_irq);
+	} else {
+		struct nx_drm_display *display = ctx_to_display(ctx);
+		struct nx_drm_hdmi_ops *hdmi_ops = display->ops->hdmi;
+
+		hdmi_ops->hpd_irq_cb = panel_hdmi_hpd_irq;
+		hdmi_ops->cb_data = ctx;
+	}
 
 	hdmi->hpd_gpio = hpd_gpio;
 	hdmi->hpd_irq = hpd_irq;
-
-	DRM_INFO("irq %d install for hdp\n", hpd_irq);
 
 	return 0;
 }

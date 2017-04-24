@@ -218,6 +218,8 @@ struct nx_drm_hdmi_ops {
 			struct drm_display_mode *mode);
 	int (*get_mode)(struct nx_drm_display *display,
 			struct drm_display_mode *mode);
+	irqreturn_t (*hpd_irq_cb)(int irq, void *data);
+	void *cb_data;
 };
 
 struct nx_drm_mipi_dsi_ops {

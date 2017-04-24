@@ -869,6 +869,42 @@ int nx_stream_display_create(struct nx_drm_display *display)
 	return 0;
 }
 
+void nx_stream_display_update(struct nx_drm_display *display)
+{
+	struct drm_crtc *crtc;
+	struct drm_plane *primary;
+	struct drm_encoder *encoder;
+	struct nx_drm_connector *connector;
+	struct drm_pending_vblank_event *event;
+
+	if (WARN_ON(!display))
+		return;
+
+	connector = display->connector;
+	encoder = &connector->encoder->encoder;
+	if (!encoder || !encoder->crtc)
+		return;
+
+	crtc = encoder->crtc;
+	primary = crtc->primary;
+
+	/*
+	 * update crtc event
+	 */
+	drm_crtc_handle_vblank(crtc);
+
+	spin_lock(&crtc->dev->event_lock);
+
+	event = to_nx_crtc(crtc)->event;
+	if (event) {
+		drm_crtc_send_vblank_event(crtc, event);
+		drm_crtc_vblank_put(crtc);
+		to_nx_crtc(crtc)->event = NULL;
+	}
+
+	spin_unlock(&crtc->dev->event_lock);
+}
+
 struct nx_drm_display *nx_drm_display_get(struct device *dev,
 			struct device_node *node,
 			struct drm_connector *connector,
