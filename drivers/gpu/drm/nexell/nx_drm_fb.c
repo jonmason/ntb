@@ -20,6 +20,8 @@
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
 
+#include <linux/dma-buf.h>
+
 #include "nx_drm_drv.h"
 #include "nx_drm_fb.h"
 #include "nx_drm_gem.h"
@@ -459,6 +461,23 @@ static int nx_drm_fb_check_var(struct fb_var_screeninfo *var,
 	return 0;
 }
 
+static struct dma_buf *nx_drm_fb_dmabuf_export(struct fb_info *info)
+{
+	struct drm_fb_helper *fb_helper = info->par;
+	struct drm_device *dev = fb_helper->dev;
+	struct nx_drm_fbdev *nx_fbdev = to_nx_drm_fbdev(fb_helper);
+	struct nx_gem_object *nx_gem_obj = nx_fbdev->fb->obj[0];
+	struct dma_buf *buf = NULL;
+
+	if (dev->driver->gem_prime_export) {
+		buf = dev->driver->gem_prime_export(dev, &nx_gem_obj->base, O_RDWR);
+		if (buf)
+			drm_gem_object_reference(&nx_gem_obj->base);
+	}
+
+	return buf;
+}
+
 static struct drm_framebuffer_funcs nx_drm_framebuffer_funcs = {
 	.destroy = nx_drm_fb_destroy,
 	.create_handle = nx_drm_fb_create_handle,
@@ -475,6 +494,7 @@ static struct fb_ops nx_fb_ops = {
 	.fb_blank	= drm_fb_helper_blank,
 	.fb_setcmap	= drm_fb_helper_setcmap,
 	.fb_pan_display	= drm_fb_helper_pan_display,
+	.fb_dmabuf_export = nx_drm_fb_dmabuf_export,
 };
 
 static struct nx_drm_fb *nx_drm_fb_alloc(struct drm_device *drm,
