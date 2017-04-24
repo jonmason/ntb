@@ -418,6 +418,8 @@ static int dwc2_hcd_urb_enqueue(struct dwc2_hsotg *hsotg,
 	return 0;
 }
 
+extern void dwc2_release_channel_ddma(struct dwc2_hsotg *hsotg,
+				      struct dwc2_qh *qh);
 /* Must be called with interrupt disabled and spinlock held */
 static int dwc2_hcd_urb_dequeue(struct dwc2_hsotg *hsotg,
 				struct dwc2_hcd_urb *urb)
@@ -470,7 +472,18 @@ static int dwc2_hcd_urb_dequeue(struct dwc2_hsotg *hsotg,
 			dwc2_hcd_qh_unlink(hsotg, qh);
 		}
 	} else {
+		u8 in_process = urb_qtd->in_process;
 		dwc2_hcd_qtd_unlink_and_free(hsotg, urb_qtd, qh);
+		if (!qh->channel)
+			return 0;
+		if (dwc2_qh_is_non_per(qh)) {
+			if (in_process) {
+				dwc2_hcd_qh_deactivate(hsotg, qh, 0);
+			} else if (qh->channel) {
+				dwc2_hcd_qh_unlink(hsotg, qh);
+				dwc2_release_channel_ddma(hsotg, qh);
+			}
+		}
 	}
 
 	return 0;
@@ -906,6 +919,7 @@ enum dwc2_transaction_type dwc2_hcd_select_transactions(
 	struct list_head *qh_ptr;
 	struct dwc2_qh *qh;
 	int num_channels;
+	unsigned long flags;
 
 #ifdef DWC2_DEBUG_SOF
 	dev_vdbg(hsotg->dev, "  Select Transactions\n");
@@ -917,9 +931,14 @@ enum dwc2_transaction_type dwc2_hcd_select_transactions(
 		if (list_empty(&hsotg->free_hc_list))
 			break;
 		if (hsotg->core_params->uframe_sched > 0) {
-			if (hsotg->available_host_channels <= 1)
+			spin_lock_irqsave(&hsotg->channel_lock, flags);
+			if (hsotg->available_host_channels <= 1) {
+				spin_unlock_irqrestore(&hsotg->channel_lock,
+						       flags);
 				break;
+			}
 			hsotg->available_host_channels--;
+			spin_unlock_irqrestore(&hsotg->channel_lock, flags);
 		}
 		qh = list_entry(qh_ptr, struct dwc2_qh, qh_list_entry);
 		if (dwc2_assign_and_init_hc(hsotg, qh))
@@ -930,7 +949,9 @@ enum dwc2_transaction_type dwc2_hcd_select_transactions(
 		 * periodic assigned schedule
 		 */
 		qh_ptr = qh_ptr->next;
+		spin_lock_irqsave(&hsotg->channel_lock, flags);
 		list_move(&qh->qh_list_entry, &hsotg->periodic_sched_assigned);
+		spin_unlock_irqrestore(&hsotg->channel_lock, flags);
 		ret_val = DWC2_TRANSACTION_PERIODIC;
 	}
 
@@ -950,9 +971,14 @@ enum dwc2_transaction_type dwc2_hcd_select_transactions(
 			break;
 		qh = list_entry(qh_ptr, struct dwc2_qh, qh_list_entry);
 		if (hsotg->core_params->uframe_sched > 0) {
-			if (hsotg->available_host_channels < 1)
+			spin_lock_irqsave(&hsotg->channel_lock, flags);
+			if (hsotg->available_host_channels < 1) {
+				spin_unlock_irqrestore(&hsotg->channel_lock,
+						       flags);
 				break;
+			}
 			hsotg->available_host_channels--;
+			spin_unlock_irqrestore(&hsotg->channel_lock, flags);
 		}
 
 		if (dwc2_assign_and_init_hc(hsotg, qh))
@@ -963,8 +989,10 @@ enum dwc2_transaction_type dwc2_hcd_select_transactions(
 		 * non-periodic active schedule
 		 */
 		qh_ptr = qh_ptr->next;
+		spin_lock_irqsave(&hsotg->channel_lock, flags);
 		list_move(&qh->qh_list_entry,
 			  &hsotg->non_periodic_sched_active);
+		spin_unlock_irqrestore(&hsotg->channel_lock, flags);
 
 		if (ret_val == DWC2_TRANSACTION_NONE)
 			ret_val = DWC2_TRANSACTION_NON_PERIODIC;

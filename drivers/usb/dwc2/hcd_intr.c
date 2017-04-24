@@ -700,6 +700,7 @@ static void dwc2_release_channel(struct dwc2_hsotg *hsotg,
 	enum dwc2_transaction_type tr_type;
 	u32 haintmsk;
 	int free_qtd = 0;
+	unsigned long flags;
 
 	if (dbg_hc(chan))
 		dev_vdbg(hsotg->dev, "  %s: channel %d, halt_status %d\n",
@@ -753,7 +754,9 @@ cleanup:
 	list_add_tail(&chan->hc_list_entry, &hsotg->free_hc_list);
 
 	if (hsotg->core_params->uframe_sched > 0) {
+		spin_lock_irqsave(&hsotg->channel_lock, flags);
 		hsotg->available_host_channels++;
+		spin_unlock_irqrestore(&hsotg->channel_lock, flags);
 	} else {
 		switch (chan->ep_type) {
 		case USB_ENDPOINT_XFER_CONTROL:

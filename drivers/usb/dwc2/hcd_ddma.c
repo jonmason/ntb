@@ -228,7 +228,7 @@ static void dwc2_update_frame_list(struct dwc2_hsotg *hsotg, struct dwc2_qh *qh,
 	}
 
 	if (!hsotg->frame_list) {
-		dev_err(hsotg->dev, "hsotg->frame_list = %p\n",
+		dev_dbg(hsotg->dev, "hsotg->frame_list = %p\n",
 			hsotg->frame_list);
 		return;
 	}
@@ -266,18 +266,24 @@ static void dwc2_update_frame_list(struct dwc2_hsotg *hsotg, struct dwc2_qh *qh,
 	}
 }
 
-static void dwc2_release_channel_ddma(struct dwc2_hsotg *hsotg,
+void dwc2_release_channel_ddma(struct dwc2_hsotg *hsotg,
 				      struct dwc2_qh *qh)
 {
 	struct dwc2_host_chan *chan = qh->channel;
+	unsigned long flags;
 
 	if (dwc2_qh_is_non_per(qh)) {
+		spin_lock_irqsave(&hsotg->channel_lock, flags);
 		if (hsotg->core_params->uframe_sched > 0)
 			hsotg->available_host_channels++;
 		else
 			hsotg->non_periodic_channels--;
+		spin_unlock_irqrestore(&hsotg->channel_lock, flags);
 	} else {
+		spin_lock_irqsave(&hsotg->channel_lock, flags);
 		dwc2_update_frame_list(hsotg, qh, 0);
+		hsotg->available_host_channels++;
+		spin_unlock_irqrestore(&hsotg->channel_lock, flags);
 	}
 
 	/*
@@ -299,6 +305,7 @@ static void dwc2_release_channel_ddma(struct dwc2_hsotg *hsotg,
 		memset(qh->desc_list, 0, sizeof(struct dwc2_hcd_dma_desc) *
 		       dwc2_max_desc_num(qh));
 }
+EXPORT_SYMBOL(dwc2_release_channel_ddma);
 
 /**
  * dwc2_hcd_qh_init_ddma() - Initializes a QH structure's Descriptor DMA
@@ -360,6 +367,8 @@ err0:
  */
 void dwc2_hcd_qh_free_ddma(struct dwc2_hsotg *hsotg, struct dwc2_qh *qh)
 {
+	unsigned long flags;
+
 	dwc2_desc_list_free(hsotg, qh);
 
 	/*
@@ -369,8 +378,10 @@ void dwc2_hcd_qh_free_ddma(struct dwc2_hsotg *hsotg, struct dwc2_qh *qh)
 	 * when it comes here from endpoint disable routine
 	 * channel remains assigned.
 	 */
+	spin_lock_irqsave(&hsotg->lock, flags);
 	if (qh->channel)
 		dwc2_release_channel_ddma(hsotg, qh);
+	spin_unlock_irqrestore(&hsotg->lock, flags);
 
 	if ((qh->ep_type == USB_ENDPOINT_XFER_ISOC ||
 	     qh->ep_type == USB_ENDPOINT_XFER_INT) &&
@@ -524,14 +535,17 @@ static void dwc2_fill_host_isoc_dma_desc(struct dwc2_hsotg *hsotg,
 	dma_desc->status = qh->n_bytes[idx] << HOST_DMA_ISOC_NBYTES_SHIFT &
 			   HOST_DMA_ISOC_NBYTES_MASK;
 
+	/* Set active bit */
+	dma_desc->status |= HOST_DMA_A;
+
+	qh->ntd++;
+	qtd->isoc_frame_index_last++;
+
 #ifdef ISOC_URB_GIVEBACK_ASAP
 	/* Set IOC for each descriptor corresponding to last frame of URB */
 	if (qtd->isoc_frame_index_last == qtd->urb->packet_count)
 		dma_desc->status |= HOST_DMA_IOC;
 #endif
-
-	qh->ntd++;
-	qtd->isoc_frame_index_last++;
 }
 
 static void dwc2_init_isoc_dma_desc(struct dwc2_hsotg *hsotg,
@@ -558,8 +572,6 @@ static void dwc2_init_isoc_dma_desc(struct dwc2_hsotg *hsotg,
 	list_for_each_entry(qtd, &qh->qtd_list, qtd_list_entry) {
 		while (qh->ntd < ntd_max && qtd->isoc_frame_index_last <
 						qtd->urb->packet_count) {
-			if (n_desc > 1)
-				qh->desc_list[n_desc - 1].status |= HOST_DMA_A;
 			dwc2_fill_host_isoc_dma_desc(hsotg, qtd, qh,
 						     max_xfer_size, idx);
 			idx = dwc2_desclist_idx_inc(idx, inc, qh->dev_speed);
@@ -605,12 +617,6 @@ static void dwc2_init_isoc_dma_desc(struct dwc2_hsotg *hsotg,
 
 	qh->desc_list[idx].status |= HOST_DMA_IOC;
 #endif
-
-	if (n_desc) {
-		qh->desc_list[n_desc - 1].status |= HOST_DMA_A;
-		if (n_desc > 1)
-			qh->desc_list[0].status |= HOST_DMA_A;
-	}
 }
 
 static void dwc2_fill_host_dma_desc(struct dwc2_hsotg *hsotg,
@@ -808,7 +814,7 @@ static int dwc2_cmpl_host_isoc_dma_desc(struct dwc2_hsotg *hsotg,
 	if (!qtd->urb)
 		return -EINVAL;
 
-	frame_desc = &qtd->urb->iso_descs[qtd->isoc_frame_index_last];
+	frame_desc = &qtd->urb->iso_descs[qtd->isoc_frame_index];
 	dma_desc->buf = (u32)(qtd->urb->dma + frame_desc->offset);
 	if (chan->ep_is_in)
 		remain = (dma_desc->status & HOST_DMA_ISOC_NBYTES_MASK) >>

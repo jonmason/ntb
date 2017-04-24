@@ -748,6 +748,7 @@ struct dwc2_hsotg {
 	u32 phyif;
 
 	spinlock_t lock;
+	spinlock_t channel_lock;
 	void *priv;
 	int     irq;
 	struct clk *clk;

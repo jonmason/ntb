@@ -123,7 +123,7 @@ static const struct dwc2_core_params params_nexell = {
 	.otg_cap			= 0,	/* HNP/SRP capable */
 	.otg_ver			= 0,	/* 1.3 */
 	.dma_enable			= 1,
-	.dma_desc_enable		= 0,
+	.dma_desc_enable		= 1,
 	.speed				= 0,	/* High Speed */
 	.enable_dynamic_fifo		= 1,
 	.en_multiple_tx_fifo		= 1,
@@ -443,6 +443,7 @@ static int dwc2_driver_probe(struct platform_device *dev)
 		return retval;
 
 	spin_lock_init(&hsotg->lock);
+	spin_lock_init(&hsotg->channel_lock);
 
 	hsotg->core_params = devm_kzalloc(&dev->dev,
 				sizeof(*hsotg->core_params), GFP_KERNEL);
