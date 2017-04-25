@@ -218,10 +218,89 @@ static void nx_drm_fb_pan_wait_for_vblanks(struct drm_device *dev,
 	}
 }
 
+static int nx_drm_fb_atomic_crtc_check(struct drm_crtc *crtc,
+		struct drm_crtc_state *state)
+{
+	/* NOTE: we explicitly don't enforce constraints such as primary
+	 * layer covering entire screen, since that is something we want
+	 * to allow (on hw that supports it).  For hw that does not, it
+	 * should be checked in driver's crtc->atomic_check() vfunc.
+	 *
+	 * TODO: Add generic modeset state checks once we support those.
+	 */
+
+	if (state->active && !state->enable) {
+		DRM_DEBUG_ATOMIC("[CRTC:%d] active without enabled\n",
+				 crtc->base.id);
+		return -EINVAL;
+	}
+
+	/*
+	 * The state->enable vs. state->mode_blob checks can be WARN_ON,
+	 * as this is a kernel-internal detail that userspace should never
+	 * be able to trigger.
+	 */
+	if (drm_core_check_feature(crtc->dev, DRIVER_ATOMIC) &&
+	    WARN_ON(state->enable && !state->mode_blob)) {
+		DRM_DEBUG_ATOMIC("[CRTC:%d] enabled without mode blob\n",
+				 crtc->base.id);
+		return -EINVAL;
+	}
+
+	if (drm_core_check_feature(crtc->dev, DRIVER_ATOMIC) &&
+	    WARN_ON(!state->enable && state->mode_blob)) {
+		DRM_DEBUG_ATOMIC("[CRTC:%d] disabled with mode blob\n",
+				 crtc->base.id);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int nx_drm_fb_atomic_check_only(struct drm_atomic_state *state)
+{
+	struct drm_device *dev = state->dev;
+	struct drm_mode_config *config = &dev->mode_config;
+	struct drm_crtc *crtc;
+	struct drm_crtc_state *crtc_state;
+	int i, ret = 0;
+
+	DRM_DEBUG_ATOMIC("checking %p\n", state);
+
+	for_each_crtc_in_state(state, crtc, crtc_state, i) {
+		ret = nx_drm_fb_atomic_crtc_check(crtc, crtc_state);
+		if (ret) {
+			DRM_DEBUG_ATOMIC("[CRTC:%d] atomic core check failed\n",
+					 crtc->base.id);
+			return ret;
+		}
+	}
+
+	if (config->funcs->atomic_check)
+		ret = config->funcs->atomic_check(state->dev, state);
+
+	if (!state->allow_modeset) {
+		for_each_crtc_in_state(state, crtc, crtc_state, i) {
+			if (drm_atomic_crtc_needs_modeset(crtc_state)) {
+				DRM_DEBUG_ATOMIC(
+					"[CRTC:%d] requires full modeset\n",
+					 crtc->base.id);
+				return -EINVAL;
+			}
+		}
+	}
+
+	return ret;
+}
+
 static int nx_drm_fb_atomic_commit(struct drm_device *drm,
 			struct drm_atomic_state *state)
 {
 	int ret;
+
+	ret = nx_drm_fb_atomic_check_only(state);
+	if (ret)
+		return ret;
 
 	ret = drm_atomic_helper_prepare_planes(drm, state);
 	if (ret)
@@ -310,6 +389,34 @@ backoff:
 	goto retry;
 }
 
+#ifdef CONFIG_DRM_CHECK_IOCTL_AUTH
+static bool nx_drm_fb_is_bound(struct drm_fb_helper *fb_helper)
+{
+	struct drm_device *drm = fb_helper->dev;
+	struct drm_crtc *crtc;
+	int bound = 0, crtcs_bound = 0;
+
+	/*
+	 * Sometimes user space wants everything disabled, so don't steal the
+	 * display if there's a master.
+	 */
+	if (drm->primary->master)
+		return false;
+
+	drm_for_each_crtc(crtc, drm) {
+		if (crtc->primary->fb)
+			crtcs_bound++;
+		if (crtc->primary->fb == fb_helper->fb)
+			bound++;
+	}
+
+	if (bound < crtcs_bound)
+		return false;
+
+	return true;
+}
+#endif
+
 static int nx_drm_fb_pan_display(struct fb_var_screeninfo *var,
 			      struct fb_info *info)
 {
@@ -320,10 +427,19 @@ static int nx_drm_fb_pan_display(struct fb_var_screeninfo *var,
 	if (oops_in_progress)
 		return -EBUSY;
 
-	if (!fb_helper->atomic)
-		return -EINVAL;
-
 	drm_modeset_lock_all(drm);
+
+#ifdef CONFIG_DRM_CHECK_IOCTL_AUTH
+	if (!nx_drm_fb_is_bound(fb_helper)) {
+		drm_modeset_unlock_all(drm);
+		return -EBUSY;
+	}
+#endif
+	if (!fb_helper->atomic) {
+		DRM_ERROR("Error: no atomic is not support pan display!\n");
+		drm_modeset_unlock_all(drm);
+		return -EINVAL;
+	}
 
 	ret = nx_drm_fb_pan_display_atomic(var, info);
 
