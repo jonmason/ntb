@@ -55,6 +55,7 @@ struct nx_drm_private {
 		struct work_struct work;
 		wait_queue_head_t wait;
 		spinlock_t lock;
+		struct mutex m_lock;
 		u32 pending;
 		u32 crtcs;
 	} commit;

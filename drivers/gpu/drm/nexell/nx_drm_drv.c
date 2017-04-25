@@ -44,10 +44,10 @@ static void nx_drm_output_poll_changed(struct drm_device *drm)
 		nx_drm_framebuffer_init(drm);
 }
 
-static void nx_atomic_commit_complete(struct commit *commit)
+static void nx_atomic_commit_complete(struct commit *commit,
+			struct drm_atomic_state *state)
 {
 	struct drm_device *drm = commit->drm;
-	struct drm_atomic_state *state = commit->state;
 
 	/*
 	 * Everything below can be run asynchronously without the need to grab
@@ -84,11 +84,18 @@ static void nx_atomic_commit_complete(struct commit *commit)
 	wake_up_all(&commit->wait);
 }
 
+static void nx_atomic_schedule(struct commit *commit,
+				  struct drm_atomic_state *state)
+{
+	commit->state = state;
+	schedule_work(&commit->work);
+}
+
 static void nx_drm_atomic_work(struct work_struct *work)
 {
 	struct commit *commit = container_of(work, struct commit, work);
 
-	nx_atomic_commit_complete(commit);
+	nx_atomic_commit_complete(commit, commit->state);
 }
 
 static int commit_is_pending(struct commit *commit)
@@ -116,7 +123,7 @@ static int nx_drm_atomic_commit(struct drm_device *drm,
 	if (ret)
 		return ret;
 
-	commit->state = state;
+	mutex_lock(&commit->m_lock);
 
 	/* Wait until all affected CRTCs have completed previous commits and
 	 * mark them as pending.
@@ -136,10 +143,11 @@ static int nx_drm_atomic_commit(struct drm_device *drm,
 	drm_atomic_helper_swap_state(drm, state);
 
 	if (async)
-		schedule_work(&commit->work);
+		nx_atomic_schedule(commit, state);
 	else
-		nx_atomic_commit_complete(commit);
+		nx_atomic_commit_complete(commit, state);
 
+	mutex_unlock(&commit->m_lock);
 	return 0;
 }
 
@@ -183,6 +191,8 @@ static struct nx_drm_private *nx_drm_private_init(struct drm_device *drm)
 
 	commit = &private->commit;
 	commit->drm = drm;
+
+	mutex_init(&commit->m_lock);
 	spin_lock_init(&commit->lock);
 	init_waitqueue_head(&commit->wait);
 	INIT_WORK(&commit->work, nx_drm_atomic_work);
