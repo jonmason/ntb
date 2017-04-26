@@ -31,7 +31,7 @@
 /*
  * HDMI preset configs
  */
-static const struct hdmi_preset hdmi_conf_480p60 = {
+static struct hdmi_preset hdmi_conf_480p60 = {
 	.mode = {
 		 .pixelclock = 27027000,
 		 .h_as = 720, .h_sw = 62, .h_bp = 60, .h_fp = 16, .h_si = 0,
@@ -97,7 +97,7 @@ static const struct hdmi_preset hdmi_conf_480p60 = {
 	.vic = 3,
 };
 
-static const struct hdmi_preset hdmi_conf_480p59_94 = {
+static struct hdmi_preset hdmi_conf_480p59_94 = {
 	.mode = {
 		 .pixelclock = 27000000,
 		 .h_as = 720, .h_sw = 61, .h_bp = 60, .h_fp = 16, .h_si = 0,
@@ -163,7 +163,7 @@ static const struct hdmi_preset hdmi_conf_480p59_94 = {
 	.vic = 3,
 };
 
-static const struct hdmi_preset hdmi_conf_576p50 = {
+static struct hdmi_preset hdmi_conf_576p50 = {
 	.mode = {
 		 .pixelclock = 27000000,
 		 .h_as = 720, .h_sw = 64, .h_bp = 68, .h_fp = 12, .h_si = 0,
@@ -223,7 +223,7 @@ static const struct hdmi_preset hdmi_conf_576p50 = {
 	.vic = 18,
 };
 
-static const struct hdmi_preset hdmi_conf_720p50 = {
+static struct hdmi_preset hdmi_conf_720p50 = {
 	.mode = {
 		 .pixelclock = 74250000,
 		 .h_as = 1280, .h_sw = 40, .h_bp = 220, .h_fp = 440, .h_si = 0,
@@ -289,7 +289,7 @@ static const struct hdmi_preset hdmi_conf_720p50 = {
 	.vic = 19,
 };
 
-static const struct hdmi_preset hdmi_conf_720p60 = {
+static struct hdmi_preset hdmi_conf_720p60 = {
 	.mode = {
 		 .pixelclock = 74250000,
 		 .h_as = 1280, .h_sw = 40, .h_bp = 220, .h_fp = 110, .h_si = 0,
@@ -355,7 +355,7 @@ static const struct hdmi_preset hdmi_conf_720p60 = {
 	.vic = 4,
 };
 
-static const struct hdmi_preset hdmi_conf_1080p60 = {
+static struct hdmi_preset hdmi_conf_1080p60 = {
 	.mode = {
 		 .pixelclock = 148500000,
 		 .h_as = 1920, .h_sw = 44, .h_bp = 148, .h_fp = 88, .h_si = 0,
@@ -415,7 +415,7 @@ static const struct hdmi_preset hdmi_conf_1080p60 = {
 	.vic = 16,
 };
 
-static const struct hdmi_preset hdmi_conf_1080p50 = {
+static struct hdmi_preset hdmi_conf_1080p50 = {
 	.mode = {
 		 .pixelclock = 148500000,
 		 .h_as = 1920, .h_sw = 44, .h_bp = 148, .h_fp = 528, .h_si = 0,
@@ -481,7 +481,7 @@ static const struct hdmi_preset hdmi_conf_1080p50 = {
 	.vic = 31,
 };
 
-static const struct hdmi_preset hdmi_conf_1080p24 = {
+static struct hdmi_preset hdmi_conf_1080p24 = {
 	.mode = {
 		 .pixelclock = 0,
 		 .h_as = 1920, .h_sw = 44, .h_bp = 148, .h_fp = 638, .h_si = 0,
@@ -547,7 +547,7 @@ static const struct hdmi_preset hdmi_conf_1080p24 = {
 	.vic = 32,
 };
 
-static const struct hdmi_preset hdmi_conf_720p59_94 = {
+static struct hdmi_preset hdmi_conf_720p59_94 = {
 	.mode = {
 		 .pixelclock = 74175000,
 		 .h_as = 1280, .h_sw = 40, .h_bp = 220, .h_fp = 110, .h_si = 0,
@@ -613,7 +613,7 @@ static const struct hdmi_preset hdmi_conf_720p59_94 = {
 	.vic = 4,
 };
 
-static const struct hdmi_preset hdmi_conf_1080p59_94 = {
+static struct hdmi_preset hdmi_conf_1080p59_94 = {
 	.mode = {
 		 .pixelclock = 148352000,
 		 .h_as = 1920, .h_sw = 44, .h_bp = 148, .h_fp = 88, .h_si = 0,
@@ -679,7 +679,7 @@ static const struct hdmi_preset hdmi_conf_1080p59_94 = {
 	.vic = 16,
 };
 
-static const struct hdmi_preset hdmi_conf_1080p60_sb_h = {
+static struct hdmi_preset hdmi_conf_1080p60_sb_h = {
 	.mode = {
 		 .pixelclock = 0,
 		 .h_as = 1920,
@@ -745,7 +745,7 @@ static const struct hdmi_preset hdmi_conf_1080p60_sb_h = {
 	.vic = 16,
 };
 
-static const struct hdmi_preset hdmi_conf_1080p60_tb = {
+static struct hdmi_preset hdmi_conf_1080p60_tb = {
 	.mode = {
 		 .pixelclock = 0,
 		 .h_as = 1920,
@@ -811,7 +811,7 @@ static const struct hdmi_preset hdmi_conf_1080p60_tb = {
 	.vic = 16,
 };
 
-static const struct hdmi_preset hdmi_conf_768p60 = {
+static struct hdmi_preset hdmi_conf_768p60 = {
 	.mode = {
 		 .pixelclock = 65000000,
 		 .h_as = 1024, .h_sw = 136, .h_bp = 160, .h_fp = 24, .h_si = 0,
