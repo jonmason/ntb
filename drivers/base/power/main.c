@@ -232,7 +232,7 @@ static void dpm_wait(struct device *dev, bool async)
 
 	if (async || (pm_async_enabled && dev->power.async_suspend)) {
 		if (!wait_for_completion_timeout(&dev->power.completion,
-					msecs_to_jiffies(3000))) {
+					msecs_to_jiffies(10000))) {
 			pr_info("dpm_wait timeout for %s[%x]\n", dev_name(dev), dev);
 		}
 	}
