@@ -392,7 +392,7 @@
 		#size-cells = <0>;
 	};
 
-	i2c_gpio7: i2c@6 {
+	i2c_gpio7: i2c@7 {
 		status = "disabled";
 	};
 
@@ -566,10 +566,10 @@
 	};
 };
 
-/* &dp_drm_hdmi { */
-/* 	ddc-i2c-bus = <&i2c_gpio6>; */
-/* 	status = "ok"; */
-/* }; */
+&dp_drm_hdmi {
+	ddc-i2c-bus = <&i2c_gpio6>;
+	status = "ok";
+};
 
 &i2c_2 {
 	#address-cells = <1>;
