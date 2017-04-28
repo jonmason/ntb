@@ -273,6 +273,16 @@
 			status = "okay";
 		};
 
+		i2c_gpio4:i2c@4 {
+			compatible = "i2c-gpio";
+			gpios = <&gpio_c 8 0 /* sda */
+				&gpio_c 7 0 /* scl */
+				>;
+			i2c-gpio,delay-us = <100>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+		};
+
 		gpio_key: gpio_keys {
 			compatible = "gpio-keys";
 			#address-cells = <1>;
@@ -337,28 +347,8 @@
 		compatible = "simple-audio-card";
 		simple-audio-card,name = "s5p6818 kick-st Audio";
 		simple-audio-card,mclk-fs = <256>;
-		simple-audio-card,widgets =
-		    "Headphone", "Out Jack",
-		    "Microphone", "In Jack";
-		simple-audio-card,routing =
-		    "Out Jack", "HPOL",
-		    "Out Jack", "HPOR",
-		    "IN2P", "In Jack",
-		    "IN2P", "In Jack";
-			status = "okay";
 
 		simple-audio-card,dai-link@0 {
-		    format = "i2s";
-		    cpu {
-			sound-dai = <&i2s_0 0>;
-		    };
-
-		    codec {
-			sound-dai = <&rt5640>;
-		    };
-		};
-
-		simple-audio-card,dai-link@1 {
 		    cpu {
 			sound-dai = <&spdif_tx 0>;
 		    };
@@ -557,4 +547,11 @@
 		vs_end_offset = <0>;
 		ev_end_offset = <0>;
 	};
+};
+
+&dp_drm_hdmi {
+	ddc-i2c-bus = <&i2c_gpio4>;
+	enable-gpios = <&gpio_a 21 0>;
+	status = "ok";
+	q_range = <0>;
 };
