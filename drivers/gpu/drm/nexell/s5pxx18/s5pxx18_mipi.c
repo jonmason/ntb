@@ -519,6 +519,10 @@ static int mipi_ops_enable(struct nx_drm_display *display)
 	bool command_mode = mipi->command_mode;
 	int data_len = dsi->lanes - 1;
 	enum nx_mipi_dsi_format dsi_format;
+	bool burst = dsi->mode_flags & MIPI_DSI_MODE_VIDEO_BURST ?
+			true : false;
+	bool eot_enable = dsi->mode_flags & MIPI_DSI_MODE_EOT_PACKET ?
+			false : true;
 
 	if (command_mode)
 		data_len = 0;
@@ -599,8 +603,8 @@ static int mipi_ops_enable(struct nx_drm_display *display)
 		return 0;
 	}
 
-	nx_mipi_dsi_set_config_video_mode(index, 1, 0, 1,
-				nx_mipi_dsi_syncmode_event, 1, 1, 1,
+	nx_mipi_dsi_set_config_video_mode(index, 1, 0, burst,
+				nx_mipi_dsi_syncmode_event, eot_enable, 1, 1,
 				1, 1, 0, dsi_format,
 				HFP, HBP, HS, VFP, VBP, VS, 0);
 
@@ -679,13 +683,19 @@ static int mipi_ops_set_format(struct nx_drm_display *display,
 	if (mipi->command_mode)
 		mipi_fifo_mode_setup(display);
 
-	pr_debug("%s: lanes.%d, %s, %s, %s\n", __func__,
-		dsi->lanes, dsi->format == MIPI_DSI_FMT_RGB888 ? "RGB888" :
+	pr_debug("%s: lanes.%d, %s, %s, %s, %s, %s\n", __func__,
+		dsi->lanes,
+		dsi->format == MIPI_DSI_FMT_RGB888 ? "RGB888" :
 		dsi->format == MIPI_DSI_FMT_RGB666 ? "RGB666" :
 		dsi->format == MIPI_DSI_FMT_RGB666_PACKED ? "RGB666-PACKED" :
 		dsi->format == MIPI_DSI_FMT_RGB565 ? "RGB565" :	"UNKNOWN",
 		dsi->mode_flags & MIPI_DSI_MODE_LPM ? "low" : "high",
-		dsi->mode_flags & MIPI_DSI_MODE_VIDEO ? "video" : "command");
+		dsi->mode_flags & MIPI_DSI_MODE_VIDEO ? "video" : "command",
+		dsi->mode_flags & MIPI_DSI_MODE_VIDEO_BURST ?
+		"burst" : "non burst",
+		dsi->mode_flags & MIPI_DSI_MODE_EOT_PACKET ?
+		"eot disable" : "eot enable"
+		);
 
 	return 0;
 }
