@@ -179,6 +179,26 @@
 			sample_rate = <48000>;
 			status = "okay";
 		};
+		i2c_1:i2c@c00a5000 {
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			touchscreen@38 {
+				compatible = "edt,edt-ft5x06";
+				reg = <0x38>;
+				interrupt-parent = <&gpio_a>;
+				interrupts = <12 IRQ_TYPE_EDGE_FALLING>;
+			};
+
+			goodix@5d {
+				compatible = "goodix,gt911";
+				reg = <0x5d>;
+				interrupt-parent = <&gpio_a>;
+				interrupts = <14 IRQ_TYPE_EDGE_FALLING>;
+			};
+
+		};
 
 		i2c_2:i2c@c00a6000 {
 			status = "diabled";
