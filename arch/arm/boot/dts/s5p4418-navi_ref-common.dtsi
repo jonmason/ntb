@@ -50,6 +50,22 @@
 			uart1:uart@c00a8000 { clock-frequency = <100000000>; };
 			vip0:vip@c00c1000 { clock-frequency = <300000000>; };
 			vip1:vip@c00c2000 { src-force = <5>; };
+			pwm0:pwm0@c00ba000 {
+				clk-input = <I_PLL2>;
+				clock-frequency = <10000000>;
+			};
+			pwm1:pwm1@c00ba000 {
+				clk-input = <I_PLL2>;
+				clock-frequency = <10000000>;
+			};
+			pwm2:pwm2@c00be000 {
+				clk-input = <I_PLL2>;
+				clock-frequency = <10000000>;
+			};
+			pwm3:pwm3@c00be000 {
+				clk-input = <I_PLL2>;
+				clock-frequency = <10000000>;
+			};
 		};
 
 		l2:l2-cache-controller@cf000000 {
