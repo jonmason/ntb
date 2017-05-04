@@ -57,6 +57,22 @@
 			uart3:uart@c00ab000 { clock-frequency = <147500000>; };
 			vip0:vip@c00c1000 { src-force = <4>; };
 			i2c2:i2c@c00b0000  { clock-frequency = <200000000>; };
+			pwm0:pwm0@c00ba000 {
+				clk-input = <I_PLL2>;
+				clock-frequency = <10000000>;
+			};
+			pwm1:pwm1@c00ba000 {
+				clk-input = <I_PLL2>;
+				clock-frequency = <10000000>;
+			};
+			pwm2:pwm2@c00be000 {
+				clk-input = <I_PLL2>;
+				clock-frequency = <10000000>;
+			};
+			pwm3:pwm3@c00be000 {
+				clk-input = <I_PLL2>;
+				clock-frequency = <10000000>;
+			};
 		};
 
 		serial0:serial@c00a1000 {
@@ -190,6 +206,11 @@
 		};
 
 		pwm:pwm@c0018000 {
+			clock-names = "timers", "pwm-tclk0", "pwm-tclk1";
+			clocks = <&pclk>, <&pwm0>, <&pwm1>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pwm0_pin &pwm1_pin>;
+			samsung,pwm-outputs = <0>, <1>;
 			status = "okay";
 		};
 
