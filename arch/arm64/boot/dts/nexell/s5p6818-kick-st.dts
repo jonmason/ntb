@@ -381,7 +381,7 @@
 			home {
 				label = "Home";
 				gpios = <&gpio_a 10 0>;
-				linux,code = <KEY_HOME>;
+				linux,code = <KEY_HOMEPAGE>;
 			};
 
 			volup {
