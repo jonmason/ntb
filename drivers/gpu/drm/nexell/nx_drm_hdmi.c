@@ -51,6 +51,7 @@ struct hdmi_context {
 	/* properties */
 	int crtc_pipe;
 	unsigned int possible_crtcs_mask;
+	bool skip_boot_connect;
 };
 
 #define ctx_to_display(c)	\
@@ -307,8 +308,15 @@ static int panel_hdmi_bind(struct device *dev,
 		if (hdmi_ops->is_connected(display)) {
 			struct nx_drm_private *private = drm->dev_private;
 
-			ctx->plug = hdmi_ops->is_connected(display);
-			private->force_detect = true;
+			DRM_INFO("HDMI %s connected, LCD %s\n",
+				ctx->skip_boot_connect ? "Skip" : "Check",
+				private->force_detect ? "connected" :
+				"not connected");
+
+			if (!ctx->skip_boot_connect || !private->force_detect) {
+				ctx->plug = hdmi_ops->is_connected(display);
+				private->force_detect = true;
+			}
 		}
 	}
 
@@ -486,6 +494,9 @@ static int panel_hdmi_parse_dt_hdmi(struct platform_device *pdev,
 		hdmi_ops->hpd_irq_cb = panel_hdmi_hpd_irq;
 		hdmi_ops->cb_data = ctx;
 	}
+
+	ctx->skip_boot_connect =
+		of_property_read_bool(node, "skip-boot-connect");
 
 	hdmi->hpd_gpio = hpd_gpio;
 	hdmi->hpd_irq = hpd_irq;
