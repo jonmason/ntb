@@ -631,8 +631,8 @@
 	};
 
 	dp_control {
-		clk_src_lv0 = <2>;
-		clk_div_lv0 = <4>;
+		clk_src_lv0 = <0>;
+		clk_div_lv0 = <5>;
 		clk_src_lv1 = <7>;
 		clk_div_lv1 = <1>;
 		out_format = <3>;
