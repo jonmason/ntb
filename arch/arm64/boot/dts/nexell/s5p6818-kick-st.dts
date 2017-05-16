@@ -648,4 +648,5 @@
 	enable-gpios = <&gpio_a 21 0>;
 	status = "ok";
 	q_range = <0>;
+	skip-boot-connect;
 };
