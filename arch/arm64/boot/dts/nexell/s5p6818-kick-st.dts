@@ -38,7 +38,7 @@
 / {
 	memory {
 		device_type = "memory";
-		reg = <0x40000000 0x7ee00000>;
+		reg = <0x40000000 0x7db00000>;
 	};
 
 	nx-v4l2 {
