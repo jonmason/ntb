@@ -953,29 +953,35 @@ void gether_sysreg(void)
 {
 	int ret;
 
-	regnet_class = class_create(THIS_MODULE, "regnet");
-	regnet_udev = device_create(regnet_class, NULL, MKDEV(0, 0),
+	if (regnet_class && regnet_udev)
+		pr_warn("already sysreg\n");
+	else {
+		regnet_class = class_create(THIS_MODULE, "regnet");
+		regnet_udev = device_create(regnet_class, NULL, MKDEV(0, 0),
 					    NULL, "regnet");
 
-	ret = sysfs_create_file(&regnet_udev->kobj, &dev_attr_regnet_dev.attr);
-	if (ret < 0) {
-		pr_err("sysfs_create_group failed\n");
-		sysfs_remove_file(&regnet_udev->kobj,
-				  &dev_attr_regnet_dev.attr);
+		ret = sysfs_create_file(&regnet_udev->kobj,
+					&dev_attr_regnet_dev.attr);
+		if (ret < 0) {
+			pr_err("sysfs_create_group failed\n");
+			sysfs_remove_file(&regnet_udev->kobj,
+					  &dev_attr_regnet_dev.attr);
+		}
 	}
 }
 EXPORT_SYMBOL_GPL(gether_sysreg);
 
 void gether_sysunreg(void)
 {
-	int ret;
+	if (regnet_class && regnet_udev) {
+		sysfs_remove_file(&regnet_udev->kobj,
+				  &dev_attr_regnet_dev.attr);
 
-	sysfs_remove_file(&regnet_udev->kobj, &dev_attr_regnet_dev.attr);
-
-	device_destroy(regnet_class, MKDEV(0, 0));
-	class_destroy(regnet_class);
-	regnet_udev = NULL;
-	regnet_class = NULL;
+		device_destroy(regnet_class, MKDEV(0, 0));
+		class_destroy(regnet_class);
+		regnet_udev = NULL;
+		regnet_class = NULL;
+	}
 }
 EXPORT_SYMBOL_GPL(gether_sysunreg);
 
@@ -1000,7 +1006,9 @@ struct eth_dev *gether_setup_name(struct usb_gadget *g,
 {
 	struct eth_dev		*dev;
 	struct net_device	*net;
+#if !defined(CONFIG_USB_F_CARPLAY) && !defined(CONFIG_USB_CONFIGFS_CARPLAY)
 	int			status;
+#endif
 
 	net = alloc_etherdev(sizeof *dev);
 	if (!net)
