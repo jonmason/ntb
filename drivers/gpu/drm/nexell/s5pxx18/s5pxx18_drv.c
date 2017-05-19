@@ -18,6 +18,7 @@
 #include <drm/drmP.h>
 #include <drm/drm_fb_helper.h>
 #include <uapi/drm/drm_fourcc.h>
+#include <linux/clk.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_graph.h>
@@ -1479,8 +1480,10 @@ void nx_drm_display_put(struct device *dev, struct nx_drm_display *display)
 int nx_drm_display_setup(struct nx_drm_display *display,
 			struct device_node *node, enum nx_panel_type type)
 {
+	struct clk *clk;
 	struct nx_control_dev *control;
 	struct nx_control_info *ctrl;
+	char pll[256];
 
 	control = dp_to_control(display);
 	ctrl = &control->ctrl;
@@ -1511,6 +1514,22 @@ int nx_drm_display_setup(struct nx_drm_display *display,
 	property_read(node, "clk_inv_lv1", ctrl->clk_inv_lv1);
 	property_read(node, "clk_delay_lv1", ctrl->clk_delay_lv1);
 	property_read(node, "clk_sel_div1", ctrl->clk_sel_div1);
+
+	sprintf(pll, "sys-pll%d", ctrl->clk_src_lv0);
+
+	clk = clk_get(NULL, pll);
+	if (clk) {
+		long rate, pixclock;
+
+		rate = clk_get_rate(clk);
+		pixclock = (rate / ctrl->clk_div_lv0) / ctrl->clk_div_lv1;
+		display->vm.pixelclock = pixclock;
+		clk_put(clk);
+
+		DRM_DEBUG_KMS("SYNC -> PLL.%d, pixelclock %ld (%d,%d)\n",
+			ctrl->clk_src_lv0, pixclock,
+			ctrl->clk_div_lv0, ctrl->clk_div_lv1);
+	}
 
 	display_param_dump(display);
 

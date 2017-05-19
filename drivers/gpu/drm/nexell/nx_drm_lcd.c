@@ -148,7 +148,9 @@ static int panel_lcd_ops_get_modes(struct device *dev,
 {
 	struct lcd_context *ctx = dev_get_drvdata(dev);
 	struct nx_drm_display *display = ctx_to_display(ctx);
+	struct videomode *vm = &display->vm;
 	struct drm_display_mode *mode;
+	u32 hto, vto;
 
 	DRM_DEBUG_KMS("panel %s\n",
 		display->panel ? "attached" : "detached");
@@ -162,9 +164,15 @@ static int panel_lcd_ops_get_modes(struct device *dev,
 		return 0;
 	}
 
-	drm_display_mode_from_videomode(&display->vm, mode);
+	drm_display_mode_from_videomode(vm, mode);
+
+	hto = vm->hactive + vm->hfront_porch + vm->hback_porch + vm->hsync_len;
+	vto = vm->vactive + vm->vfront_porch + vm->vback_porch + vm->vsync_len;
+
 	mode->width_mm = display->width_mm;
 	mode->height_mm = display->height_mm;
+	mode->vrefresh = vm->pixelclock / (hto * vto);
+
 	connector->display_info.width_mm = mode->width_mm;
 	connector->display_info.height_mm = mode->height_mm;
 
