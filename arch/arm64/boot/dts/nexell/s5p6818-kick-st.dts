@@ -17,7 +17,7 @@
  */
 
 /dts-v1/;
-/memreserve/ 0x7ed00000 0x00100000; /* OP-TEE SHM */
+/memreserve/ 0xbde00000 0x00100000; /* OP-TEE SHM */
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
@@ -38,7 +38,7 @@
 / {
 	memory {
 		device_type = "memory";
-		reg = <0x40000000 0x7db00000>;
+		reg = <0x40000000 0x7df00000>;
 	};
 
 	nx-v4l2 {
