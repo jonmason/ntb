@@ -366,6 +366,11 @@ static const struct nx_mem_fmt_map supported_mem_formats[] = {
 		.media_bus_fmt	= MEDIA_BUS_FMT_YUYV12_1X24,
 		.nx_mem_fmt	= nx_vip_format_420,
 	}, {
+	}, {
+		.pixel_fmt	= V4L2_PIX_FMT_YVU420,
+		.media_bus_fmt	= MEDIA_BUS_FMT_YVYU12_1X24,
+		.nx_mem_fmt	= nx_vip_format_420,
+	}, {
 		.pixel_fmt	= V4L2_PIX_FMT_YUV422P,
 		.media_bus_fmt	= MEDIA_BUS_FMT_YDYUYDYV8_1X16,
 		.nx_mem_fmt	= nx_vip_format_422,

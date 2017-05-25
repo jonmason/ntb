@@ -66,6 +66,13 @@ static struct nx_video_format supported_formats[] = {
 		.num_sw_planes	= 3,
 		.is_separated	= false,
 	}, {
+		.name		= "YUV 4:2:0 separated 1-planar, YCrYCb",
+		.pixelformat	= V4L2_PIX_FMT_YVU420,
+		.mbus_code	= MEDIA_BUS_FMT_YVYU12_1X24,
+		.num_planes	= 1,
+		.num_sw_planes	= 3,
+		.is_separated	= false,
+	}, {
 		.name		= "YUV 4:2:2 separated 1-planar, YCbCr",
 		.pixelformat	= V4L2_PIX_FMT_YUV422P,
 		.mbus_code	= MEDIA_BUS_FMT_YDYUYDYV8_1X16,
@@ -146,6 +153,9 @@ static int set_plane_size(struct nx_video_frame *frame, unsigned int sizes[])
 {
 	u32 y_stride = ALIGN(frame->width, 32);
 	u32 y_size = y_stride * ALIGN(frame->height, 16);
+	int i, j;
+
+	pr_debug("[%s] format = 0x%x\n", __func__, frame->format.pixelformat);
 
 	switch (frame->format.pixelformat) {
 	case V4L2_PIX_FMT_YUYV:
@@ -192,7 +202,15 @@ static int set_plane_size(struct nx_video_frame *frame, unsigned int sizes[])
 			ALIGN(y_stride >> 1, 16);
 		}
 		break;
-
+	case V4L2_PIX_FMT_YVU420:
+		for (j = 0; j < frame->format.num_planes; j++) {
+			sizes[j] = 0;
+			for (i = 0; i < frame->format.num_sw_planes; i++)
+				sizes[j] += frame->size[i];
+			pr_debug("[%s] %d: size[%d]=%d\n", __func__,
+				j, j, sizes[j]);
+		}
+		break;
 	case V4L2_PIX_FMT_NV16:
 		frame->size[0] = sizes[0] =
 			frame->size[1] = sizes[1] = y_size;
@@ -350,16 +368,26 @@ static void fill_nx_video_buffer(struct nx_video_buffer *buf,
 
 	is_separated = frame->format.is_separated;
 	for (i = 0; i < frame->format.num_sw_planes; i++) {
-		if (i == 0 || is_separated)
+		if (i == 0 || is_separated) {
 			buf->dma_addr[i] = vb2_dma_contig_plane_dma_addr(vb, i);
-		else
-			buf->dma_addr[i] =
-				buf->dma_addr[i-1] + frame->size[i-1];
+			if ((frame->format.pixelformat == V4L2_PIX_FMT_YVU420)
+			    && (!is_separated)) {
+				buf->dma_addr[i+1] =
+					buf->dma_addr[i] + frame->size[i]
+					+ frame->size[i+1];
+				buf->dma_addr[i+2] =
+					buf->dma_addr[i] + frame->size[i];
+			}
+		} else {
+			if (frame->format.pixelformat != V4L2_PIX_FMT_YVU420)
+				buf->dma_addr[i] =
+					buf->dma_addr[i-1] + frame->size[i-1];
+		}
 		if (!buf->dma_addr[i])
 			BUG();
 		buf->stride[i] = frame->stride[i];
 		pr_debug("[BUF plane %d] addr(0x%x), s(%d)\n",
-			 i, (int)buf->dma_addr[i], buf->stride[i]);
+			i, (int)buf->dma_addr[i], buf->stride[i]);
 	}
 
 	buf->consumer_index = 0;
@@ -626,8 +654,8 @@ static struct vb2_ops nx_vb2_ops = {
 static int nx_video_vbq_init(struct nx_video *me, uint32_t type)
 {
 	struct vb2_queue *vbq = me->vbq;
-	vbq->type = type;
 
+	vbq->type = type;
 	vbq->io_modes = VB2_DMABUF | VB2_MMAP;
 	vbq->drv_priv = me;
 	vbq->ops      = &nx_vb2_ops;
@@ -706,7 +734,7 @@ static int nx_video_set_format(struct file *file, void *fh,
 	struct nx_video_frame *frame;
 	u32 pad;
 	int ret;
-	int i;
+	int i, j;
 	u32 width, height, pixelformat, colorspace, field;
 
 	if (me->vbq->type != f->type) {
@@ -784,9 +812,22 @@ static int nx_video_set_format(struct file *file, void *fh,
 		struct v4l2_pix_format_mplane *pix = &f->fmt.pix_mp;
 
 		for (i = 0; i < format->num_planes; ++i) {
-			frame->stride[i] =
-				pix->plane_fmt[i].bytesperline;
-			frame->size[i] = pix->plane_fmt[i].sizeimage;
+			if (format->pixelformat == V4L2_PIX_FMT_YVU420) {
+				for (j = 0; j < format->num_sw_planes; j++) {
+					frame->stride[j] =
+						pix->plane_fmt[j].bytesperline;
+					frame->size[j] =
+						pix->plane_fmt[j].sizeimage;
+					pr_debug("stride[%d]=%d, size[%d]=%d\n",
+						 j, frame->stride[j], j,
+						 frame->size[j]);
+				}
+			} else {
+				frame->stride[i] =
+					pix->plane_fmt[i].bytesperline;
+				frame->size[i] =
+					pix->plane_fmt[i].sizeimage;
+			}
 		}
 	}
 
