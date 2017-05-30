@@ -656,3 +656,34 @@
 	nexell,sample_shift = <0x01>;
 	status = "okay";
 };
+
+&i2c_gpio1 {
+	fc8300: fc8300@58 {
+		compatible = "fci,fc8300_i2c";
+		reset-gpios = <&gpio_c 12 0>;
+		reg = <0x58>;
+	};
+};
+
+&mpegts_1 {
+
+	status = "ok";
+	pinctrl-names = "default";
+	pinctrl-0 = <&mpegts_cap1_sync &mpegts_cap1_data_clk_serial>;
+	gpios = <&gpio_a 23 0>;
+	serial_mode = <1>;
+	clock_pol = <1>;
+	valid_pol = <1>;
+	sync_pol = <1>;
+	err_pol = <1>;
+	bypass = <1>;
+	xfer_mode = <0>;
+	xfer_clk_pol = <0>;
+	encrypt_on = <0>;
+
+	power {
+		enable_seq = <
+		NX_ACTION_START NX_ACTION_TYPE_GPIO 0 1 1 0 1 1 1 NX_ACTION_END
+		>;
+	};
+};
