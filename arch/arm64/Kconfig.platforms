@@ -152,6 +152,12 @@ config ARCH_NXP5540
 	help
 	  This enables support for the NEXELL NXP5540 Architecture
 
+config MULTICORE_IRQ
+	bool "Multi Core IRQ"
+	depends on ARCH_S5P6818
+	help
+	  This enbalse support multicore irq boradcasting
+
 config ARCH_THUNDER
 	bool "Cavium Inc. Thunder SoC Family"
 	help
