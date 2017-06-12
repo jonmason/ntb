@@ -137,7 +137,11 @@
 
 		dw_mmc_2:dw_mmc@c0069000 {
 			num-slots = <1>;
-			bus-width = <4>;
+			bus-width = <8>;
+			mmc-ddr-1_8v;
+			pinctrl-0 = <&sdmmc2_cclk &sdmmc2_cmd
+						&sdmmc2_bus4 &sdmmc2_bus8>;
+			soc,tieoff = <NX_TIEOFF_MMC_8BIT 1>;
 			cap-mmc-highspeed;
 			broken-cd;
 			non-removable;
