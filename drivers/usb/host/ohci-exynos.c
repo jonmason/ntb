@@ -201,6 +201,10 @@ skip_phy:
 		goto fail_add_hcd;
 	}
 	device_wakeup_enable(hcd->self.controller);
+
+	if (of_device_is_compatible(pdev->dev.of_node, "nexell,nexell-ohci"))
+		pm_runtime_forbid(&hcd->self.root_hub->dev);
+
 	return 0;
 
 fail_add_hcd:
