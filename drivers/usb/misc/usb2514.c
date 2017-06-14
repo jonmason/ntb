@@ -70,12 +70,14 @@ struct i2cparam usb2514_dft_reg[] = {
 static int usb2514_reset(struct usb2514 *hub, int state)
 {
 	if (gpio_is_valid(hub->gpio_reset)) {
-		gpio_set_value(hub->gpio_reset, 1);
-		mdelay(10);
-		gpio_set_value(hub->gpio_reset, 0);
-		mdelay(10);
-		gpio_set_value(hub->gpio_reset, 1);
-		mdelay(10);
+		if (state) {
+			gpio_set_value(hub->gpio_reset, 1);
+			udelay(10);
+			gpio_set_value(hub->gpio_reset, 0);
+			udelay(10);
+			gpio_set_value(hub->gpio_reset, 1);
+		} else
+			gpio_set_value(hub->gpio_reset, 0);
 	}
 
 	return 0;
