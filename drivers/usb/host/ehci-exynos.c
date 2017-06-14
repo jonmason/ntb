@@ -240,6 +240,9 @@ skip_phy:
 	}
 	device_wakeup_enable(hcd->self.controller);
 
+	if (of_device_is_compatible(pdev->dev.of_node, "nexell,nexell-ehci"))
+		pm_runtime_forbid(&hcd->self.root_hub->dev);
+
 	platform_set_drvdata(pdev, hcd);
 
 	return 0;
