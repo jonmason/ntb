@@ -194,17 +194,26 @@ static struct drm_crtc_funcs nx_crtc_funcs = {
 #define	DUMP_FPS_TIME(p)
 #endif
 
+#define for_each_connector_in_drm(connector, dev) \
+	for (connector =	\
+		list_first_entry(&(dev)->mode_config.connector_list,	\
+				struct drm_connector, head);	\
+		&connector->head != (&(dev)->mode_config.connector_list); \
+		connector = list_next_entry(connector, head))
+
 static inline struct nx_drm_display *get_drm_display(struct drm_crtc *crtc)
 {
 	struct drm_device *drm = crtc->dev;
 	struct nx_drm_display *display = NULL;
-	struct drm_encoder *encoder;
+	struct drm_connector *connector;
 
-	drm_for_each_encoder(encoder, drm) {
-		if (encoder->crtc == crtc) {
-			struct nx_drm_connector *nx_connector =
-				to_nx_encoder(encoder)->connector;
-			display = nx_connector->display;
+	for_each_connector_in_drm(connector, drm) {
+		if (!connector->state)
+			continue;
+
+		if (connector->state->crtc == crtc) {
+			if (to_nx_connector(connector)->display != display)
+				display = to_nx_connector(connector)->display;
 			break;
 		}
 	}
@@ -233,8 +242,8 @@ static irqreturn_t nx_drm_crtc_irq_handler(int irq, void *arg)
 
 	DUMP_FPS_TIME(nx_crtc->pipe);
 
-	if (!display)
-		return IRQ_HANDLED;
+	if (WARN_ON(!display))
+		return IRQ_NONE;
 
 	/* done irq */
 	if (display->ops && display->ops->irq_done)
