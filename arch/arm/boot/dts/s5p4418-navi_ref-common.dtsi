@@ -611,7 +611,7 @@
 	};
 
 	dp_control {
-		clk_src_lv0 = <3>;
+		clk_src_lv0 = <0>;
 		clk_div_lv0 = <16>;
 		clk_src_lv1 = <7>;
 		clk_div_lv1 = <1>;
