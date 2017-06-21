@@ -149,6 +149,25 @@ static struct nx_video_format *find_format(u32 pixelformat, int index)
 	return def_fmt;
 }
 
+static bool have_frame_info(struct nx_video_frame *frame)
+{
+	int i, j;
+
+	for (j = 0; j < frame->format.num_planes; j++) {
+		pr_debug("[%s] %d - size: %d, stride: %d\n", __func__, j,
+			 frame->size[j], frame->stride[j]);
+		if (frame->size[j])
+			return true;
+		for (i = 0; i < frame->format.num_sw_planes; i++) {
+			pr_debug("[%s] %d - size: %d, stride: %d\n", __func__,
+				 i, frame->size[i], frame->stride[i]);
+			if (frame->size[i])
+				return true;
+		}
+	}
+	return false;
+}
+
 static int set_plane_size(struct nx_video_frame *frame, unsigned int sizes[])
 {
 	u32 y_stride = ALIGN(frame->width, 32);
@@ -156,6 +175,15 @@ static int set_plane_size(struct nx_video_frame *frame, unsigned int sizes[])
 	int i, j;
 
 	pr_debug("[%s] format = 0x%x\n", __func__, frame->format.pixelformat);
+
+	if (have_frame_info(frame)) {
+		for (j = 0; j < frame->format.num_planes; j++) {
+			sizes[j] = 0;
+			for (i = 0; i < frame->format.num_sw_planes; i++)
+				sizes[j] += frame->size[j+i];
+		}
+		return 0;
+	}
 
 	switch (frame->format.pixelformat) {
 	case V4L2_PIX_FMT_YUYV:
@@ -206,9 +234,7 @@ static int set_plane_size(struct nx_video_frame *frame, unsigned int sizes[])
 		for (j = 0; j < frame->format.num_planes; j++) {
 			sizes[j] = 0;
 			for (i = 0; i < frame->format.num_sw_planes; i++)
-				sizes[j] += frame->size[i];
-			pr_debug("[%s] %d: size[%d]=%d\n", __func__,
-				j, j, sizes[j]);
+				sizes[j] += frame->size[j+i];
 		}
 		break;
 	case V4L2_PIX_FMT_NV16:
@@ -811,22 +837,12 @@ static int nx_video_set_format(struct file *file, void *fh,
 	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		struct v4l2_pix_format_mplane *pix = &f->fmt.pix_mp;
 
-		for (i = 0; i < format->num_planes; ++i) {
-			if (format->pixelformat == V4L2_PIX_FMT_YVU420) {
-				for (j = 0; j < format->num_sw_planes; j++) {
-					frame->stride[j] =
-						pix->plane_fmt[j].bytesperline;
-					frame->size[j] =
-						pix->plane_fmt[j].sizeimage;
-					pr_debug("stride[%d]=%d, size[%d]=%d\n",
-						 j, frame->stride[j], j,
-						 frame->size[j]);
-				}
-			} else {
-				frame->stride[i] =
-					pix->plane_fmt[i].bytesperline;
-				frame->size[i] =
-					pix->plane_fmt[i].sizeimage;
+		for (i = 0; i < format->num_planes; i++) {
+			for (j = 0; j < format->num_sw_planes; j++) {
+				frame->stride[i+j] =
+					pix->plane_fmt[i+j].bytesperline;
+				frame->size[i+j] =
+					pix->plane_fmt[i+j].sizeimage;
 			}
 		}
 	}
