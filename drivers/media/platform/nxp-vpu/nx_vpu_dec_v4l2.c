@@ -527,8 +527,10 @@ static void nx_vpu_dec_stop_streaming(struct vb2_queue *q)
 	FUNC_IN();
 
 	if (q->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-		ctx->vpu_cmd = DEC_BUF_FLUSH;
-		nx_vpu_try_run(ctx);
+		if ( ctx->is_initialized ) {
+			ctx->vpu_cmd = DEC_BUF_FLUSH;
+			nx_vpu_try_run(ctx);
+		}
 
 		spin_lock_irqsave(&dev->irqlock, flags);
 
@@ -552,7 +554,6 @@ static void nx_vpu_dec_stop_streaming(struct vb2_queue *q)
 		spin_unlock_irqrestore(&dev->irqlock, flags);
 	}
 
-	ctx->vpu_cmd = SEQ_END;
 }
 
 static void nx_vpu_dec_buf_queue(struct vb2_buffer *vb)
