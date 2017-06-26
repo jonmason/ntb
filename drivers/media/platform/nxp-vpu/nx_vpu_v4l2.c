@@ -1181,6 +1181,8 @@ static int nx_vpu_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
+	arch_setup_dma_ops( &pdev->dev, 0, 0, NULL, true );
+
 	ret = of_address_to_resource(pdev->dev.of_node, 0, &res);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to get base address\n");
