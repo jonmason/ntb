@@ -915,7 +915,8 @@
 			reset-names = "vpu-a-reset", "vpu-p-reset",
 				"vpu-c-reset";
 			clocks = <&pclk>, <&bclk>;
-			status = "disabled";
+			status = "okay";
+			sram = <0 0>;
 		};
 
 		rtc@c0010c00 {
