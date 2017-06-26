@@ -757,7 +757,7 @@ err_plane:
 	return count == 0 ? -EINVAL : count;
 }
 
-dma_addr_t nx_drm_plane_get_dma_addr(struct drm_plane *plane)
+dma_addr_t nx_drm_framebuffer_get_dma_addr(struct drm_plane *plane)
 {
 	return 0;
 }

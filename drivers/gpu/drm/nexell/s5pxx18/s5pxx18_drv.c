@@ -1082,19 +1082,30 @@ int nx_drm_planes_init(struct drm_device *drm, struct drm_crtc *crtc,
 }
 
 #ifdef CONFIG_FB_PRE_INIT_FB
-dma_addr_t nx_drm_plane_get_dma_addr(struct drm_plane *plane)
+dma_addr_t nx_drm_framebuffer_get_dma_addr(struct drm_plane *plane)
 {
 	struct nx_plane_layer *layer;
-	dma_addr_t dma_addr;
+	u32 phys_addr;
 
 	if (!plane)
 		return 0;
 
 	layer = to_nx_plane(plane)->context;
-	nx_mlc_get_rgblayer_address(
-		layer->module, layer->num, (u32 *)&dma_addr);
+	nx_mlc_get_rgblayer_address(layer->module, layer->num, &phys_addr);
 
-	return dma_addr;
+	return (dma_addr_t)phys_addr;
+}
+
+void nx_drm_framebuffer_set_dma_addr(struct drm_plane *plane, dma_addr_t fb)
+{
+	struct nx_plane_layer *layer;
+
+	if (!plane)
+		return;
+
+	layer = to_nx_plane(plane)->context;
+	nx_mlc_set_rgblayer_address(layer->module, layer->num, (u32)fb);
+	nx_mlc_set_dirty_flag(layer->module, layer->num);
 }
 #endif
 

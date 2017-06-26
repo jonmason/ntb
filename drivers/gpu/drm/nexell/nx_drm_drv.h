@@ -318,6 +318,9 @@ void nx_drm_display_put(struct device *dev, struct nx_drm_display *display);
 int  nx_drm_display_setup(struct nx_drm_display *display,
 			struct device_node *node, enum nx_panel_type type);
 
+dma_addr_t nx_drm_framebuffer_get_dma_addr(struct drm_plane *plane);
+void nx_drm_framebuffer_set_dma_addr(struct drm_plane *plane, dma_addr_t fb);
+
 #include <media/v4l2-subdev.h>
 void *nx_drm_display_tvout_get(struct device *dev, struct device_node *node,
 			struct nx_drm_display *display);
