@@ -321,7 +321,7 @@
 		compatible = "i2c-gpio";
 		gpios = <&gpio_b 16 0 /* sda */
 		    &gpio_b 18 0 /* scl */>;
-		i2c-gpio,delay-us = <100>;
+		i2c-gpio,delay-us = <1>;
 		#address-cells = <1>;
 		#size-cells = <0>;
 
