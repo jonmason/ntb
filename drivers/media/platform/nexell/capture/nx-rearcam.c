@@ -3075,26 +3075,30 @@ static void _disable_dpc_irq_ctx(struct nx_rearcam *me)
 	struct device *dev = &me->pdev->dev;
 
 	if (me->is_enable_dpc_irq) {
+#if 0
 		_cancel_display_worker(me);
 		_destroy_display_worker(me);
 
 		devm_free_irq(dev, me->irq_dpc, me);
 
 		me->is_enable_dpc_irq = false;
+#endif
 	}
 }
 
-static void _init_hw_dpc(struct nx_rearcam *me)
+static bool _init_hw_dpc(struct nx_rearcam *me)
 {
 	int module = me->dpc_module;
 
 	nx_dpc_set_base_address(module, *(me->base_addr + 0));
 
-	if (_is_enable_dpc(me) == false) {
+	if (!_is_enable_dpc(me)) {
 		nx_dpc_set_clock_pclk_mode(module, nx_pclkmode_always);
-
 		_set_dpc(me);
+		return true;
 	}
+
+	return false;
 }
 
 static void _init_sensor_worker(struct nx_rearcam *me)
@@ -3904,9 +3908,10 @@ static void _init_vendor(struct nx_rearcam *me)
 
 static void init_hw(struct nx_rearcam *me)
 {
-	_init_hw_dpc(me);
+	bool enable_dpc = false;
 
-	if (_is_enable_dpc(me) == false) {
+	enable_dpc = _init_hw_dpc(me);
+	if (enable_dpc) {
 		/*	_reset_hw_display(me);	*/
 		_init_hw_display_top(me);
 		_init_hw_lvds(me);
