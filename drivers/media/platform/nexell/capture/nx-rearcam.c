@@ -2655,12 +2655,12 @@ static irqreturn_t _vip_irq_handler(int irq, void *devdata)
 			if (is_odd)
 				me->irq_count++;
 		}
-	}
 
-	if (me->irq_count == 2)
-		me->irq_count = 0;
-	else
-		do_process = false;
+		if (me->irq_count == 2)
+			me->irq_count = 0;
+		else
+			do_process = false;
+	}
 
 	if (!do_process)
 		return IRQ_HANDLED;
