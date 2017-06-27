@@ -1021,7 +1021,7 @@ static int nx_dpc_parse_dt(struct device *dev, struct nx_rearcam *me)
 	}
 
 	t_np = of_find_node_by_name(p_np, "display-timing");
-	if (!np) {
+	if (!t_np) {
 		dev_err(dev, "failed to get display control node\n");
 		return -EINVAL;
 	}
