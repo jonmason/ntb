@@ -489,6 +489,8 @@ struct nx_rearcam {
 	bool running;
 	bool reargear_on;
 
+	bool release_on;
+
 	/* rotation */
 	struct common_queue q_rot_empty;
 	struct common_queue q_rot_done;
@@ -1868,6 +1870,7 @@ static void _reset_values(struct nx_rearcam *me)
 
 	me->is_display_on = false;
 	me->is_mlc_on = false;
+	me->release_on = false;
 }
 
 static void _reset_queue(struct nx_rearcam *me)
@@ -2488,7 +2491,12 @@ static void _setup_me(struct nx_rearcam *me)
 static void _cleanup_me(struct nx_rearcam *me)
 {
 	unsigned long flags;
+	struct device *dev = &me->pdev->dev;
 
+	_disable_vip_irq_ctx(me);
+
+	me->release_on = true;
+	cancel_work_sync(&me->work_display);
 	spin_lock_irqsave(&me->display_lock, flags);
 	/*	_set_dpc_interrupt(me, false);	*/
 	spin_unlock_irqrestore(&me->display_lock, flags);
@@ -2625,7 +2633,10 @@ static irqreturn_t _dpc_irq_handler(int irq, void *devdata)
 	nx_dpc_clear_interrupt_pending_all(module);
 
 	spin_lock_irqsave(&me->display_lock, flags);
-	queue_work(me->wq_display, &me->work_display);
+
+	if ( !me->release_on )
+		queue_work(me->wq_display, &me->work_display);
+
 	spin_unlock_irqrestore(&me->display_lock, flags);
 
 	return IRQ_HANDLED;
@@ -3044,6 +3055,30 @@ static void _init_hw_mlc(struct nx_rearcam *me)
 		_set_mlc_video(me);
 }
 
+static void _init_display_worker(struct nx_rearcam *me)
+{
+	struct device *dev = &me->pdev->dev;
+
+	INIT_WORK(&me->work_display, _display_worker);
+
+	me->wq_display = create_singlethread_workqueue("wq_display");
+	if (!me->wq_display) {
+		dev_err(dev, "create display work queue error!\n");
+		return;
+	}
+}
+
+static void _deinit_display_worker(struct nx_rearcam *me)
+{
+	if (me->wq_display != NULL) {
+		cancel_work_sync(&me->work_display);
+		flush_workqueue(me->wq_display);
+		destroy_workqueue(me->wq_display);
+
+		me->wq_display = NULL;
+	}
+}
+
 static void _enable_dpc_irq_ctx(struct nx_rearcam *me)
 {
 	struct device *dev = &me->pdev->dev;
@@ -3077,14 +3112,12 @@ static void _disable_dpc_irq_ctx(struct nx_rearcam *me)
 	struct device *dev = &me->pdev->dev;
 
 	if (me->is_enable_dpc_irq) {
-#if 0
 		_cancel_display_worker(me);
 		_destroy_display_worker(me);
 
 		devm_free_irq(dev, me->irq_dpc, me);
 
 		me->is_enable_dpc_irq = false;
-#endif
 	}
 }
 
@@ -3434,6 +3467,11 @@ static void _display_worker(struct work_struct *work)
 		q_display_done	= &me->q_vip_done;
 	}
 
+	if ( me->release_on ) {
+		pr_debug("%s - display_worker release on.....!\n", __func__);
+		return;
+	}
+
 	spin_lock_irqsave(&me->display_lock, flags);
 
 #if TIME_LOG
@@ -3724,6 +3762,7 @@ static void _init_context(struct nx_rearcam *me)
 	me->mlc_on_first = false;
 	me->removed = false;
 	me->is_remove = false;
+	me->release_on = false;
 
 	me->is_enable_gpio_irq = false;
 	me->is_enable_vip_irq = false;
@@ -3933,8 +3972,10 @@ static int init_me(struct nx_rearcam *me)
 	_reset_hw_display(me);
 	_init_hw_mlc(me);
 
+	_init_display_worker(me);
 	_init_gpio_event_worker(me);
 	_init_sensor_worker(me);
+
 	_enable_gpio_irq_ctx(me);
 
 	return 0;
@@ -3969,6 +4010,7 @@ static int deinit_me(struct nx_rearcam *me)
 	_disable_gpio_irq_ctx(me);
 	_deinit_sensor_worker(me);
 	_deinit_gpio_event_worker(me);
+	_deinit_display_worker(me);
 
 	_free_buffer(me);
 
@@ -4094,6 +4136,7 @@ static int nx_rearcam_probe(struct platform_device *pdev)
 
 	dev_set_drvdata(dev, me);
 	me->pdev = pdev;
+
 	ret = nx_rearcam_parse_dt(dev, me);
 	if (ret) {
 		dev_err(dev, "failed to parse dt\n");
