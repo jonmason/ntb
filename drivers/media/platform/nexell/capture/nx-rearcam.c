@@ -53,6 +53,8 @@
 
 #define TIME_LOG	0
 
+#define	USED_SENSOR_INIT_WOKRER	1
+
 #ifndef MLC_LAYER_RGB_OVERLAY
 #define MLC_LAYER_RGB_OVERLAY 0
 #endif
@@ -4097,11 +4099,16 @@ static int nx_rearcam_probe(struct platform_device *pdev)
 		dev_err(dev, "failed to parse dt\n");
 		goto ERROR;
 	}
-	init_me(me);
 
+	init_me(me);
+#if USED_SENSOR_INIT_WOKRER
 	/* sensor init */
 	queue_work(me->wq_sensor_init, &me->work_sensor_init);
-
+#else
+	ret = _camera_sensor_run(me);
+	if (ret < 0)
+		dev_err(dev, "failed sensor initialzation!\n");
+#endif
 	/* TODO : MIPI Routine */
 	platform_set_drvdata(pdev, me);
 
