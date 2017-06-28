@@ -520,6 +520,7 @@ struct nx_rearcam {
 
 	/* vendor context */
 	struct nx_vendor_context *vendor_context;
+	int (*sensor_init_func)(struct i2c_client *client);
 	struct nx_vendor_context *(*alloc_vendor_context)(void);
 	void (*free_vendor_context)(void *);
 	bool (*pre_turn_on)(void *);
@@ -2054,7 +2055,6 @@ static void _vip_run(struct nx_rearcam *me)
 	} else
 		WARN_ON(true);
 
-
 	nx_vip_set_vipenable(module, true, true, true, false);
 	/* nx_vip_dump_register(module); */
 }
@@ -3160,6 +3160,7 @@ static bool _init_hw_dpc(struct nx_rearcam *me)
 
 	if (!_is_enable_dpc(me)) {
 		nx_dpc_set_clock_pclk_mode(module, nx_pclkmode_always);
+
 		_set_dpc(me);
 		return true;
 	}
@@ -3445,20 +3446,26 @@ static int _camera_sensor_run(struct nx_rearcam *me)
 	int i = 0;
 
 	_get_i2c_client(me);
+
 	ret = enable_sensor_power(dev, &me->clipper_info, true);
 	if (ret) {
 		dev_err(&me->pdev->dev, "unable to enable sensor power!\n");
 		return -1;
 	}
 
-	reg_val = me->init_data;
-	while (reg_val->reg != 0xFF && reg_val->val != 0xFF) {
-		i2c_smbus_write_byte_data(me->client, reg_val->reg,
-			reg_val->val);
-		pr_debug("%s - index : %d, addr : 0x%02x, val: 0x%02x\n",
-			__func__, i++, reg_val->reg, reg_val->val);
-		reg_val++;
+	if (me->init_data) {
+		reg_val = me->init_data;
+		while (reg_val->reg != 0xFF && reg_val->val != 0xFF) {
+			i2c_smbus_write_byte_data(me->client, reg_val->reg,
+				reg_val->val);
+			pr_debug("%s - index : %d, addr : 0x%02x, val: 0x%02x\n",
+				__func__, i++, reg_val->reg, reg_val->val);
+			reg_val++;
+		}
 	}
+
+	if (me->sensor_init_func)
+		me->sensor_init_func(me->client);
 
 	return 0;
 }
@@ -3970,6 +3977,7 @@ static void _free_buffer(struct nx_rearcam *me)
 static void _init_vendor(struct nx_rearcam *me)
 {
 	me->vendor_context		= NULL;
+	me->sensor_init_func		= nx_rearcam_sensor_init_func;
 	me->alloc_vendor_context	= nx_rearcam_alloc_vendor_context;
 	me->free_vendor_context		= nx_rearcam_free_vendor_context;
 	me->pre_turn_on			= nx_rearcam_pre_turn_on;

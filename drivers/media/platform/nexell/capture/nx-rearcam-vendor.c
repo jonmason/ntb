@@ -19,8 +19,14 @@
 #include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/printk.h>
+#include <linux/i2c.h>
+#include <linux/delay.h>
 
 #include "nx-rearcam-vendor.h"
+
+void nx_rearcam_sensor_init_func(struct i2c_client *client)
+{
+}
 
 struct nx_vendor_context *nx_rearcam_alloc_vendor_context(void)
 {

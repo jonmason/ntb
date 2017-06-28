@@ -24,6 +24,7 @@ struct nx_vendor_context {
 
 };
 
+void nx_rearcam_sensor_init_func(struct i2c_client *client);
 struct nx_vendor_context *nx_rearcam_alloc_vendor_context(void);
 bool nx_rearcam_pre_turn_on(void *);
 void nx_rearcam_post_turn_off(void *);
