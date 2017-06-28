@@ -2535,10 +2535,8 @@ static void _cleanup_me(struct nx_rearcam *me)
 	me->release_on = true;
 	cancel_work_sync(&me->work_display);
 	spin_lock_irqsave(&me->display_lock, flags);
-	/*	_set_dpc_interrupt(me, false);	*/
 	spin_unlock_irqrestore(&me->display_lock, flags);
-
-	_disable_vip_irq_ctx(me);
+	/*	_set_dpc_interrupt(me, false);	*/
 	_disable_dpc_irq_ctx(me);
 
 	if (me->rotation) {
@@ -3143,14 +3141,6 @@ static void _enable_dpc_irq_ctx(struct nx_rearcam *me)
 	int err;
 
 	if (!me->is_enable_dpc_irq) {
-		INIT_WORK(&me->work_display, _display_worker);
-
-		me->wq_display = create_singlethread_workqueue("wq_display");
-		if (!me->wq_display) {
-			dev_err(dev, "create work queue error!\n");
-			return;
-		}
-
 		sprintf(me->irq_name_dpc, "nx-rearcam-dpc%d", module);
 		err = devm_request_irq(dev, me->irq_dpc, &_dpc_irq_handler,
 			IRQF_SHARED, me->irq_name_dpc, me);
@@ -3169,11 +3159,7 @@ static void _disable_dpc_irq_ctx(struct nx_rearcam *me)
 	struct device *dev = &me->pdev->dev;
 
 	if (me->is_enable_dpc_irq) {
-		_cancel_display_worker(me);
-		_destroy_display_worker(me);
-
 		devm_free_irq(dev, me->irq_dpc, me);
-
 		me->is_enable_dpc_irq = false;
 	}
 }
@@ -3186,7 +3172,6 @@ static bool _init_hw_dpc(struct nx_rearcam *me)
 
 	if (!_is_enable_dpc(me)) {
 		nx_dpc_set_clock_pclk_mode(module, nx_pclkmode_always);
-
 		_set_dpc(me);
 		return true;
 	}
