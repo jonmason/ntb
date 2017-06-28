@@ -51,6 +51,13 @@
 
 #define NX_REARCAM_DEV_NAME "nx-rearcam"
 
+/*	#define DEBUG_SYNC	*/
+#ifdef DEBUG_SYNC
+#include <linux/timer.h>
+
+#define DEBUG_SYNC_TIMEOUT_MS   (1000)
+#endif
+
 #define TIME_LOG	0
 
 #define	USED_SENSOR_INIT_WOKRER	1
@@ -507,6 +514,10 @@ struct nx_rearcam {
 	struct nx_video_buf *rot_src;
 	struct nx_video_buf *rot_dst;
 
+#ifdef DEBUG_SYNC
+	struct timer_list timer;
+#endif
+
 	/* vendor context */
 	struct nx_vendor_context *vendor_context;
 	struct nx_vendor_context *(*alloc_vendor_context)(void);
@@ -540,6 +551,25 @@ static void _enable_vip_irq_ctx(struct nx_rearcam *);
 static void _init_gpio_event_worker(struct nx_rearcam *);
 static void _deinit_gpio_event_worker(struct nx_rearcam *);
 
+#ifdef DEBUG_SYNC
+/* DEBUG_SYNC */
+static void debug_sync(unsigned long priv)
+{
+	struct nx_rearcam *me = (struct nx_rearcam *)priv;
+	struct nx_clipper_info *clip = &me->clipper_info;
+
+	u32 module = clip->module;
+
+	dev_err(&me->pdev->dev, "VCOUNT: %d, HCOUNT: %d\n",
+		nx_vip_get_ver_count(module),
+		nx_vip_get_hor_count(module));
+
+	mod_timer(&me->timer,
+		jiffies + msecs_to_jiffies(DEBUG_SYNC_TIMEOUT_MS));
+}
+#endif
+
+
 static struct device_node *_of_get_node_by_property(struct device *dev,
 		struct device_node *np, char *prop_name)
 {
@@ -550,7 +580,8 @@ static struct device_node *_of_get_node_by_property(struct device *dev,
 
 	list = of_get_property(np, prop_name, &size);
 	if (!list) {
-		dev_err(dev, "%s: could not find list\n", np->full_name);
+		dev_err(dev, "%s: could not find list. name : %s\n",
+				np->full_name, prop_name);
 		return NULL;
 	}
 
@@ -4175,6 +4206,13 @@ static int nx_rearcam_probe(struct platform_device *pdev)
 
 	/* reargear gpio enable */
 	enable_irq(me->irq_event);
+
+#ifdef DEBUG_SYNC
+	setup_timer(&me->timer, debug_sync, (long)me);
+
+	mod_timer(&me->timer, jiffies +
+		msecs_to_jiffies(DEBUG_SYNC_TIMEOUT_MS));
+#endif
 
 	return 0;
 
