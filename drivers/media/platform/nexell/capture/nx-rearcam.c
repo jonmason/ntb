@@ -401,6 +401,8 @@ struct nx_clipper_info {
 struct nx_rearcam {
 	struct measurement measure;
 
+	u32 skip_frame_count;
+	u32 skip_frame;
 	u32 rotation;
 
 	struct i2c_client *client;
@@ -1682,6 +1684,13 @@ static int nx_rearcam_parse_dt(struct device *dev, struct nx_rearcam *me)
 	struct device_node *child_mlc_node = NULL;
 	struct device_node *child_display_top_node = NULL;
 	struct device_node *child_display_node = NULL;
+	struct device_node *child_skip_frame_node = NULL;
+
+	me->skip_frame_count = 0;
+	me->skip_frame = 0;
+	child_skip_frame_node = _of_get_node_by_property(dev, np, "skip_frame");
+	if (child_skip_frame_node)
+		of_property_read_u32(np, "skip_frame", &me->skip_frame);
 
 	if (of_property_read_u32(np, "rotation", &me->rotation)) {
 		dev_err(dev, "failed to get dt rotation\n");
@@ -2687,6 +2696,12 @@ static irqreturn_t _vip_irq_handler(int irq, void *devdata)
 	struct nx_video_buf *buf = NULL;
 
 	nx_vip_clear_interrupt_pending_all(module);
+
+	if (me->skip_frame_count < me->skip_frame) {
+		me->skip_frame_count++;
+
+		return IRQ_HANDLED;
+	}
 
 	interlace = me->clipper_info.interlace;
 	if (interlace) {
