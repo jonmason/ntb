@@ -2664,6 +2664,17 @@ static irqreturn_t _irq_handler(int irq, void *devdata)
 	return IRQ_HANDLED;
 }
 
+#ifdef DEBUG_FPS_TIME
+#define	DUMP_FPS_TIME() {	\
+	static long ts = 0;	\
+	long new = ktime_to_ms(ktime_get());	\
+		pr_err("interrupt time %ld ms\n", new - ts);	\
+	ts = new;	\
+	}
+#else
+#define	DUMP_FPS_TIME(p)
+#endif
+
 static irqreturn_t _dpc_irq_handler(int irq, void *devdata)
 {
 	unsigned long flags;
@@ -2672,6 +2683,9 @@ static irqreturn_t _dpc_irq_handler(int irq, void *devdata)
 
 	nx_dpc_clear_interrupt_pending_all(module);
 
+#ifdef DEBUG_FPS_TIME
+	DUMP_FPS_TIME();
+#endif
 	spin_lock_irqsave(&me->display_lock, flags);
 
 	if ( !me->release_on )
