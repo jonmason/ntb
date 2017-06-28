@@ -24,6 +24,7 @@
 #include <linux/slab.h>
 #include <linux/version.h>
 #include <linux/of.h>
+#include <linux/of_irq.h>
 #include <linux/of_gpio.h>
 #include <linux/of_address.h>
 #include <linux/reset.h>
@@ -1667,8 +1668,7 @@ static int nx_interrupt_parse_dt(struct device *dev, struct nx_rearcam *me)
 
 	of_property_read_u32_array(child_display_node,
 		"interrupts", int_num, size);
-
-	me->irq_dpc = int_num[module] + 16;
+	me->irq_dpc = irq_of_parse_and_map(child_display_node, 0);
 
 	return 0;
 }
