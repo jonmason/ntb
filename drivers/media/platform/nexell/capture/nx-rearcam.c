@@ -1710,15 +1710,12 @@ static int nx_rearcam_parse_dt(struct device *dev, struct nx_rearcam *me)
 	me->clipper_info.height = me->height;
 
 	child_sensor_reg_node = _of_get_node_by_property(dev, np, "sensor_reg");
-	if (!child_sensor_reg_node) {
-		dev_err(dev, "failed to get clipper node\n");
-		return -EINVAL;
-	}
-
-	ret = nx_sensor_reg_parse_dt(dev, child_sensor_reg_node, me);
-	if (ret) {
-		dev_err(dev, "failed to parse sensor register dt\n");
-		return ret;
+	if (child_sensor_reg_node) {
+		ret = nx_sensor_reg_parse_dt(dev, child_sensor_reg_node, me);
+		if (ret) {
+			dev_err(dev, "failed to parse sensor register dt\n");
+			return ret;
+		}
 	}
 
 	child_gpio_node = of_find_node_by_name(np, "gpio");
