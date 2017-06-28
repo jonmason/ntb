@@ -2262,8 +2262,6 @@ static void _set_mlc(struct nx_rearcam *me)
 	nx_mlc_set_top_dirty_flag(module);
 
 	_set_mlc_video(me);
-	_set_mlc_overlay(me);
-	_mlc_rgb_overlay_draw(me);
 	_set_enable_mlc(me);
 }
 
@@ -3546,11 +3544,11 @@ static void _display_worker(struct work_struct *work)
 
 	if (!me->mlc_on_first) {
 		_set_mlc_overlay(me);
-		_mlc_rgb_overlay_draw(me);
 		me->mlc_on_first = true;
 	}
 
 	if (!me->is_mlc_on) {
+		_mlc_rgb_overlay_draw(me);
 		_mlc_video_run(me);
 		_mlc_overlay_run(me);
 		me->is_mlc_on = true;

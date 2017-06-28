@@ -23,6 +23,7 @@
 #include <linux/delay.h>
 
 #include "nx-rearcam-vendor.h"
+#include "parking_line.h"
 
 void nx_rearcam_sensor_init_func(struct i2c_client *client)
 {
@@ -78,6 +79,11 @@ bool nx_rearcam_decide(void *ctx)
 	return true;
 }
 
+
+void nx_rearcam_draw_parking_guide_line(void *mem, void *cxt,
+					int width, int height,
+					int pixelbyte, int rotation);
+
 void nx_rearcam_draw_rgb_overlay(int width, int height, int pixelbyte,
 				int rotation, void *ctx, void *mem)
 {
@@ -85,22 +91,51 @@ void nx_rearcam_draw_rgb_overlay(int width, int height, int pixelbyte,
 
 	pr_debug("+++ %s +++\n", __func__);
 
-	if (mem != NULL) {
-		memset(mem, 0, width * height * pixelbyte);
-		/* draw redbox at (0, 0) -- (50, 50) */
-		{
-			u32 color = 0xFFFF0000;
-			int i, j;
-			u32 *pbuffer = (u32 *)mem;
-
-			for (i = 0; i < 50; i++) {
-				for (j = 0; j < 50; j++) {
-					if (rotation == 0)
-						pbuffer[i * 1024 + j] = color;
-				}
-			}
-		}
-	}
+	nx_rearcam_draw_parking_guide_line(mem, ctx, width, height, pixelbyte,
+			rotation);
 
 	pr_debug("--- %s ---\n", __func__);
+}
+
+void nx_rearcam_draw_parking_guide_line(void *mem, void *ctx,
+					int width, int height,
+					int pixelbyte, int rotation)
+{
+	if (mem != NULL) {
+		int i, j;
+		int src_width, src_height;
+		static int line_index;
+		unsigned int *data;
+
+		u32 *pbuffer = (u32 *)mem;
+
+		line_index = line_index % 3;
+
+		src_width = parkingline_resolution[line_index][0];
+		src_height = parkingline_resolution[line_index][1];
+
+		switch(line_index) {
+		case 0:
+			data = parkingline_left;
+			break;
+		case 1:
+			data = parkingline_center;
+			break;
+		case 2:
+			data = parkingline_right;
+			break;
+		}
+
+		memset(mem, 0, width * height * pixelbyte);
+
+		{
+			for (i = 0; i < src_height; i++)
+				for (j = 0; j < src_width; j++) {
+					pbuffer[i * width + j] =
+						data[i * src_width + j];
+				}
+		}
+
+		line_index++;
+	}
 }
