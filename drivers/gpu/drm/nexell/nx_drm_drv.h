@@ -49,16 +49,9 @@ struct nx_drm_private {
 	bool force_detect;
 	struct drm_crtc *crtcs[MAX_CRTCS];
 	int num_crtcs;
-	struct commit {
-		struct drm_device *drm;
-		struct drm_atomic_state *state;
-		struct work_struct work;
-		wait_queue_head_t wait;
-		spinlock_t lock;
-		struct mutex m_lock;
-		u32 pending;
-		u32 crtcs;
-	} commit;
+	spinlock_t lock;
+	wait_queue_head_t wait;
+	u32 pending;
 };
 
 /*

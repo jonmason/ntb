@@ -30,6 +30,13 @@
 #include "nx_drm_fb.h"
 #include "nx_drm_gem.h"
 
+struct nx_drm_commit {
+	struct drm_device *drm;
+	struct drm_atomic_state *state;
+	struct work_struct work;
+	u32 crtcs;
+};
+
 static void nx_drm_output_poll_changed(struct drm_device *drm)
 {
 	struct nx_drm_private *private = drm->dev_private;
@@ -44,10 +51,11 @@ static void nx_drm_output_poll_changed(struct drm_device *drm)
 		nx_drm_framebuffer_init(drm);
 }
 
-static void nx_atomic_commit_complete(struct commit *commit,
-			struct drm_atomic_state *state)
+static void nx_atomic_commit_complete(struct nx_drm_commit *commit)
 {
 	struct drm_device *drm = commit->drm;
+	struct nx_drm_private *private = drm->dev_private;
+	struct drm_atomic_state *state = commit->state;
 
 	/*
 	 * Everything below can be run asynchronously without the need to grab
@@ -77,35 +85,32 @@ static void nx_atomic_commit_complete(struct commit *commit,
 	drm_atomic_helper_cleanup_planes(drm, state);
 	drm_atomic_state_free(state);
 
-	spin_lock(&commit->lock);
-	commit->pending &= ~commit->crtcs;
-	spin_unlock(&commit->lock);
+	spin_lock(&private->lock);
+	private->pending &= ~commit->crtcs;
+	spin_unlock(&private->lock);
 
-	wake_up_all(&commit->wait);
-}
+	wake_up_all(&private->wait);
 
-static void nx_atomic_schedule(struct commit *commit,
-				  struct drm_atomic_state *state)
-{
-	commit->state = state;
-	schedule_work(&commit->work);
+	kfree(commit);
 }
 
 static void nx_drm_atomic_work(struct work_struct *work)
 {
-	struct commit *commit = container_of(work, struct commit, work);
+	struct nx_drm_commit *commit =
+		container_of(work, struct nx_drm_commit, work);
 
-	nx_atomic_commit_complete(commit, commit->state);
+	nx_atomic_commit_complete(commit);
 }
 
-static int commit_is_pending(struct commit *commit)
+static int commit_is_pending(struct nx_drm_commit *commit)
 {
-	u32 crtcs = commit->crtcs;
+	struct drm_device *drm = commit->drm;
+	struct nx_drm_private *private = drm->dev_private;
 	bool pending;
 
-	spin_lock(&commit->lock);
-	pending = commit->pending & crtcs;
-	spin_unlock(&commit->lock);
+	spin_lock(&private->lock);
+	pending = private->pending & commit->crtcs;
+	spin_unlock(&private->lock);
 
 	return pending;
 }
@@ -114,16 +119,24 @@ static int nx_drm_atomic_commit(struct drm_device *drm,
 			struct drm_atomic_state *state, bool async)
 {
 	struct nx_drm_private *private = drm->dev_private;
-	struct commit *commit = &private->commit;
+	struct nx_drm_commit *commit;
 	int i, ret;
 
 	DRM_DEBUG_KMS("enter : %s\n", async ? "async" : "sync");
 
-	ret = drm_atomic_helper_prepare_planes(drm, state);
-	if (ret)
-		return ret;
+	commit = kzalloc(sizeof(*commit), GFP_KERNEL);
+	if (!commit)
+		return -ENOMEM;
 
-	mutex_lock(&commit->m_lock);
+	ret = drm_atomic_helper_prepare_planes(drm, state);
+	if (ret) {
+		kfree(commit);
+		return ret;
+	}
+
+	INIT_WORK(&commit->work, nx_drm_atomic_work);
+	commit->drm = drm;
+	commit->state = state;
 
 	/* Wait until all affected CRTCs have completed previous commits and
 	 * mark them as pending.
@@ -133,21 +146,20 @@ static int nx_drm_atomic_commit(struct drm_device *drm,
 			commit->crtcs |= 1 << drm_crtc_index(state->crtcs[i]);
 	}
 
-	wait_event(commit->wait, !commit_is_pending(commit));
+	wait_event(private->wait, !commit_is_pending(commit));
 
-	spin_lock(&commit->lock);
-	commit->pending |= commit->crtcs;
-	spin_unlock(&commit->lock);
+	spin_lock(&private->lock);
+	private->pending |= commit->crtcs;
+	spin_unlock(&private->lock);
 
 	/* Swap the state, this is the point of no return. */
 	drm_atomic_helper_swap_state(drm, state);
 
 	if (async)
-		nx_atomic_schedule(commit, state);
+		schedule_work(&commit->work);
 	else
-		nx_atomic_commit_complete(commit, state);
+		nx_atomic_commit_complete(commit);
 
-	mutex_unlock(&commit->m_lock);
 	return 0;
 }
 
@@ -180,22 +192,15 @@ static void nx_drm_mode_config_init(struct drm_device *drm)
 static struct nx_drm_private *nx_drm_private_init(struct drm_device *drm)
 {
 	struct nx_drm_private *private;
-	struct commit *commit;
 
 	private = kzalloc(sizeof(struct nx_drm_private), GFP_KERNEL);
 	if (!private)
 		return NULL;
 
 	drm->dev_private = (void *)private;
+	spin_lock_init(&private->lock);
+	init_waitqueue_head(&private->wait);
 	dev_set_drvdata(drm->dev, drm);
-
-	commit = &private->commit;
-	commit->drm = drm;
-
-	mutex_init(&commit->m_lock);
-	spin_lock_init(&commit->lock);
-	init_waitqueue_head(&commit->wait);
-	INIT_WORK(&commit->work, nx_drm_atomic_work);
 
 	return private;
 }

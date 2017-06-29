@@ -348,6 +348,79 @@ static int nx_drm_fb_atomic_commit(struct drm_device *drm,
 	return 0;
 }
 
+static inline int possible_crtc_count(unsigned int n)
+{
+	int counter = 0;
+
+	while (n) {
+		counter++;
+		n &= (n - 1);
+	}
+	return counter;
+}
+
+static inline int nx_drm_fb_mode_lock(struct drm_fb_helper *fb_helper,
+			unsigned int possible_crtcs, bool *lock_all)
+{
+	struct drm_device *drm = fb_helper->dev;
+	struct drm_crtc *crtc;
+	struct drm_mode_set *mode_set;
+	unsigned int mask = (fb_helper->crtc_count << 1) - 1;
+	unsigned int possible = possible_crtcs & mask;
+	int i;
+
+	if (possible == mask || possible_crtc_count(possible) > 1) {
+		drm_modeset_lock_all(drm);
+		*lock_all = true;
+		return 0;
+	}
+
+	for (i = 0; i < fb_helper->crtc_count; i++) {
+
+		if (!(possible_crtcs & 1<<i))
+			continue;
+
+		mode_set = &fb_helper->crtc_info[i].mode_set;
+		crtc = mode_set->crtc;
+		drm_modeset_lock_crtc(crtc, crtc->primary);
+		if (crtc->primary->fb == NULL) {
+			/* The framebuffer is currently unbound, presumably
+			 * due to a hotplug event, that userspace has not
+			 * yet discovered.
+			 */
+			drm_modeset_unlock_crtc(crtc);
+			return -EBUSY;
+		}
+		*lock_all = false;
+	}
+
+	return 0;
+}
+
+static inline void nx_drm_fb_mode_unlock(struct drm_fb_helper *fb_helper,
+			unsigned int possible_crtcs, bool lock_all)
+{
+	struct drm_device *drm = fb_helper->dev;
+	struct drm_crtc *crtc;
+	struct drm_mode_set *mode_set;
+	int i;
+
+	if (lock_all) {
+		drm_modeset_unlock_all(drm);
+		return;
+	}
+
+	for (i = 0; i < fb_helper->crtc_count; i++) {
+
+		if (!(possible_crtcs & 1<<i))
+			continue;
+
+		mode_set = &fb_helper->crtc_info[i].mode_set;
+		crtc = mode_set->crtc;
+		drm_modeset_unlock_crtc(crtc);
+	}
+}
+
 static int nx_drm_fb_pan_display_atomic(struct fb_var_screeninfo *var,
 			      struct fb_info *info)
 {
@@ -355,27 +428,45 @@ static int nx_drm_fb_pan_display_atomic(struct fb_var_screeninfo *var,
 	struct drm_device *drm = fb_helper->dev;
 	struct drm_atomic_state *state;
 	struct drm_plane *plane;
-	int i, ret = 0;
 	unsigned plane_mask;
 	unsigned int possible_crtcs = fb_pan_crtcs;
+	bool lock_all = true;
+	int i, ret = 0;
+
+	ret = nx_drm_fb_mode_lock(fb_helper, possible_crtcs, &lock_all);
+	if (ret)
+		return ret;
 
 	state = drm_atomic_state_alloc(drm);
-	if (!state)
+	if (!state) {
+		nx_drm_fb_mode_unlock(fb_helper, possible_crtcs, lock_all);
 		return -ENOMEM;
+	}
 
-	state->acquire_ctx = drm->mode_config.acquire_ctx;
+	if (lock_all)
+		state->acquire_ctx = drm->mode_config.acquire_ctx;
+
 retry:
 	plane_mask = 0;
 
 	for (i = 0; i < fb_helper->crtc_count; i++) {
 		struct drm_mode_set *mode_set;
+		struct drm_crtc *crtc;
 
 		if (!(possible_crtcs & 1<<i))
 			continue;
 
 		mode_set = &fb_helper->crtc_info[i].mode_set;
+		/*
+		 * set pan buffer pointer
+		 */
 		mode_set->x = var->xoffset;
 		mode_set->y = var->yoffset;
+		crtc = mode_set->crtc;
+
+		if (!lock_all)
+			state->acquire_ctx =
+				drm_modeset_legacy_acquire_ctx(crtc);
 
 		ret = __drm_atomic_helper_set_config(mode_set, state);
 		if (ret != 0)
@@ -401,6 +492,8 @@ fail:
 
 	if (ret != 0)
 		drm_atomic_state_free(state);
+
+	nx_drm_fb_mode_unlock(fb_helper, possible_crtcs, lock_all);
 
 	return ret;
 
@@ -444,7 +537,6 @@ static int nx_drm_fb_pan_display(struct fb_var_screeninfo *var,
 {
 	struct drm_fb_helper *fb_helper = info->par;
 	struct drm_device *drm = fb_helper->dev;
-	int ret = 0;
 
 	if (oops_in_progress)
 		return -EBUSY;
@@ -462,11 +554,9 @@ static int nx_drm_fb_pan_display(struct fb_var_screeninfo *var,
 		drm_modeset_unlock_all(drm);
 		return -EINVAL;
 	}
-
-	ret = nx_drm_fb_pan_display_atomic(var, info);
-
 	drm_modeset_unlock_all(drm);
-	return ret;
+
+	return nx_drm_fb_pan_display_atomic(var, info);
 }
 #endif
 
