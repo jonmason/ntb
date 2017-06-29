@@ -227,10 +227,6 @@ static int nx_drm_load(struct drm_device *drm, unsigned long flags)
 	if (ret)
 		goto err_mode_config_cleanup;
 
-	ret = nx_drm_vblank_init(drm);
-	if (ret)
-		goto err_mode_config_cleanup;
-
 	drm_mode_config_reset(drm);
 
 	/* disable irq turn off  */

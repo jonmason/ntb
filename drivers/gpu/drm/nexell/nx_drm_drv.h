@@ -94,6 +94,7 @@ struct nx_drm_crtc {
 	unsigned int planes_type[MAX_PLNAES];
 	int pipe;		/* crtc index */
 	int irq;
+	bool irq_install;
 	struct drm_pending_vblank_event *event;
 	bool suspended;
 	struct nx_drm_cluster *cluster;
@@ -281,7 +282,6 @@ struct nx_drm_display {
 
 /* @ specific drm driver */
 int nx_drm_crtc_create(struct drm_device *drm);
-int nx_drm_vblank_init(struct drm_device *drm);
 
 int nx_drm_vblank_enable(struct drm_device *drm, unsigned int pipe);
 void nx_drm_vblank_disable(struct drm_device *drm, unsigned int pipe);
