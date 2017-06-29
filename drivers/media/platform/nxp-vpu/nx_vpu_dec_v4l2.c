@@ -247,6 +247,15 @@ static int vidioc_s_fmt_vid_cap_mplane(struct file *file, void *priv,
 
 	ctx->chromaInterleave = (pix_fmt_mp->num_planes != 2) ? (0) : (1);
 
+	/* set memory align */
+	ctx->luma_size = f->fmt.pix_mp.plane_fmt[0].sizeimage;
+	ctx->buf_y_width = f->fmt.pix_mp.plane_fmt[0].bytesperline;
+
+	if (ctx->img_fmt.num_planes > 1) {
+		ctx->chroma_size = f->fmt.pix_mp.plane_fmt[1].sizeimage;
+		ctx->buf_c_width = f->fmt.pix_mp.plane_fmt[1].bytesperline;
+	}
+
 	return 0;
 }
 
@@ -577,23 +586,23 @@ static void nx_vpu_dec_buf_queue(struct vb2_buffer *vb)
 		struct vpu_dec_ctx *dec_ctx = &ctx->codec.dec;
 		unsigned int idx = dec_ctx->dpb_queue_cnt;
 
+		/* calculate physical address */
+		/* TBD: Memory address according to Image format */
 		buf->planes.raw.y = nx_vpu_mem_plane_addr(ctx, vb, 0);
 		dec_ctx->frame_buf[idx].phyAddr[0] = buf->planes.raw.y;
 
 		if (ctx->img_fmt.num_planes > 1) {
-			buf->planes.raw.cb = nx_vpu_mem_plane_addr(ctx, vb, 1);
-			dec_ctx->frame_buf[idx].phyAddr[1] = buf->planes.raw.cb;
-		} else if (ctx->chroma_size > 0) {
-			dec_ctx->frame_buf[idx].phyAddr[1] = ctx->luma_size +
-				dec_ctx->frame_buf[idx].phyAddr[0];
+			buf->planes.raw.cb =
+			dec_ctx->frame_buf[idx].phyAddr[1] =
+				nx_vpu_mem_plane_addr(ctx, vb, 1) +
+				ctx->luma_size + ctx->chroma_size;
 		}
 
 		if (ctx->img_fmt.num_planes > 2) {
-			buf->planes.raw.cr = nx_vpu_mem_plane_addr(ctx, vb, 2);
-			dec_ctx->frame_buf[idx].phyAddr[2] = buf->planes.raw.cr;
-		} else if (ctx->chroma_size > 0 && ctx->chromaInterleave == 0) {
-			dec_ctx->frame_buf[idx].phyAddr[2] = ctx->chroma_size +
-				dec_ctx->frame_buf[idx].phyAddr[1];
+			buf->planes.raw.cr =
+			dec_ctx->frame_buf[idx].phyAddr[2] =
+				nx_vpu_mem_plane_addr(ctx, vb, 2) +
+				ctx->luma_size;
 		}
 
 		list_add_tail(&buf->list, &ctx->codec.dec.dpb_queue);
@@ -876,37 +885,22 @@ int vpu_dec_parse_vid_cfg(struct nx_vpu_ctx *ctx)
 	dec_ctx->interlace_flg[0] = (seqArg.interlace == 0) ?
 		(V4L2_FIELD_NONE) : (V4L2_FIELD_INTERLACED);
 	dec_ctx->frame_buf_delay = seqArg.frameBufDelay;
-	ctx->buf_y_width = ALIGN(ctx->width, 32);
-	ctx->buf_height = ALIGN(ctx->height, 16);
-	ctx->luma_size = ctx->buf_y_width * ctx->buf_height;
 
 	switch (seqArg.imgFormat) {
 	case IMG_FORMAT_420:
 		ctx->imgFourCC = V4L2_PIX_FMT_YUV420M;
-		ctx->buf_c_width = ctx->buf_y_width >> 1;
-		ctx->chroma_size = ctx->buf_c_width *
-			ALIGN(ctx->buf_height/2, 16);
 		break;
 	case IMG_FORMAT_422:
 		ctx->imgFourCC = V4L2_PIX_FMT_YUV422M;
-		ctx->buf_c_width = ctx->buf_y_width >> 1;
-		ctx->chroma_size = ctx->buf_c_width * ctx->buf_height;
 		break;
 	/* case IMG_FORMAT_224:
 		ctx->imgFourCC = ;
-		ctx->buf_c_width = ctx->buf_y_width;
-		ctx->chroma_size = ctx->buf_c_width *
-			ALIGN(ctx->buf_height/2, 16);
 		break; */
 	case IMG_FORMAT_444:
 		ctx->imgFourCC = V4L2_PIX_FMT_YUV444M;
-		ctx->buf_c_width = ctx->buf_y_width;
-		ctx->chroma_size = ctx->luma_size;
 		break;
 	case IMG_FORMAT_400:
 		ctx->imgFourCC = V4L2_PIX_FMT_GREY;
-		ctx->buf_c_width = 0;
-		ctx->chroma_size = 0;
 		break;
 	default:
 		NX_ErrMsg(("Image format is not supported!!\n"));
