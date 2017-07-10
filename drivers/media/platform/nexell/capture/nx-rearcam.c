@@ -1686,6 +1686,17 @@ static int nx_rearcam_parse_dt(struct device *dev, struct nx_rearcam *me)
 	struct device_node *child_display_node = NULL;
 	struct device_node *child_skip_frame_node = NULL;
 
+	struct pinctrl *pctrl;
+	struct pinctrl_state *pin_ctrl_state;
+
+	pctrl = devm_pinctrl_get(dev);
+	pin_ctrl_state = pinctrl_lookup_state(pctrl,
+			"rear_cam_clk");
+	if (!IS_ERR(pin_ctrl_state))
+		pinctrl_select_state(pctrl, pin_ctrl_state);
+
+	devm_pinctrl_put(pctrl);
+
 	me->skip_frame_count = 0;
 	me->skip_frame = 0;
 	child_skip_frame_node = _of_get_node_by_property(dev, np, "skip_frame");
