@@ -555,6 +555,7 @@
 	dp_drm_dev = <&dp_drm_lvds>;
 	width = <704>;
 	height = <480>;
+	skip_frame = <0>;
 	status = "okay";
 
 	gpio {
