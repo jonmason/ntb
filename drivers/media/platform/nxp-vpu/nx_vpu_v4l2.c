@@ -969,12 +969,12 @@ static int nx_vpu_close(struct file *file)
 		mutex_unlock(&g_vpu_mutex);
 		nx_vpu_try_run(ctx);
 		mutex_lock(&g_vpu_mutex);
-
-		if (ctx->is_encoder)
-			free_encoder_memory(ctx);
-		else
-			free_decoder_memory(ctx);
 	}
+
+	if (ctx->is_encoder)
+		free_encoder_memory(ctx);
+	else
+		free_decoder_memory(ctx);
 
 	num_open_inst--;
 	if (num_open_inst == 0) {
