@@ -1151,7 +1151,9 @@ static int nx_vpu_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
+#ifdef CONFIG_ANDROID
 	arch_setup_dma_ops( &pdev->dev, 0, 0, NULL, true );
+#endif
 
 	ret = of_address_to_resource(pdev->dev.of_node, 0, &res);
 	if (ret) {
