@@ -217,53 +217,23 @@ int nx_vpu_try_run(struct nx_vpu_ctx *ctx)
 static struct nx_vpu_fmt formats[] = {
 	{
 		.name = "YUV 4:2:0 3 Planes",
+		.fourcc = V4L2_PIX_FMT_YUV420,
+		.num_planes = 3,
+	},
+	{
+		.name = "YUV 4:2:0 None Contiguous 3 Planes",
 		.fourcc = V4L2_PIX_FMT_YUV420M,
 		.num_planes = 3,
 	},
 	{
-		.name = "YUV 4:2:2 3 Planes",
-		.fourcc = V4L2_PIX_FMT_YUV422M,
+		.name = "YVU 4:2:0 3 Planes",
+		.fourcc = V4L2_PIX_FMT_YVU420,
 		.num_planes = 3,
 	},
 	{
-		.name = "YUV 4:4:4 3 Planes",
-		.fourcc = V4L2_PIX_FMT_YUV444M,
+		.name = "YVU 4:2:0 None Contiguous 3 Planes",
+		.fourcc = V4L2_PIX_FMT_YVU420M,
 		.num_planes = 3,
-	},
-	{
-		.name = "Grey 1 Planes",
-		.fourcc = V4L2_PIX_FMT_GREY,
-		.num_planes = 1,
-	},
-	{
-		.name = "YUV 4:2:0 2 Planes Y/CbCr",
-		.fourcc = V4L2_PIX_FMT_NV12M,
-		.num_planes = 2,
-	},
-	{
-		.name = "YUV 4:2:0 2 Planes Y/CrCb",
-		.fourcc = V4L2_PIX_FMT_NV21M,
-		.num_planes = 2,
-	},
-	{
-		.name = "YUV 4:2:2 2 Planes Y/CbCr",
-		.fourcc = V4L2_PIX_FMT_NV16M,
-		.num_planes = 2,
-	},
-	{
-		.name = "YUV 4:2:2 2 Planes Y/CrCb",
-		.fourcc = V4L2_PIX_FMT_NV61M,
-		.num_planes = 2,
-	},
-	{
-		.name = "YUV 4:4:4 2 Planes Y/CbCr",
-		.fourcc = V4L2_PIX_FMT_NV24M,
-		.num_planes = 2,
-	},
-	{
-		.name = "YUV 4:4:4 2 Planes Y/CrCb",
-		.fourcc = V4L2_PIX_FMT_NV42M,
-		.num_planes = 2,
 	},
 	{
 		.name = "MPEG2 Stream",

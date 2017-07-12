@@ -245,6 +245,7 @@ static int vidioc_s_fmt_vid_cap_mplane(struct file *file, void *priv,
 	ctx->img_fmt.fourcc = img_fmt->fourcc;
 	ctx->img_fmt.num_planes = f->fmt.pix_mp.num_planes;
 
+	ctx->imgFourCC = img_fmt->fourcc;
 	ctx->chromaInterleave = (pix_fmt_mp->num_planes != 2) ? (0) : (1);
 
 	/* set memory align */
@@ -591,18 +592,40 @@ static void nx_vpu_dec_buf_queue(struct vb2_buffer *vb)
 		buf->planes.raw.y = nx_vpu_mem_plane_addr(ctx, vb, 0);
 		dec_ctx->frame_buf[idx].phyAddr[0] = buf->planes.raw.y;
 
-		if (ctx->img_fmt.num_planes > 1) {
-			buf->planes.raw.cb =
-			dec_ctx->frame_buf[idx].phyAddr[1] =
-				nx_vpu_mem_plane_addr(ctx, vb, 1) +
-				ctx->luma_size + ctx->chroma_size;
-		}
+		if (ctx->imgFourCC == V4L2_PIX_FMT_YUV420 ||
+			ctx->imgFourCC == V4L2_PIX_FMT_YVU420 ) {
+			if (ctx->img_fmt.num_planes > 1) {
+				buf->planes.raw.cb =
+				dec_ctx->frame_buf[idx].phyAddr[1] =
+					(ctx->imgFourCC == V4L2_PIX_FMT_YUV420) ?
+						buf->planes.raw.y + ctx->luma_size :
+						buf->planes.raw.y + ctx->luma_size + ctx->chroma_size;
+			}
 
-		if (ctx->img_fmt.num_planes > 2) {
-			buf->planes.raw.cr =
-			dec_ctx->frame_buf[idx].phyAddr[2] =
-				nx_vpu_mem_plane_addr(ctx, vb, 2) +
-				ctx->luma_size;
+			if (ctx->img_fmt.num_planes > 2) {
+				buf->planes.raw.cr =
+				dec_ctx->frame_buf[idx].phyAddr[2] =
+					(ctx->imgFourCC == V4L2_PIX_FMT_YUV420) ?
+						buf->planes.raw.y + ctx->luma_size + ctx->chroma_size :
+						buf->planes.raw.y + ctx->luma_size;
+			}
+		}
+		else {
+			if (ctx->img_fmt.num_planes > 1) {
+				buf->planes.raw.cb =
+				dec_ctx->frame_buf[idx].phyAddr[1] =
+					(ctx->imgFourCC == V4L2_PIX_FMT_YUV420M) ?
+						nx_vpu_mem_plane_addr(ctx, vb, 1) :
+						nx_vpu_mem_plane_addr(ctx, vb, 2);
+			}
+
+			if (ctx->img_fmt.num_planes > 2) {
+				buf->planes.raw.cr =
+				dec_ctx->frame_buf[idx].phyAddr[2] =
+					(ctx->imgFourCC == V4L2_PIX_FMT_YUV420M) ?
+						nx_vpu_mem_plane_addr(ctx, vb, 2) :
+						nx_vpu_mem_plane_addr(ctx, vb, 1);
+			}
 		}
 
 		list_add_tail(&buf->list, &ctx->codec.dec.dpb_queue);
@@ -885,27 +908,6 @@ int vpu_dec_parse_vid_cfg(struct nx_vpu_ctx *ctx)
 	dec_ctx->interlace_flg[0] = (seqArg.interlace == 0) ?
 		(V4L2_FIELD_NONE) : (V4L2_FIELD_INTERLACED);
 	dec_ctx->frame_buf_delay = seqArg.frameBufDelay;
-
-	switch (seqArg.imgFormat) {
-	case IMG_FORMAT_420:
-		ctx->imgFourCC = V4L2_PIX_FMT_YUV420M;
-		break;
-	case IMG_FORMAT_422:
-		ctx->imgFourCC = V4L2_PIX_FMT_YUV422M;
-		break;
-	/* case IMG_FORMAT_224:
-		ctx->imgFourCC = ;
-		break; */
-	case IMG_FORMAT_444:
-		ctx->imgFourCC = V4L2_PIX_FMT_YUV444M;
-		break;
-	case IMG_FORMAT_400:
-		ctx->imgFourCC = V4L2_PIX_FMT_GREY;
-		break;
-	default:
-		NX_ErrMsg(("Image format is not supported!!\n"));
-		return -EINVAL;
-	}
 
 	dec_ctx->start_Addr = 0;
 	dec_ctx->end_Addr = seqArg.strmReadPos;
