@@ -351,6 +351,86 @@ static const struct component_ops panel_comp_ops = {
 	.unbind = panel_hdmi_unbind,
 };
 
+static bool __drm_fb_bound(struct drm_fb_helper *fb_helper)
+{
+	struct drm_device *dev = fb_helper->dev;
+	struct drm_crtc *crtc;
+	int bound = 0, crtcs_bound = 0;
+
+	/*
+	 * Sometimes user space wants everything disabled, so don't steal the
+	 * display if there's a master.
+	 */
+	if (dev->primary->master)
+		return true;
+
+	drm_for_each_crtc(crtc, dev) {
+		if (crtc->primary->fb)
+			crtcs_bound++;
+		if (crtc->primary->fb == fb_helper->fb)
+			bound++;
+	}
+
+	if (bound < crtcs_bound)
+		return true;
+
+	return false;
+}
+
+static int panel_hdmi_wait_fb_bound(struct hdmi_context *ctx)
+{
+	struct drm_connector *connector;
+	struct drm_fb_helper *fb_helper;
+	struct nx_drm_private *private;
+	struct nx_drm_display_ops *ops;
+	int count = 500;	/* wait for 10 sec */
+
+	if (!ctx->connector)
+		return 0;
+
+	connector = &ctx->connector->connector;
+	private = connector->dev->dev_private;
+	fb_helper = &private->fbdev->fb_helper;
+	ops = ctx_to_display(ctx)->ops;
+
+	if (!ctx->skip_boot_connect) {
+		/*
+		 * check clone mode, refer to drm_target_cloned
+		 */
+		if (fb_helper->crtc_count < 2 &&
+			fb_helper->crtc_count != fb_helper->connector_count &&
+			!__drm_fb_bound(fb_helper)) {
+			dev_warn(connector->dev->dev,
+				"can't cloning framebuffer ....\n");
+			dev_warn(connector->dev->dev,
+				"framebuffer crtcs %d connecots %d\n",
+				fb_helper->crtc_count,
+				fb_helper->connector_count);
+			dev_warn(connector->dev->dev,
+				"check property 'skip-boot-connect'\n");
+		}
+		return 0;
+	}
+
+	do {
+		if (__drm_fb_bound(fb_helper))
+			return 0;
+
+		msleep(20);
+
+		if (!ops->hdmi->is_connected(ctx_to_display(ctx)))
+			return -ENOENT;
+
+	} while (count-- > 0);
+
+	if (count < 0) {
+		DRM_ERROR("check other framebuffer binded !!!\n");
+		return -ENOENT;
+	}
+
+	return 0;
+}
+
 static void panel_hdmi_hpd_work(struct work_struct *work)
 {
 	struct hdmi_context *ctx;
@@ -370,11 +450,14 @@ static void panel_hdmi_hpd_work(struct work_struct *work)
 		return;
 	}
 
+	if (panel_hdmi_wait_fb_bound(ctx))
+		return;
+
 	plug = ops->hdmi->is_connected(display);
 	if (plug == ctx->plug)
 		return;
 
-	DRM_INFO("HDMI %s\n", plug ? "plug" : "unplug");
+	DRM_INFO("HDMI: %s\n", plug ? "plug" : "unplug");
 
 	ctx->plug = plug;
 	connector = &ctx->connector->connector;
