@@ -122,7 +122,7 @@ static int nx_drm_atomic_commit(struct drm_device *drm,
 	struct nx_drm_commit *commit;
 	int i, ret;
 
-	DRM_DEBUG_KMS("enter : %s\n", async ? "async" : "sync");
+	DRM_DEBUG_ATOMIC("enter : %s\n", async ? "async" : "sync");
 
 	commit = kzalloc(sizeof(*commit), GFP_KERNEL);
 	if (!commit)

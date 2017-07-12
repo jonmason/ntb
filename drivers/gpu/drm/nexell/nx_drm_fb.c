@@ -865,7 +865,7 @@ static int nx_drm_fb_helper_probe(struct drm_fb_helper *fb_helper,
 	int buffers = nx_fbdev->fb_buffers;
 	int ret;
 
-	DRM_DEBUG_KMS("surface width(%d), height(%d) and bpp(%d) buffers(%d)\n",
+	DRM_INFO("framebuffer width(%d), height(%d) and bpp(%d) buffers(%d)\n",
 			sizes->surface_width, sizes->surface_height,
 			sizes->surface_bpp, buffers);
 
@@ -977,9 +977,9 @@ static int nx_drm_framebuffer_dev_init(struct drm_device *drm,
 	if (fb_buffer_count > 0)
 		nx_fbdev->fb_buffers = fb_buffer_count;
 
-	DRM_INFO("FB counts = %d, FB vblank %s crtcs [0x%x]\n",
+	DRM_INFO("FB counts = %d, FB vblank %s fb crtcs %d [0x%x]\n",
 		nx_fbdev->fb_buffers, fb_vblank_wait ? "Wait" : "Pass",
-		fb_pan_crtcs);
+		num_crtc, fb_pan_crtcs);
 #endif
 
 	drm_fb_helper_prepare(drm, fb_helper, &nx_drm_fb_helper);
@@ -1045,17 +1045,20 @@ static void nx_drm_framebuffer_dev_fini(struct drm_device *drm)
 int nx_drm_framebuffer_init(struct drm_device *drm)
 {
 	int bpp = PREFERRED_BPP;
+	int num_crtc = possible_crtc_count(fb_pan_crtcs);
 
 	if (!drm->mode_config.num_crtc ||
-		!drm->mode_config.num_connector)
+		!drm->mode_config.num_connector || !num_crtc)
 		return 0;
 
-	DRM_DEBUG_KMS("crtc num:%d, connector num:%d\n",
-		      drm->mode_config.num_crtc,
+	if (num_crtc > drm->mode_config.num_crtc)
+		num_crtc = drm->mode_config.num_crtc;
+
+	DRM_DEBUG_KMS("crtc num:%d (possible %d), connector num:%d\n",
+		      drm->mode_config.num_crtc, num_crtc,
 		      drm->mode_config.num_connector);
 
-	return nx_drm_framebuffer_dev_init(drm,
-			bpp, drm->mode_config.num_crtc, MAX_CONNECTOR);
+	return nx_drm_framebuffer_dev_init(drm, bpp, num_crtc, MAX_CONNECTOR);
 }
 
 void nx_drm_framebuffer_fini(struct drm_device *drm)
