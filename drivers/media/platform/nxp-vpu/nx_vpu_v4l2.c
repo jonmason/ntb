@@ -939,7 +939,9 @@ static int nx_vpu_open(struct file *file)
 	return ret;
 
 	/* Deinit when failure occurred */
+#ifdef ENABLE_POWER_SAVING
 err_hw_init:
+#endif
 err_ctx_init:
 	if (ctx->idx < NX_MAX_VPU_INSTANCE){
 		dev->ctx[ctx->idx] = 0;
