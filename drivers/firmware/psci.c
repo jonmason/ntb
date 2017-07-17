@@ -211,7 +211,15 @@ static int get_set_conduit_method(struct device_node *np)
 
 static void psci_sys_reset(enum reboot_mode reboot_mode, const char *cmd)
 {
-	invoke_psci_fn(PSCI_0_2_FN_SYSTEM_RESET, 0, 0, 0);
+	u32 reason = 0;
+
+#if defined(CONFIG_ANDROID) && \
+	(defined(CONFIG_ARCH_S5P6818) || defined(CONFIG_ARCH_S5P4418))
+#define RECOVERY_SIGNATURE      (0x52455343)    /* (ASCII) : R.E.S.C */
+	if (!strcmp(cmd, "recovery"))
+		reason = RECOVERY_SIGNATURE;
+#endif
+	invoke_psci_fn(PSCI_0_2_FN_SYSTEM_RESET, reason, 0, 0);
 }
 
 static void psci_sys_poweroff(void)
