@@ -901,8 +901,8 @@ int vpu_dec_parse_vid_cfg(struct nx_vpu_ctx *ctx)
 		NX_ErrMsg(("Min FrameBufCnt Error(%d)!!!\n",
 			seqArg.minFrameBufCnt));
 
-	ctx->width = seqArg.cropRight;
-	ctx->height = seqArg.cropBottom;
+	ctx->width = seqArg.outWidth;
+	ctx->height = seqArg.outHeight;
 	dec_ctx->frame_buffer_cnt = seqArg.minFrameBufCnt;
 
 	dec_ctx->interlace_flg[0] = (seqArg.interlace == 0) ?
