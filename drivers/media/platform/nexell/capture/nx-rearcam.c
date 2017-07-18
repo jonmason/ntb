@@ -61,6 +61,8 @@
 
 #define TIME_LOG	0
 
+#define UNUSE_MLC_SCALE	0
+
 #define	USED_SENSOR_INIT_WOKRER	1
 
 #ifndef MLC_LAYER_RGB_OVERLAY
@@ -396,6 +398,9 @@ struct nx_clipper_info {
 	u32 width;
 	u32 height;
 
+	u32 sensor_width;
+	u32 sensor_height;
+
 	bool sensor_enabled;
 };
 
@@ -523,7 +528,7 @@ struct nx_rearcam {
 
 	/* vendor context */
 	struct nx_vendor_context *vendor_context;
-	int (*sensor_init_func)(struct i2c_client *client);
+	void (*sensor_init_func)(struct i2c_client *client);
 	struct nx_vendor_context *(*alloc_vendor_context)(void);
 	void (*free_vendor_context)(void *);
 	bool (*pre_turn_on)(void *);
@@ -655,6 +660,15 @@ static int parse_sensor_dt(struct device_node *np, struct device *dev,
 			type);
 		return -EINVAL;
 	}
+
+	if (of_property_read_u32(np, "width", &clip->sensor_width))
+		clip->sensor_width = 0;
+
+	if (of_property_read_u32(np, "height", &clip->sensor_height))
+		clip->sensor_height = 0;
+
+	pr_debug("%s - sensor width %d, sensor height : %d\n", __func__,
+			clip->sensor_width, clip->sensor_height);
 
 	return 0;
 }
@@ -1292,10 +1306,9 @@ static int nx_clipper_parse_dt(struct device *dev, struct device_node *np,
 		return ret;
 
 	child_node = of_find_node_by_name(np, "power");
-	if (!child_node) {
-		dev_err(dev, "failed to get power node\n");
-		return -EINVAL;
-	}
+	if (!child_node)
+		dev_warn(dev, "failed to get power node\n");
+
 	ret = parse_power_dt(child_node, dev, clip);
 	if (ret)
 		return ret;
@@ -1433,10 +1446,34 @@ static int enable_sensor_power(struct device *dev,
 		struct nx_clipper_info *clip, bool enable)
 {
 	struct nx_capture_power_seq *seq = NULL;
+	struct device_node *d_np;
+	struct device_node *np;
 
-	if (enable && !clip->sensor_enabled)
+	struct device_node *child_power_node = NULL;
+
+	bool is_enable_seq = false;
+	bool is_disable_seq = false;
+
+	d_np = dev->of_node;
+	np = _of_get_node_by_property(dev, d_np, "rear_cam_dev");
+	if (!np) {
+		dev_err(dev, "failed to get clipper node\n");
+		return -EINVAL;
+	}
+
+	child_power_node = of_find_node_by_name(np, "power");
+	if (!child_power_node)
+		dev_warn(dev, "failed to get power node\n");
+
+	if (of_find_property(child_power_node, "enable_seq", NULL))
+		is_enable_seq = true;
+
+	if (of_find_property(np, "disable_seq", NULL))
+		is_disable_seq = true;
+
+	if (enable && !clip->sensor_enabled && is_enable_seq)
 		seq = &clip->enable_seq;
-	else if (!enable && clip->sensor_enabled)
+	else if (!enable && clip->sensor_enabled && is_disable_seq)
 		seq = &clip->disable_seq;
 
 	if (seq) {
@@ -1464,6 +1501,7 @@ static int enable_sensor_power(struct device *dev,
 	}
 
 	clip->sensor_enabled = enable;
+
 	return 0;
 }
 
@@ -1653,7 +1691,6 @@ static int nx_interrupt_parse_dt(struct device *dev, struct nx_rearcam *me)
 	int size = 0;
 	struct device_node *np = dev->of_node;
 	struct device_node *child_display_node = NULL;
-	int module = me->dpc_module;
 
 	child_display_node = _of_get_node_by_property(dev, np, "display");
 	if (!child_display_node) {
@@ -1871,6 +1908,15 @@ static void set_vip(struct nx_clipper_info *clip)
 	u32 module = clip->module;
 	bool is_mipi = clip->interface_type == NX_CAPTURE_INTERFACE_MIPI_CSI;
 
+	u32 width = clip->width;
+	u32 height = clip->height;
+
+	if ((clip->sensor_width > 0) && (clip->width < clip->sensor_width))
+		width = clip->sensor_width;
+
+	if ((clip->sensor_height > 0) && (clip->height < clip->sensor_height))
+		height = clip->sensor_height;
+
 	nx_vip_set_input_port(module, clip->port);
 	nx_vip_set_field_mode(module, false, nx_vip_fieldsel_bypass,
 			      clip->interlace, false);
@@ -1879,8 +1925,8 @@ static void set_vip(struct nx_clipper_info *clip)
 		nx_vip_set_data_mode(module, clip->bus_fmt, 16);
 		nx_vip_set_dvalid_mode(module, true, true, true);
 		nx_vip_set_hvsync_for_mipi(module,
-					   clip->width * 2,
-					   clip->height,
+					   width * 2,
+					   height,
 					   clip->h_syncwidth,
 					   clip->h_frontporch,
 					   clip->h_backporch,
@@ -1892,9 +1938,9 @@ static void set_vip(struct nx_clipper_info *clip)
 		nx_vip_set_dvalid_mode(module, false, false, false);
 		nx_vip_set_hvsync(module,
 				  clip->external_sync,
-				  clip->width * 2,
+				  width * 2,
 				  clip->interlace ?
-				  clip->height >> 1 : clip->height,
+				  height >> 1 : height,
 				  clip->h_syncwidth,
 				  clip->h_frontporch,
 				  clip->h_backporch,
@@ -1904,6 +1950,7 @@ static void set_vip(struct nx_clipper_info *clip)
 	}
 
 	nx_vip_set_fiforeset_mode(module, nx_vip_fiforeset_all);
+
 	nx_vip_set_clip_region(module,
 			       0,
 			       0,
@@ -2073,7 +2120,7 @@ static void _vip_run(struct nx_rearcam *me)
 		WARN_ON(true);
 
 	nx_vip_set_vipenable(module, true, true, true, false);
-	/* nx_vip_dump_register(module); */
+	/*	nx_vip_dump_register(module);	*/
 }
 
 static void _vip_stop(struct nx_rearcam *me)
@@ -2140,6 +2187,15 @@ static void _set_mlc_video(struct nx_rearcam *me)
 	nx_mlc_get_screen_size(module, &dst_width, &dst_height);
 
 	hf = 1, vf = 1;
+
+#if UNUSE_MLC_SCALE
+	dst_width = src_width;
+	dst_height = src_height;
+
+	pr_info("%s - dst width : %d, dst_height : %d\n", __func__,
+		dst_width, dst_height);
+
+#endif
 
 	if (src_width == dst_width && src_height == dst_height)
 		hf = 0, vf = 0;
@@ -2537,7 +2593,6 @@ static void _setup_me(struct nx_rearcam *me)
 static void _cleanup_me(struct nx_rearcam *me)
 {
 	unsigned long flags;
-	struct device *dev = &me->pdev->dev;
 
 	_disable_vip_irq_ctx(me);
 
@@ -3468,13 +3523,12 @@ static int _camera_sensor_run(struct nx_rearcam *me)
 	_get_i2c_client(me);
 
 	ret = enable_sensor_power(dev, &me->clipper_info, true);
-	if (ret) {
+	if (ret < 0)
 		dev_err(&me->pdev->dev, "unable to enable sensor power!\n");
-		return -1;
-	}
 
 	if (me->init_data) {
 		reg_val = me->init_data;
+
 		while (reg_val->reg != 0xFF && reg_val->val != 0xFF) {
 			i2c_smbus_write_byte_data(me->client, reg_val->reg,
 				reg_val->val);
