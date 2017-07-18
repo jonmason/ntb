@@ -111,18 +111,30 @@ void nx_rearcam_draw_parking_guide_line(void *mem, void *ctx,
 
 		line_index = line_index % 3;
 
+		if (width == 1280 && height == 720)
+			line_index += 3;
+
 		src_width = parkingline_resolution[line_index][0];
 		src_height = parkingline_resolution[line_index][1];
 
 		switch(line_index) {
 		case 0:
-			data = parkingline_left;
+			data = parkingline_left_1024x600;
 			break;
 		case 1:
-			data = parkingline_center;
+			data = parkingline_center_1024x600;
 			break;
 		case 2:
-			data = parkingline_right;
+			data = parkingline_right_1024x600;
+			break;
+		case 3:
+			data = parkingline_left_1280x720;
+			break;
+		case 4:
+			data = parkingline_center_1280x720;
+			break;
+		case 5:
+			data = parkingline_right_1280x720;
 			break;
 		}
 
