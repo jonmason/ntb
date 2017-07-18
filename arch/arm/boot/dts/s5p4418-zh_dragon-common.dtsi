@@ -45,6 +45,8 @@
 		clocks {
 			uart3:uart@c00ab000 { clock-frequency = <147500000>; };
 			uart1:uart@c00a8000 { clock-frequency = <100000000>; };
+			vip0:vip@c00c1000 { src-force = <4>; };
+
 			pwm0:pwm0@c00ba000 {
 				clk-input = <I_PLL2>;
 				clock-frequency = <10000000>;
@@ -216,6 +218,11 @@
 
 		};
 
+		i2c_1:i2c@c00a5000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+		};
 	};	/*** soc ***/
 
 	vcc_spk: regulator-fix@0 {
@@ -319,6 +326,59 @@
 		status = "okay";
 	};
 
+};
+
+&vip_0 {
+	status = "okay";
+};
+
+&clipper_0 {
+	interface_type = <NX_CAPTURE_INTERFACE_PARALLEL>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&vid0_data_clk>;
+	data_order = <NX_VIN_CBY0CRY1>;
+	port = <0>;
+	external_sync = <0>;
+	interlace = <1>;
+	status = "okay";
+
+	sensor {
+		type = <NX_CAPTURE_SENSOR_I2C>;
+		i2c_name = "tp2825";
+		i2c_adapter = <1>;
+		addr = <0x44>;
+		width = <720>;
+	};
+};
+
+#include "tp2825_rearcam_regset.dtsi"
+&rearcam {
+	pinctrl-names = "rear_cam_clk";
+	pinctrl-0 = <&vid0_data_clk>;
+	rotation = <0>;
+	skip_frame = <5>;
+	rear_cam_dev = <&clipper_0>;
+	sensor_reg = <&sensor_tp2825>;
+	display = <&dp_drm>;
+	dp_drm_dev = <&dp_drm_lvds>;
+	width = <704>;
+	height = <480>;
+	status = "okay";
+
+	gpio {
+		event-gpio = <&gpio_b 11 0>;
+		active_high = <0>;
+		detect_delay = <0>;
+	};
+
+	mlc {
+		module = <0>;
+		format = <0x06530000>;
+	};
+
+	dpc {
+		module = <0>;
+	};
 };
 
 &dp_drm {
