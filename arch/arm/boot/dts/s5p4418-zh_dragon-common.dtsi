@@ -101,6 +101,10 @@
 			status ="okay";
 		};
 
+		dynamic-freq@bb000 {
+			supply_name = "vdd_core_regulator";
+			vdd_core_regulator-supply = <&VCC_DCDC0>;
+		};
 		amba {
 			pl08xdma0:pl08xdma@c0000000 {
 				use_isr;
@@ -215,7 +219,10 @@
 				interrupt-parent = <&gpio_d>;
 				interrupts = <8 IRQ_TYPE_EDGE_FALLING>;
 			};
+		};
 
+		adc:adc@c0053000 {
+			status = "okay";
 		};
 
 		i2c_1:i2c@c00a5000 {
@@ -224,6 +231,53 @@
 			status = "okay";
 		};
 	};	/*** soc ***/
+
+	thermal_ap:thermal {
+		#thermal-sensor-cells = <0>;
+		compatible =  "epcos,b57330v2103";
+		pullup-uv = <1800000>;   /* VCC_1.8V_AP */
+		pullup-ohm = <4700>;   /* 100K */
+		pulldown-ohm = <0>; /* 100K */
+		io-channels = <&adc 2>;  /* AP temperature */
+		compensation = <17000>; /* Compensation temp */
+	};
+
+
+	thermal-zones {
+		cpu0_thermal: cpu0-thermal {
+			thermal-sensors = <&thermal_ap>;
+			polling-delay-passive = <1000>;
+			polling-delay = <1000>;
+			trips {
+				cpu_alert0: cpu-alert-0 {
+					temperature = <70000>;
+					hysteresis = <100000>;
+					type = "active";
+				};
+				cpu_alert1: cpu-alert-1 {
+					temperature = <80000>;
+					hysteresis = <100000>;
+					type = "passive";
+				};
+				cpu-crit-0 {
+					temperature = <115000>;
+					hysteresis = <100000>;
+					type = "critical";
+					};
+			};
+
+			cooling-maps {
+				map0 {
+					trip = <&cpu_alert0>;
+					cooling-device = <&cpu0 4 4>;
+				};
+				map1 {
+					trip = <&cpu_alert1>;
+					cooling-device = <&cpu0 10 10>;
+				};
+			};
+		};
+	};
 
 	vcc_spk: regulator-fix@0 {
 		compatible = "regulator-fixed";
