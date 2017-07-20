@@ -721,17 +721,15 @@ static int nx_clipper_parse_dt(struct device *dev, struct nx_clipper *me)
 		return ret;
 
 	child_node = of_find_node_by_name(np, "power");
-	if (!child_node) {
-		dev_err(dev, "failed to get power node\n");
-		return -EINVAL;
-	}
-	ret = parse_power_dt(child_node, dev, me);
-	if (ret)
-		return ret;
+	if (child_node)  {
+		ret = parse_power_dt(child_node, dev, me);
+		if (ret)
+			return ret;
 
-	ret = parse_clock_dt(child_node, dev, me);
-	if (ret)
-		return ret;
+		ret = parse_clock_dt(child_node, dev, me);
+		if (ret)
+			return ret;
+	}
 
 	return 0;
 }
