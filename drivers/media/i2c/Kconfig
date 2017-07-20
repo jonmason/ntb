@@ -336,6 +336,18 @@ config VIDEO_TVP7002
 	  To compile this driver as a module, choose M here: the
 	  module will be called tvp7002.
 
+config VIDEO_TP2825
+	tristate "Techpoint TP2825 video decoder"
+	depends on VIDEO_V4L2 && I2C
+	---help---
+	  Support for the Techpoint TP2825 video decoder. TP2825 is the HD/SD
+	  video decoder supporting High Definition Transport Video
+	  Interface(HD-TVI) video decoding as well the legacy NTSC/PAL
+	  CVBS video decoding
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called tp2825.
+
 config VIDEO_TW2804
 	tristate "Techwell TW2804 multiple video decoder"
 	depends on VIDEO_V4L2 && I2C
