@@ -23,7 +23,10 @@
 #include <linux/delay.h>
 
 #include "nx-rearcam-vendor.h"
+
+#if defined(CONFIG_VIDEO_NEXELL_REARCAM_SAMPLEPARKINGLINE)
 #include "parking_line.h"
+#endif
 
 void nx_rearcam_sensor_init_func(struct i2c_client *client)
 {
@@ -89,14 +92,25 @@ void nx_rearcam_draw_rgb_overlay(int width, int height, int pixelbyte,
 {
 	struct nx_vendor_context *_ctx = (struct nx_vendor_context *)ctx;
 
-	pr_debug("+++ %s +++\n", __func__);
-
+#if defined(CONFIG_VIDEO_NEXELL_REARCAM_SAMPLEPARKINGLINE)
 	nx_rearcam_draw_parking_guide_line(mem, ctx, width, height, pixelbyte,
 			rotation);
+#else
+	int i, j;
+	int sample_size = 50;
+	u32 color = 0xFFFF0000;
+	u32 *pbuffer = (u32 *)mem;
 
-	pr_debug("--- %s ---\n", __func__);
+	memset(mem, 0, width * height * pixelbyte);
+	for (i = 0; i < sample_size; i++) {
+		for (j = 0; j < sample_size; j++)
+			pbuffer[i * width + j] = color;
+	}
+#endif
+	pr_debug("+++ %s ---\n", __func__);
 }
 
+#if defined(CONFIG_VIDEO_NEXELL_REARCAM_SAMPLEPARKINGLINE)
 void nx_rearcam_draw_parking_guide_line(void *mem, void *ctx,
 					int width, int height,
 					int pixelbyte, int rotation)
@@ -151,3 +165,4 @@ void nx_rearcam_draw_parking_guide_line(void *mem, void *ctx,
 		line_index++;
 	}
 }
+#endif

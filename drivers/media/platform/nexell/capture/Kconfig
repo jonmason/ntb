@@ -19,3 +19,14 @@ config VIDEO_NEXELL_REARCAM
 	---help---
 	  Say y here, you cna view cmaera as soon as kernel booting, and this
 	  driver switch on/off camera by gpio interrupt.
+
+if VIDEO_NEXELL_REARCAM
+
+config VIDEO_NEXELL_REARCAM_SAMPLEPARKINGLINE
+	bool "Drawing sample parking assist line with raw data"
+	default n
+	---help---
+	  Say y here to draw a parking assist line using the raw data provided
+	  by the sample when drawing the parking assist in the rear camera.
+
+endif # VIDEO_NEXELL_REARCAM
