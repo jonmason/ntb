@@ -107,7 +107,7 @@ static int nexell_ion_setup_platform_data(struct platform_device *pdev)
 			nexell_ion_platform_heap[index].priv =
 				(void *)&ion_dma_device.dev;
 			arch_setup_dma_ops(&ion_dma_device.dev, 0, 0, NULL,
-					   true);
+					   false);
 		}
 
 		index++;
