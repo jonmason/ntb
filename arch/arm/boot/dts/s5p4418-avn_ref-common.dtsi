@@ -351,8 +351,8 @@
 
 	i2c_gpio6: i2c@6 {
 		compatible = "i2c-gpio";
-		gpios = <&gpio_d 30 0 /* sda */
-		    &gpio_d 29 0 /* scl */
+		gpios = <&gpio_d 23 0 /* sda */
+		    &gpio_d 22 0 /* scl */
 		    >;
 		i2c-gpio,delay-us = <100>;
 		#address-cells = <1>;
