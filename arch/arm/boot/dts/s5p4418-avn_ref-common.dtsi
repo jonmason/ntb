@@ -436,12 +436,6 @@
 			linux,code = <KEY_BACK>;
 		};
 
-		voldown {
-			label = "VolDown";
-			gpios = <&alive_0 2 0>;
-			linux,code = <KEY_VOLUMEDOWN>;
-		};
-
 		homepage {
 			label = "Homepage";
 			gpios = <&alive_0 4 0>;
