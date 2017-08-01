@@ -2659,6 +2659,7 @@ static void _turn_off(struct nx_rearcam *me)
 
 	if (me->post_turn_off)
 		me->post_turn_off(me->vendor_context);
+
 }
 
 static void _decide(struct nx_rearcam *me)
@@ -4149,15 +4150,13 @@ static ssize_t _stop_rearcam(struct kobject *kobj,
 		schedule_timeout_interruptible(HZ/5);
 	}
 
-	nx_rearcam_remove(me->pdev);
-
 	nx_mlc_set_layer_priority(me->mlc_module,
 		me->dp_drm_port_video_prior[me->mlc_module]);
-	nx_mlc_set_dirty_flag(me->mlc_module, MLC_LAYER_VIDEO);
+	nx_mlc_set_top_dirty_flag(me->mlc_module);
 
-	pr_debug("end of nx_rearcam_remove()\n");
-
+	nx_rearcam_remove(me->pdev);
 	me->is_remove = true;
+	pr_debug("end of nx_rearcam_remove()\n");
 
 	return nbytes;
 }
