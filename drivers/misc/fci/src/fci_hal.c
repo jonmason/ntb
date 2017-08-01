@@ -113,7 +113,7 @@ s32 bbm_hostif_select(HANDLE handle, u8 hostif)
 		return BBM_E_HOSTIF_SELECT;
 	}
 
-	printk("===================> hostif = %d\n", hostif);
+	pr_debug("===================> hostif = %d\n", hostif);
 
 	if (ifport->init(handle, 0, 0))
 		return BBM_E_HOSTIF_INIT;

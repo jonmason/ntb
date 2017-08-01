@@ -52,11 +52,6 @@ static DEFINE_MUTEX(fci_i2c_lock);
 static int fc8300_i2c_probe(struct i2c_client *i2c_client,
 	const struct i2c_device_id *id)
 {
-	printk("==========================================>\n");
-	printk("==========================================>\n");
-	printk("====    Ray Park   fc8300_i2c_probe     ==>\n");
-	printk("==========================================>\n");
-	printk("==========================================>\n");
 	fc8300_i2c = i2c_client;
 	i2c_set_clientdata(i2c_client, NULL);
 	return 0;
