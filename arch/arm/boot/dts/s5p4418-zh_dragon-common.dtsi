@@ -415,7 +415,7 @@
 	sensor_reg = <&sensor_tp2825>;
 	display = <&dp_drm>;
 	dp_drm_dev = <&dp_drm_lvds>;
-	width = <704>;
+	width = <1920>;
 	height = <480>;
 	status = "okay";
 
