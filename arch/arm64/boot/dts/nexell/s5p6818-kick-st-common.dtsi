@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/dts-v1/;
-/memreserve/ 0xbde00000 0x00100000; /* OP-TEE SHM */
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
@@ -54,7 +52,7 @@
 			uart2:uart@c00aa000 { clock-frequency = <147500000>; };
 			uart3:uart@c00ab000 { clock-frequency = <147500000>; };
 			uart4:uart@c006e000 { clock-frequency = <147500000>; };
-			uart5:uart@c0084000 { clock-frequency = <147500000>; };
+			uart5:uart@c0084000 { clock-frequency = <100000000>; };
 			pwm0:pwm0@c00ba000 { clock-frequency = <100000000>; };
 			i2c0:i2c@c00ae000  { clock-frequency = <200000000>; };
 			i2c1:i2c@c00af000  { clock-frequency = <200000000>; };
@@ -180,7 +178,7 @@
 			clock-frequency = <100000000>;
 			card-detect-delay = <200>;
 			disable-wp;
-			cd-gpios = <&alive_0 1 0>;
+			cd-gpios = <&gpio_a 25 0>;
 			cd-inverted;
 			nexell,drive_dly = <0x0>;
 			nexell,drive_shift = <0x02>;
@@ -233,6 +231,7 @@
 			sample_rate = <48000>;
 			status = "okay";
 		};
+
 		i2c_1:i2c@c00a5000 {
 			status = "okay";
 			#address-cells = <1>;
@@ -249,9 +248,8 @@
 				compatible = "goodix,gt911";
 				reg = <0x5d>;
 				interrupt-parent = <&gpio_a>;
-				interrupts = <14 IRQ_TYPE_EDGE_FALLING>;
+				interrupts = <18 IRQ_TYPE_EDGE_FALLING>;
 			};
-
 		};
 
 		i2c_2:i2c@c00a6000 {
@@ -278,50 +276,6 @@
 			pinctrl-0 = <&pwm0_pin>;
 			samsung,pwm-outputs = <0>;
 			status = "okay";
-		};
-
-		pinctrl@C0010000 {
-			key_power:key_power {
-				nexell,pins = "alive-0";
-				nexell,pin-function = <0>;
-				nexell,pin-pull = <1>;
-				nexell,pin-strength = <0>;
-			};
-
-			key_back:key_back {
-				nexell,pins = "gpioa-11";
-				nexell,pin-function = <0>;
-				nexell,pin-pull = <1>;
-				nexell,pin-strength = <0>;
-			};
-
-			key_home:key_home {
-				nexell,pins = "gpioa-10";
-				nexell,pin-function = <0>;
-				nexell,pin-pull = <1>;
-				nexell,pin-strength = <0>;
-			};
-
-			key_volup:key_volup {
-				nexell,pins = "gpioa-9";
-				nexell,pin-function = <0>;
-				nexell,pin-pull = <1>;
-				nexell,pin-strength = <0>;
-			};
-
-			key_voldown:key_voldown {
-				nexell,pins = "gpioa-5";
-				nexell,pin-function = <0>;
-				nexell,pin-pull = <1>;
-				nexell,pin-strength = <0>;
-			};
-
-			pmic_irq:pmic_irq{
-				nexell,pins = "alive-5";
-				nexell,pin-function = <0>;
-				nexell,pin-pull = <1>;
-				nexell,pin-strength = <0>;
-			};
 		};
 
 		nexell_usbphy: nexell-usbphy@c0012000 {
@@ -359,46 +313,6 @@
 			i2c-gpio,delay-us = <100>;
 			#address-cells = <1>;
 			#size-cells = <0>;
-		};
-
-		gpio_key: gpio_keys {
-			compatible = "gpio-keys";
-			#address-cells = <1>;
-			#size-cells = <0>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&key_power &key_back &key_voldown
-				&key_home>;
-
-			power {
-				label = "Power";
-				gpios = <&alive_0 0 0>;
-				linux,code = <KEY_POWER>;
-				gpio-key,wakeup;
-			};
-
-			back {
-				label = "Back";
-				gpios = <&gpio_a 11 0>;
-				linux,code = <KEY_BACK>;
-			};
-
-			home {
-				label = "Home";
-				gpios = <&gpio_a 10 0>;
-				linux,code = <KEY_HOMEPAGE>;
-			};
-
-			volup {
-				label = "VolUp";
-				gpios = <&gpio_a 9 0>;
-				linux,code = <KEY_VOLUMEDOWN>;
-			};
-
-			voldown {
-				label = "VolDown";
-				gpios = <&gpio_a 5 0>;
-				linux,code = <KEY_VOLUMEDOWN>;
-			};
 		};
 	};	/*** soc ***/
 
@@ -645,7 +559,6 @@
 
 &dp_drm_hdmi {
 	ddc-i2c-bus = <&i2c_gpio4>;
-	enable-gpios = <&gpio_a 21 0>;
 	status = "ok";
 	q_range = <0>;
 	skip-boot-connect;

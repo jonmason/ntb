@@ -1,0 +1,155 @@
+/*
+ * Copyright (C) 2016  Nexell Co., Ltd.
+ * Author: Youngbok, Park <ybpark@nexell.co.kr>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/dts-v1/;
+/memreserve/ 0xbde00000 0x00100000; /* OP-TEE SHM */
+#include "s5p6818-kick-st-common.dtsi"
+
+
+/ {
+	soc {
+
+	pinctrl@C0010000 {
+			key_power:key_power {
+				nexell,pins = "alive-0";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+
+			key_back:key_back {
+				nexell,pins = "gpioa-15";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+
+			key_home:key_home {
+				nexell,pins = "gpioa-14";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+
+			key_volup:key_volup {
+				nexell,pins = "gpioa-13";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+
+			key_voldown:key_voldown {
+				nexell,pins = "gpioa-9";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+
+			pmic_irq:pmic_irq{
+				nexell,pins = "alive-5";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+		};
+
+		gpio_key: gpio_keys {
+			compatible = "gpio-keys";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&key_power &key_back &key_voldown
+				&key_home>;
+
+			power {
+				label = "Power";
+				gpios = <&alive_0 0 1>;
+				linux,code = <KEY_POWER>;
+				gpio-key,wakeup;
+			};
+
+			voldown {
+				label = "VolDown";
+				gpios = <&gpio_a 15 1>;
+				linux,code = <KEY_VOLUMEDOWN>;
+			};
+
+			volup {
+				label = "VolUp";
+				gpios = <&gpio_a 14 1>;
+				linux,code = <KEY_VOLUMEUP>;
+			};
+
+			home {
+				label = "Home";
+				gpios = <&gpio_a 13 1>;
+				linux,code = <KEY_HOMEPAGE>;
+			};
+
+			back {
+				label = "Back";
+				gpios = <&gpio_a 9 1>;
+				linux,code = <KEY_BACK>;
+			};
+		};
+
+		i2c_1:i2c@c00a5000 {
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			goodix@5d {
+				compatible = "goodix,gt911";
+				reg = <0x5d>;
+				interrupt-parent = <&gpio_a>;
+				interrupts = <18 IRQ_TYPE_EDGE_FALLING>;
+				reset-gpios = <&gpio_a 16 0>;
+				irq-gpios = <&gpio_a 18 0>;
+			};
+		};
+	};	/*** soc ***/
+
+};
+
+&dp_drm_mipi {
+	status = "okay";
+	hs_bitrate = <1000>;
+	lp_bitrate = <80>;
+
+	panel@0 {
+		compatible = "lt101mb02000";
+		backlight = <&backlight>;
+		reg = <0>;
+		reset-gpio = <&gpio_a 21 0>;
+		power-on-delay= <50>;
+		reset-delay = <100>;
+		init-delay = <100>;
+	};
+
+	dp_control {
+		clk_src_lv0 = <0>;
+		clk_div_lv0 = <5>;
+		clk_src_lv1 = <7>;
+		clk_div_lv1 = <1>;
+		out_format = <3>;
+		vs_start_offset = <2387>;
+		ev_start_offset = <2387>;
+		vs_end_offset = <0>;
+		ev_end_offset = <0>;
+	};
+};
