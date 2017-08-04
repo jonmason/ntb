@@ -216,7 +216,7 @@ static void psci_sys_reset(enum reboot_mode reboot_mode, const char *cmd)
 #if defined(CONFIG_ANDROID) && \
 	(defined(CONFIG_ARCH_S5P6818) || defined(CONFIG_ARCH_S5P4418))
 #define RECOVERY_SIGNATURE      (0x52455343)    /* (ASCII) : R.E.S.C */
-	if (!strcmp(cmd, "recovery"))
+	if (cmd != NULL && !strcmp(cmd, "recovery"))
 		reason = RECOVERY_SIGNATURE;
 #endif
 	invoke_psci_fn(PSCI_0_2_FN_SYSTEM_RESET, reason, 0, 0);
