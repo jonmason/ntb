@@ -16,8 +16,8 @@
 #include <linux/init.h>
 #include <linux/delay.h>
 #include <linux/pm.h>
+#include <linux/clk.h>
 #include <linux/i2c.h>
-#include <linux/spi/spi.h>
 #include <linux/slab.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
@@ -25,6 +25,7 @@
 #include <sound/tlv.h>
 #include <sound/soc.h>
 #include <sound/initval.h>
+#include <sound/wm8988.h>
 
 #include "wm8988.h"
 
@@ -114,9 +115,11 @@ static bool wm8988_writeable(struct device *dev, unsigned int reg)
 
 /* codec private data */
 struct wm8988_priv {
+	struct clk *mclk;
 	struct regmap *regmap;
 	unsigned int sysclk;
 	const struct snd_pcm_hw_constraint_list *sysclk_constraints;
+	struct wm8988_data pdata;
 };
 
 #define wm8988_reset(c)	snd_soc_write(c, WM8988_RESET, 0)
@@ -642,28 +645,6 @@ static int wm8988_set_dai_fmt(struct snd_soc_dai *codec_dai,
 	return 0;
 }
 
-static int wm8988_pcm_startup(struct snd_pcm_substream *substream,
-			      struct snd_soc_dai *dai)
-{
-	struct snd_soc_codec *codec = dai->codec;
-	struct wm8988_priv *wm8988 = snd_soc_codec_get_drvdata(codec);
-
-	/* The set of sample rates that can be supported depends on the
-	 * MCLK supplied to the CODEC - enforce this.
-	 */
-	if (!wm8988->sysclk) {
-		dev_err(codec->dev,
-			"No MCLK configured, call set_sysclk() on init\n");
-		return -EINVAL;
-	}
-
-	snd_pcm_hw_constraint_list(substream->runtime, 0,
-				   SNDRV_PCM_HW_PARAM_RATE,
-				   wm8988->sysclk_constraints);
-
-	return 0;
-}
-
 static int wm8988_pcm_hw_params(struct snd_pcm_substream *substream,
 				struct snd_pcm_hw_params *params,
 				struct snd_soc_dai *dai)
@@ -765,7 +746,6 @@ static int wm8988_set_bias_level(struct snd_soc_codec *codec,
 	SNDRV_PCM_FMTBIT_S24_LE)
 
 static const struct snd_soc_dai_ops wm8988_ops = {
-	.startup = wm8988_pcm_startup,
 	.hw_params = wm8988_pcm_hw_params,
 	.set_fmt = wm8988_set_dai_fmt,
 	.set_sysclk = wm8988_set_dai_sysclk,
@@ -837,50 +817,19 @@ static const struct regmap_config wm8988_regmap = {
 	.num_reg_defaults = ARRAY_SIZE(wm8988_reg_defaults),
 };
 
-#if defined(CONFIG_SPI_MASTER)
-static int wm8988_spi_probe(struct spi_device *spi)
+static void wm8988_set_pdata_from_of(struct i2c_client *i2c,
+				struct wm8988_data *pdata)
 {
-	struct wm8988_priv *wm8988;
-	int ret;
+	/* const struct device_node *np = i2c->dev.of_node; */
 
-	wm8988 = devm_kzalloc(&spi->dev, sizeof(struct wm8988_priv),
-			      GFP_KERNEL);
-	if (wm8988 == NULL)
-		return -ENOMEM;
-
-	wm8988->regmap = devm_regmap_init_spi(spi, &wm8988_regmap);
-	if (IS_ERR(wm8988->regmap)) {
-		ret = PTR_ERR(wm8988->regmap);
-		dev_err(&spi->dev, "Failed to init regmap: %d\n", ret);
-		return ret;
-	}
-
-	spi_set_drvdata(spi, wm8988);
-
-	ret = snd_soc_register_codec(&spi->dev,
-			&soc_codec_dev_wm8988, &wm8988_dai, 1);
-	return ret;
+	return;
 }
-
-static int wm8988_spi_remove(struct spi_device *spi)
-{
-	snd_soc_unregister_codec(&spi->dev);
-	return 0;
-}
-
-static struct spi_driver wm8988_spi_driver = {
-	.driver = {
-		.name	= "wm8988",
-	},
-	.probe		= wm8988_spi_probe,
-	.remove		= wm8988_spi_remove,
-};
-#endif /* CONFIG_SPI_MASTER */
 
 #if IS_ENABLED(CONFIG_I2C)
 static int wm8988_i2c_probe(struct i2c_client *i2c,
 			    const struct i2c_device_id *id)
 {
+	struct wm8988_data *pdata = dev_get_platdata(&i2c->dev);
 	struct wm8988_priv *wm8988;
 	int ret;
 
@@ -889,7 +838,11 @@ static int wm8988_i2c_probe(struct i2c_client *i2c,
 	if (wm8988 == NULL)
 		return -ENOMEM;
 
-	i2c_set_clientdata(i2c, wm8988);
+	wm8988->mclk = devm_clk_get(&i2c->dev, "mclk");
+	if (IS_ERR(wm8988->mclk)) {
+		if (PTR_ERR(wm8988->mclk) == -EPROBE_DEFER)
+			return -EPROBE_DEFER;
+	}
 
 	wm8988->regmap = devm_regmap_init_i2c(i2c, &wm8988_regmap);
 	if (IS_ERR(wm8988->regmap)) {
@@ -898,8 +851,17 @@ static int wm8988_i2c_probe(struct i2c_client *i2c,
 		return ret;
 	}
 
+	if (pdata)
+		memcpy(&wm8988->pdata, pdata, sizeof(struct wm8988_data));
+	else if (i2c->dev.of_node)
+		wm8988_set_pdata_from_of(i2c, &wm8988->pdata);
+
+
+	i2c_set_clientdata(i2c, wm8988);
+
 	ret =  snd_soc_register_codec(&i2c->dev,
 			&soc_codec_dev_wm8988, &wm8988_dai, 1);
+
 	return ret;
 }
 
@@ -915,9 +877,16 @@ static const struct i2c_device_id wm8988_i2c_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, wm8988_i2c_id);
 
+static const struct of_device_id wm8988_of_match[] = {
+	{ .compatible = "wlf,wm8988", },
+	{ }
+};
+MODULE_DEVICE_TABLE(of, wm8988_of_match);
+
 static struct i2c_driver wm8988_i2c_driver = {
 	.driver = {
 		.name = "wm8988",
+		.of_match_table = wm8988_of_match,
 	},
 	.probe =    wm8988_i2c_probe,
 	.remove =   wm8988_i2c_remove,
@@ -925,37 +894,7 @@ static struct i2c_driver wm8988_i2c_driver = {
 };
 #endif
 
-static int __init wm8988_modinit(void)
-{
-	int ret = 0;
-#if IS_ENABLED(CONFIG_I2C)
-	ret = i2c_add_driver(&wm8988_i2c_driver);
-	if (ret != 0) {
-		printk(KERN_ERR "Failed to register WM8988 I2C driver: %d\n",
-		       ret);
-	}
-#endif
-#if defined(CONFIG_SPI_MASTER)
-	ret = spi_register_driver(&wm8988_spi_driver);
-	if (ret != 0) {
-		printk(KERN_ERR "Failed to register WM8988 SPI driver: %d\n",
-		       ret);
-	}
-#endif
-	return ret;
-}
-module_init(wm8988_modinit);
-
-static void __exit wm8988_exit(void)
-{
-#if IS_ENABLED(CONFIG_I2C)
-	i2c_del_driver(&wm8988_i2c_driver);
-#endif
-#if defined(CONFIG_SPI_MASTER)
-	spi_unregister_driver(&wm8988_spi_driver);
-#endif
-}
-module_exit(wm8988_exit);
+module_i2c_driver(wm8988_i2c_driver);
 
 
 MODULE_DESCRIPTION("ASoC WM8988 driver");

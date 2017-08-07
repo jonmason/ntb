@@ -167,7 +167,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_WM8978 if I2C
 	select SND_SOC_WM8983 if SND_SOC_I2C_AND_SPI
 	select SND_SOC_WM8985 if SND_SOC_I2C_AND_SPI
-	select SND_SOC_WM8988 if SND_SOC_I2C_AND_SPI
+	select SND_SOC_WM8988 if I2C
 	select SND_SOC_WM8990 if I2C
 	select SND_SOC_WM8991 if I2C
 	select SND_SOC_WM8993 if I2C
@@ -865,7 +865,8 @@ config SND_SOC_WM8985
 	tristate
 
 config SND_SOC_WM8988
-	tristate
+	tristate "Wolfson Microelectronics WM8988 codec(Nexell work)"
+	depends on I2C
 
 config SND_SOC_WM8990
 	tristate
