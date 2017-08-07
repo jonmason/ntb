@@ -63,6 +63,19 @@
 				clk-input = <I_PLL2>;
 				clock-frequency = <10000000>;
 			};
+
+			dummy_clk: dummy_clk {
+				#clock-cells = <0>;
+				clock-output-names = "dummy_clk";
+				compatible = "fixed-clock";
+				clock-frequency = <0>;
+			};
+		};
+
+		pinctrl@C0010000 {
+			i2s2_bus:i2s2 {
+				/delete-node/ i2s2-mclk;
+			};
 		};
 
 		l2:l2-cache-controller@cf000000 {
@@ -194,7 +207,7 @@
 			frame-bit = <32>;
 			sample-rate = <48000>;
 			pre-supply-mclk = <1>;
-			status = "disabled";
+			status = "okay";
 		};
 
 		i2s_1:i2s@c0056000 {
@@ -205,7 +218,39 @@
 			frame-bit = <32>;
 			sample-rate = <48000>;
 			pre-supply-mclk = <1>;
-			status = "disabled";
+			status = "okay";
+		};
+
+		i2s_2:i2s@c0057000 {
+			#sound-dai-cells = <1>;
+			master-mode = <1>;
+			mclk-in = <0>;
+			trans-mode = <0>;
+			frame-bit = <32>;
+			sample-rate = <48000>;
+			pre-supply-mclk = <1>;
+			status = "okay";
+		};
+
+		spdif_tx: spdiftx@c0059000 {
+			#sound-dai-cells = <1>;
+			pcm-bit = <16>;
+			sample_rate = <48000>;
+			status = "okay";
+		};
+
+		i2c_1:i2c@c00a5000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			wm8988: wm8988@1a {
+				#sound-dai-cells = <0>;
+				compatible = "wlf,wm8988";
+				reg = <0x1a>;
+				clocks = <&dummy_clk>;
+				clock-names = "mclk";
+			};
 		};
 
 		i2c_2:i2c@c00a6000 {
@@ -222,12 +267,6 @@
 		};
 
 		adc:adc@c0053000 {
-			status = "okay";
-		};
-
-		i2c_1:i2c@c00a5000 {
-			#address-cells = <1>;
-			#size-cells = <0>;
 			status = "okay";
 		};
 	};	/*** soc ***/
@@ -380,6 +419,67 @@
 		status = "okay";
 	};
 
+	snd_null: snd_null@0 {
+		#sound-dai-cells = <0>;
+		compatible = "nexell,snd-null";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0 0>;
+	};
+
+	spdif_out: spdif-out {
+		#sound-dai-cells = <0>;
+		compatible = "linux,spdif-dit";
+	};
+
+	sound {
+		compatible = "nexell,simple-audio-card";
+		simple-audio-card,name = "s5p4418 ZH dragon Audio";
+
+		simple-audio-card,widgets =
+		    "Headphone", "Out Jack";
+		simple-audio-card,routing =
+		    "Out Jack", "LOUT2",
+		    "Out Jack", "ROUT2";
+
+		status = "okay";
+		simple-audio-card,dai-link@0 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s_2 0>;
+			};
+			codec {
+				sound-dai = <&snd_null>;
+			};
+		};
+		simple-audio-card,dai-link@1 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s_1 0>;
+			};
+			codec {
+				sound-dai = <&wm8988>;
+			};
+		};
+		simple-audio-card,dai-link@2 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s_0 0>;
+			};
+			codec {
+				sound-dai = <&snd_null>;
+			};
+		};
+		simple-audio-card,dai-link@3 {
+			mclk-fs = <256>;
+			cpu {
+				sound-dai = <&spdif_tx 0>;
+			};
+			codec {
+				sound-dai = <&spdif_out>;
+			};
+		};
+	}; /* sound */
 };
 
 &vip_0 {
