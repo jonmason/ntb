@@ -53,10 +53,6 @@
 #include "hcd.h"
 #include "debug.h"
 
-#ifdef CONFIG_RESET_CONTROLLER
-#include <linux/reset.h>
-#endif
-
 static const char dwc2_driver_name[] = "dwc2";
 
 /*
@@ -138,20 +134,6 @@ static int __dwc2_lowlevel_hw_enable(struct dwc2_hsotg *hsotg)
 		ret = clk_prepare_enable(hsotg->clk);
 		if (ret)
 			return ret;
-	}
-
-	if (of_device_is_compatible(hsotg->dev->of_node,
-					    "nexell,nexell-dwc2otg")) {
-#ifdef CONFIG_RESET_CONTROLLER
-			struct reset_control *rst;
-
-			rst = devm_reset_control_get(hsotg->dev,
-						     "usbotg-reset");
-			if (!IS_ERR(rst)) {
-				if (reset_control_status(rst))
-					reset_control_reset(rst);
-			}
-#endif
 	}
 
 	if (hsotg->uphy) {
@@ -454,7 +436,9 @@ static int dwc2_driver_probe(struct platform_device *dev)
 	 * Reset before dwc2_get_hwparams() then it could get power-on real
 	 * reset value form registers.
 	 */
-	dwc2_core_reset_and_force_dr_mode(hsotg);
+	if (!of_device_is_compatible(hsotg->dev->of_node,
+				     "nexell,nexell-dwc2otg"))
+	    dwc2_core_reset_and_force_dr_mode(hsotg);
 
 	/* Detect config values from hardware */
 	retval = dwc2_get_hwparams(hsotg);

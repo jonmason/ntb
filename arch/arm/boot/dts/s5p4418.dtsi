@@ -542,15 +542,15 @@
 			clocks = <&otg>;
 			clock-names = "otg";
 			resets = <&nexell_reset RESET_ID_USB20OTG>;
-			reset-names = "usbotg-reset";
+			reset-names = "dwc2";
 			phys = <&nexell_usbphy 0>;
 			phy-names = "usb2-phy";
 			dr_mode = "otg";
 			g-use-dma = <1>;
 			g-rx-fifo-size = <1064>;
 			g-np-tx-fifo-size = <512>;
-			g-tx-fifo-size = <512 512 256 256 256 256 256 256 256
-			    256 256 256 256 256 256>;
+			g-tx-fifo-size = <512 512 768 768 256 256 256 256 192
+				192 64 64 64 64 64>;
 			status = "disabled";
 		};
 
