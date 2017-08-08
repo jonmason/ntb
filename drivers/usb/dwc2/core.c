@@ -491,8 +491,7 @@ int dwc2_core_reset(struct dwc2_hsotg *hsotg)
 
 	/* Wait for AHB master IDLE state */
 	do {
-		if (hsotg->host_flag)
-			usleep_range(20000, 40000);
+		usleep_range(20000, 40000);
 		greset = dwc2_readl(hsotg->regs + GRSTCTL);
 		if (++count > 50) {
 			dev_warn(hsotg->dev,
@@ -507,8 +506,7 @@ int dwc2_core_reset(struct dwc2_hsotg *hsotg)
 	greset |= GRSTCTL_CSFTRST;
 	dwc2_writel(greset, hsotg->regs + GRSTCTL);
 	do {
-		if (hsotg->host_flag)
-			usleep_range(20000, 40000);
+		usleep_range(20000, 40000);
 		greset = dwc2_readl(hsotg->regs + GRSTCTL);
 		if (++count > 50) {
 			dev_warn(hsotg->dev,
@@ -539,8 +537,7 @@ int dwc2_core_reset(struct dwc2_hsotg *hsotg)
 	 * NOTE: This long sleep is _very_ important, otherwise the core will
 	 * not stay in host mode after a connector ID change!
 	 */
-	if (hsotg->host_flag)
-		usleep_range(150000, 200000);
+	usleep_range(150000, 200000);
 
 	return 0;
 }

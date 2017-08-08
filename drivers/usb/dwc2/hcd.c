@@ -1448,7 +1448,6 @@ static void dwc2_conn_id_status_change(struct work_struct *work)
 			dev_err(hsotg->dev,
 				"Connection id status change timed out\n");
 		hsotg->op_state = OTG_STATE_B_PERIPHERAL;
-		hsotg->host_flag = 0;
 		if (of_device_is_compatible(hsotg->dev->of_node,
 					    "nexell,nexell-dwc2otg")) {
 			if (gpio_is_valid(hsotg->ext_vbus_io))
@@ -1475,7 +1474,6 @@ static void dwc2_conn_id_status_change(struct work_struct *work)
 			dev_err(hsotg->dev,
 				"Connection id status change timed out\n");
 		hsotg->op_state = OTG_STATE_A_HOST;
-		hsotg->host_flag = 1;
 
 		/* Initialize the Core for Host mode */
 		dwc2_core_init(hsotg, false);
