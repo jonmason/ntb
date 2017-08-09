@@ -401,7 +401,6 @@
 		i2c_name = "tp2825";
 		i2c_adapter = <1>;
 		addr = <0x44>;
-		width = <720>;
 	};
 };
 
