@@ -87,6 +87,8 @@
 		serial1:serial@c00a0000 {
 			dmas = <&pl08xdma0 0 0>, <&pl08xdma0 1 0>;
 			dma-names = "tx", "rx";
+			pinctrl-0 = <&serial1_pin>, <&serial1_flow_cts>,
+						<&serial1_flow_rts>;
 			status ="okay";
 		};
 
