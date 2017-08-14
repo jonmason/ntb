@@ -319,23 +319,4 @@ static struct hid_driver iuihid_driver = {
 	.probe = iuihid_probe,
 	.remove = iuihid_remove,
 };
-
-static int __init iuihid_init(void)
-{
-	int ret;
-
-	ret = hid_register_driver(&iuihid_driver);
-	if (ret)
-		pr_err("can't register iuihid driver\n");
-
-	return ret;
-}
-
-static void __exit iuihid_exit(void)
-{
-	hid_unregister_driver(&iuihid_driver);
-}
-
-module_init(iuihid_init);
-module_exit(iuihid_exit);
-MODULE_LICENSE("GPL");
+module_hid_driver(iuihid_driver);
