@@ -213,11 +213,17 @@ static void psci_sys_reset(enum reboot_mode reboot_mode, const char *cmd)
 {
 	u32 reason = 0;
 
+	if (cmd) {
 #if defined(CONFIG_ARCH_S5P6818) || defined(CONFIG_ARCH_S5P4418)
 #define RECOVERY_SIGNATURE      (0x52455343)    /* (ASCII) : R.E.S.C */
-	if (cmd != NULL && !strcmp(cmd, "recovery"))
-		reason = RECOVERY_SIGNATURE;
+#define FASTBOOT_SIGNATURE      (0x46535442)    /* (ASCII) : F.S.T.B */
+		if (!strcmp(cmd, "recovery"))
+			reason = RECOVERY_SIGNATURE;
+		else if (!strcmp(cmd, "fastboot"))
+			reason = FASTBOOT_SIGNATURE;
 #endif
+	}
+
 	invoke_psci_fn(PSCI_0_2_FN_SYSTEM_RESET, reason, 0, 0);
 }
 
