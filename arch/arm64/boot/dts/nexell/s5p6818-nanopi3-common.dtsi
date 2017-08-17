@@ -435,6 +435,22 @@
 
 	};	/*** soc ***/
 
+	panel: panel-friendlyelec {
+		compatible = "lcds";
+		status = "okay";
+
+		/*
+		pinctrl-names = "default";
+		pinctrl-0 = <&dp_rgb_vclk &dp_rgb_vsync &dp_rgb_hsync
+			&dp_rgb_de &dp_rgb_R &dp_rgb_G &dp_rgb_B>;
+		*/
+
+		port {
+			lcd_panel: endpoint {
+			};
+		};
+	};
+
 	gpio_key: gpio_keys {
 		compatible = "gpio-keys";
 		#address-cells = <1>;
@@ -471,6 +487,7 @@
 	status = "okay";
 };
 
+/*
 &clipper_0 {
 	interface_type = <NX_CAPTURE_INTERFACE_PARALLEL>;
 	pinctrl-names = "default";
@@ -497,6 +514,7 @@
 		>;
 	};
 };
+*/
 
 &dp_drm {
 	status = "okay";
@@ -517,6 +535,7 @@
 };
 
 &dp_drm_lvds {
+	remote-endpoint = <&lcd_panel>;
 	status = "ok";
 
 	display-timing {
