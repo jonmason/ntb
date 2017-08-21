@@ -4302,7 +4302,7 @@ void dwc2_host_complete(struct dwc2_hsotg *hsotg, struct dwc2_qtd *qtd,
 
 		if (ep)
 			dwc2_free_bus_bandwidth(dwc2_hsotg_to_hcd(hsotg),
-						dwc2_hcd_get_ep_bandwidth(hsotg, ep),
+					dwc2_hcd_get_ep_bandwidth(hsotg, ep),
 					urb);
 	}
 
@@ -4910,8 +4910,8 @@ static int _dwc2_hcd_urb_enqueue(struct usb_hcd *hcd, struct urb *urb,
 
 	if (alloc_bandwidth) {
 		dwc2_allocate_bus_bandwidth(hcd,
-					    dwc2_hcd_get_ep_bandwidth(hsotg, ep),
-				urb);
+				    dwc2_hcd_get_ep_bandwidth(hsotg, ep),
+				    urb);
 	}
 
 	spin_unlock_irqrestore(&hsotg->lock, flags);

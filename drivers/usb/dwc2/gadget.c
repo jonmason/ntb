@@ -1209,7 +1209,8 @@ dma_error:
 }
 
 static int dwc2_hsotg_handle_unaligned_buf_start(struct dwc2_hsotg *hsotg,
-						 struct dwc2_hsotg_ep *hs_ep, struct dwc2_hsotg_req *hs_req)
+						 struct dwc2_hsotg_ep *hs_ep,
+						 struct dwc2_hsotg_req *hs_req)
 {
 	void *req_buf = hs_req->req.buf;
 
@@ -1240,7 +1241,8 @@ static int dwc2_hsotg_handle_unaligned_buf_start(struct dwc2_hsotg *hsotg,
 }
 
 static void dwc2_hsotg_handle_unaligned_buf_complete(struct dwc2_hsotg *hsotg,
-						     struct dwc2_hsotg_ep *hs_ep, struct dwc2_hsotg_req *hs_req)
+					     struct dwc2_hsotg_ep *hs_ep,
+					     struct dwc2_hsotg_req *hs_req)
 {
 	/* If dma is not being used or buffer was aligned */
 	if (!using_dma(hsotg) || !hs_req->saved_req_buf)
@@ -3904,9 +3906,6 @@ static int dwc2_hsotg_ep_enable(struct usb_ep *ep,
 	case USB_ENDPOINT_XFER_INT:
 		if (dir_in)
 			hs_ep->periodic = 1;
-
-		if (hsotg->gadget.speed == USB_SPEED_HIGH)
-			hs_ep->interval = 1 << (desc->bInterval - 1);
 
 		if (hsotg->gadget.speed == USB_SPEED_HIGH)
 			hs_ep->interval = 1 << (desc->bInterval - 1);

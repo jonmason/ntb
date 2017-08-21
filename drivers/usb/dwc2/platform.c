@@ -436,9 +436,11 @@ static int dwc2_driver_probe(struct platform_device *dev)
 	 * Reset before dwc2_get_hwparams() then it could get power-on real
 	 * reset value form registers.
 	 */
-	if (!of_device_is_compatible(hsotg->dev->of_node,
-				     "nexell,nexell-dwc2otg"))
-	    dwc2_core_reset_and_force_dr_mode(hsotg);
+	if (of_device_is_compatible(hsotg->dev->of_node,
+				    "nexell,nexell-dwc2otg"))
+		dev_dbg(hsotg->dev, "Don't reset\n");
+	else
+		dwc2_core_reset_and_force_dr_mode(hsotg);
 
 	/* Detect config values from hardware */
 	retval = dwc2_get_hwparams(hsotg);

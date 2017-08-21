@@ -150,6 +150,7 @@ static void dwc2_set_nexell_params(struct dwc2_hsotg *hsotg)
 	p->max_transfer_size = 65535;
 	p->ahbcfg = GAHBCFG_HBSTLEN_INCR16 <<
 		GAHBCFG_HBSTLEN_SHIFT;
+	p->dma_desc_enable = true;
 	p->host_channels = 16;
 	p->host_rx_fifo_size = 1024;
 	p->host_nperio_tx_fifo_size = 512;
