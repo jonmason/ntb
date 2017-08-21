@@ -1,0 +1,267 @@
+/*
+ * Copyright (C) 2016  FMS Co., Ltd.
+ * Author: Han Yibeom <yibhan@cafeel.co.kr>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/dts-v1/;
+#include "s5p4418-daudio_covi-common.dtsi"
+#include "s5p4418-audio-dfs-pll3.dtsi"
+/ {
+	soc {
+		clocks {
+			i2s0:i2s@c00b2000 {
+				clk-input = <I_PLL3>;
+			};
+
+			i2s1:i2s@c00b3000 {
+				clk-input = <I_PLL3>;
+			};
+
+			i2s2:i2s@c00b4000 {
+				clk-input = <I_EXTCLK1>;
+			};
+		};
+
+		pinctrl@C0010000 {
+			i2s2_bus:i2s2 {
+				/delete-node/ i2s2-mclk;
+			};
+		};
+
+		i2s_0:i2s@c0055000 {
+			dfs;
+			dfs-pll = <3>;
+		};
+
+		i2s_1:i2s@c0056000 {
+			dfs;
+			dfs-pll = <3>;
+		};
+
+		i2s_2:i2s@c0057000 {
+			#sound-dai-cells = <1>;
+			master-mode = <0>;
+			mclk-in = <1>;
+			trans-mode = <0>;
+			frame-bit = <32>;
+			sample-rate = <16000>;
+			pre-supply-mclk = <0>;
+			dfs;
+			status = "okay";
+		};
+
+		dwc2otg@c0040000 {
+			/delete-property/ gpios;
+		};
+
+		i2c_1:i2c@c00a5000 {
+			rate = <400000>;
+			retry-delay = <500>;
+			retry-cnt = <10>;
+		};
+	};
+
+	snd_null: snd_null@10 {
+		#sound-dai-cells = <0>;
+		compatible = "nexell,snd-null";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0 0>;
+	};
+
+	sound {
+		compatible = "nexell,simple-audio-card";
+		simple-audio-card,name = "s5p4418 daudio_covi rev00 Audio";
+		/delete-property/ simple-audio-card,mclk-fs;
+
+		simple-audio-card,dai-link@0 {
+			mclk-fs = <256>;
+		};
+
+		simple-audio-card,dai-link@1 {
+			mclk-fs = <256>;
+		};
+
+		simple-audio-card,dai-link@2 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s_2 0>;
+			};
+
+			codec {
+				sound-dai = <&snd_null>;
+			};
+		};
+
+		simple-audio-card,dai-link@3 {
+			mclk-fs = <256>;
+			cpu {
+				sound-dai = <&spdif_tx 0>;
+			};
+
+			codec {
+				sound-dai = <&spdif_out>;
+			};
+		};
+	};
+};
+
+#define PMIC_PDATA_INIT(_id, _rname, _minuv,	\
+			_maxuv, _init_uv, _init_enable,		\
+			_set_init_uV, _slp_slots)	\
+		regulator-name = _rname;		\
+		regulator-min-microvolt = <_minuv>;	\
+		regulator-max-microvolt = <_maxuv>;	\
+		nx,id = <_id>;				\
+		nx,init_enable = <_init_enable>;	\
+		nx,init_uV = <_init_uv>;		\
+		nx,set_init_uV = <_set_init_uV>;	\
+		nx,sleep_slots = <_slp_slots>;
+
+&i2c_gpio7 {
+	compatible = "i2c-gpio";
+	gpios = <&gpio_e 8 0		/* SDA */
+			&gpio_e 9 0		/* SCL */
+			>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	nxe2000@32 {
+		compatible = "nexell,nxe2000";
+		reg = <0x32>;
+		interrupt-parent = <&alive_0>;
+		interrupts = <0x5 IRQ_TYPE_EDGE_FALLING>;
+
+		regulators {
+			VCC_DCDC0:
+				dcdc1	{ PMIC_PDATA_INIT( 0,
+					"nxe2000_dcdc1",
+					900000, 1500000,
+					1100000, 1, 0, 0x4)
+					regulator-always-on;
+					regulator-boot-on;};
+			VCC_DCDC1:
+				dcdc2	{ PMIC_PDATA_INIT( 1,
+					"nxe2000_dcdc2",
+					1000000, 1500000,
+					1200000, 1, 0, 0x4)
+					regulator-always-on;
+					regulator-boot-on;};
+			VCC_DCDC2:
+				dcdc3	{ PMIC_PDATA_INIT( 2,
+					"nxe2000_dcdc3",
+					1000000, 3500000,
+					3300000, 1, 1, 0x0)
+					regulator-always-on;
+					regulator-boot-on;};
+			VCC_DCDC3:
+				dcdc4	{ PMIC_PDATA_INIT( 3,
+					"nxe2000_dcdc4",
+					1000000, 2000000,
+					1500000, 1, 0, 0xF)
+					regulator-always-on;
+					regulator-boot-on;};
+			VCC_DCDC4:
+				dcdc5	{ PMIC_PDATA_INIT( 4,
+					"nxe2000_dcdc5",
+					1000000, 2000000,
+					1500000, 1, 0, 0x4)
+					regulator-always-on;
+					regulator-boot-on;};
+			VCC_LDO0:
+				ldo1	{ PMIC_PDATA_INIT( 5,
+					"nxe2000_ldo1",
+					1000000, 3500000,
+					3300000, 0, 1, 0x0)
+					regulator-boot-on;};
+			VCC_LDO1:
+				ldo2	{ PMIC_PDATA_INIT( 6,
+					"nxe2000_ldo2",
+					1000000, 3500000,
+					3300000, 0, 1, 0x0)
+					regulator-boot-on;};
+			VCC_LDO2:
+				ldo3	{ PMIC_PDATA_INIT( 7,
+					"nxe2000_ldo3",
+					1000000, 3500000,
+					1800000, 1, 1, 0x2)
+					regulator-always-on;
+					regulator-boot-on;};
+			VCC_LDO3:
+				ldo4	{ PMIC_PDATA_INIT( 8,
+					"nxe2000_ldo4",
+					1000000, 3500000,
+					1800000, 1, 1, 0x2)
+					regulator-always-on;
+					regulator-boot-on;};
+			VCC_LDO4:
+				ldo5	{ PMIC_PDATA_INIT( 9,
+					"nxe2000_ldo5",
+					1000000, 3500000,
+					3300000, 0, 1, 0x0)
+					regulator-boot-on;};
+			VCC_LDO5:
+				ldo6	{ PMIC_PDATA_INIT(10,
+					"nxe2000_ldo6",
+					1000000, 3500000,
+					3300000, 1, 1, 0xF)
+					regulator-always-on;
+					regulator-boot-on;};
+			VCC_LDO6:
+				ldo7	{ PMIC_PDATA_INIT(11,
+					"nxe2000_ldo7",
+					1000000, 3500000,
+					3300000, 1, 1, 0x1)
+					regulator-always-on;
+					regulator-boot-on;};
+			VCC_LDO7:
+				ldo8	{ PMIC_PDATA_INIT(12,
+					"nxe2000_ldo8",
+					1000000, 3500000,
+					3300000, 0, 1, 0x0)
+					regulator-boot-on;};
+			VCC_LDO8:
+				ldo9	{ PMIC_PDATA_INIT(13,
+					"nxe2000_ldo9",
+					1000000, 3500000,
+					1800000, 0, 1, 0x0)
+					regulator-boot-on;};
+			VCC_LDO9:
+				ldo10	{ PMIC_PDATA_INIT(14,
+					"nxe2000_ldo10",
+					1000000, 3500000,
+					1200000, 1, 1, 0x0)
+					regulator-always-on;
+					regulator-boot-on;};
+			VCC_RTC0:
+				ldortc1	{ PMIC_PDATA_INIT(15,
+					"nxe2000_rtc1",
+					1700000, 3500000,
+					1800000, 1, 1, 0xF)
+					regulator-always-on;
+					regulator-boot-on;};
+			VCC_RTC1:
+				ldortc2	{ PMIC_PDATA_INIT(16,
+					"nxe2000_rtc2",
+					1000000, 3500000,
+					1000000, 1, 1, 0xF)
+					regulator-always-on;
+					regulator-boot-on;};
+		}; /* regulators */
+	}; /* nxe2000@32 */
+}; /* i2c_gpio7 */
+

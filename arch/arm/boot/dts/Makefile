@@ -790,7 +790,8 @@ dtb-$(CONFIG_ARCH_S5P4418) += \
 	s5p4418-daudio_ref-rev00.dtb \
 	s5p4418-daudio_ref-rev01.dtb \
 	s5p4418-smart_voice.dtb \
-	s5p4418-zh_dragon-rev00.dtb
+	s5p4418-zh_dragon-rev00.dtb \
+	s5p4418-daudio_covi-rev00.dtb
 endif
 
 dtstree		:= $(srctree)/$(src)
