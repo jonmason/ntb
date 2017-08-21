@@ -2686,11 +2686,13 @@ static int cgroup_procs_write_permission(struct task_struct *task,
 	 * even if we're attaching all tasks in the thread group, we only
 	 * need to check permissions on one of them.
 	 */
+#ifndef CONFIG_ANDROID
 	if (!uid_eq(cred->euid, GLOBAL_ROOT_UID) &&
 	    !uid_eq(cred->euid, tcred->uid) &&
 	    !uid_eq(cred->euid, tcred->suid) &&
 	    !ns_capable(tcred->user_ns, CAP_SYS_RESOURCE))
 		ret = -EACCES;
+#endif
 
 	if (!ret && cgroup_on_dfl(dst_cgrp)) {
 		struct super_block *sb = of->file->f_path.dentry->d_sb;
