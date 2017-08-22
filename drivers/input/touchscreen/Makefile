@@ -93,3 +93,4 @@ obj-$(CONFIG_TOUCHSCREEN_COLIBRI_VF50)	+= colibri-vf50-ts.o
 obj-$(CONFIG_TOUCHSCREEN_ROHM_BU21023)	+= rohm_bu21023.o
 obj-$(CONFIG_TOUCHSCREEN_ZINITIX_BT532)	+= zinitix_touch.o
 obj-$(CONFIG_TOUCHSCREEN_GSLX680)	+= gslX680.o gsl_point_id_64
+obj-$(CONFIG_TOUCHSCREEN_SSD2533)	+= ssd253x-ts.o

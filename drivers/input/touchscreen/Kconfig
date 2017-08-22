@@ -1122,4 +1122,13 @@ config TOUCHSCREEN_GSLX680
 	  Say Y here if you have the GSLX680 touchscreen.
 
 	  If unsure, say N.
+
+config TOUCHSCREEN_SSD2533
+	tristate "SSD2533 based touchscreens"
+	depends on I2C
+	help
+	  Say Y here if you have a SSD2533 based touchscreen.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here: the
+	  module will be called SSD2533.
 endif
