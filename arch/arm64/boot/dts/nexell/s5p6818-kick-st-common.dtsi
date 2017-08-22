@@ -52,7 +52,7 @@
 			uart2:uart@c00aa000 { clock-frequency = <147500000>; };
 			uart3:uart@c00ab000 { clock-frequency = <147500000>; };
 			uart4:uart@c006e000 { clock-frequency = <147500000>; };
-			uart5:uart@c0084000 { clock-frequency = <100000000>; };
+			uart5:uart@c0084000 { clock-frequency = <200000000>; };
 			pwm0:pwm0@c00ba000 { clock-frequency = <100000000>; };
 			i2c0:i2c@c00ae000  { clock-frequency = <200000000>; };
 			i2c1:i2c@c00af000  { clock-frequency = <200000000>; };
