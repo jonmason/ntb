@@ -1,0 +1,382 @@
+/*
+ * Copyright (C) 2016  Nexell Co., Ltd.
+ * Author: Youngbok, Park <ybpark@nexell.co.kr>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/dts-v1/;
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include "nxp4330.dtsi"
+
+#define PMIC_PDATA_INIT(_id, _rname, _minuv,			\
+			_maxuv, _init_uv, _init_enable,		\
+			_set_init_uV, _slp_slots)		\
+			regulator-name = _rname;		\
+			regulator-min-microvolt = <_minuv>;	\
+			regulator-max-microvolt = <_maxuv>;	\
+			nx,id = <_id>;				\
+			nx,init_enable = <_init_enable>;	\
+			nx,init_uV = <_init_uv>;		\
+			nx,set_init_uV = <_set_init_uV>;	\
+			nx,sleep_slots = <_slp_slots>;
+
+/ {
+	memory {
+		device_type = "memory";
+		reg = <0xA1000000 0xF000000>;
+	};
+
+	psci {
+		compatible = "arm,psci-0.2";
+		method = "smc";
+	};
+
+	aliases {
+		i2c3 = &i2c_gpio3;
+	};
+
+	soc {
+		#include "s5p4418-pinctrl.dtsi"
+		clocks {
+			uart3:uart@c00ab000 { clock-frequency = <147500000>; };
+			uart1:uart@c00a8000 { clock-frequency = <100000000>; };
+			uart0:uart@c00a9000 { clock-frequency = <147500000>; };
+			dummy_clk: dummy_clk {
+				#clock-cells = <0>;
+				clock-output-names = "dummy_clk";
+				compatible = "fixed-clock";
+				clock-frequency = <0>;
+			};
+		};
+
+
+		l2:l2-cache-controller@cf000000 {
+			arm,prefetch-offset = <7>;
+			prefetch-data = <1>;
+			prefetch-instr = <1>;
+			arm,tag-latency = <3 4 3>;
+			arm,data-latency = <3 4 3>;
+		};
+		serial0:serial@c00a1000 {
+			status ="okay";
+		};
+
+		serial1:serial@c00a0000 {
+			dmas = <&pl08xdma0 0 0>, <&pl08xdma0 1 0>;
+			dma-names = "tx", "rx";
+			pinctrl-0 = <&serial1_pin>, <&serial1_flow_cts>,
+						<&serial1_flow_rts>;
+			status ="okay";
+		};
+
+		serial3:serial@c00a3000 {
+			status ="okay";
+		};
+
+		amba {
+			pl08xdma0:pl08xdma@c0000000 {
+				use_isr;
+
+				ch12 {
+					slave_wait_flush_dma;
+				};
+
+				ch13 {
+					slave_wait_flush_dma;
+				};
+
+				ch14 {
+					slave_wait_flush_dma;
+				};
+
+				ch15 {
+					slave_wait_flush_dma;
+				};
+			};
+
+			pl08xdma1:pl08xdma@c0001000 {
+				use_isr;
+
+				ch0 {
+					slave_wait_flush_dma;
+				};
+
+				ch1 {
+					slave_wait_flush_dma;
+				};
+			};
+		};
+
+		watchdog@c0019000 {
+			status = "okay";
+		};
+
+		rtc@c0010c00 {
+			status = "okay";
+		};
+
+		nexell_usbphy: nexell-usbphy@c0012000 {
+			status = "okay";
+		};
+
+		ehci@c0030000 {
+			status = "okay";
+			port@0 {
+				status = "okay";
+			};
+		};
+
+		ohci@c0020000 {
+			status = "okay";
+			port@0 {
+				status = "okay";
+			};
+		};
+
+		dwc2otg@c0040000 {
+			/*gpios = <&alive_0 5 0>;*/
+			status = "okay";
+		};
+
+		i2s_0:i2s@c0055000 {
+			#sound-dai-cells = <1>;
+			master-mode = <0>;
+			mclk-in = <0>;
+			trans-mode = <0>;
+			frame-bit = <32>;
+			sample-rate = <48000>;
+			pre-supply-mclk = <1>;
+			status = "okay";
+		};
+/*
+		i2s_1:i2s@c0056000 {
+			#sound-dai-cells = <1>;
+			master-mode = <0>;
+			mclk-in = <1>;
+			trans-mode = <0>;
+			frame-bit = <32>;
+			sample-rate = <48000>;
+			pre-supply-mclk = <0>;
+			status = "okay";
+		};
+
+		i2s_2:i2s@c0057000 {
+			#sound-dai-cells = <1>;
+			master-mode = <0>;
+			mclk-in = <1>;
+			trans-mode = <0>;
+			frame-bit = <32>;
+			sample-rate = <48000>;
+			pre-supply-mclk = <0>;
+			status = "okay";
+		};
+*/
+		i2c_gpio3: i2c@3 {
+			compatible = "i2c-gpio";
+			gpios = <&gpio_e 8 0		/* SDA */
+				&gpio_e 9 0		/* SCL */
+				>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+
+			nxe2000@32 {
+				compatible = "nexell,nxe2000";
+				reg = <0x32>;
+				interrupt-parent = <&gpio_e>;
+				interrupts = <10 IRQ_TYPE_EDGE_FALLING>;
+
+
+				regulators {
+					VCC_DCDC0:
+						dcdc1	{ PMIC_PDATA_INIT( 0,
+							"nxe2000_dcdc1",
+							900000, 1500000,
+							1100000, 1, 0, 0x4)
+							regulator-always-on;
+							regulator-boot-on;};
+					VCC_DCDC1:
+						dcdc2	{ PMIC_PDATA_INIT( 1,
+							"nxe2000_dcdc2",
+							1000000, 1500000,
+							1200000, 1, 0, 0x4)
+							regulator-always-on;
+							regulator-boot-on;};
+					VCC_DCDC2:
+						dcdc3	{ PMIC_PDATA_INIT( 2,
+							"nxe2000_dcdc3",
+							1000000, 3500000,
+							3300000, 1, 1, 0x0)
+							regulator-always-on;
+							regulator-boot-on;};
+					VCC_DCDC3:
+						dcdc4	{ PMIC_PDATA_INIT( 3,
+							"nxe2000_dcdc4",
+							1000000, 2000000,
+							1500000, 1, 0, 0xF)
+							regulator-always-on;
+							regulator-boot-on;};
+					VCC_DCDC4:
+						dcdc5	{ PMIC_PDATA_INIT( 4,
+							"nxe2000_dcdc5",
+							1000000, 2000000,
+							1500000, 1, 0, 0x4)
+							regulator-always-on;
+							regulator-boot-on;};
+					VCC_LDO0:
+						ldo1	{ PMIC_PDATA_INIT( 5,
+							"nxe2000_ldo1",
+							1000000, 3500000,
+							3300000, 0, 1, 0x0)
+							regulator-boot-on;};
+					VCC_LDO1:
+						ldo2	{ PMIC_PDATA_INIT( 6,
+							"nxe2000_ldo2",
+							1000000, 3500000,
+							3300000, 0, 1, 0x0)
+							regulator-boot-on;};
+					VCC_LDO2:
+						ldo3	{ PMIC_PDATA_INIT( 7,
+							"nxe2000_ldo3",
+							1000000, 3500000,
+							1800000, 1, 1, 0x2)
+							regulator-always-on;
+							regulator-boot-on;};
+					VCC_LDO3:
+						ldo4	{ PMIC_PDATA_INIT( 8,
+							"nxe2000_ldo4",
+							1000000, 3500000,
+							1800000, 1, 1, 0x2)
+							regulator-always-on;
+							regulator-boot-on;};
+					VCC_LDO4:
+						ldo5	{ PMIC_PDATA_INIT( 9,
+							"nxe2000_ldo5",
+							1000000, 3500000,
+							3300000, 0, 1, 0x0)
+							regulator-boot-on;};
+					VCC_LDO5:
+						ldo6	{ PMIC_PDATA_INIT(10,
+							"nxe2000_ldo6",
+							1000000, 3500000,
+							3300000, 1, 1, 0xF)
+							regulator-always-on;
+							regulator-boot-on;};
+					VCC_LDO6:
+						ldo7	{ PMIC_PDATA_INIT(11,
+							"nxe2000_ldo7",
+							1000000, 3500000,
+							3300000, 0, 1, 0x1)
+							regulator-always-on;
+							regulator-boot-on;};
+					VCC_LDO7:
+						ldo8	{ PMIC_PDATA_INIT(12,
+							"nxe2000_ldo8",
+							1000000, 3500000,
+							3300000, 0, 1, 0x0)
+							regulator-boot-on;};
+					VCC_LDO8:
+						ldo9	{ PMIC_PDATA_INIT(13,
+							"nxe2000_ldo9",
+							1000000, 3500000,
+							1800000, 0, 1, 0x0)
+							regulator-boot-on;};
+					VCC_LDO9:
+						ldo10	{ PMIC_PDATA_INIT(14,
+							"nxe2000_ldo10",
+							1000000, 3500000,
+							1200000, 1, 1, 0x0)
+							regulator-always-on;
+							regulator-boot-on;};
+					VCC_RTC0:
+						ldortc1	{ PMIC_PDATA_INIT(15,
+							"nxe2000_rtc1",
+							1700000, 3500000,
+							1800000, 1, 1, 0xF)
+							regulator-always-on;
+							regulator-boot-on;};
+					VCC_RTC1:
+						ldortc2	{ PMIC_PDATA_INIT(16,
+							"nxe2000_rtc2",
+							1000000, 3500000,
+							1000000, 1, 1, 0xF)
+							regulator-always-on;
+							regulator-boot-on;};
+				}; /* regulators */
+			}; /* nxe2000@32 */
+		}; /* i2c_gpio3 */
+	}; /*** soc ***/
+
+/*
+	snd_null: snd_null@0 {
+		#sound-dai-cells = <0>;
+		compatible = "nexell,snd-null";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0 0>;
+	};
+
+    sound {
+        compatible = "simple-audio-card";
+        simple-audio-card,name = "s5p4418 ff-audio Audio";
+        simple-audio-card,widgets =
+            "Headphone", "Out Jack";
+        simple-audio-card,routing =
+            "Out Jack", "HPL",
+            "Out Jack", "HPR";
+        status = "okay";
+
+        simple-audio-card,dai-link@0 {
+            format = "i2s";
+            cpu {
+            sound-dai = <&i2s_0 0>;
+            };
+
+            codec {
+            sound-dai = <&snd_null>;
+            };
+
+        };
+
+    };
+*/
+
+};
+
+
+
+&dw_mmc_0 {
+	num-slots = <1>;
+	bus-width = <4>;
+	cap-mmc-highspeed;
+	broken-cd;
+	non-removable;
+	clock-frequency = <100000000>;
+	card-detect-delay = <200>;
+	disable-wp;
+	nexell,drive_dly = <0x0>;
+	nexell,drive_shift = <0x02>;
+	nexell,sample_dly = <0x00>;
+	nexell,sample_shift = <0x01>;
+	status = "okay";
+};
+
+
+
+
+
+
