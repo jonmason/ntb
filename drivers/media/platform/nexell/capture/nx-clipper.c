@@ -1444,6 +1444,40 @@ static int nx_clipper_set_fmt(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static int nx_clipper_enum_frame_size(struct v4l2_subdev *sd,
+				      struct v4l2_subdev_pad_config *cfg,
+				      struct v4l2_subdev_frame_size_enum
+					     *frame)
+{
+	struct nx_clipper *me = v4l2_get_subdevdata(sd);
+	struct v4l2_subdev *remote = get_remote_source_subdev(me);
+
+	pr_debug("[%s]\n", __func__);
+	if (!remote) {
+		WARN_ON(1);
+		return -ENODEV;
+	}
+
+	return v4l2_subdev_call(remote, pad, enum_frame_size, NULL, frame);
+}
+
+static int nx_clipper_enum_frame_interval(struct v4l2_subdev *sd,
+			      		  struct v4l2_subdev_pad_config *cfg,
+			      		  struct v4l2_subdev_frame_interval_enum
+						*frame)
+{
+	struct nx_clipper *me = v4l2_get_subdevdata(sd);
+	struct v4l2_subdev *remote = get_remote_source_subdev(me);
+
+	pr_debug("[%s]\n", __func__);
+	if (!remote) {
+		WARN_ON(1);
+		return -ENODEV;
+	}
+
+	return v4l2_subdev_call(remote, pad, enum_frame_interval, NULL, frame);
+}
+
 static const struct v4l2_subdev_video_ops nx_clipper_video_ops = {
 	.s_stream = nx_clipper_s_stream,
 	.g_crop = nx_clipper_g_crop,
@@ -1457,6 +1491,8 @@ static const struct v4l2_subdev_pad_ops nx_clipper_pad_ops = {
 	.set_selection = nx_clipper_set_selection,
 	.get_fmt = nx_clipper_get_fmt,
 	.set_fmt = nx_clipper_set_fmt,
+	.enum_frame_size = nx_clipper_enum_frame_size,
+	.enum_frame_interval = nx_clipper_enum_frame_interval,
 };
 
 static const struct v4l2_subdev_core_ops nx_clipper_core_ops = {
