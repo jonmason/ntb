@@ -1050,6 +1050,13 @@ static int axp_mfd_probe(struct i2c_client *client,
 		goto out_free_chip;
 	}
 
+	ret = axp228->ops->init_chip(axp228);
+	if (ret) {
+		dev_err(&client->dev, "%s() Error: init_chip()\n",
+			__func__);
+		goto out_free_chip;
+	}
+
 	if (axp228->dev->of_node) {
 		pdata = axp228_i2c_parse_dt_pdata(axp228->dev);
 		if (!pdata)
@@ -1067,13 +1074,6 @@ static int axp_mfd_probe(struct i2c_client *client,
 #endif
 
 	axp_debuginit(axp228);
-
-	ret = axp228->ops->init_chip(axp228);
-	if (ret) {
-		dev_err(&client->dev, "%s() Error: init_chip()\n",
-			__func__);
-		goto out_free_chip;
-	}
 
 	g_chip = axp228;
 
@@ -1111,7 +1111,6 @@ out_free_irq:
 
 out_free_chip:
 	i2c_set_clientdata(client, NULL);
-	kfree(axp228);
 
 	return ret;
 }
