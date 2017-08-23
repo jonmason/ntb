@@ -27,12 +27,35 @@
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-ctrls.h>
 
-/*#define DEBUG_TW9900*/
+/* #define DEBUG_TW9900 */
 #ifdef DEBUG_TW9900
 #define vmsg(a...)  printk(a)
 #else
 #define vmsg(a...)
 #endif
+
+struct nx_resolution {
+	uint32_t width;
+	uint32_t height;
+	uint32_t interval;
+};
+
+static struct nx_resolution supported_resolutions[] = {
+	{
+		.width	= 704,
+		.height = 480,
+		.interval = 30,
+	}/*,
+	{
+		.width	= 640,
+		.height = 480,
+		.interval = 30,
+	}*/
+};
+
+static const uint32_t avail_fps_range[] = {
+	15, 30
+};
 
 /* #define BRIGHTNESS_TEST */
 #define DEFAULT_BRIGHTNESS  0x1e
@@ -381,12 +404,47 @@ static int tw9900_s_power(struct v4l2_subdev *sd, int on)
 	return 0;
 }
 
+static int tw9900_enum_frame_size(struct v4l2_subdev *sd,
+				  struct v4l2_subdev_pad_config *cfg,
+				  struct v4l2_subdev_frame_size_enum *frame)
+{
+	vmsg("%s, index:%d\n", __func__, frame->index);
+
+	if (frame->index >= ARRAY_SIZE(supported_resolutions))
+		return -ENODEV;
+
+	frame->max_width = supported_resolutions[frame->index].width;
+	frame->max_height = supported_resolutions[frame->index].height;
+
+	return 0;
+}
+
+static int tw9900_enum_frame_interval(struct v4l2_subdev *sd,
+				      struct v4l2_subdev_pad_config *cfg,
+				      struct v4l2_subdev_frame_interval_enum *frame)
+{
+	vmsg("%s, index:%d\n", __func__, frame->index);
+	if (frame->index >= ARRAY_SIZE(supported_resolutions))
+		return -ENODEV;
+
+	frame->width = supported_resolutions[frame->index].width;
+	frame->height = supported_resolutions[frame->index].height;
+	frame->interval.numerator = supported_resolutions[frame->index].interval;
+	frame->interval.denominator = 1;
+	vmsg("index:%d, width:%d, height:%d, interval:%d:%d\n", frame->index,
+		frame->width, frame->height,
+		frame->interval.numerator, frame->interval.denominator);
+	return 0;
+}
+
 static const struct v4l2_subdev_core_ops tw9900_subdev_core_ops = {
 	.s_power = tw9900_s_power,
 };
 
 static const struct v4l2_subdev_pad_ops tw9900_subdev_pad_ops = {
 	.set_fmt = tw9900_s_fmt,
+	.enum_frame_size = tw9900_enum_frame_size,
+	.enum_frame_interval = tw9900_enum_frame_interval,
 };
 
 static const struct v4l2_subdev_video_ops tw9900_subdev_video_ops = {
