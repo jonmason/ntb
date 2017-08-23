@@ -1107,6 +1107,73 @@ static int nx_video_s_parm(struct file *file, void *fh,
 	return -EINVAL;
 }
 
+static int nx_video_enum_framesizes(struct file *file, void *fh,
+				    struct v4l2_frmsizeenum *p)
+{
+	struct nx_video *me = video_drvdata(file);
+        struct v4l2_subdev *sd;
+        struct v4l2_subdev_frame_size_enum frame_size;
+	uint32_t pad;
+        int ret;
+
+	if (!me) {
+		pr_err("private_data is not exist\n");
+		return -ENODEV;
+	}
+
+	sd = get_remote_subdev(me, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, &pad);
+	if (sd == NULL) {
+		pr_err("failed to get subdev\n");
+		return -ENODEV;
+	}
+	frame_size.index = p->index;
+        ret = v4l2_subdev_call(sd, pad, enum_frame_size, NULL, &frame_size);
+        if (!ret) {
+                p->stepwise.max_width = frame_size.max_width;
+                p->stepwise.max_height = frame_size.max_height;
+		pr_debug("width:%d, height:%d\n", p->stepwise.max_width,
+			 p->stepwise.max_height);
+	}
+
+	return ret;
+}
+
+static int nx_video_enum_frameintervals(struct file *file, void *fh,
+					struct v4l2_frmivalenum *p)
+{
+	struct nx_video *me = video_drvdata(file);
+        struct v4l2_subdev *sd;
+        struct v4l2_subdev_frame_interval_enum frame;
+	uint32_t pad;
+        int ret;
+
+	if (!me) {
+		pr_err("private_data is not exist\n");
+		return -ENODEV;
+	}
+
+	sd = get_remote_subdev(me, V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, &pad);
+	if (sd == NULL) {
+		pr_err("failed to get subdev\n");
+		return -ENODEV;
+	}
+
+	frame.index = p->index;
+        ret = v4l2_subdev_call(sd, pad, enum_frame_interval, NULL, &frame);
+        if (!ret) {
+		p->width = frame.width;
+		p->height = frame.height;
+		p->type = V4L2_FRMIVAL_TYPE_DISCRETE;
+		p->discrete.numerator = frame.interval.numerator;
+		p->discrete.denominator = frame.interval.denominator;
+		pr_debug("index:%d, width:%d, height:%d, type:%d, numerator:%d, denominator:%d\n",
+			p->index, p->width, p->height, p->type,
+			p->discrete.numerator, p->discrete.denominator);
+	}
+
+        return ret;
+}
+
 static struct v4l2_ioctl_ops nx_video_ioctl_ops = {
 	.vidioc_querycap                = nx_video_querycap,
 	.vidioc_enum_fmt_vid_cap_mplane = nx_video_enum_format,
@@ -1136,6 +1203,8 @@ static struct v4l2_ioctl_ops nx_video_ioctl_ops = {
 	.vidioc_enum_input		= nx_video_enum_input,
 	.vidioc_g_parm			= nx_video_g_parm,
 	.vidioc_s_parm			= nx_video_s_parm,
+	.vidioc_enum_framesizes		= nx_video_enum_framesizes,
+	.vidioc_enum_frameintervals	= nx_video_enum_frameintervals,
 };
 
 /*
