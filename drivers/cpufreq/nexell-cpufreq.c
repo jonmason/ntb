@@ -32,6 +32,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/cpu_cooling.h>
 #include <linux/pm_qos.h>
+#include <linux/reboot.h>
 
 #include <linux/soc/nexell/cpufreq.h>
 
@@ -84,6 +85,9 @@ struct cpufreq_dvfs_info {
 	unsigned long resume_state;
 	long boot_frequency;
 	int  boot_voltage;
+	/* for reboot */
+	int locked_freq;
+	struct notifier_block reboot_notifier;
 	/* check frequency duration */
 	int  pre_freq_point;
 	unsigned long check_state;
@@ -505,24 +509,25 @@ static int nxp_cpufreq_target(struct cpufreq_policy *policy,
 
 	mutex_lock(&dvfs->lock);
 
-	pr_debug("cpufreq : target %u -> %u khz", old, new);
+	if (new < dvfs->locked_freq)
+		goto out;
+
+	pr_debug("cpufreq: target %u -> %u khz", old, new);
 
 	if (old == new && policy->cur == new) {
 		pr_debug("PASS\n");
-		mutex_unlock(&dvfs->lock);
-		return ret;
+		goto out;
 	}
 
 	dvfs->target_freq = new;
+	dvfs->policy = policy;
 
 	pr_debug("\n");
 
-	dvfs->policy = policy;
-
 	rate_khz = nxp_cpufreq_change_freq(dvfs, new, old);
-
 	policy->cur = rate_khz;
 
+out:
 	mutex_unlock(&dvfs->lock);
 
 	return ret;
@@ -603,8 +608,8 @@ static void *nxp_cpufreq_get_dt_data(struct platform_device *pdev)
 		pdata->table_size = size/2;
 	}
 
-	if(!of_property_read_u32(node, "max_freq", &tmp)) {
-		if(tmp > 1600000)
+	if (!of_property_read_u32(node, "max_freq", &tmp)) {
+		if (tmp > 1600000)
 			pdata->max_freq = FREQ_MAX_FREQ_KHZ;
 		else
 			pdata->max_freq = tmp;
@@ -625,6 +630,7 @@ static void *nxp_cpufreq_make_table(struct platform_device *pdev,
 	struct cpufreq_frequency_table *freq_table;
 	struct cpufreq_asv_ops *ops = &asv_ops;
 	unsigned long (*plat_tbs)[2] = NULL;
+	unsigned long plat_n_voltage = 0;
 	int tb_size, asv_size = 0;
 	int id = 0, n = 0;
 	int max_freq = pdata->max_freq;
@@ -654,14 +660,18 @@ static void *nxp_cpufreq_make_table(struct platform_device *pdev,
 	/* make frequency table with platform data */
 	if (asv_size > 0) {
 		for (n = 0, id = 0; tb_size > id && asv_size > n; n++) {
-			if (plat_tbs) {
+			if (plat_tbs && plat_tbs[id][1] > 0)
+				plat_n_voltage = plat_tbs[id][1];
+
+			if (plat_n_voltage) {
+				dvfs_tables[id][0] = plat_tbs[id][0];
+				dvfs_tables[id][1] = plat_n_voltage;
+
+			} else if (plat_tbs) {
 				for (n = 0; asv_size > n; n++) {
-					if (plat_tbs[id][0] ==
-					    dvfs_tables[n][0]) {
-						dvfs_tables[id][0] =
-							dvfs_tables[n][0];
-						dvfs_tables[id][1] =
-							dvfs_tables[n][1];
+					if (plat_tbs[id][0] == dvfs_tables[n][0]) {
+						dvfs_tables[id][0] = dvfs_tables[n][0];
+						dvfs_tables[id][1] = dvfs_tables[n][1];
 						break;
 					}
 				}
@@ -687,6 +697,10 @@ static void *nxp_cpufreq_make_table(struct platform_device *pdev,
 			       id, dvfs_tables[id][0], dvfs_tables[id][1]);
 		}
 	}
+
+	/* disabling ASV table to active user defined one */
+	if (plat_n_voltage)
+		ops->get_voltage = NULL;
 
 	/* End table */
 	freq_table[id].frequency = CPUFREQ_TABLE_END;
@@ -723,6 +737,28 @@ static int nxp_cpufreq_set_supply(struct platform_device *pdev,
 
 	pr_info("DVFS: regulator %s\n", pdata->supply_name);
 	return 0;
+}
+
+static int nxp_cpufreq_reboot_notifier(struct notifier_block *this,
+		unsigned long event, void *ptr)
+{
+	struct cpufreq_dvfs_info *dvfs = container_of(
+			this, struct cpufreq_dvfs_info, reboot_notifier);
+	struct cpufreq_policy *policy;
+	int ret = NOTIFY_DONE;
+
+	mutex_lock(&dvfs->lock);
+	dvfs->locked_freq = dvfs->boot_frequency;
+	mutex_unlock(&dvfs->lock);
+
+	policy = cpufreq_cpu_get(0);
+	if (cpufreq_driver_target(policy, dvfs->locked_freq, 0) < 0)
+		ret = NOTIFY_BAD;
+	else
+		pr_debug("nxp-cpufreq: DVFS locked to %dkhz\n", dvfs->locked_freq/1000);
+
+	cpufreq_cpu_put(policy);
+	return ret;
 }
 
 static int cpufreq_min_qos_handler(struct notifier_block *b,
@@ -885,6 +921,10 @@ static int nxp_cpufreq_probe(struct platform_device *pdev)
 
 	pm_qos_add_notifier(PM_QOS_CPU_FREQ_MIN, &cpufreq_min_qos_notifier);
 	pm_qos_add_notifier(PM_QOS_CPU_FREQ_MAX, &cpufreq_max_qos_notifier);
+
+	dvfs->reboot_notifier.notifier_call = nxp_cpufreq_reboot_notifier;
+	dvfs->reboot_notifier.priority = 64;
+	register_reboot_notifier(&dvfs->reboot_notifier);
 
 	return 0;
 
