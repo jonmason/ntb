@@ -22,17 +22,18 @@
 #include <dt-bindings/input/input.h>
 #include "s5p6818.dtsi"
 
-#define PMIC_PDATA_INIT(_id, _rname, _minuv,    \
-                        _maxuv, _init_uv, _init_enable,         \
-                        _set_init_uV, _slp_slots, _dummy)       \
-                regulator-name = _rname;                \
-                regulator-min-microvolt = <_minuv>;     \
-                regulator-max-microvolt = <_maxuv>;     \
-                nx,id = <_id>;                          \
-                nx,init_enable = <_init_enable>;        \
-                nx,init_uV = <_init_uv>;                \
-                nx,set_init_uV = <_set_init_uV>;        \
-                nx,sleep_slots = <_slp_slots>;
+#define PMIC_PDATA_INIT(_id, _rname, _minuv, _maxuv,	\
+						_always_on, _boot_on, _init_uv,	\
+						_init_enable, _slp_slots)		\
+		regulator-name = _rname;			\
+		regulator-min-microvolt = <_minuv>;	\
+		regulator-max-microvolt = <_maxuv>;	\
+		nx,id = <_id>;						\
+		nx,always_on = <_always_on>;		\
+		nx,boot_on = <_boot_on>;			\
+		nx,init_enable = <_init_enable>;	\
+		nx,init_uV = <_init_uv>;			\
+		nx,sleep_slots = <_slp_slots>;
 
 / {
 	memory {
@@ -56,7 +57,9 @@
 			/* uart5:uart@c0084000 { clock-frequency = <147500000>; }; */
 
 			vip0:vip@c00c1000  { src-force = <4>; };
+
 			i2c0:i2c@c00ae000  { clock-frequency = <200000000>; };
+			i2c1:i2c@c00af000  { clock-frequency = <200000000>; };
 			i2c2:i2c@c00b0000  { clock-frequency = <200000000>; };
 
 			pwm0:pwm0@c00ba000 {
@@ -168,6 +171,23 @@
 			status = "okay";
 		};
 
+		dynamic-freq@bb000 {
+			supply_name = "vdd_arm_spu";
+			vdd_arm_spu-supply = <&VCC1P1_ARM_SPU>;
+			status = "okay";
+			dvfs-tables = <1400000 1200000
+				 1300000 1140000
+				 1200000 1100000
+				 1100000 1040000
+				 1000000 1040000
+				  900000 1000000
+				  800000 1000000
+				  700000 940000
+				  600000 940000
+				  500000 940000
+				  400000 940000>;
+		};
+
 		gmac0:ethernet@c0060000 {
 			pinctrl-names = "default";
 			pinctrl-0 = <&gmac_pins>;
@@ -195,18 +215,30 @@
 			};
 		};
 
-		i2c3_gpio:i2c@0 {
+		i2c3_gpio:i2c@3 {
 			compatible = "i2c-gpio";
 			gpios = <&gpio_e 31 0	/* sda */
-				&gpio_d 30 0	/* scl */
+				&gpio_e 30 0	/* scl */
 				>;
-			i2c-gpio,delay-us = <10>;/* ~100 kHz */
-			i2c-gpio,ch =<3>;
-		};
 
-		i2c3_gpio:i2c@0 {
+			i2c-gpio,delay-us = <10>;	/* ~100 kHz */
 			#address-cells = <1>;
 			#size-cells = <0>;
+		};
+
+		i2c3_gpio:i2c@3 {
+			spu1705@2d {
+				compatible = "spu1705,fe-pmu";
+				reg = <0x2d>;
+				regulators {
+					VCC1P1_ARM_SPU: DCDC1 {
+						regulator-name = "vdd_arm_1.3V";
+						regulator-min-microvolt = <905000>;
+						regulator-max-microvolt = <1265000>;
+						regulator-always-on;
+					};
+				};
+			};
 
 			axp228@34 {
 				compatible = "x-powers,axp228";
@@ -218,102 +250,103 @@
 				/* vdd_core-supply = <&VCC1P0_CORE_PMIC>; */
 				regulators {
 					VCC_LDO1:
-						axp22_rtcldo{PMIC_PDATA_INIT( 0,
-						"axp228_rtcldo",
-						3000000, 3000000, 0, 0, 3300000,
-						0, 0xF) };
+						axp22_rtcldo{ PMIC_PDATA_INIT( 0,
+							"axp228_rtcldo",
+							3000000, 3000000, 0, 0, 3300000,
+							0, 0xF) };
 					VCC_LDO2:
-						axp22_aldo1{PMIC_PDATA_INIT( 1,
-						"axp228_3p3_alive",
-						700000, 3300000, 1, 1, 3300000,
-						1, 0xF) };
+						axp22_aldo1 { PMIC_PDATA_INIT( 1,
+							"axp228_3p3_alive",
+							700000, 3300000, 1, 1, 3300000,
+							1, 0xF) };
 					VCC_LDO3:
-						axp22_aldo2{PMIC_PDATA_INIT( 2,
-						"axp228_1p8_alive",
-						700000, 3300000, 1, 1, 1800000,
-						1, 0xF) };
+						axp22_aldo2 { PMIC_PDATA_INIT( 2,
+							"axp228_1p8_alive",
+							700000, 3300000, 1, 1, 1800000,
+							1, 0xF) };
 					VCC_LDO4:
-						axp22_aldo3{PMIC_PDATA_INIT( 3,
-						"axp228_1p0_alive",
-						700000, 3300000, 1, 1, 1000000,
-						1, 0xF) };
+						axp22_aldo3 { PMIC_PDATA_INIT( 3,
+							"axp228_1p0_alive",
+							700000, 3300000, 1, 1, 1000000,
+							1, 0xF) };
 					VCC_LDO5:
-						axp22_dldo1{PMIC_PDATA_INIT( 4,
-						"axp228_wide",
-						700000, 3300000, 1, 1, 3300000,
-						1, 0xF) };
+						axp22_dldo1 { PMIC_PDATA_INIT( 4,
+							"axp228_wide",
+							700000, 3300000, 1, 1, 3300000,
+							1, 0xF) };
 					VCC_LDO6:
-						axp22_dldo2{PMIC_PDATA_INIT( 5,
-						"axp228_1p8_cam",
-						700000, 3300000, 0, 0, 1800000,
-						0, 0xF) };
+						axp22_dldo2 { PMIC_PDATA_INIT( 5,
+							"axp228_1p8_cam",
+							700000, 3300000, 0, 0, 1800000,
+							0, 0xF) };
 					VCC_LDO7:
-						axp22_dldo3{PMIC_PDATA_INIT( 6,
-						"axp228_dldo3",
-						700000, 3300000, 0, 0,  700000,
-						0, 0xF) };
+						axp22_dldo3 { PMIC_PDATA_INIT( 6,
+							"axp228_dldo3",
+							700000, 3300000, 0, 0,  700000,
+							0, 0xF) };
 					VCC_LDO8:
-						axp22_dldo4{PMIC_PDATA_INIT( 7,
-						"axp228_dldo4",
-						700000, 3300000, 0, 0,  700000,
-						0, 0xF) };
+						axp22_dldo4 { PMIC_PDATA_INIT( 7,
+							"axp228_dldo4",
+							700000, 3300000, 0, 0,  700000,
+							0, 0xF) };
 					VCC_LDO9:
-						axp22_eldo1{PMIC_PDATA_INIT( 8,
-						"axp228_1p8_sys",
-						700000, 3300000, 1, 1, 1800000,
-						1, 0xF) };
+						axp22_eldo1 { PMIC_PDATA_INIT( 8,
+							"axp228_1p8_sys",
+							700000, 3300000, 1, 1, 1800000,
+							1, 0xF) };
 					VCC_LDO10:
-						axp22_eldo2{PMIC_PDATA_INIT( 9,
-						"axp228_3p3_wifi",
-						700000, 3300000, 1, 1, 3300000,
-						1, 0xF) };
+						axp22_eldo2 { PMIC_PDATA_INIT( 9,
+							"axp228_3p3_wifi",
+							700000, 3300000, 1, 1, 3300000,
+							1, 0xF) };
 					VCC_LDO11:
-						axp22_eldo3{PMIC_PDATA_INIT(10,
-						"axp228_eldo3",
-						700000, 3300000, 0, 0,  700000,
-						0, 0xF) };
+						axp22_eldo3 { PMIC_PDATA_INIT(10,
+							"axp228_eldo3",
+							700000, 3300000, 0, 0,  700000,
+							0, 0xF) };
 					VCC_LDO12:
-						axp22_dc5ldo{PMIC_PDATA_INIT(11,
-						"axp228_1p2_cvbs",
-						700000, 1400000, 0, 0, 1200000,
-						0, 0xF) };
+						axp22_dc5ldo{ PMIC_PDATA_INIT(11,
+							"axp228_1p2_cvbs",
+							700000, 1400000, 0, 0, 1200000,
+							0, 0xF) };
 					VCC_DCDC1:
-						axp22_dcdc1{PMIC_PDATA_INIT(12,
-						"axp228_3p3_sys",
-						1600000, 3400000, 1, 1, 3300000,
-						1, 0xF) };
+						axp22_dcdc1 { PMIC_PDATA_INIT(12,
+							"axp228_3p3_sys",
+							1600000, 3400000, 1, 1, 3300000,
+							1, 0xF) };
 					VCC1P1_ARM_PMIC:
-						axp22_dcdc2{PMIC_PDATA_INIT(13,
-						"axp228_1p1_arm",
-						600000, 1540000, 1, 1, 1100000,
-						1, 0xF) };
+						axp22_dcdc2 { PMIC_PDATA_INIT(13,
+							"axp228_1p1_arm",
+							600000, 1540000, 1, 1, 1200000,
+							1, 0xF) };
 					VCC1P0_CORE_PMIC:
-						axp22_dcdc3{PMIC_PDATA_INIT(14,
-						"axp228_1p0_core",
-						600000, 1860000, 1, 1, 1100000,
-						1, 0xF) };
+						axp22_dcdc3 { PMIC_PDATA_INIT(14,
+							"axp228_1p0_core",
+							600000, 1860000, 1, 1, 1200000,
+							1, 0xF) };
 					VCC_DCDC4:
-						axp22_dcdc4{PMIC_PDATA_INIT(15,
-						"axp228_1p5_sys",
-						600000, 1540000, 1, 1, 1500000,
-						1, 0xF) };
+						axp22_dcdc4 { PMIC_PDATA_INIT(15,
+							"axp228_1p5_sys",
+							600000, 1540000, 1, 1, 1500000,
+							1, 0xF) };
 					VCC_DCDC5:
-						axp22_dcdc5{PMIC_PDATA_INIT(16,
-						"axp228_1p5_ddr",
-						1000000, 2550000, 1, 1, 1500000,
-						1, 0xF) };
+						axp22_dcdc5 { PMIC_PDATA_INIT(16,
+							"axp228_1p5_ddr",
+							1000000, 2550000, 1, 1, 1500000,
+							1, 0xF) };
 					VCC_LDOIO0:
-						axp22_ldoio0{PMIC_PDATA_INIT(17,
-						"axp228_ldoio0",
-						700000, 3300000, 0, 0, 1800000,
-						0, 0xF) };
+						axp22_ldoio0{ PMIC_PDATA_INIT(17,
+							"axp228_ldoio0",
+							700000, 3300000, 0, 0, 1800000,
+							0, 0xF) };
 					VCC_LDOIO1:
-						axp22_ldoio1{PMIC_PDATA_INIT(18,
-						"axp228_ldoio1",
-						700000, 3300000, 0, 0, 1000000,
-						0, 0xF) };
+						axp22_ldoio1{ PMIC_PDATA_INIT(18,
+							"axp228_ldoio1",
+							700000, 3300000, 0, 0, 1000000,
+							0, 0xF) };
 				};
 			};
+
 		};
 
 		spdif_tx: spdiftx@c0059000 {
@@ -353,19 +386,21 @@
 			status = "okay";
 		};
 
-		i2c_0:i2c@c00a4000 {
+		i2c_0: i2c@c00a4000 {
+			samsung,i2c-max-bus-freq = <400000>;
 			status = "okay";
 		};
 
-		i2c_1:i2c@c00a5000 {
+		i2c_1: i2c@c00a5000 {
 			status = "okay";
 		};
 
-		i2c_2:i2c@c00a6000 {
+		i2c_2: i2c@c00a6000 {
+			samsung,i2c-max-bus-freq = <200000>;
 			status = "okay";
 		};
 
-		pwm:pwm@c0018000 {
+		pwm: pwm@c0018000 {
 			clock-names = "timers", "pwm-tclk0", "pwm-tclk1";
 			clocks = <&pclk>, <&pwm0>, <&pwm1>;
 			pinctrl-names = "default";
@@ -374,7 +409,7 @@
 			status = "okay";
 		};
 
-		i2s_0:i2s@c0055000 {
+		i2s_0: i2s@c0055000 {
 			#sound-dai-cells = <1>;
 			master-mode = <1>;
 			mclk-in = <0>;
@@ -385,7 +420,7 @@
 			status = "okay";
 		};
 
-		i2s_1:i2s@c0056000 {
+		i2s_1: i2s@c0056000 {
 			#sound-dai-cells = <1>;
 			master-mode = <1>;
 			mclk-in = <0>;
@@ -397,7 +432,7 @@
 		};
 
 		pinctrl@C0010000 {
-			key_power:key_power {
+			key_power: key_power {
 				nexell,pins = "alive-0";
 				nexell,pin-function = <0>;
 				nexell,pin-pull = <1>;
@@ -411,7 +446,7 @@
 				nexell,pin-strength = <0>;
 			};
 
-			bt_cfg_en:bt_cfg_en {
+			bt_cfg_en: bt_cfg_en {
 				nexell,pins = "gpiob-8";
 				nexell,pin-function = <1>;
 				nexell,pin-pull = <2>;
