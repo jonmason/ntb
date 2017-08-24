@@ -559,14 +559,14 @@
 
 	display-timing {
 		clock-frequency = <50000000>;
-		hactive = <1280>;
-		vactive = <720>;
-		hfront-porch = <44>;
-		hback-porch = <16>;
+		hactive = <1024>;
+		vactive = <600>;
+		hfront-porch = <160>;
+		hback-porch = <160>;
 		hsync-len = <2>;
-		vfront-porch = <67>;
-		vback-porch = <5>;
-		vsync-len = <2>;
+		vfront-porch = <15>;
+		vback-porch = <23>;
+		vsync-len = <14>;
 	};
 
 	dp_control {
@@ -574,7 +574,7 @@
 		clk_div_lv0 = <16>;
 		clk_src_lv1 = <7>;
 		clk_div_lv1 = <1>;
-		out_format = <2>;
+		out_format = <3>;
 	};
 };
 
