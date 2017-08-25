@@ -45,24 +45,20 @@
 		method = "smc";
 	};
 
-	aliases {
-		i2c3 = &i2c_gpio3;
-	};
-
 	soc {
 		#include "s5p4418-pinctrl.dtsi"
 		clocks {
 			uart3:uart@c00ab000 { clock-frequency = <147500000>; };
-			uart1:uart@c00a8000 { clock-frequency = <100000000>; };
-			uart0:uart@c00a9000 { clock-frequency = <147500000>; };
-			dummy_clk: dummy_clk {
-				#clock-cells = <0>;
-				clock-output-names = "dummy_clk";
-				compatible = "fixed-clock";
-				clock-frequency = <0>;
+			/* Fix */
+			i2s1:i2s@c00b3000 {
+				clk-input = <I_PLL2>;
+			};
+
+			/* Fix */
+			i2s2:i2s@c00b4000 {
+				clk-input = <I_PLL2>;
 			};
 		};
-
 
 		l2:l2-cache-controller@cf000000 {
 			arm,prefetch-offset = <7>;
@@ -71,66 +67,37 @@
 			arm,tag-latency = <3 4 3>;
 			arm,data-latency = <3 4 3>;
 		};
-		serial0:serial@c00a1000 {
-			status ="okay";
-		};
-
-		serial1:serial@c00a0000 {
-			dmas = <&pl08xdma0 0 0>, <&pl08xdma0 1 0>;
-			dma-names = "tx", "rx";
-			pinctrl-0 = <&serial1_pin>, <&serial1_flow_cts>,
-						<&serial1_flow_rts>;
-			status ="okay";
-		};
 
 		serial3:serial@c00a3000 {
-			status ="okay";
-		};
+                        status ="okay";
+                };
 
 		amba {
 			pl08xdma0:pl08xdma@c0000000 {
 				use_isr;
-
-				ch12 {
+				ch12 {	/* I2S0 TX */
 					slave_wait_flush_dma;
 				};
-
-				ch13 {
+				ch13 {	/* I2S0 RX */
 					slave_wait_flush_dma;
 				};
-
-				ch14 {
+				ch14 {	/* I2S1 TX */
 					slave_wait_flush_dma;
 				};
-
-				ch15 {
+				ch15 {	/* I2S1 RX */
 					slave_wait_flush_dma;
 				};
 			};
 
 			pl08xdma1:pl08xdma@c0001000 {
 				use_isr;
-
-				ch0 {
+				ch0 {	/* I2S2 TX */
 					slave_wait_flush_dma;
 				};
-
-				ch1 {
+				ch1 {	/* I2S2 RX */
 					slave_wait_flush_dma;
 				};
 			};
-		};
-
-		watchdog@c0019000 {
-			status = "okay";
-		};
-
-		rtc@c0010c00 {
-			status = "okay";
-		};
-
-		nexell_usbphy: nexell-usbphy@c0012000 {
-			status = "okay";
 		};
 
 		ehci@c0030000 {
@@ -147,44 +114,50 @@
 			};
 		};
 
-		dwc2otg@c0040000 {
-			/*gpios = <&alive_0 5 0>;*/
+		nexell_usbphy: nexell-usbphy@c0012000 {
 			status = "okay";
 		};
 
+		dwc2otg@c0040000 {
+			status = "okay";
+		};
+
+		/* reference: slave, 32bit */
 		i2s_0:i2s@c0055000 {
 			#sound-dai-cells = <1>;
-			master-mode = <0>;
-			mclk-in = <0>;
-			trans-mode = <0>;
+			pre-supply-mclk = <0>;	/* Must be 0 */
+			master-mode = <0>;	/* Slave */
+			trans-mode = <0>; 	/* 1 : Left Jusified */
 			frame-bit = <32>;
 			sample-rate = <48000>;
-			pre-supply-mclk = <1>;
-			status = "okay";
-		};
-/*
-		i2s_1:i2s@c0056000 {
-			#sound-dai-cells = <1>;
-			master-mode = <0>;
-			mclk-in = <1>;
-			trans-mode = <0>;
-			frame-bit = <32>;
-			sample-rate = <48000>;
-			pre-supply-mclk = <0>;
 			status = "okay";
 		};
 
-		i2s_2:i2s@c0057000 {
+		/* mic 0 : master, 32bit, PLL <->EXTMCLK */
+		i2s_1:i2s@c0056000 {
 			#sound-dai-cells = <1>;
-			master-mode = <0>;
+			pre-supply-mclk = <0>;	/* Must be 0 */
+			master-mode = <1>;	/* Master */
 			mclk-in = <1>;
-			trans-mode = <0>;
+			trans-mode = <1>;	/* 1 : Left Jusified */
 			frame-bit = <32>;
 			sample-rate = <48000>;
-			pre-supply-mclk = <0>;
 			status = "okay";
 		};
-*/
+
+		/* mic 1 : master, 32bit, PLL <->EXTMCLK */
+		i2s_2:i2s@c0057000 {
+			#sound-dai-cells = <1>;
+			pre-supply-mclk = <0>;	/* Must be 0 */
+			master-mode = <1>;	/* Master */
+			mclk-in = <1>;
+			trans-mode = <1>;	/* 1 : Left Jusified */
+			frame-bit = <32>;
+			sample-rate = <48000>;
+			status = "okay";
+		};
+
+
 		i2c_gpio3: i2c@3 {
 			compatible = "i2c-gpio";
 			gpios = <&gpio_e 8 0		/* SDA */
@@ -321,61 +294,78 @@
 		}; /* i2c_gpio3 */
 	}; /*** soc ***/
 
-/*
-	snd_null: snd_null@0 {
+
+	snd_pcm:snd_ffv_pcm@1 {
 		#sound-dai-cells = <0>;
-		compatible = "nexell,snd-null";
-		#address-cells = <1>;
-		#size-cells = <0>;
-		reg = <0 0>;
+		compatible = "nexell,snd-pcm-farfield-voice";
+		status = "okay";
 	};
 
-    sound {
-        compatible = "simple-audio-card";
-        simple-audio-card,name = "s5p4418 ff-audio Audio";
-        simple-audio-card,widgets =
-            "Headphone", "Out Jack";
-        simple-audio-card,routing =
-            "Out Jack", "HPL",
-            "Out Jack", "HPR";
-        status = "okay";
+	snd_codec: snd_ffv_codec@0 {
+		#sound-dai-cells = <0>;
+		compatible = "nexell,farfield-voice,pdm";
+		#address-cells = <1>;
+		#size-cells = <0>;
 
-        simple-audio-card,dai-link@0 {
-            format = "i2s";
-            cpu {
-            sound-dai = <&i2s_0 0>;
-            };
+		check-mclk-ext = <1>;
+		check-mclk-pad = <&gpio_b 4 0>;	/* ref lrck */
 
-            codec {
-            sound-dai = <&snd_null>;
-            };
+		ref {
+			sound-dev = <&i2s_0 0>;
 
-        };
+		};
 
-    };
-*/
+		mic {
+			ch@0 {
+				sound-dev = <&i2s_1 0>;
+				switch-clkgen = < 4 1 7 1>;
+			};
+			ch@1 {
+				sound-dev = <&i2s_2 0>;
+				switch-clkgen = < 4 1 7 1>;
+			};
+		};
+	};
+
+	sound {
+		compatible = "nexell,simple-audio-card";
+		simple-audio-card,name = "s5p4418 Audio";
+
+		simple-audio-card,dai-link@0 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s_0 0>;
+			};
+			plat {
+				sound-dai = <&snd_pcm>;
+			};
+			codec {
+				sound-dai = <&snd_codec>;
+			};
+		};
+
+		simple-audio-card,dai-link@1 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s_1 0>;
+			};
+			codec {
+				sound-dai = <&snd_codec>;
+			};
+		};
+
+		simple-audio-card,dai-link@2 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s_2 0>;
+			};
+			codec {
+				sound-dai = <&snd_codec>;
+			};
+		};
+	};
 
 };
-
-
-
-&dw_mmc_0 {
-	num-slots = <1>;
-	bus-width = <4>;
-	cap-mmc-highspeed;
-	broken-cd;
-	non-removable;
-	clock-frequency = <100000000>;
-	card-detect-delay = <200>;
-	disable-wp;
-	nexell,drive_dly = <0x0>;
-	nexell,drive_shift = <0x02>;
-	nexell,sample_dly = <0x00>;
-	nexell,sample_shift = <0x01>;
-	status = "okay";
-};
-
-
 
 
 
