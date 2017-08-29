@@ -23,11 +23,11 @@
 	soc {
 		clocks {
 			i2s0:i2s@c00b2000 {
-				clk-input = <I_PLL3>;
+				clk-input = <I_EXTCLK1>;
 			};
 
 			i2s1:i2s@c00b3000 {
-				clk-input = <I_PLL3>;
+				clk-input = <I_EXTCLK1>;
 			};
 
 			i2s2:i2s@c00b4000 {
@@ -36,6 +36,13 @@
 		};
 
 		pinctrl@C0010000 {
+			i2s0_bus:i2s0{
+				/delete-node/ i2s0-mclk;
+			};
+			i2s1_bus:i2s1{
+				/delete-node/ i2s1-mclk;
+			};
+
 			i2s2_bus:i2s2 {
 				/delete-node/ i2s2-mclk;
 			};
@@ -43,12 +50,18 @@
 
 		i2s_0:i2s@c0055000 {
 			dfs;
-			dfs-pll = <3>;
+			master-mode = <0>;
+			mclk-in = <1>;
+			pre-supply-mclk = <0>;
+			sample-rate = <44100>;
 		};
 
 		i2s_1:i2s@c0056000 {
 			dfs;
-			dfs-pll = <3>;
+			master-mode =  <0>;
+			mclk-in = <1>;
+			pre-supply-mclk = <0>;
+			sample-rate = <44100>;
 		};
 
 		i2s_2:i2s@c0057000 {
@@ -87,15 +100,27 @@
 		simple-audio-card,name = "s5p4418 daudio_covi rev00 Audio";
 		/delete-property/ simple-audio-card,mclk-fs;
 
-		simple-audio-card,dai-link@0 {
-			mclk-fs = <256>;
-		};
-
 		simple-audio-card,dai-link@1 {
-			mclk-fs = <256>;
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s_0 0>;
+			};
+			codec {
+				sound-dai = <&snd_null>;
+			};
 		};
 
 		simple-audio-card,dai-link@2 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s_1 0>;
+			};
+			codec {
+				sound-dai = <&snd_null>;
+			};
+		};
+
+		simple-audio-card,dai-link@3 {
 			format = "i2s";
 			cpu {
 				sound-dai = <&i2s_2 0>;
@@ -106,7 +131,7 @@
 			};
 		};
 
-		simple-audio-card,dai-link@3 {
+		simple-audio-card,dai-link@0 {
 			mclk-fs = <256>;
 			cpu {
 				sound-dai = <&spdif_tx 0>;
