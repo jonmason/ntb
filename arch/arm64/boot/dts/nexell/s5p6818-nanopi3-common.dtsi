@@ -447,15 +447,48 @@
 		i2c_2: i2c@c00a6000 {
 			samsung,i2c-max-bus-freq = <200000>;
 			status = "okay";
-		};
 
-		pwm: pwm@c0018000 {
-			clock-names = "timers", "pwm-tclk0", "pwm-tclk1";
-			clocks = <&pclk>, <&pwm0>, <&pwm1>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&pwm0_pin &pwm1_pin>;
-			samsung,pwm-outputs = <0>, <1>;
-			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			onewire_ts@2f {
+				compatible = "onewire";
+				reg = <0x2f>;
+				interrupt-parent = <&gpio_c>;
+				interrupts = <16 IRQ_TYPE_EDGE_FALLING>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&touchpanel_irq>;
+			};
+
+			ft5x06_ts@38 {
+				compatible = "edt,edt-ft5x06", "ft5x06";
+				reg = <0x38>;
+				interrupt-parent = <&gpio_c>;
+				interrupts = <16 IRQ_TYPE_EDGE_FALLING>;
+			};
+
+			goodix_ts@5d {
+				compatible = "goodix,gt9xx";
+				reg = <0x5d>;
+				interrupt-parent = <&gpio_c>;
+				interrupts = <16 IRQ_TYPE_EDGE_FALLING>;
+				goodix,irq-gpio = <&gpio_c 16 0>;
+			};
+
+			hx8528a_ts@48 {
+				compatible = "himax,hx8528-a";
+				reg = <0x48>;
+				interrupt-parent = <&gpio_c>;
+				interrupts = <16 IRQ_TYPE_EDGE_FALLING>;
+			};
+
+			it7260_ts@46 {
+				compatible = "ite,it7260";
+				reg = <0x46>;
+				interrupt-parent = <&gpio_c>;
+				interrupts = <16 IRQ_TYPE_EDGE_FALLING>;
+			};
+
 		};
 
 		i2s_0: i2s@c0055000 {
@@ -488,10 +521,17 @@
 				nexell,pin-strength = <0>;
 			};
 
-			toutchpanel_irq: touchpanel-irq {
-				nexell,pins = "gpiod-8";
+			onewire_pin: onewire-pin {
+				nexell,pins = "gpioc-15";
 				nexell,pin-function = <1>;
-				nexell,pin-pull = <1>;
+				nexell,pin-pull = <2>;
+				nexell,pin-strength = <0>;
+			};
+
+			touchpanel_irq: touchpanel-irq {
+				nexell,pins = "gpioc-16";
+				nexell,pin-function = <1>;
+				nexell,pin-pull = <2>;
 				nexell,pin-strength = <0>;
 			};
 
@@ -535,6 +575,17 @@
 		};
 	};
 
+	onewire_pwm {
+		compatible = "onewire";
+		reg = <PHYS_BASE_PWM 0x1000>;
+		interrupt-parent = <&gic>;
+		interrupts = <0 IRQ_PWM_INT3 0>;
+		pwms = <&pwm 3 104166 0>;  /* 1000000000/9600 */
+		io,gpio = <&gpio_c 15 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&onewire_pin>;
+	};
+
 	gpio_key: gpio_keys {
 		compatible = "gpio-keys";
 		#address-cells = <1>;
@@ -565,6 +616,12 @@
 			heap-type = "ion_dma";
 		};
 	};
+};
+
+&pwm {
+	status = "okay";
+	pinctrl-0 = <&pwm0_pin &pwm1_pin &pwm2_pin>;
+	samsung,pwm-outputs = <0>, <1>, <2>, <3>;
 };
 
 &vip_0 {

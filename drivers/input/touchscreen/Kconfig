@@ -1134,4 +1134,6 @@ config TOUCHSCREEN_SSD2533
 
 source "drivers/input/touchscreen/melfas_mip4/Kconfig"
 
+source "drivers/input/touchscreen/friendlyelec/Kconfig"
+
 endif

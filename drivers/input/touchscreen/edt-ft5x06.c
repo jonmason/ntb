@@ -39,6 +39,11 @@
 #include <linux/input/mt.h>
 #include <linux/input/touchscreen.h>
 #include <linux/of_device.h>
+#include <linux/platform_data/ctouch.h>
+
+#if defined(CONFIG_DRM_PANEL_FRIENDLYELEC)
+extern void panel_get_display_size(int *w, int *h);
+#endif
 
 #define WORK_REGISTER_THRESHOLD		0x00
 #define WORK_REGISTER_REPORT_RATE	0x08
@@ -882,10 +887,16 @@ static int edt_ft5x06_ts_probe(struct i2c_client *client,
 	struct edt_ft5x06_ts_data *tsdata;
 	struct input_dev *input;
 	unsigned long irq_flags;
+	int ctp_id, max_x, max_y;
 	int error;
 	char fw_version[EDT_NAME_LEN];
 
 	dev_dbg(&client->dev, "probing for EDT FT5x06 I2C\n");
+
+	ctp_id = panel_get_touch_id();
+	if (ctp_id != CTP_FT5X06 && ctp_id != CTP_AUTO) {
+		return -ENODEV;
+	}
 
 	tsdata = devm_kzalloc(&client->dev, sizeof(*tsdata), GFP_KERNEL);
 	if (!tsdata) {
@@ -961,10 +972,16 @@ static int edt_ft5x06_ts_probe(struct i2c_client *client,
 	input->id.bustype = BUS_I2C;
 	input->dev.parent = &client->dev;
 
+	max_x = tsdata->num_x * 64 - 1;
+	max_y = tsdata->num_y * 64 - 1;
+#if defined(CONFIG_DRM_PANEL_FRIENDLYELEC)
+	panel_get_display_size(&max_x, &max_y);
+#endif
+
 	input_set_abs_params(input, ABS_MT_POSITION_X,
-			     0, tsdata->num_x * 64 - 1, 0, 0);
+			     0, max_x, 0, 0);
 	input_set_abs_params(input, ABS_MT_POSITION_Y,
-			     0, tsdata->num_y * 64 - 1, 0, 0);
+			     0, max_y, 0, 0);
 
 	touchscreen_parse_properties(input, true);
 
@@ -1001,6 +1018,8 @@ static int edt_ft5x06_ts_probe(struct i2c_client *client,
 
 	edt_ft5x06_ts_prepare_debugfs(tsdata, dev_driver_string(&client->dev));
 	device_init_wakeup(&client->dev, 1);
+
+	panel_set_touch_id(CTP_FT5X06);
 
 	dev_dbg(&client->dev,
 		"EDT FT5x06 initialized: IRQ %d, WAKE pin %d, Reset pin %d.\n",

@@ -95,3 +95,4 @@ obj-$(CONFIG_TOUCHSCREEN_ZINITIX_BT532)	+= zinitix_touch.o
 obj-$(CONFIG_TOUCHSCREEN_GSLX680)	+= gslX680.o gsl_point_id_64
 obj-$(CONFIG_TOUCHSCREEN_SSD2533)	+= ssd253x-ts.o
 obj-$(CONFIG_TOUCHSCREEN_MELFAS_MMS427) += melfas_mip4/
+obj-$(CONFIG_TOUCHSCREEN_FE_PANELS)	+= friendlyelec/

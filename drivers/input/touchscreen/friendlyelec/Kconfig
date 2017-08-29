@@ -1,0 +1,91 @@
+#
+# Touchscreen driver configuration
+#
+
+menuconfig TOUCHSCREEN_FE_PANELS
+	bool "Support for FriendlyElec Panels"
+
+if TOUCHSCREEN_FE_PANELS
+
+config TOUCHSCREEN_1WIRE
+	tristate "1-Wire host and Touch Screen Driver"
+	depends on I2C && PWM
+	help
+	  Say Y here to enable the 1-Wire host and Touch Screen driver for
+	  FriendlyARM NanoPi2 development board.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called 1wire_host.
+
+config AUTO_REPORT_1WIRE_INPUT
+	tristate "Auto report 1wire data to input system"
+	depends on TOUCHSCREEN_1WIRE
+	default n
+	help
+	  Say Y here to enable auto report 1wire touch data to input system.
+
+	  If unsure, say N.
+
+config TOUCHSCREEN_IF
+	bool
+	default y if TOUCHSCREEN_1WIRE
+
+config TOUCHSCREEN_GT9XX
+	tristate "Goodix GT9xx touchscreen driver"
+	depends on I2C
+	default n
+	help
+	  Say Y here if you have the Goodix GT9xx touchscreen.
+
+	  If unsure, say N.
+
+config TOUCHSCREEN_IT7260
+	tristate "ITE it7260 TouchScreen driver"
+	depends on I2C
+	help
+	  Say Y here to support ITE it7260 based touchscreen on
+	  FriendlyARM NanoPi2 development board.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called it7260_mts.ko.
+
+config TOUCHSCREEN_HIMAX
+	tristate "Himax touchscreen support"
+	depends on I2C
+	help
+	  Say Y here if you have a Himax touchscreen and your
+	  board-specific setup code includes that in its table
+	  of I2C devices.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called himax_ts.
+
+choice
+prompt "Select Touch Protocol"
+depends on TOUCHSCREEN_FT5X0X || TOUCHSCREEN_GT9XX || TOUCHSCREEN_IT7260 || TOUCHSCREEN_HIMAX
+default TOUCHSCREEN_PROT_MT_SLOT
+
+config TOUCHSCREEN_PROT_MT_SYNC
+	bool "Multi-touch Protocol A"
+	help
+	  This enables the stateless type A protocol for QT + tslib.
+
+config TOUCHSCREEN_PROT_MT_SLOT
+	bool "Multi-touch Protocol B"
+	help
+	  This enables the stateful type B slot protocol for Android.
+
+config TOUCHSCREEN_PROT_SINGLE
+	bool "Single-touch Protocol"
+	help
+	  This disables multi-touch mode for Debian (xserver-xorg-input-evdev).
+
+endchoice
+
+endif
