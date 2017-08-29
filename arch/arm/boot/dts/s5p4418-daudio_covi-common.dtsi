@@ -146,6 +146,8 @@
 			#sound-dai-cells = <1>;
 			pcm-bit = <16>;
 			sample_rate = <48000>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&spdiftx_pin>;
 			status = "okay";
 		};
 
@@ -253,22 +255,10 @@
 				nexell,pin-strength = <0>;
 			};
 		};
-    /* i2c0 : hero */
 		i2c_0:i2c@c00a4000 {
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "okay";
-
-			/*hero: hero@63 {*/
-			hero: hero@62 {
-				#sound-dai-cells = <0>;
-				compatible = "hero,nxp";
-				reg = <0x63>;
-            		/* reset gpio */
-            		rst-gpios = <&gpio_c 8 0>;
-            		/* cpu_mute gpio */
-            		mut-gpios = <&gpio_e 19 0>;
-			};
 		};
 		/* i2c1: ipod */
 		i2c_1:i2c@c00a5000 {
