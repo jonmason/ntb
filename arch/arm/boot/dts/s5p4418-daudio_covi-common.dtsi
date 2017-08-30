@@ -48,7 +48,7 @@
 		clocks {
 			uart3:uart@c00ab000 { clock-frequency = <147500000>; };
 			uart1:uart@c00a8000 { clock-frequency = <100000000>; };
-			uart4:uart@c006e000 { clock-frequency = <100000000>; };
+			uart4:uart@c006e000 { clock-frequency = <147500000>; };
 			vip0:vip@c00c1000 { clock-frequency = <300000000>; };
 			vip1:vip@c00c2000 { src-force = <5>; };
 			pwm0:pwm0@c00ba000 {
@@ -103,8 +103,6 @@
 		};
     /* Ucom */
 		serial4:serial@c006d000 {
-			dmas = <&pl08xdma0 4 0>, <&pl08xdma0 5 0>;
-			dma-names = "tx", "rx";
 			status ="okay";
 		};
 
