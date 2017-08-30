@@ -86,9 +86,11 @@ struct svoice_snd {
 	struct list_head list;
 	spinlock_t lock;
 	int num_require_dev;
-	bool detector;
+	bool detect;
+	struct nx_pcm_rate_detector *rate_detector;
 	void __iomem *io_bases[SVI_IOBASE_MAX];
 };
+#define us_to_ktime(u)  ns_to_ktime((u64)u * 1000)
 
 #define	DETECT_LRCK_WAIT 2000
 
@@ -319,6 +321,14 @@ static int svoice_start(struct svoice_snd *snd)
 	/* read LRCK status */
 	val = readl(pin->base + 0x18) & (1 << pin->offset);
 
+	if (snd->rate_detector) {
+		/* wait multiple time */
+		long duration = snd->rate_detector->duration_us * 2;
+
+		hrtimer_start(&snd->rate_detector->timer,
+			us_to_ktime(duration), HRTIMER_MODE_REL_PINNED);
+	}
+
 	pr_info("Smart Voice LRCK: %s (%s)\n",
 		lrck ? "exist" : "no exist", val ? "H" : "L");
 
@@ -468,8 +478,8 @@ static int svoice_startup(struct snd_pcm_substream *substream,
 
 	if (strstr(cpu_node->name, "i2s")) {
 		sv->type = SVI_DEV_I2S;
-		if (!snd->detector) {
-			snd->detector = true;
+		if (!snd->detect) {
+			snd->detect = true;
 			prtd->run_detector = true;
 		}
 	} else if (strstr(cpu_node->name, "spi")) {
@@ -528,8 +538,10 @@ static void svoice_shutdown(struct snd_pcm_substream *substream,
 	list_del(&sv->list);
 	spin_unlock(&snd->lock);
 
-	if (snd->detector)
-		snd->detector = false;
+	if (snd->detect) {
+		snd->detect = false;
+		snd->rate_detector = NULL;
+	}
 
 	dev_dbg(dai->dev, "%s: %p type:%s\n",
 		rtd->cpu_dai->name, sv->virtbase,
@@ -545,9 +557,12 @@ static int svoice_prepare(struct snd_pcm_substream *substream,
 			struct snd_soc_dai *dai)
 {
 	struct nx_pcm_runtime_data *prtd = substream->runtime->private_data;
+	struct svoice_snd *snd = snd_soc_codec_get_drvdata(dai->codec);
 
-	if (prtd->rate_detector)
+	if (prtd->rate_detector) {
 		prtd->rate_detector->cb = __pin_nolrck;
+		snd->rate_detector = prtd->rate_detector;
+	}
 
 	return 0;
 }

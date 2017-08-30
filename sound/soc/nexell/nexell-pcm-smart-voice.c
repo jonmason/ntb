@@ -88,7 +88,8 @@ static void nx_pcm_rate_detect_work(struct work_struct *work)
 	unsigned long flags;
 	char *envp[2] = { detect->message, NULL };
 
-	dev_dbg(prtd->dev, "rate changed msg %d -> [%s]\n",
+	dev_dbg(prtd->dev,
+		"rate changed msg %d -> [%s]\n",
 		detect->i_rate, detect->message);
 
 	kobject_uevent_env(kobj, KOBJ_CHANGE, envp);
@@ -121,7 +122,8 @@ static enum hrtimer_restart nx_pcm_rate_detect_timer(struct hrtimer *hrtimer)
 		spin_unlock_irqrestore(&detect->lock, flags);
 
 		/* Notify no LRCK */
-		detect->cb(detect);
+		if (detect->cb)
+			detect->cb(substream->private_data);
 
 		schedule_work(&detect->work);
 
@@ -162,7 +164,7 @@ static int nx_pcm_rate_search(int *table, int table_size, int rate)
 	return table[find];
 }
 
-static void nx_pcm_rate_detect_rate(
+static void nx_pcm_rate_detect_dynamic_rate(
 			struct snd_pcm_substream *substream, s64 us)
 {
 	struct nx_pcm_runtime_data *prtd = substream_to_prtd(substream);
@@ -236,7 +238,7 @@ static void nx_pcm_rate_detect_complete(struct snd_pcm_substream *substream)
 		return;
 
 	if (dynamic_rate) {
-		nx_pcm_rate_detect_rate(
+		nx_pcm_rate_detect_dynamic_rate(
 				substream, ktime_to_us(ktime_get()));
 		return;
 	}
@@ -248,25 +250,16 @@ static void nx_pcm_rate_detect_complete(struct snd_pcm_substream *substream)
 		detect->changed_rate = detect->i_rate;
 		sprintf(detect->message, "SAMPLERATE_CHANGED=%d",
 			(int)detect->changed_rate);
+
 		schedule_work(&detect->work);
+		/* run timer for next sample */
+		#if 0
+		hrtimer_cancel(&detect->timer);
+		hrtimer_start(&detect->timer,
+			us_to_ktime(detect->duration_us * 2),
+			HRTIMER_MODE_REL_PINNED);
+		#endif
 	}
-}
-
-static int nx_pcm_rate_detect_submit(struct snd_pcm_substream *substream)
-{
-	struct nx_pcm_runtime_data *prtd = substream_to_prtd(substream);
-	struct nx_pcm_rate_detector *detect = prtd->rate_detector;
-	long duration;
-
-	if (!prtd->run_detector)
-		return 0;
-
-	duration = detect->duration_us * 2; /* wait multiple time */
-
-	hrtimer_start(&detect->timer,
-		us_to_ktime(duration), HRTIMER_MODE_REL_PINNED);
-
-	return 0;
 }
 
 static int nx_pcm_rate_detect_params(struct snd_pcm_substream *substream,
@@ -456,8 +449,6 @@ static int nx_pcm_dma_prepare_and_submit(struct snd_pcm_substream *substream)
 	struct dma_async_tx_descriptor *desc;
 	enum dma_transfer_direction direction;
 	unsigned long flags = DMA_CTRL_ACK;
-
-	nx_pcm_rate_detect_submit(substream);
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
 		direction = DMA_MEM_TO_DEV;
@@ -785,6 +776,7 @@ static int nx_pcm_remove(struct platform_device *pdev)
 #ifdef CONFIG_OF
 static const struct of_device_id pcm_smart_voice_match[] = {
 	{ .compatible = "nexell,snd-pcm-smart-voice" },
+	{ .compatible = "nexell,snd-pcm-farfield-voice" },
 	{},
 };
 MODULE_DEVICE_TABLE(of, pcm_smart_voice_match);

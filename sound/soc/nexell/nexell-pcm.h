@@ -48,7 +48,7 @@ struct nx_pcm_dma_area {
 	unsigned char *virtual;		/* dma physical addr */
 };
 
-#ifdef CONFIG_SND_CODEC_SMARTVOICE
+#if defined CONFIG_SND_CODEC_SMARTVOICE || defined CONFIG_SND_CODEC_FARFIELD
 struct nx_pcm_rate_detector {
 	struct snd_pcm_substream *substream;
 	s64 *us;
@@ -86,7 +86,7 @@ struct nx_pcm_runtime_data {
 	unsigned int mem_offs;
 	long long period_time_us;
 	/* sample rate detector for smart-voice */
-#ifdef CONFIG_SND_CODEC_SMARTVOICE
+#if defined CONFIG_SND_CODEC_SMARTVOICE || defined CONFIG_SND_CODEC_FARFIELD
 	bool run_detector;
 	struct nx_pcm_rate_detector *rate_detector;
 #endif
