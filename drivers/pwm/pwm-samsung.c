@@ -328,7 +328,28 @@ static unsigned long pwm_samsung_calc_tin(struct samsung_pwm_chip *chip,
 	}
 
 	if (!pwm_samsung_is_tdiv(chip, chan)) {
-		clk = (chan < 2) ? chip->tclk0 : chip->tclk1;
+		if (of_device_is_compatible(chip->chip.dev->of_node,
+					    "nexell,s5p4418-pwm")) {
+			switch (chan) {
+			case 0:
+				clk = chip->tclk0;
+				break;
+			case 1:
+				clk = chip->tclk1;
+				break;
+			case 2:
+				clk = chip->tclk2;
+				break;
+			case 3:
+				clk = chip->tclk3;
+				break;
+			default:
+				clk = NULL;
+				break;
+			}
+		} else
+			clk = (chan < 2) ? chip->tclk0 : chip->tclk1;
+
 		if (!IS_ERR(clk)) {
 			rate = clk_get_rate(clk);
 			if (rate)
