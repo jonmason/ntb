@@ -8919,7 +8919,7 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 			} else
 				bcmerror = BCME_SDIO_ERROR;
 
-				dhd_os_sdunlock(dhdp);
+			dhd_os_sdunlock(dhdp);
 		} else {
 			bcmerror = BCME_SDIO_ERROR;
 			DHD_INFO(("%s called when dongle is not in reset\n",
@@ -8984,6 +8984,7 @@ dhd_bus_membytes(dhd_pub_t *dhdp, bool set, uint32 address, uint8 *data, uint si
 	bus = dhdp->bus;
 	return dhdsdio_membytes(bus, set, address, data, size);
 }
+
 #if defined(SUPPORT_MULTIPLE_REVISION)
 /* Just print chip revision for BCM4330 */
 static int
@@ -9177,6 +9178,42 @@ static int concate_revision_bcm43241(dhd_bus_t *bus, char *fw_path, char *nv_pat
 	return 0;
 }
 
+static int concate_revision_bcm43430(dhd_bus_t *bus, char *fw_path, char *nv_path)
+{
+	uint32 chip_id, chip_ver;
+	int i, j;
+
+	/* find out the last '/' */
+	i = strlen(fw_path);
+	while (i > 0) {
+		if (fw_path[--i] == '/') break;
+	}
+	j = strlen(nv_path);
+	while (j > 0) {
+		if (nv_path[--j] == '/') break;
+	}
+
+	DHD_TRACE(("%s: BCM4343 Multiple Revision Check\n", __FUNCTION__));
+
+	chip_id = bus->sih->chip;
+	chip_ver = bus->sih->chiprev;
+
+	if (chip_ver == 0) {
+		DHD_ERROR(("----- CHIP 4343 A0 -----\n"));
+		strcpy(&fw_path[i+1], "fw_bcm43438a0.bin");
+		strcpy(&nv_path[j+1], "nvram.txt");
+
+	} else if (chip_ver == 1) {
+		DHD_ERROR(("----- CHIP 4343 A1 -----\n"));
+		strcpy(&fw_path[i+1], "fw_bcm43438a1.bin");
+		strcpy(&nv_path[j+1], "nvram_ap6212.txt");
+	} else {
+		DHD_ERROR(("----- Unknown chip version, ver=%x -----\n", chip_ver));
+	}
+
+	return 0;
+}
+
 static int concate_revision_bcm4350(dhd_bus_t *bus, char *fw_path, char *nv_path)
 {
 	uint32 chip_id, chip_ver;
@@ -9261,7 +9298,6 @@ concate_revision(dhd_bus_t *bus, char *fw_path, char *nv_path)
 		break;
 	case BCM4335_CHIP_ID:
 		res = concate_revision_bcm4335(bus, fw_path, nv_path);
-
 		break;
 	case BCM4339_CHIP_ID:
 		res = concate_revision_bcm4339(bus, fw_path, nv_path);
@@ -9271,6 +9307,9 @@ concate_revision(dhd_bus_t *bus, char *fw_path, char *nv_path)
 		break;
 	case BCM4324_CHIP_ID:
 		res = concate_revision_bcm43241(bus, fw_path, nv_path);
+		break;
+	case BCM43430_CHIP_ID:
+		res = concate_revision_bcm43430(bus, fw_path, nv_path);
 		break;
 	case BCM4350_CHIP_ID:
 		res = concate_revision_bcm4350(bus, fw_path, nv_path);
