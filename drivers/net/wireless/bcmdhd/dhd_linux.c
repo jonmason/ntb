@@ -7778,12 +7778,14 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	uint32 wl_ap_isolate;
 #endif /* PCIE_FULL_DONGLE */
 
+#ifdef USE_WL_FRAMEBURST
 #if defined(BCMSDIO) || defined(DISABLE_FRAMEBURST)
 	/* default frame burst enabled for PCIe, disabled for SDIO dongles and media targets */
 	uint32 frameburst = 0;
 #else
 	uint32 frameburst = 1;
 #endif /* BCMSDIO */
+#endif /* USE_WL_FRAMEBURST */
 
 #ifdef DHD_ENABLE_LPC
 	uint32 lpc = 1;
@@ -8255,6 +8257,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 		DHD_ERROR(("%s Set txbf failed  %d\n", __FUNCTION__, ret));
 	}
 #endif /* USE_WL_TXBF */
+#ifdef USE_WL_FRAMEBURST
 #if defined(CUSTOMER_HW4) && defined(USE_WFA_CERT_CONF)
 	 if (sec_get_param_wfa_cert(dhd, SET_PARAM_FRAMEBURST, &frameburst) == BCME_OK) {
 		DHD_ERROR(("%s, read frameburst param=%d\n", __FUNCTION__, frameburst));
@@ -8269,11 +8272,12 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 		frameburst = 0;
 	}
 #endif /* DISABLE_WL_FRAMEBURST_SOFTAP */
-/* Set frameburst to value */
+	/* Set frameburst to value */
 	if ((ret = dhd_wl_ioctl_cmd(dhd, WLC_SET_FAKEFRAG, (char *)&frameburst,
 		sizeof(frameburst), TRUE, 0)) < 0) {
 		DHD_INFO(("%s frameburst not supported  %d\n", __FUNCTION__, ret));
 	}
+#endif /* USE_WL_FRAMEBURST */
 #ifdef DHD_SET_FW_HIGHSPEED
 	/* Set ack_ratio */
 	bcm_mkiovar("ack_ratio", (char *)&ack_ratio, 4, iovbuf, sizeof(iovbuf));
