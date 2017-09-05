@@ -92,8 +92,7 @@
 #include <dhd_wet.h>
 #endif /* DHD_WET */
 
-int dhd_msg_level = DHD_ERROR_VAL | DHD_MSGTRACE_VAL | DHD_EVENT_VAL;
-
+int dhd_msg_level = DHD_ERROR_VAL;
 
 
 #include <wl_iw.h>
