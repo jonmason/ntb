@@ -601,6 +601,13 @@
 		};
 	};
 
+	wlan {
+		compatible = "samsung,brcm-wlan";
+		gpios = <&gpio_b 24 0  /* WLAN_EN */
+			 &gpio_c 17 0>; /* WLAN_HOST_WAKE */
+		status = "okay";
+	};
+
 	nexell-ion@0 {
 		compatible = "nexell,ion";
 
@@ -622,6 +629,26 @@
 	status = "okay";
 	pinctrl-0 = <&pwm0_pin &pwm1_pin &pwm2_pin>;
 	samsung,pwm-outputs = <0>, <1>, <2>, <3>;
+};
+
+&dw_mmc_1 {
+	num-slots = <1>;
+	bus-width = <4>;
+	cap-sd-highspeed;
+	cd-type-external;
+	broken-cd;
+	pm-ignore-notify;
+	keep-power-in-suspend;
+	powered-resumed-nonremovable-card;
+	cd-type = <2>;
+	clock-frequency = <100000000>;
+	nexell,drive_dly = <0x0>;
+	nexell,drive_shift = <0x02>;
+	nexell,sample_dly = <0x00>;
+	nexell,sample_shift = <0x01>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdmmc1_cclk &sdmmc1_cmd &sdmmc1_bus4
+		     &cfg_wlanen &cfg_wlanhostwake>;
 };
 
 &vip_0 {

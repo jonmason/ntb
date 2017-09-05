@@ -19,3 +19,7 @@
 /dts-v1/;
 #include "s5p6818-nanopi3-common.dtsi"
 
+&dw_mmc_1 {
+	status = "okay";
+};
+
