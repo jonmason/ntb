@@ -39,6 +39,10 @@
 #include <dhd_linux.h>
 #include <bcmdevs.h>
 
+#ifdef GET_OTP_MAC_ENABLE
+#include <hndsoc.h>
+#endif
+
 #include <linux/fcntl.h>
 #include <linux/fs.h>
 
@@ -933,6 +937,70 @@ int dhd_check_module_mac(dhd_pub_t *dhd, struct ether_addr *mac)
 	return ret;
 }
 #endif /* GET_MAC_FROM_OTP */
+
+#ifdef GET_OTP_MAC_ENABLE
+/* Based on dhd_conf_get_mac() of dhd_config.c */
+int dhd_otp_get_mac(dhd_pub_t *dhd, bcmsdh_info_t *sdh, uint8 *mac)
+{
+	uint8 header[3] = {0x80, 0x07, 0x19};
+	unsigned char cis_buf[CIS_BUF_SIZE] = {0};
+	unsigned char tpl_code, tpl_link='\0';
+	unsigned char *ptr;
+	int i, err;
+
+	if ((err = bcmsdh_cis_read(sdh, 0, cis_buf, CIS_BUF_SIZE))) {
+		DHD_ERROR(("%s: cis read err %d\n", __FUNCTION__, err));
+		return err;
+	}
+
+	err = -1;
+	ptr = cis_buf;
+
+	do {
+		/* 0xff means we're done */
+		tpl_code = *ptr;
+		ptr++;
+		if (tpl_code == 0xff)
+			break;
+
+		/* null entries have no link field or data */
+		if (tpl_code == 0x00)
+			continue;
+
+		tpl_link = *ptr;
+		ptr++;
+		/* a size of 0xff also means we're done */
+		if (tpl_link == 0xff)
+			break;
+
+		if (tpl_code == 0x80 && tpl_link == 0x07 && *ptr == 0x19)
+			break;
+
+		ptr += tpl_link;
+	} while ((ptr - cis_buf) < (CIS_BUF_SIZE - 7));
+
+	if (tpl_code == 0x80 && tpl_link == 0x07 && *ptr == 0x19) {
+		/* Normal OTP */
+		memcpy(mac, ptr+1, 6);
+		err = 0;
+
+	} else {
+		/* Special OTP */
+		if (bcmsdh_reg_read(sdh, SI_ENUM_BASE, 4) == 0x16044330) {
+			ptr = cis_buf;
+			for (i = 0; i < (CIS_BUF_SIZE - 8); i++, ptr++) {
+				if (!memcmp(header, ptr, 3)) {
+					memcpy(mac, ptr+4, 6);
+					err = 0;
+					break;
+				}
+			}
+		}
+	}
+
+	return err;
+}
+#endif /* GET_OTP_MAC_ENABLE */
 
 #ifdef WRITE_MACADDR
 int dhd_write_macaddr(struct ether_addr *mac)

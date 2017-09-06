@@ -82,6 +82,10 @@ extern void bcmsdh_waitfor_iodrain(void *sdh);
 extern void bcmsdh_reject_ioreqs(void *sdh, bool reject);
 extern bool  bcmsdh_fatal_error(void *sdh);
 
+#ifdef GET_OTP_MAC_ENABLE
+extern int dhd_otp_get_mac(dhd_pub_t *dhd, bcmsdh_info_t *sdh, uint8 *mac);
+#endif
+
 #ifndef DHDSDIO_MEM_DUMP_FNAME
 #define DHDSDIO_MEM_DUMP_FNAME         "mem_dump"
 #endif
@@ -7430,6 +7434,11 @@ dhdsdio_probe(uint16 venid, uint16 devid, uint16 bus_no, uint16 slot,
 		bus->dhd->mac.octet[0] = 0;
 		bus->dhd->mac.octet[1] = 0x90;
 		bus->dhd->mac.octet[2] = 0x4C;
+
+#ifdef GET_OTP_MAC_ENABLE
+		if (dhd_otp_get_mac(bus->dhd, sdh, bus->dhd->mac.octet))
+			DHD_ERROR(("%s: Can not read MAC address\n", __FUNCTION__));
+#endif
 	}
 #endif /* CUSTOMER_HW4 */
 	/* Ok, have the per-port tell the stack we're open for business */
