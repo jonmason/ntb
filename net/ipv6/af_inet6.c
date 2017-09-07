@@ -1054,6 +1054,10 @@ out_unregister_tcp_proto:
 	proto_unregister(&tcpv6_prot);
 	goto out;
 }
+#ifdef CONFIG_IPV6_INIT_LEVEL_UP
+fs_initcall(inet6_init);
+#else
 module_init(inet6_init);
+#endif
 
 MODULE_ALIAS_NETPROTO(PF_INET6);

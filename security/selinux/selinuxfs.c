@@ -1873,7 +1873,11 @@ static int __init init_sel_fs(void)
 	return err;
 }
 
+#ifdef CONFIG_SELINUX_INIT_LEVEL_UP
+fs_initcall(init_sel_fs);
+#else
 __initcall(init_sel_fs);
+#endif
 
 #ifdef CONFIG_SECURITY_SELINUX_DISABLE
 void exit_sel_fs(void)

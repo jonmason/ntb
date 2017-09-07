@@ -61,3 +61,19 @@ config MMC_INIT_LEVEL_UP
 config EXT4_FS_INIT_LEVEL_UP
 	depends on MMC_INIT_LEVEL_UP
 	bool
+
+config SELINUX_INIT_LEVEL_UP
+	bool "selinux mount init level up"
+	depends on ARCH_S5P4418 && REDUCE_BOOT_TIME
+
+config IPV6_INIT_LEVEL_UP
+	bool "IPv6 init level up"
+	depends on ARCH_S5P4418 && REDUCE_BOOT_TIME
+
+config FUTEX_INIT_LEVEL_UP
+	bool "futext init level up"
+	depends on ARCH_S5P4418 && REDUCE_BOOT_TIME
+
+config DEVPTS_INIT_LEVEL_UP
+	bool "devpts init level up"
+	depends on ARCH_S5P4418 && REDUCE_BOOT_TIME

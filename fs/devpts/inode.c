@@ -722,4 +722,8 @@ static int __init init_devpts_fs(void)
 	}
 	return err;
 }
+#ifdef CONFIG_DEVPTS_INIT_LEVEL_UP
+fs_initcall(init_devpts_fs);
+#else
 module_init(init_devpts_fs)
+#endif

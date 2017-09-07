@@ -3199,4 +3199,8 @@ static int __init futex_init(void)
 
 	return 0;
 }
+#ifdef CONFIG_FUTEX_INIT_LEVEL_UP
+fs_initcall(futex_init);
+#else
 __initcall(futex_init);
+#endif
