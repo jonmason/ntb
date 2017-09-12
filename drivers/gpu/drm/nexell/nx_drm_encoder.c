@@ -209,6 +209,12 @@ static int nx_drm_vblank_irq_request(struct drm_device *drm,
 		nx_crtc->irq = INVALID_IRQ;
 		return -EINVAL;
 	}
+
+	/*
+	 * enable drm irq mode.
+	 * - with irq_enabled = true, we can use the vblank feature.
+	 */
+	drm->irq_enabled = true;
 	nx_crtc->irq_install = true;
 
 	DRM_INFO("request CRTC.%d IRQ %d\n", nx_crtc->irq, nx_crtc->pipe);
@@ -227,6 +233,7 @@ static void nx_drm_vblank_irq_free(struct drm_device *drm,
 	devm_free_irq(drm->dev, nx_crtc->irq, encoder);
 
 	nx_crtc->irq_install = false;
+	drm->irq_enabled = false;
 	DRM_INFO("free CRTC.%d IRQ %d\n", nx_crtc->irq, nx_crtc->pipe);
 }
 
