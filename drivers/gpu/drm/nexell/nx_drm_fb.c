@@ -33,10 +33,11 @@ static bool fb_format_bgr;
 MODULE_PARM_DESC(fb_bgr, "frame buffer BGR pixel format");
 module_param_named(fb_bgr, fb_format_bgr, bool, 0600);
 
+static uint fb_pan_crtcs = 0xff;
+
 #ifdef CONFIG_DRM_NX_FB_PAN_DISPLAY
 static int fb_buffer_count = 1;
 static bool fb_vblank_wait;
-static uint fb_pan_crtcs = 0xff;
 
 MODULE_PARM_DESC(fb_buffers, "frame buffer count");
 module_param_named(fb_buffers, fb_buffer_count, int, 0600);
@@ -185,6 +186,17 @@ static int nx_drm_fb_pre_boot_logo(struct drm_fb_helper *fb_helper)
 	return 0;
 }
 #endif
+
+static inline int possible_crtc_count(unsigned int n)
+{
+	int counter = 0;
+
+	while (n) {
+		counter++;
+		n &= (n - 1);
+	}
+	return counter;
+}
 
 #ifdef CONFIG_DRM_NX_FB_PAN_DISPLAY
 static void nx_drm_fb_pan_wait_for_vblanks(struct drm_device *dev,
@@ -346,17 +358,6 @@ static int nx_drm_fb_atomic_commit(struct drm_device *drm,
 	drm_atomic_state_free(state);
 
 	return 0;
-}
-
-static inline int possible_crtc_count(unsigned int n)
-{
-	int counter = 0;
-
-	while (n) {
-		counter++;
-		n &= (n - 1);
-	}
-	return counter;
 }
 
 static inline int nx_drm_fb_mode_lock(struct drm_fb_helper *fb_helper,
