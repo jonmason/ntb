@@ -450,8 +450,10 @@ static void panel_hdmi_hpd_work(struct work_struct *work)
 		return;
 	}
 
+#ifdef CONFIG_DRM_FBDEV_EMULATION
 	if (panel_hdmi_wait_fb_bound(ctx))
 		return;
+#endif
 
 	plug = ops->hdmi->is_connected(display);
 	if (plug == ctx->plug)
