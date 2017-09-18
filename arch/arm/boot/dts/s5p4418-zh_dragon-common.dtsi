@@ -532,6 +532,7 @@
 	rotation = <0>;
 	skip_frame = <5>;
 	rear_cam_dev = <&clipper_0>;
+	draw_ioctl_overlay = <1>;
 	sensor_reg = <&sensor_tp2825>;
 	display = <&dp_drm>;
 	dp_drm_dev = <&dp_drm_lvds>;
