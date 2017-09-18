@@ -39,7 +39,6 @@
 #include <linux/sched.h>
 #include <linux/mm.h>
 #include <linux/dma-mapping.h>
-
 #include <dt-bindings/media/nexell-vip.h>
 
 #include "../nx-v4l2.h"
@@ -58,6 +57,9 @@
 
 #define DEBUG_SYNC_TIMEOUT_MS   (1000)
 #endif
+
+#include <linux/ioctl.h>
+#define DRAW_OVERLAY _IOW('s', 1, unsigned int *)
 
 #define TIME_LOG	0
 
@@ -291,6 +293,7 @@ struct nx_rgb_buf {
 	u32 rgb_addr;
 
 	u32 page_size;
+
 };
 
 struct nx_frame_set {
@@ -405,11 +408,18 @@ struct nx_clipper_info {
 };
 
 struct nx_rearcam {
+	struct class *class;
+	struct cdev cdev;
+	dev_t dev_node;
+
+	struct device *dev;
+
 	struct measurement measure;
 
 	u32 skip_frame_count;
 	u32 skip_frame;
 	u32 rotation;
+	u32 draw_overlay_from_ioctl;
 
 	struct i2c_client *client;
 	struct nx_clipper_info clipper_info;
@@ -496,6 +506,7 @@ struct nx_rearcam {
 	bool is_remove;
 	bool removed;
 
+	bool is_overlay_on;
 	bool is_display_on;
 	bool is_mlc_on;
 
@@ -1736,9 +1747,14 @@ static int nx_rearcam_parse_dt(struct device *dev, struct nx_rearcam *me)
 
 	me->skip_frame_count = 0;
 	me->skip_frame = 0;
+	me->draw_overlay_from_ioctl = 0;
+
 	child_skip_frame_node = _of_get_node_by_property(dev, np, "skip_frame");
 	if (child_skip_frame_node)
 		of_property_read_u32(np, "skip_frame", &me->skip_frame);
+
+	of_property_read_u32(np, "draw_ioctl_overlay",
+				     &me->draw_overlay_from_ioctl);
 
 	if (of_property_read_u32(np, "rotation", &me->rotation)) {
 		dev_err(dev, "failed to get dt rotation\n");
@@ -2648,6 +2664,7 @@ static void _turn_on(struct nx_rearcam *me)
 static void _turn_off(struct nx_rearcam *me)
 {
 	_mlc_overlay_stop(me);
+
 	_mlc_video_stop(me);
 
 	/*	_set_vip_interrupt(me, false);	*/
@@ -3614,11 +3631,18 @@ static void _display_worker(struct work_struct *work)
 	}
 
 	if (!me->is_mlc_on) {
-		_mlc_rgb_overlay_draw(me);
 		_mlc_video_run(me);
-		_mlc_overlay_run(me);
+
+		if (!me->draw_overlay_from_ioctl) {
+			_mlc_rgb_overlay_draw(me);
+			_mlc_overlay_run(me);
+		}
+
 		me->is_mlc_on = true;
 	}
+
+	if (me->is_overlay_on)
+		_mlc_overlay_run(me);
 
 	for (i = 0 ; i < q_size-1 ; i++) {
 		entry = q_display_done->dequeue(q_display_done);
@@ -3873,6 +3897,7 @@ static void _init_context(struct nx_rearcam *me)
 	me->irq_count = 0;
 	me->is_first = true;
 	me->mlc_on_first = false;
+	me->is_overlay_on = false;
 	me->removed = false;
 	me->is_remove = false;
 	me->release_on = false;
@@ -4194,6 +4219,104 @@ static ssize_t _show_stride(struct kobject *kobj,
 		lu_stride, cb_stride, cr_stride);
 }
 
+static int rearcam_open(struct inode *inode, struct file *file)
+{
+	struct nx_rearcam *me;
+
+	file->private_data = container_of(inode->i_cdev, struct nx_rearcam,
+					  cdev);
+	me = (struct nx_rearcam *)file->private_data;
+
+	dev_dbg(&me->pdev->dev, "opened\n");
+
+	return 0;
+}
+
+static int rearcam_release(struct inode *inode, struct file *file)
+{
+	struct nx_rearcam *me = (struct nx_rearcam *)file->private_data;
+
+	dev_dbg(&me->pdev->dev, "released\n");
+
+	return 0;
+}
+
+static long rearcam_ioctl(struct file *file, unsigned int cmd,
+		unsigned long arg)
+{
+	struct nx_rearcam *me = (struct nx_rearcam *)file->private_data;
+	int request;
+
+	if (!me->draw_overlay_from_ioctl) {
+		pr_err("If you want to draw overlay via mmap and ioctl,");
+		pr_err("the 'draw_ioctl_overlay value in the device tree");
+		pr_err("of the rearcam should be 1.\n");
+
+		return -EPERM;
+	}
+
+	switch (cmd) {
+	case DRAW_OVERLAY:
+		if (copy_from_user(&request, (int *)arg, sizeof(int)))
+			return -EFAULT;
+
+		switch (request) {
+		case 0:
+			me->is_overlay_on = false;
+			break;
+		case 1:
+			me->is_overlay_on = true;
+			break;
+		}
+
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int rearcam_mmap(struct file *file, struct vm_area_struct *vma)
+{
+	struct nx_rgb_buf *buf = NULL;
+	struct nx_rearcam *me;
+
+	pr_debug("enter 0x%lx~0x%lx 0x%lx, pgoff 0x%lx\n",
+		vma->vm_start, vma->vm_end, vma->vm_end - vma->vm_start,
+		vma->vm_pgoff);
+
+	me = (struct nx_rearcam *)file->private_data;
+
+	if (!me->draw_overlay_from_ioctl) {
+		pr_err("If you want to draw overlay via mmap and ioctl,\n");
+		pr_err("the 'draw_ioctl_overlay' attribution value in\n");
+		pr_err("the device tree of the rearcam should be 1.\n");
+
+		return -EPERM;
+	}
+
+	buf = &me->frame_set.rgb_buf;
+
+	pr_debug("%s : reg buf addr 0x%X\n", __func__, buf->rgb_addr);
+
+	vma->vm_pgoff = 0;
+	vma->vm_flags	|= VM_DONTEXPAND | VM_DONTDUMP;
+	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+	vma->vm_page_prot |= PAGE_SHARED;
+
+	return dma_mmap_coherent(&me->pdev->dev, vma, buf->virt_rgb,
+				 buf->dma_buf, buf->page_size);
+}
+
+static const struct file_operations rearcam_fops = {
+	.owner		= THIS_MODULE,
+	.open		= rearcam_open,
+	.release	= rearcam_release,
+	.unlocked_ioctl	= rearcam_ioctl,
+	.mmap		= rearcam_mmap,
+};
+
 static struct kobj_attribute rearcam_attr = __ATTR(stop, 0644,
 					_status_rearcam, _stop_rearcam);
 
@@ -4234,6 +4357,74 @@ static int _create_sysfs(struct nx_rearcam *me)
 	return 0;
 }
 
+static char *nx_rearcam_devnode(struct device *dev, umode_t *mode)
+{
+	if (!mode)
+		return NULL;
+
+	*mode = 0666;
+
+	return NULL;
+}
+
+static int cdevice_init(struct nx_rearcam *me)
+{
+	int rc;
+	struct device *subdev;
+	struct device *dev = &me->pdev->dev;
+	struct cdev *cdev = &me->cdev;
+	dev_t *dev_node = &me->dev_node;
+
+	rc = alloc_chrdev_region(dev_node, 0, 1, NX_REARCAM_DEV_NAME);
+	if (rc) {
+		dev_err(dev, "unable to get a char device number\n");
+		return rc;
+	}
+
+	cdev_init(cdev, &rearcam_fops);
+	cdev->owner = THIS_MODULE;
+	rc = cdev_add(cdev, *dev_node, 1);
+	if (rc) {
+		dev_err(dev, "unable to add char device\n");
+		goto init_error1;
+	}
+
+	me->class = class_create(THIS_MODULE, NX_REARCAM_DEV_NAME);
+	if (IS_ERR(me->class)) {
+		dev_err(dev, "unable to create class\n");
+		goto init_error2;
+	}
+	me->class->devnode = nx_rearcam_devnode;
+
+	subdev = device_create(me->class, dev, *dev_node, NULL, "rearcam");
+	if (IS_ERR(subdev)) {
+		dev_err(dev, "unable to create the device\n");
+		goto init_error3;
+	}
+
+	return 0;
+
+init_error3:
+	class_destroy(me->class);
+
+init_error2:
+	cdev_del(cdev);
+
+init_error1:
+	unregister_chrdev_region(*dev_node, 1);
+
+	return rc;
+}
+
+static void cdevice_exit(struct nx_rearcam *me)
+{
+	device_destroy(me->class, me->dev_node);
+	class_destroy(me->class);
+
+	cdev_del(&me->cdev);
+	unregister_chrdev_region(me->dev_node, 1);
+}
+
 static int nx_rearcam_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -4247,6 +4438,7 @@ static int nx_rearcam_probe(struct platform_device *pdev)
 	}
 
 	dev_set_drvdata(dev, me);
+	me->dev = dev;
 	me->pdev = pdev;
 
 	ret = nx_rearcam_parse_dt(dev, me);
@@ -4295,8 +4487,13 @@ static int nx_rearcam_probe(struct platform_device *pdev)
 		msecs_to_jiffies(DEBUG_SYNC_TIMEOUT_MS));
 #endif
 
-	return 0;
+	ret = cdevice_init(me);
+	if (ret) {
+		dev_err(dev, "faile cdevice!\n");
+		return ret;
+	}
 
+	return 0;
 ERROR:
 	devm_kfree(&me->pdev->dev, me);
 
@@ -4313,6 +4510,7 @@ static int nx_rearcam_remove(struct platform_device *pdev)
 	if (unlikely(!me))
 		return 0;
 
+	cdevice_exit(me);
 	deinit_me(me);
 
 	if (me->free_vendor_context)
