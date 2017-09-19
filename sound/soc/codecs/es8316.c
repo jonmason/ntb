@@ -52,9 +52,12 @@ int es8316_hp_det_gpio = INVALID_GPIO;
 #define es8316_DEF_VOL			0x1e
 #endif
 
-int es8316_jack_insert;
+int es8316_jack_insert = 0;
+#ifdef CONFIG_SND_CODEC_ES8316_MODULE
 EXPORT_SYMBOL(es8316_jack_insert);
-struct snd_soc_codec *es8316_codec;
+#endif
+
+static struct snd_soc_codec *es8316_codec;
 
 void es8316_mono_en(int enable)
 {
@@ -982,7 +985,6 @@ static int es8316_probe(struct snd_soc_codec *codec)
 	int ret = 0;
 	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 
-	es8316_jack_insert = 0;
 	DBG("---%s--start--\n", __func__);
 	codec->hw_write = (hw_write_t)i2c_master_send;
 	codec->control_data = container_of(codec->dev, struct i2c_client, dev);

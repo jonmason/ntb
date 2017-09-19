@@ -330,6 +330,7 @@ static int es8316_probe(struct platform_device *pdev)
 	of_property_read_u32(pdev->dev.of_node, "ch", &ch);
 	sprintf(str_dai_name, "%x%s", (I2S_BASEADDR + (ch * I2S_CH_OFFSET)),
 		".i2s");
+
 	of_property_read_u32(pdev->dev.of_node, "sample-rate", &rates);
 	format_name = of_get_property(pdev->dev.of_node, "format", NULL);
 	if (format_name != NULL) {
@@ -340,6 +341,7 @@ static int es8316_probe(struct platform_device *pdev)
 				SNDRV_PCM_FMTBIT_S24_LE;
 		}
 	}
+
 	of_property_read_u32(pdev->dev.of_node, "hpin-support", &hpin.support);
 	hpin.detect_io = of_get_named_gpio(pdev->dev.of_node, "hpin-gpio", 0);
 	of_property_read_u32(pdev->dev.of_node, "hpin-level",
@@ -351,6 +353,7 @@ static int es8316_probe(struct platform_device *pdev)
 				hpin.debounce_time : 200;
 	} else {
 		jack->name = NULL;
+		es8316_jack_insert = 1; /* Stereo out */
 	}
 
 #ifdef CONFIG_GPIOLIB
