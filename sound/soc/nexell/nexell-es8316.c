@@ -33,7 +33,7 @@
 #include <linux/of_gpio.h>
 #include <linux/gpio.h>
 #include <linux/gpio/consumer.h>
-unsigned es8316_amp_io;
+static int es8316_amp_io = -1;
 #endif
 
 #define I2S_BASEADDR		0xC0055000
@@ -52,7 +52,9 @@ struct nx_snd_jack_pin {
 	int debounce_time;
 };
 
+static void es8316_amp_ctrl(int on);
 static int es8316_jack_status_check(void *data);
+
 /* Headphones jack detection GPIO */
 static struct snd_soc_jack_gpio jack_gpio = {
 	.invert		= false,	/* High detect : invert = false */
@@ -84,17 +86,25 @@ static int es8316_jack_status_check(void *data)
 		es8316_jack_insert = 0;
 		es8316_mono_en(1);
 		if (dapm->bias_level >= SND_SOC_BIAS_PREPARE)
-			gpio_set_value(es8316_amp_io, 1);
+			es8316_amp_ctrl(1);
 	} else {
 		es8316_jack_insert = 1;
 		es8316_mono_en(0);
-		gpio_set_value(es8316_amp_io, 0);
+		es8316_amp_ctrl(0);
 	}
 
 	dev_dbg(codec->dev, "%s: jack_insert %d\n", __func__,
 		es8316_jack_insert);
 
 	return level;
+}
+
+static void es8316_amp_ctrl(int on)
+{
+#ifdef CONFIG_GPIOLIB
+	if (gpio_is_valid(es8316_amp_io))
+		gpio_set_value(es8316_amp_io, on);
+#endif
 }
 
 static int es8316_hw_params(struct snd_pcm_substream *substream,
@@ -122,7 +132,7 @@ static int es8316_suspend_pre(struct snd_soc_card *card)
 {
 	dev_dbg(card->dev, "+%s\n", __func__);
 
-	gpio_set_value(es8316_amp_io, 0);
+	es8316_amp_ctrl(0);
 
 	return 0;
 }
@@ -194,12 +204,7 @@ static struct snd_soc_ops es8316_ops = {
 
 int es8316_spk_on(int enable)
 {
-	if (es8316_amp_io > 0) {
-		if (enable)
-			gpio_set_value(es8316_amp_io, 1);
-		else
-			gpio_set_value(es8316_amp_io, 0);
-	}
+	es8316_amp_ctrl(!!enable);
 	return 0;
 }
 EXPORT_SYMBOL(es8316_spk_on);
@@ -207,12 +212,10 @@ EXPORT_SYMBOL(es8316_spk_on);
 static int es8316_spk_event(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *k, int event)
 {
-	if (es8316_amp_io > 0) {
-		if (SND_SOC_DAPM_EVENT_ON(event))
-			gpio_set_value(es8316_amp_io, 1);
-		else
-			gpio_set_value(es8316_amp_io, 0);
-	}
+	if (SND_SOC_DAPM_EVENT_ON(event))
+		es8316_amp_ctrl(1);
+	else
+		es8316_amp_ctrl(0);
 	return 0;
 }
 
@@ -349,12 +352,12 @@ static int es8316_probe(struct platform_device *pdev)
 	} else {
 		jack->name = NULL;
 	}
+
 #ifdef CONFIG_GPIOLIB
 	es8316_amp_io = of_get_named_gpio(pdev->dev.of_node, "amp-gpio", 0);
 	if (gpio_is_valid(es8316_amp_io)) {
 		ret = devm_gpio_request(&pdev->dev, es8316_amp_io,
 					"es8316_amp_en");
-
 		if (ret < 0) {
 			dev_err(&pdev->dev,
 				"can't request amp gpio %d\n", es8316_amp_io);
@@ -368,6 +371,7 @@ static int es8316_probe(struct platform_device *pdev)
 		}
 	}
 #endif
+
 	card->dev = &pdev->dev;
 	ret = snd_soc_register_card(card);
 	if (ret) {
@@ -418,10 +422,8 @@ static int es8316_remove(struct platform_device *pdev)
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
 
 	snd_soc_unregister_card(card);
-#ifdef CONFIG_GPIOLIB
-	gpio_set_value(es8316_amp_io, 0);
-	devm_gpio_free(&pdev->dev, es8316_amp_io);
-#endif
+	es8316_amp_ctrl(0);
+
 	return 0;
 }
 
