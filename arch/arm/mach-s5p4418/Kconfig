@@ -77,3 +77,7 @@ config FUTEX_INIT_LEVEL_UP
 config DEVPTS_INIT_LEVEL_UP
 	bool "devpts init level up"
 	depends on ARCH_S5P4418 && REDUCE_BOOT_TIME
+
+config BINDER_INIT_LEVEL_UP
+        bool "binder init level up"
+	depends on ARCH_S5P4418 && REDUCE_BOOT_TIME

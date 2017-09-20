@@ -4286,7 +4286,11 @@ err_alloc_device_names_failed:
 	return ret;
 }
 
+#ifdef CONFIG_BINDER_INIT_LEVEL_UP
+fs_initcall(binder_init);
+#else
 device_initcall(binder_init);
+#endif
 
 #define CREATE_TRACE_POINTS
 #include "binder_trace.h"
