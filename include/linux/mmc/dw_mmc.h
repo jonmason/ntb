@@ -289,6 +289,12 @@ struct dw_mci_board {
 	/* cd_type: Type of Card Detection method (see cd_types enum above) */
 	enum dw_mci_cd_types cd_type;
 
+	/*
+	 * overclock: enable overclocking, overclock frequency is set to
+	 * clock-frequency / 2
+	 */
+	bool overclock;
+
 	/* ext_cd_cleanup: Cleanup external card detect subsystem.
 	 * ext_cd_init: Initialize external card detect subsystem.
 	 *       notify_func argument is a callback to the dwmci driver

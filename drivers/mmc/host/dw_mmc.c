@@ -1088,6 +1088,11 @@ static void dw_mci_setup_bus(struct dw_mci_slot *slot, bool force_clkinit)
 	u32 clk_en_a;
 	u32 sdmmc_cmd_bits = SDMMC_CMD_UPD_CLK | SDMMC_CMD_PRV_DAT_WAIT;
 
+	if (host->pdata->overclock) {
+		if ((clock * 2) > 100000000)
+			clock = 100000000;
+	}
+
 	/* We must continue to set bit 28 in CMD until the change is complete */
 	if (host->state == STATE_WAITING_CMD11_DONE)
 		sdmmc_cmd_bits |= SDMMC_CMD_VOLT_SWITCH;
@@ -3185,6 +3190,9 @@ static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 		pdata->ext_cd_init = ext_cd_init_callback;
 		pdata->ext_cd_cleanup = ext_cd_cleanup_callback;
 	}
+
+	if (of_find_property(np, "overclock", NULL))
+		pdata->overclock = true;
 
 	return pdata;
 }
