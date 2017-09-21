@@ -438,6 +438,15 @@
 		i2c_0: i2c@c00a4000 {
 			samsung,i2c-max-bus-freq = <400000>;
 			status = "okay";
+
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			es8316: es8316@11 {
+				#sound-dai-cells = <0>;
+				compatible = "everest,es8316";
+				reg = <0x11>;
+			};
 		};
 
 		i2c_1: i2c@c00a5000 {
@@ -492,17 +501,6 @@
 		};
 
 		i2s_0: i2s@c0055000 {
-			#sound-dai-cells = <1>;
-			master-mode = <1>;
-			mclk-in = <0>;
-			trans-mode = <0>;
-			frame-bit = <32>;
-			sample-rate = <48000>;
-			pre-supply-mclk = <1>;
-			status = "okay";
-		};
-
-		i2s_1: i2s@c0056000 {
 			#sound-dai-cells = <1>;
 			master-mode = <1>;
 			mclk-in = <0>;
@@ -598,6 +596,44 @@
 			gpios = <&alive_0 0 0>;
 			linux,code = <KEY_POWER>;
 			gpio-key,wakeup;
+		};
+	};
+
+	spdif_out: spdif-out {
+		#sound-dai-cells = <0>;
+		compatible = "linux,spdif-dit";
+	};
+
+	simple_card: sound {
+		compatible = "nexell,simple-audio-card";
+		simple-audio-card,name = "nanopi3-audio";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,widgets =
+			"Headphone", "Out Jack";
+		simple-audio-card,routing =
+			"Out Jack", "HPOL",
+			"Out Jack", "HPOR";
+		status = "okay";
+
+		simple-audio-card,dai-link@0 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s_0 0>;
+			};
+
+			codec {
+				sound-dai = <&es8316>;
+			};
+		};
+
+		simple-audio-card,dai-link@1 {
+			cpu {
+				sound-dai = <&spdif_tx 0>;
+			};
+
+			codec {
+				sound-dai = <&spdif_out>;
+			};
 		};
 	};
 
