@@ -23,3 +23,8 @@
 	status = "okay";
 };
 
+&simple_card {
+	simple-audio-card,dai-link@0 {
+		hp-det-gpio = <&gpio_b 27 0>;
+	};
+};

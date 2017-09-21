@@ -28,12 +28,12 @@ struct simple_card_data {
 		struct asoc_simple_dai cpu_dai;
 		struct asoc_simple_dai codec_dai;
 		unsigned int mclk_fs;
+		int gpio_hp_det;
+		int gpio_hp_det_invert;
+		int gpio_mic_det;
+		int gpio_mic_det_invert;
 	} *dai_props;
 	unsigned int mclk_fs;
-	int gpio_hp_det;
-	int gpio_hp_det_invert;
-	int gpio_mic_det;
-	int gpio_mic_det_invert;
 	struct snd_soc_dai_link dai_link[];	/* dynamically allocated */
 };
 
@@ -129,7 +129,7 @@ static struct snd_soc_ops nx_simple_card_ops = {
 static struct snd_soc_jack nx_simple_card_hp_jack;
 static struct snd_soc_jack_pin nx_simple_card_hp_jack_pins[] = {
 	{
-		.pin = "Headphones",
+		.pin = "Out Jack",
 		.mask = SND_JACK_HEADPHONE,
 	},
 };
@@ -217,27 +217,27 @@ static int nx_simple_card_dai_init(struct snd_soc_pcm_runtime *rtd)
 	if (ret < 0)
 		return ret;
 
-	if (gpio_is_valid(priv->gpio_hp_det)) {
-		snd_soc_card_jack_new(rtd->card, "Headphones",
+	if (gpio_is_valid(dai_props->gpio_hp_det)) {
+		snd_soc_card_jack_new(rtd->card, "Out Jack",
 				      SND_JACK_HEADPHONE,
 				      &nx_simple_card_hp_jack,
 				      nx_simple_card_hp_jack_pins,
 				      ARRAY_SIZE(nx_simple_card_hp_jack_pins));
 
-		nx_simple_card_hp_jack_gpio.gpio = priv->gpio_hp_det;
-		nx_simple_card_hp_jack_gpio.invert = priv->gpio_hp_det_invert;
+		nx_simple_card_hp_jack_gpio.gpio = dai_props->gpio_hp_det;
+		nx_simple_card_hp_jack_gpio.invert = dai_props->gpio_hp_det_invert;
 		snd_soc_jack_add_gpios(&nx_simple_card_hp_jack, 1,
 				       &nx_simple_card_hp_jack_gpio);
 	}
 
-	if (gpio_is_valid(priv->gpio_mic_det)) {
+	if (gpio_is_valid(dai_props->gpio_mic_det)) {
 		snd_soc_card_jack_new(rtd->card, "Mic Jack",
 				      SND_JACK_MICROPHONE,
 				      &nx_simple_card_mic_jack,
 				      nx_simple_card_mic_jack_pins,
 				      ARRAY_SIZE(nx_simple_card_mic_jack_pins));
-		nx_simple_card_mic_jack_gpio.gpio = priv->gpio_mic_det;
-		nx_simple_card_mic_jack_gpio.invert = priv->gpio_mic_det_invert;
+		nx_simple_card_mic_jack_gpio.gpio = dai_props->gpio_mic_det;
+		nx_simple_card_mic_jack_gpio.invert = dai_props->gpio_mic_det_invert;
 		snd_soc_jack_add_gpios(&nx_simple_card_mic_jack, 1,
 				       &nx_simple_card_mic_jack_gpio);
 	}
@@ -361,6 +361,7 @@ static int nx_simple_card_dai_link_of(struct device_node *node,
 	struct device_node *cpu = NULL;
 	struct device_node *plat = NULL;
 	struct device_node *codec = NULL;
+	enum of_gpio_flags flags;
 	char *name;
 	char prop[128];
 	char *prefix = "";
@@ -423,6 +424,18 @@ static int nx_simple_card_dai_link_of(struct device_node *node,
 		dai_link->platform_of_node = dai_link->cpu_of_node;
 	}
 
+	dai_props->gpio_hp_det = of_get_named_gpio_flags(node,
+				"hp-det-gpio", 0, &flags);
+	dai_props->gpio_hp_det_invert = !!(flags & OF_GPIO_ACTIVE_LOW);
+	if (dai_props->gpio_hp_det == -EPROBE_DEFER)
+		return -EPROBE_DEFER;
+
+	dai_props->gpio_mic_det = of_get_named_gpio_flags(node,
+				"mic-det-gpio", 0, &flags);
+	dai_props->gpio_mic_det_invert = !!(flags & OF_GPIO_ACTIVE_LOW);
+	if (dai_props->gpio_mic_det == -EPROBE_DEFER)
+		return -EPROBE_DEFER;
+
 	/* DAI link name is created from CPU/CODEC dai name */
 	name = devm_kzalloc(dev,
 			    strlen(dai_link->cpu_dai_name)   +
@@ -471,7 +484,6 @@ static int nx_simple_card_parse_of(struct device_node *node,
 				     struct simple_card_data *priv)
 {
 	struct device *dev = simple_priv_to_dev(priv);
-	enum of_gpio_flags flags;
 	u32 val;
 	int ret;
 
@@ -527,18 +539,6 @@ static int nx_simple_card_parse_of(struct device_node *node,
 			return ret;
 	}
 
-	priv->gpio_hp_det = of_get_named_gpio_flags(node,
-				"simple-audio-card,hp-det-gpio", 0, &flags);
-	priv->gpio_hp_det_invert = !!(flags & OF_GPIO_ACTIVE_LOW);
-	if (priv->gpio_hp_det == -EPROBE_DEFER)
-		return -EPROBE_DEFER;
-
-	priv->gpio_mic_det = of_get_named_gpio_flags(node,
-				"simple-audio-card,mic-det-gpio", 0, &flags);
-	priv->gpio_mic_det_invert = !!(flags & OF_GPIO_ACTIVE_LOW);
-	if (priv->gpio_mic_det == -EPROBE_DEFER)
-		return -EPROBE_DEFER;
-
 	if (!priv->snd_card.name)
 		priv->snd_card.name = priv->snd_card.dai_link->name;
 
@@ -548,7 +548,9 @@ static int nx_simple_card_parse_of(struct device_node *node,
 /* Decrease the reference count of the device nodes */
 static int nx_simple_card_unref(struct snd_soc_card *card)
 {
+	struct simple_card_data *priv = snd_soc_card_get_drvdata(card);
 	struct snd_soc_dai_link *dai_link;
+	struct simple_dai_props *dai_props;
 	int num_links;
 
 	for (num_links = 0, dai_link = card->dai_link;
@@ -556,6 +558,14 @@ static int nx_simple_card_unref(struct snd_soc_card *card)
 	     num_links++, dai_link++) {
 		of_node_put(dai_link->cpu_of_node);
 		of_node_put(dai_link->codec_of_node);
+
+		dai_props = simple_priv_to_props(priv, num_links);
+		if (gpio_is_valid(dai_props->gpio_hp_det))
+			snd_soc_jack_free_gpios(&nx_simple_card_hp_jack, 1,
+					&nx_simple_card_hp_jack_gpio);
+		if (gpio_is_valid(dai_props->gpio_mic_det))
+			snd_soc_jack_free_gpios(&nx_simple_card_mic_jack, 1,
+					&nx_simple_card_mic_jack_gpio);
 	}
 	return 0;
 }
@@ -567,6 +577,7 @@ static int nx_simple_card_probe(struct platform_device *pdev)
 	struct device_node *np = pdev->dev.of_node;
 	struct device *dev = &pdev->dev;
 	int num_links, ret;
+	int i;
 
 	/* Get the number of DAI links */
 	if (np && of_get_child_by_name(np, "simple-audio-card,dai-link"))
@@ -588,15 +599,17 @@ static int nx_simple_card_probe(struct platform_device *pdev)
 	priv->snd_card.dai_link = dai_link;
 	priv->snd_card.num_links = num_links;
 
-	priv->gpio_hp_det = -ENOENT;
-	priv->gpio_mic_det = -ENOENT;
-
 	/* Get room for the other properties */
 	priv->dai_props = devm_kzalloc(dev,
 			sizeof(*priv->dai_props) * num_links,
 			GFP_KERNEL);
 	if (!priv->dai_props)
 		return -ENOMEM;
+
+	for (i = 0; i < num_links; i++) {
+		priv->dai_props[i].gpio_hp_det = -ENOENT;
+		priv->dai_props[i].gpio_mic_det = -ENOENT;
+	}
 
 	if (np && of_device_is_available(np)) {
 
@@ -656,14 +669,6 @@ err:
 static int nx_simple_card_remove(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
-	struct simple_card_data *priv = snd_soc_card_get_drvdata(card);
-
-	if (gpio_is_valid(priv->gpio_hp_det))
-		snd_soc_jack_free_gpios(&nx_simple_card_hp_jack, 1,
-					&nx_simple_card_hp_jack_gpio);
-	if (gpio_is_valid(priv->gpio_mic_det))
-		snd_soc_jack_free_gpios(&nx_simple_card_mic_jack, 1,
-					&nx_simple_card_mic_jack_gpio);
 
 	return nx_simple_card_unref(card);
 }
