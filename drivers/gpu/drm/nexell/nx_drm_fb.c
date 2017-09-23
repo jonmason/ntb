@@ -36,7 +36,12 @@ module_param_named(fb_bgr, fb_format_bgr, bool, 0600);
 static uint fb_pan_crtcs = 0xff;
 
 #ifdef CONFIG_DRM_NX_FB_PAN_DISPLAY
+#if defined(CONFIG_DRM_PANEL_FRIENDLYELEC)
+/* recommended for no flickering */
+static int fb_buffer_count = 3;
+#else
 static int fb_buffer_count = 1;
+#endif
 static bool fb_vblank_wait;
 
 MODULE_PARM_DESC(fb_buffers, "frame buffer count");

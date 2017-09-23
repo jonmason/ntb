@@ -29,6 +29,10 @@
 
 #include "s5pxx18_drv.h"
 
+#if defined(CONFIG_DRM_PANEL_FRIENDLYELEC)
+extern int panel_is_lcd_connected(void);
+#endif
+
 #define	WAIT_VBLANK(m, n, o)
 #define	LAYER_VIDEO		PLANE_VIDEO_NUM
 
@@ -180,6 +184,11 @@ int nx_soc_dp_cont_prepare(struct nx_control_dev *control)
 #ifdef CONFIG_DRM_CHECK_PRE_INIT
 	bool poweron = false;
 
+#if defined(CONFIG_DRM_PANEL_FRIENDLYELEC)
+	if (!panel_is_lcd_connected())
+		control->bootup = true;
+#endif
+
 	/*
 	 * check only boot time to prevent flick.
 	 * no recheck power status to support HDMI's resolution change
@@ -318,15 +327,14 @@ void nx_soc_dp_cont_power_on(struct nx_control_dev *control, bool on)
 	int vbl;
 
 #ifdef CONFIG_DRM_CHECK_PRE_INIT
-	poweron = nx_dpc_get_dpc_enable(module) ? true : false;
 	/*
 	 * check only boot time to prevent flick.
 	 * no recheck power status to support HDMI's resolution change
 	 */
-	if (control->bootup)
-		poweron = false;
-
-	control->bootup = true;
+	if (!control->bootup) {
+		control->bootup = true;
+		poweron = nx_dpc_get_dpc_enable(module) ? true : false;
+	}
 #endif
 
 	pr_debug("%s: %s dev.%d power %s [%s]\n",

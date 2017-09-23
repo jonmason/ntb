@@ -824,6 +824,7 @@ static int hdmi_ops_open(struct nx_drm_display *display, int pipe)
 	hdmi_set_base(res->sub_bases[0]);
 
 	/* HPD interrupt control: INTC_CON */
+	hdmi_write(HDMI_INTC_FLAG_0, (1 << 3) | (1 << 2));
 	hdmi_write(HDMI_INTC_CON_0, hpd_mask);
 
 	return 0;
@@ -928,17 +929,17 @@ static u32 hdmi_ops_hpd_status(struct nx_drm_display *display)
 
 	pr_debug("%s: flags 0x%x\n", __func__, flags);
 
-	if (flags & HDMI_INTC_FLAG_HPD_UNPLUG) {
-		hdmi_write_mask(HDMI_INTC_FLAG_0, ~0,
-				HDMI_INTC_FLAG_HPD_UNPLUG);
-		event |= HDMI_EVENT_UNPLUG;
-		pr_debug("%s: UNPLUG\n", __func__);
-	}
+	flags &= (HDMI_INTC_FLAG_HPD_PLUG | HDMI_INTC_FLAG_HPD_UNPLUG);
 
-	if (flags & HDMI_INTC_FLAG_HPD_PLUG) {
-		hdmi_write_mask(HDMI_INTC_FLAG_0, ~0, HDMI_INTC_FLAG_HPD_PLUG);
-		event |= HDMI_EVENT_PLUG;
-		pr_debug("%s: PLUG\n", __func__);
+	if (flags) {
+		hdmi_write_mask(HDMI_INTC_FLAG_0, ~0, flags);
+		if (hdmi_hpd_status()) {
+			event |= HDMI_EVENT_PLUG;
+			pr_debug("%s: PLUG\n", __func__);
+		} else {
+			event |= HDMI_EVENT_UNPLUG;
+			pr_debug("%s: UNPLUG\n", __func__);
+		}
 	}
 
 	if (flags & HDMI_INTC_FLAG_HDCP) {

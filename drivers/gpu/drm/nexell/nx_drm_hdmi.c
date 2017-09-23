@@ -34,6 +34,11 @@
 #include "nx_drm_fb.h"
 #include <linux/switch.h>
 
+#if defined(CONFIG_DRM_PANEL_FRIENDLYELEC)
+extern void panel_init_display_mode(struct drm_display_mode *dmode);
+extern int panel_is_lcd_connected(void);
+#endif
+
 struct hdmi_resource {
 	struct i2c_adapter *ddc_adpt;
 	const struct edid *edid;
@@ -142,6 +147,9 @@ static int panel_hdmi_preferred_modes(struct device *dev,
 		connector->display_info.height_mm = mode->height_mm;
 
 		mode->type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED;
+#if defined(CONFIG_DRM_PANEL_FRIENDLYELEC)
+		panel_init_display_mode(mode);
+#endif
 
 		drm_mode_set_name(mode);
 		drm_mode_probed_add(connector, mode);
@@ -311,9 +319,9 @@ static int panel_hdmi_bind(struct device *dev,
 
 	/* check connect status at boot time */
 	if (hdmi_ops->is_connected) {
-		if (hdmi_ops->is_connected(display)) {
-			struct nx_drm_private *private = drm->dev_private;
+		struct nx_drm_private *private = drm->dev_private;
 
+		if (hdmi_ops->is_connected(display)) {
 			DRM_INFO("HDMI %s connected, LCD %s\n",
 				ctx->skip_boot_connect ? "Skip" : "Check",
 				private->force_detect ? "connected" :
@@ -323,6 +331,15 @@ static int panel_hdmi_bind(struct device *dev,
 				ctx->plug = hdmi_ops->is_connected(display);
 				private->force_detect = true;
 			}
+
+#if defined(CONFIG_DRM_PANEL_FRIENDLYELEC)
+		} else if (!panel_is_lcd_connected()) {
+			ctx->skip_boot_connect = false;
+			ctx->plug = true;
+			private->force_detect = true;
+
+			DRM_INFO("HDMI force connected at boot\n");
+#endif
 		}
 	}
 
@@ -377,7 +394,7 @@ static bool __drm_fb_bound(struct drm_fb_helper *fb_helper)
 			bound++;
 	}
 
-	if (bound < crtcs_bound)
+	if (bound > 0 && bound <= crtcs_bound)
 		return true;
 
 	return false;
@@ -398,6 +415,11 @@ static int panel_hdmi_wait_fb_bound(struct hdmi_context *ctx)
 	private = connector->dev->dev_private;
 	fb_helper = &private->fbdev->fb_helper;
 	ops = ctx_to_display(ctx)->ops;
+
+	if (!fb_helper) {
+		dev_warn(connector->dev->dev, "no fb_helper\n");
+		return -ENOENT;
+	}
 
 	if (!ctx->skip_boot_connect) {
 		/*
@@ -456,11 +478,6 @@ static void panel_hdmi_hpd_work(struct work_struct *work)
 		return;
 	}
 
-#ifdef CONFIG_DRM_FBDEV_EMULATION
-	if (panel_hdmi_wait_fb_bound(ctx))
-		return;
-#endif
-
 	plug = ops->hdmi->is_connected(display);
 	if (plug == ctx->plug)
 		return;
@@ -470,6 +487,11 @@ static void panel_hdmi_hpd_work(struct work_struct *work)
 	ctx->plug = plug;
 	connector = &ctx->connector->connector;
 	drm_helper_hpd_irq_event(connector->dev);
+
+#ifdef CONFIG_DRM_FBDEV_EMULATION
+	if (plug)
+		panel_hdmi_wait_fb_bound(ctx);
+#endif
 }
 
 static irqreturn_t panel_hdmi_hpd_irq(int irq, void *data)
