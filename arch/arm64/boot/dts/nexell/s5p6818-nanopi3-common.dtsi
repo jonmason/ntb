@@ -661,6 +661,10 @@
 	};
 };
 
+&i2c1_pin {
+	nexell,pin-strength = <1>;
+};
+
 &pwm {
 	status = "okay";
 	pinctrl-0 = <&pwm0_pin &pwm1_pin &pwm2_pin>;
@@ -765,5 +769,12 @@
 
 &dp_drm_hdmi {
 	skip-boot-connect;
+	ddc-i2c-bus = <&i2c_1>;
 	status = "ok";
+
+	mode {
+		width = <1280>;
+		height = <720>;
+		refresh = <60>;
+	};
 };
