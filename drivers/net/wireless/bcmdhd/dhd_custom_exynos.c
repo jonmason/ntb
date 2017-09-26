@@ -202,7 +202,7 @@ dhd_wlan_init_gpio(void)
 
 	root_node = of_find_compatible_node(NULL, NULL, wlan_node);
 	if (!root_node) {
-		WARN(1, "failed to get device node of bcm4354\n");
+		pr_err("failed to get device node of bcmdhd\n");
 		return -ENODEV;
 	}
 
