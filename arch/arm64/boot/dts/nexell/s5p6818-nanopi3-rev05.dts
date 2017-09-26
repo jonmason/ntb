@@ -1,0 +1,52 @@
+/*
+ * (C) Copyright 2017 FriendlyElec Computer Tech. Co., Ltd.
+ * (http://www.friendlyarm.com)
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/dts-v1/;
+#include "s5p6818-nanopi3-common.dtsi"
+
+/ {
+	snd_null: snd_null@10 {
+		#sound-dai-cells = <0>;
+		compatible = "nexell,snd-null";
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0 0>;
+	};
+
+	/delete-node/ wlan;
+};
+
+&dw_mmc_1 {
+	status = "disabled";
+};
+
+&dw_mmc_2 {
+	status = "disabled";
+};
+
+&simple_card {
+	/delete-property/ simple-audio-card,widgets;
+	/delete-property/ simple-audio-card,routing;
+
+	simple-audio-card,dai-link@0 {
+		codec {
+			sound-dai = <&snd_null>;
+		};
+	};
+};
