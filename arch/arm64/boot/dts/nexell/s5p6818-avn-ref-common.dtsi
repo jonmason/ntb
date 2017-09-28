@@ -292,6 +292,10 @@
                                 regulator-always-on;
                                 regulator-boot-on;};
 			}; /* regulators */
+
+		scaler@c0066000 {
+			status = "okay";
+		};
 	};	/*** soc ***/
 
 	vcc_spk: regulator-fix@2 {
