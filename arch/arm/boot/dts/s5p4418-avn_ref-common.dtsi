@@ -234,6 +234,10 @@
 				nexell,pin-strength = <0>;
 			};
 		};
+
+		scaler@c0066000 {
+			status = "okay";
+		};
 	};	/*** soc ***/
 
 	vcc_spk: regulator-fix@0 {
