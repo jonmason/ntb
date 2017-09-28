@@ -256,6 +256,10 @@
 				    <&gpio_c 4 GPIO_ACTIVE_HIGH>;
 			};
 		};
+
+		scaler@c0066000 {
+			status = "okay";
+		};
 	};	/*** soc ***/
 
 	vcc_spk: regulator-fix@0 {
