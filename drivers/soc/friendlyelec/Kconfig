@@ -1,0 +1,11 @@
+#
+# Machine drivers
+#
+
+if ARCH_S5P6818
+
+config MACH_NANOPI3
+	bool "FriendlyElec NanoPi 3 Series Machine"
+	default y
+
+endif
