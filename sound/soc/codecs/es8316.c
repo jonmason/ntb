@@ -985,6 +985,11 @@ static int es8316_probe(struct snd_soc_codec *codec)
 	int ret = 0;
 	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 
+#if defined(CONFIG_MACH_NANOPI3) && \
+	defined(CONFIG_SND_NX_SIMPLE_CARD)
+	es8316_jack_insert = 1;	/* Stereo out */
+#endif
+
 	DBG("---%s--start--\n", __func__);
 	codec->hw_write = (hw_write_t)i2c_master_send;
 	codec->control_data = container_of(codec->dev, struct i2c_client, dev);
