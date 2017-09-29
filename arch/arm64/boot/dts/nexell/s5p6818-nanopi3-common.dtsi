@@ -36,6 +36,10 @@
 		nx,sleep_slots = <_slp_slots>;
 
 / {
+	model = "FriendlyElec boards based on Nexell s5p6818";
+	compatible = "friendlyelec,nanopi3",
+		   "nexell,s5p6818";
+
 	memory {
 		device_type = "memory";
 		reg = <0x40000000 0x3db00000>;
@@ -560,6 +564,13 @@
 		};
 
 	};	/*** soc ***/
+
+	mach: board {
+		compatible = "friendlyelec,board";
+		machine = "NANOPI3";
+		hwrev = <255>;
+		model = "NanoPi 3 Serias";
+	};
 
 	panel: panel-friendlyelec {
 		compatible = "lcds";

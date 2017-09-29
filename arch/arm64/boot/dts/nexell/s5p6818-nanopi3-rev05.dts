@@ -20,6 +20,9 @@
 #include "s5p6818-nanopi3-common.dtsi"
 
 / {
+	model = "FriendlyElec NanoPi Fire3";
+	compatible = "friendlyelec,nanopi-fire3", "nexell,s5p6818";
+
 	snd_null: snd_null@10 {
 		#sound-dai-cells = <0>;
 		compatible = "nexell,snd-null";
@@ -30,6 +33,11 @@
 	};
 
 	/delete-node/ wlan;
+};
+
+&mach {
+	hwrev = <5>;
+	model = "NanoPi Fire3";
 };
 
 &dw_mmc_1 {

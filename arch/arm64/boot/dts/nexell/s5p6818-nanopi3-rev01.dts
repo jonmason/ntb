@@ -19,6 +19,16 @@
 /dts-v1/;
 #include "s5p6818-nanopi3-common.dtsi"
 
+/ {
+	model = "FriendlyElec NanoPC-T3";
+	compatible = "friendlyelec,nanopc-t3", "nexell,s5p6818";
+};
+
+&mach {
+	hwrev = <1>;
+	model = "NanoPC-T3";
+};
+
 &dw_mmc_1 {
 	status = "okay";
 };
