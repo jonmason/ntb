@@ -569,6 +569,13 @@ config FCI_FC8300
 	help
 		support FCI fc8300 isdbt.
 
+config SERDES_DS90_UB927928
+	bool "Support DS90 UB927928 Serdes driver"
+	depends on I2C
+	default n
+	help
+		support DS90 UB927928 Serdes.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"

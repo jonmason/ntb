@@ -63,3 +63,4 @@ obj-$(CONFIG_ARTIK_ZB_POWER)	+= artik_zb_power.o
 obj-$(CONFIG_ARTIK_S3T9MF)	+= s3t9mf.o
 obj-$(CONFIG_ARTIK_TRUSTZONE_DRIVER)    += artiktee/
 obj-$(CONFIG_FCI_FC8300)	+= fci/
+obj-$(CONFIG_SERDES_DS90_UB927928)	+= ub927928.o

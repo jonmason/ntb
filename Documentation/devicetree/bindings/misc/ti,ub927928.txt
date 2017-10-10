@@ -1,0 +1,11 @@
+SERDES driver for ds90ub927928
+
+Required properties:
+- compatible : "ti,ub927928"
+- reg : slave address
+
+Example:
+	ub927928@0c{
+		compatible = "ti,ub927928";
+		reg = <0x0c>;
+	};
