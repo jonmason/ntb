@@ -1,0 +1,10 @@
+usb charge driver
+
+Required properties:
+- compatible : "mediatek,usb_charge"
+
+Example:
+	usb_charge {
+	        compatible= "mediatek,usb_charge";
+	        status = "okay";
+	};

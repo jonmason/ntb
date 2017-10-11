@@ -1,0 +1,15 @@
+usb charger driver for e522xx
+
+Required properties:
+- compatible : "mediatek,e522xx"
+- en-gpio : Enable pin
+- int-gpio = Interrupt pin
+- reg : slave address
+
+Example:
+	e522xx: e522xx@13 {
+		compatible = "mediatek,e522xx";
+		en-gpio = <&gpio_d 0 GPIO_ACTIVE_HIGH>;
+		int-gpio = <&gpio_c 31 GPIO_ACTIVE_LOW>;
+		reg = <0x13>;
+	};

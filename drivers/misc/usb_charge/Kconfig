@@ -1,0 +1,11 @@
+config USB_CHARGE
+	bool "Enable USB Charge Driver"
+	---help---
+	This config enables implementation of USB Charge Driver.
+
+config USB_CHARGE_E522XX
+	bool "Support E522XX usb_charge"
+	depends on I2C && USB_CHARGE
+	default n
+	help
+
