@@ -49,7 +49,6 @@
 		};
 
 		i2s_0:i2s@c0055000 {
-			dfs;
 			master-mode = <0>;
 			mclk-in = <1>;
 			pre-supply-mclk = <0>;
@@ -57,7 +56,6 @@
 		};
 
 		i2s_1:i2s@c0056000 {
-			dfs;
 			master-mode =  <0>;
 			mclk-in = <1>;
 			pre-supply-mclk = <0>;
