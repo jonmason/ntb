@@ -253,6 +253,10 @@
 		adc:adc@c0053000 {
 			status = "okay";
 		};
+
+		scaler@c0066000 {
+			status = "okay";
+		};
 	};	/*** soc ***/
 
 	thermal_ap:thermal {
