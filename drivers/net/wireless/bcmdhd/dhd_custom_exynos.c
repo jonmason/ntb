@@ -48,7 +48,7 @@
 
 #if defined(CONFIG_64BIT)
 #include <asm-generic/gpio.h>
-#else
+#elif !defined(CONFIG_ARCH_S5P4418)
 #include <mach/gpio.h>
 #endif /* CONFIG_64BIT */
 #include <linux/sec_sysfs.h>
@@ -372,7 +372,7 @@ void __exit dhd_wlan_exit(void)
 	printk(KERN_INFO "%s: exit\n", __FUNCTION__);
 }
 
-#ifndef CONFIG_ARCH_S5P6818
+#ifndef DHD_LINUX_INIT
 #if defined(CONFIG_MACH_UNIVERSAL7420) || defined(CONFIG_SOC_EXYNOS8890)
 #if defined(CONFIG_DEFERRED_INITCALLS)
 deferred_module_init(dhd_wlan_init);
@@ -382,4 +382,4 @@ late_initcall(dhd_wlan_init);
 #else
 device_initcall(dhd_wlan_init);
 #endif /* CONFIG_MACH_UNIVERSAL7420 || CONFIG_SOC_EXYNOS8890 */
-#endif /* CONFIG_ARCH_S5P6818 */
+#endif /* DHD_LINUX_INIT */
