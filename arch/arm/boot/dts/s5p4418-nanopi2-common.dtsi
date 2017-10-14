@@ -538,7 +538,7 @@
 		compatible = "friendlyelec,board";
 		machine = "NANOPI2";
 		hwrev = <255>;
-		model = "NanoPi 2 Serias";
+		model = "NanoPi 2 Series";
 	};
 
 	panel: panel-friendlyelec {

@@ -9,3 +9,11 @@ config MACH_NANOPI3
 	default y
 
 endif
+
+if ARCH_S5P4418
+
+config MACH_NANOPI2
+	bool "FriendlyElec NanoPi 2 Series Machine"
+	default y
+
+endif

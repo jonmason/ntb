@@ -985,8 +985,8 @@ static int es8316_probe(struct snd_soc_codec *codec)
 	int ret = 0;
 	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 
-#if defined(CONFIG_MACH_NANOPI3) && \
-	defined(CONFIG_SND_NX_SIMPLE_CARD)
+#if defined(CONFIG_SND_NX_SIMPLE_CARD) && \
+	(defined(CONFIG_MACH_NANOPI3) || defined(CONFIG_MACH_NANOPI2))
 	es8316_jack_insert = 1;	/* Stereo out */
 #endif
 

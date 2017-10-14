@@ -569,7 +569,7 @@
 		compatible = "friendlyelec,board";
 		machine = "NANOPI3";
 		hwrev = <255>;
-		model = "NanoPi 3 Serias";
+		model = "NanoPi 3 Series";
 	};
 
 	panel: panel-friendlyelec {
