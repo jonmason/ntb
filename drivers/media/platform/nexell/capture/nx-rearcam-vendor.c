@@ -21,94 +21,17 @@
 #include <linux/printk.h>
 #include <linux/i2c.h>
 #include <linux/delay.h>
+#include <linux/of.h>
+#include <linux/of_irq.h>
+#include <linux/of_gpio.h>
+#include <linux/gpio.h>
 
+#include "nx-rearcam.h"
 #include "nx-rearcam-vendor.h"
 
 #if defined(CONFIG_VIDEO_NEXELL_REARCAM_SAMPLEPARKINGLINE)
 #include "parking_line.h"
 #endif
-
-void nx_rearcam_sensor_init_func(struct i2c_client *client)
-{
-}
-
-struct nx_vendor_context *nx_rearcam_alloc_vendor_context(void)
-{
-	struct nx_vendor_context *ctx;
-
-	ctx = kmalloc(sizeof(struct nx_vendor_context), GFP_KERNEL);
-	if (!ctx)
-		return NULL;
-
-	pr_debug("+++ %s ---\n", __func__);
-
-	/*	example		*/
-	ctx->type = 1;
-
-	return ctx;
-}
-
-bool nx_rearcam_pre_turn_on(void *ctx)
-{
-	struct nx_vendor_context *_ctx = (struct nx_vendor_context *)ctx;
-
-	pr_debug("+++ %s ---\n", __func__);
-
-	pr_debug("%s - type : %d\n", __func__, _ctx->type);
-
-	return true;
-}
-
-void nx_rearcam_post_turn_off(void *ctx)
-{
-	struct nx_vendor_context *_ctx = (struct nx_vendor_context *)ctx;
-
-	pr_debug("+++ %s ---\n", __func__);
-}
-
-void nx_rearcam_free_vendor_context(void *ctx)
-{
-	struct nx_vendor_context *_ctx = (struct nx_vendor_context *)ctx;
-
-	pr_debug("+++ %s ---\n", __func__);
-}
-
-bool nx_rearcam_decide(void *ctx)
-{
-	struct nx_vendor_context *_ctx = (struct nx_vendor_context *)ctx;
-
-	pr_debug("+++ %s ---\n", __func__);
-
-	return true;
-}
-
-
-void nx_rearcam_draw_parking_guide_line(void *mem, void *cxt,
-					int width, int height,
-					int pixelbyte, int rotation);
-
-void nx_rearcam_draw_rgb_overlay(int width, int height, int pixelbyte,
-				int rotation, void *ctx, void *mem)
-{
-	struct nx_vendor_context *_ctx = (struct nx_vendor_context *)ctx;
-
-#if defined(CONFIG_VIDEO_NEXELL_REARCAM_SAMPLEPARKINGLINE)
-	nx_rearcam_draw_parking_guide_line(mem, ctx, width, height, pixelbyte,
-			rotation);
-#else
-	int i, j;
-	int sample_size = 50;
-	u32 color = 0xFFFF0000;
-	u32 *pbuffer = (u32 *)mem;
-
-	memset(mem, 0, width * height * pixelbyte);
-	for (i = 0; i < sample_size; i++) {
-		for (j = 0; j < sample_size; j++)
-			pbuffer[i * width + j] = color;
-	}
-#endif
-	pr_debug("+++ %s ---\n", __func__);
-}
 
 #if defined(CONFIG_VIDEO_NEXELL_REARCAM_SAMPLEPARKINGLINE)
 void nx_rearcam_draw_parking_guide_line(void *mem, void *ctx,
@@ -154,15 +77,98 @@ void nx_rearcam_draw_parking_guide_line(void *mem, void *ctx,
 
 		memset(mem, 0, width * height * pixelbyte);
 
-		{
-			for (i = 0; i < src_height; i++)
-				for (j = 0; j < src_width; j++) {
-					pbuffer[i * width + j] =
-						data[i * src_width + j];
-				}
+		for (i = 0; i < src_height; i++) {
+			for (j = 0; j < src_width; j++) {
+				pbuffer[i * width + j] =
+					data[i * src_width + j];
+			}
 		}
 
 		line_index++;
 	}
 }
 #endif
+
+void nx_rearcam_draw_rgb_overlay(int width, int height, int pixelbyte,
+				int rotation, void *ctx, void *mem)
+{
+	struct nx_vendor_context *_ctx = (struct nx_vendor_context *)ctx;
+
+#if defined(CONFIG_VIDEO_NEXELL_REARCAM_SAMPLEPARKINGLINE)
+	nx_rearcam_draw_parking_guide_line(mem, ctx, width, height, pixelbyte,
+			rotation);
+#else
+	int i, j;
+	int sample_size = 50;
+	u32 color = 0xFFFF0000;
+	u32 *pbuffer = (u32 *)mem;
+
+	memset(mem, 0, width * height * pixelbyte);
+	for (i = 0; i < sample_size; i++) {
+		for (j = 0; j < sample_size; j++)
+			pbuffer[i * width + j] = color;
+	}
+#endif
+	pr_debug("+++ %s ---\n", __func__);
+}
+
+void nx_rearcam_sensor_init_func(struct i2c_client *client)
+{
+}
+
+struct nx_vendor_context *nx_rearcam_alloc_vendor_context(void *priv,
+        struct device *dev)
+{
+	struct nx_vendor_context *ctx;
+	struct device_node *np = dev->of_node;
+	struct device_node *gpio_node;
+
+	ctx = kmalloc(sizeof(struct nx_vendor_context), GFP_KERNEL);
+	if (!ctx)
+		return NULL;
+
+	pr_err("+++ %s ---\n", __func__);
+
+	/*	example		*/
+	ctx->priv = priv;
+	ctx->type = 1;
+
+	return ctx;
+}
+
+bool nx_rearcam_pre_turn_on(void *ctx)
+{
+	struct nx_vendor_context *_ctx = (struct nx_vendor_context *)ctx;
+
+	pr_debug("+++ %s ---\n", __func__);
+
+	pr_debug("%s - type : %d\n", __func__, _ctx->type);
+
+	return true;
+}
+
+void nx_rearcam_post_turn_off(void *ctx)
+{
+	struct nx_vendor_context *_ctx = (struct nx_vendor_context *)ctx;
+
+	pr_debug("+++ %s ---\n", __func__);
+}
+
+void nx_rearcam_free_vendor_context(void *ctx)
+{
+	struct nx_vendor_context *_ctx = (struct nx_vendor_context *)ctx;
+
+	pr_debug("+++ %s ---\n", __func__);
+	kfree(_ctx);
+}
+
+bool nx_rearcam_decide(void *ctx)
+{
+	struct nx_vendor_context *_ctx = (struct nx_vendor_context *)ctx;
+	bool is_on = false;
+
+	pr_debug("+++ %s ---is_on:%d\n", __func__, is_on);
+
+	return is_on;
+}
+

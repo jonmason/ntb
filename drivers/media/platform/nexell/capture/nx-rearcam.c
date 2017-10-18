@@ -95,6 +95,15 @@
 	if (!of_property_read_u32(n, s, &_v)) \
 		v = _v; \
 		}
+
+static u32 vendor_parm = 0x1;
+MODULE_PARM_DESC(vendor_parm, "vendor parmeter");
+module_param(vendor_parm, uint, 0644);
+
+typedef enum {
+	VENDOR_PARM_DISABLE = (1<<0),
+} vendor_parameter;
+
 struct measurement {
 	u64 s_time;
 	u64 e_time;
@@ -540,7 +549,8 @@ struct nx_rearcam {
 	/* vendor context */
 	struct nx_vendor_context *vendor_context;
 	void (*sensor_init_func)(struct i2c_client *client);
-	struct nx_vendor_context *(*alloc_vendor_context)(void);
+	struct nx_vendor_context *(*alloc_vendor_context)
+		(struct rearcam *cam, struct device *dev);
 	void (*free_vendor_context)(void *);
 	bool (*pre_turn_on)(void *);
 	void (*post_turn_off)(void *);
@@ -2088,19 +2098,29 @@ static void _vip_hw_set_addr(int module, struct nx_rearcam *me,
 	}
 }
 
+static inline bool is_running(struct nx_rearcam *me)
+{
+	return nx_mlc_get_layer_enable(me->mlc_module, 3);
+}
+
 static inline bool is_reargear_on(struct nx_rearcam *me)
 {
 	bool is_on = gpio_get_value(me->event_gpio);
+	bool vendor_on = false;
 
 	if (!me->active_high)
 		is_on ^= 1;
 
-	return is_on;
-}
+	if ((me->vendor_context) && (me->decide)) {
+		vendor_on = me->decide(me->vendor_context);
+		pr_debug("[%s] vendor deci_deltah():%d\n", __func__,
+			 vendor_on);
+	}
+	pr_debug("[%s] is_on:%d, vendor_on:%d\n", __func__, is_on, vendor_on);
+	is_on = is_on | vendor_on;
 
-static inline bool is_running(struct nx_rearcam *me)
-{
-	return nx_mlc_get_layer_enable(me->mlc_module, 3);
+	me->running = is_running(me);
+	return is_on;
 }
 
 static void _set_vip_interrupt(struct nx_rearcam *me, bool enable)
@@ -2659,6 +2679,8 @@ static void _turn_on(struct nx_rearcam *me)
 
 	_set_vip_interrupt(me, true);
 	_vip_run(me);
+
+	me->vendor_context->enable = true;
 }
 
 static void _turn_off(struct nx_rearcam *me)
@@ -2677,20 +2699,14 @@ static void _turn_off(struct nx_rearcam *me)
 	if (me->post_turn_off)
 		me->post_turn_off(me->vendor_context);
 
+	me->vendor_context->enable = false;
 }
 
 static void _decide(struct nx_rearcam *me)
 {
-	struct device *dev = &me->pdev->dev;
-
-	if (me->decide) {
-		if (!me->decide(me->vendor_context))
-			dev_err(dev, "%s: failed to decide()\n", __func__);
-	}
-
 	me->running = is_running(me);
 	me->reargear_on = is_reargear_on(me);
-	pr_debug("%s: running %d, reargear on %d\n", __func__,
+	pr_debug("[%s] running %d, reargear on %d\n", __func__,
 		me->running, me->reargear_on);
 	if (me->reargear_on && !me->running) {
 		_turn_on(me);
@@ -3121,7 +3137,6 @@ static void _enable_gpio_irq_ctx(struct nx_rearcam *me)
 		}
 
 		disable_irq(me->irq_event);
-
 		me->is_enable_gpio_irq = true;
 	}
 }
@@ -3136,7 +3151,6 @@ static void _disable_gpio_irq_ctx(struct nx_rearcam *me)
 
 		if (gpio_is_valid(me->event_gpio))
 			devm_gpio_free(dev, me->event_gpio);
-
 		me->is_enable_gpio_irq = false;
 	}
 }
@@ -4367,6 +4381,42 @@ static char *nx_rearcam_devnode(struct device *dev, umode_t *mode)
 	return NULL;
 }
 
+
+int nx_rearcam_enable_gpio_irq_ctx(void *priv, int gpio)
+{
+	int ret, irq;
+	struct nx_rearcam *me = (struct nx_rearcam *)priv;
+	struct device *dev = &me->pdev->dev;
+
+	ret = devm_gpio_request_one(dev, gpio, GPIOF_IN, dev_name(dev));
+	if (ret)
+		dev_err(dev, "unable to request GPIO %d\n", gpio);
+	irq = gpio_to_irq(gpio);
+	ret = devm_request_irq(dev, irq, _irq_handler,
+			       IRQF_TRIGGER_FALLING | IRQF_TRIGGER_RISING,
+			       "rearcam-event-irq", me);
+	if (ret) {
+		dev_err(dev, "%s: failed to gpio irq(irqnum %d)\n",
+			__func__, irq);
+		return -EINVAL;
+	}
+	enable_irq(irq);
+
+	return irq;
+}
+
+void nx_rearcam_disable_gpio_irq_ctx(void *priv, int irq, int gpio)
+{
+	struct nx_rearcam *me = (struct nx_rearcam *)priv;
+	struct device *dev = &me->pdev->dev;
+
+	disable_irq(irq);
+	devm_free_irq(dev, irq, me);
+
+	if (gpio_is_valid(gpio))
+		devm_gpio_free(dev, gpio);
+}
+
 static int cdevice_init(struct nx_rearcam *me)
 {
 	int rc;
@@ -4431,6 +4481,13 @@ static int nx_rearcam_probe(struct platform_device *pdev)
 	struct nx_rearcam *me;
 	struct device *dev = &pdev->dev;
 
+	pr_debug("[RearCam] vendor_parm:0x%x, VENDOR_PARM_DISABLE:0x%x\n",
+		vendor_parm, VENDOR_PARM_DISABLE);
+	if (!(vendor_parm & VENDOR_PARM_DISABLE)) {
+		pr_debug("[%s] DISABLE RearCam\n", __func__);
+		return 0;
+	}
+
 	me = devm_kzalloc(dev, sizeof(*me), GFP_KERNEL);
 	if (!me) {
 		WARN_ON(1);
@@ -4469,7 +4526,7 @@ static int nx_rearcam_probe(struct platform_device *pdev)
 			msecs_to_jiffies(me->detect_delay));
 
 	if (me->alloc_vendor_context) {
-		me->vendor_context = me->alloc_vendor_context();
+		me->vendor_context = me->alloc_vendor_context(me, dev);
 		if (!me->vendor_context) {
 			dev_err(dev, "%s: failed to allcate vendor context.\n",
 				__func__);

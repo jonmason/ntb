@@ -16,26 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __NX_REARCAM_VENDOR_H__
-#define __NX_REARCAM_VENDOR_H__
+#ifndef __NX_REARCAM_H__
+#define __NX_REARCAM_H__
 
-struct nx_vendor_context {
-	int type;
-	int enable;
-	int event_gpio;
-	int active_high;
-	int detect_delay;
-	int irq_event;
-	void *priv;
-};
+int nx_rearcam_enable_gpio_irq_ctx(void *priv, int gpio);
+void nx_rearcam_disable_gpio_irq_ctx(void *priv, int irq, int gpio);
 
-void nx_rearcam_sensor_init_func(struct i2c_client *client);
-struct nx_vendor_context *nx_rearcam_alloc_vendor_context(
-        void *priv, struct device *dev);
-bool nx_rearcam_pre_turn_on(void *);
-void nx_rearcam_post_turn_off(void *);
-void nx_rearcam_free_vendor_context(void *);
-bool nx_rearcam_decide(void *);
-void nx_rearcam_draw_rgb_overlay(int, int, int, int, void *, void *);
-void nx_rearcam_draw_parking_guide_line(void *, void *, int, int , int, int);
 #endif
