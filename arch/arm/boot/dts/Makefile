@@ -797,7 +797,8 @@ dtb-$(CONFIG_ARCH_S5P4418) += \
 	s5p4418-ff_voice.dtb \
 	s5p4418-clova-rev00.dtb
 dtb-$(CONFIG_ARCH_S5P4418) += \
-	s5p4418-nanopi2-rev01.dtb
+	s5p4418-nanopi2-rev01.dtb \
+	s5p4418-nanopi2-rev04.dtb
 endif
 
 dtstree		:= $(srctree)/$(src)
