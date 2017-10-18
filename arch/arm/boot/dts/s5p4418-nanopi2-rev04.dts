@@ -48,6 +48,10 @@
 	status = "disabled";
 };
 
+&dvfs {
+	supply_optional = "vdd_arm_dummy";
+};
+
 &simple_card {
 	/delete-property/ simple-audio-card,widgets;
 	/delete-property/ simple-audio-card,routing;

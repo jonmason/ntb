@@ -593,6 +593,8 @@ static void *nxp_cpufreq_get_dt_data(struct platform_device *pdev)
 		if (!of_property_read_u32(node, "supply_delay_us", &value))
 			pdata->supply_delay_us = value;
 		pr_info("voltage supply : %s\n", pdata->supply_name);
+		of_property_read_string(node, "supply_optional",
+					&pdata->supply_optional);
 	}
 
 	list = of_get_property(node, "dvfs-tables", &size);
@@ -717,6 +719,12 @@ static int nxp_cpufreq_set_supply(struct platform_device *pdev,
 
 	/* get voltage regulator */
 	dvfs->volt = regulator_get(&pdev->dev, pdata->supply_name);
+
+	if (IS_ERR(dvfs->volt) && pdata->supply_optional) {
+		pdata->supply_name = pdata->supply_optional;
+		dvfs->volt = devm_regulator_get(&pdev->dev, pdata->supply_name);
+	}
+
 	if (IS_ERR(dvfs->volt)) {
 		dev_err(&pdev->dev, "Cannot get regulator for DVS supply %s\n",
 				pdata->supply_name);

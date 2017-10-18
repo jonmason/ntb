@@ -25,7 +25,8 @@ struct nxp_cpufreq_plat_data {
 	int pll_dev;                    /* core pll : 0, 1, 2, 3 */
 	unsigned long (*dvfs_table)[2]; /* [freq KHz].[u volt] */
 	int  table_size;
-	char *supply_name;		/* voltage regulator name */
+	const char *supply_name;	/* voltage regulator name */
+	const char *supply_optional;
 	long supply_delay_us;
 	int max_freq;
 };
