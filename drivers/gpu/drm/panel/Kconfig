@@ -63,4 +63,10 @@ config DRM_PANEL_LT010MB
 	select DRM_MIPI_DSI
 	select VIDEOMODE_HELPERS
 
+config DRM_PANEL_PX0701C
+	tristate "PX0701C Series DSI video mode panel"
+	depends on OF
+	select DRM_MIPI_DSI
+	select VIDEOMODE_HELPERS
+
 endmenu
