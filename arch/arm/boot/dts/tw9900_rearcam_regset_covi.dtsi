@@ -1,0 +1,38 @@
+/*
+ * Copyright (C) 2017  FMS Co., Ltd.
+ * Author: Han YIboem <yibhan@cafeel.co.kr>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/ {
+	sensor_tw9900:register {
+		data =  <0x02 0x44>,
+			<0x1c 0x00>,
+			<0x03 0xa6>,
+			<0x06 0x80>,
+			<0x07 0x02>,
+			<0x08 0x15>,
+			<0x09 0xf0>,
+			<0x0a 0x09>,
+			<0x0b 0xc0>,
+			<0x10 0xec>,
+			<0x11 0x68>,
+			<0x19 0x50>,
+			<0x1b 0x00>,
+			<0x1a 0x0f>,
+			<0xaf 0x40>,
+			<0xb1 0x20>;
+	};
+};
