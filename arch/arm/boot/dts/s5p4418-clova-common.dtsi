@@ -291,10 +291,9 @@
 	cap-mmc-highspeed;
 	broken-cd;
 	non-removable;
-	clock-frequency = <200000000>;
-	card-detect-delay = <0>;
+	clock-frequency = <100000000>;
+	card-detect-delay = <200>;
 	disable-wp;
-	overclock;
 	nexell,drive_dly = <0x0>;
 	nexell,drive_shift = <0x02>;
 	nexell,sample_dly = <0x00>;
