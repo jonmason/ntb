@@ -54,6 +54,9 @@ struct axp_mfd_chip *g_chip;
 struct i2c_client *axp;
 EXPORT_SYMBOL_GPL(axp);
 
+/* Holds the old poweroff function so we can restore it on removal. */
+static void (*old_poweroff_func)(void);
+
 static inline int __axp_read(struct i2c_client *client, int reg, uint8_t *val)
 {
 	int ret = 0;
@@ -966,6 +969,9 @@ static void axp_power_off(void)
 		pr_err("[axp] power-off cmd error!, retry!");
 		ret = axp_set_bits(&axp->dev, AXP22_OFF_CTL, 0x80);
 	}
+
+	if (old_poweroff_func)
+		old_poweroff_func();
 }
 
 static struct mfd_cell axp_devs[] = {
@@ -1098,6 +1104,7 @@ static int axp_mfd_probe(struct i2c_client *client,
 	if (ret)
 		goto out_free_irq;
 
+	old_poweroff_func = pm_power_off;
 	pm_power_off = axp_power_off;
 
 	ret = axp_mfd_create_attrs(axp228);
@@ -1118,6 +1125,9 @@ out_free_chip:
 static int axp_mfd_remove(struct i2c_client *client)
 {
 	struct axp_mfd_chip *chip = i2c_get_clientdata(client);
+
+	if (pm_power_off == axp_power_off)
+		pm_power_off = old_poweroff_func;
 
 	axp_mfd_remove_subdevs(chip);
 	kfree(chip);
