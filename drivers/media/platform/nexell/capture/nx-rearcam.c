@@ -4570,10 +4570,9 @@ static int nx_rearcam_remove(struct platform_device *pdev)
 	cdevice_exit(me);
 	deinit_me(me);
 
-	if (me->free_vendor_context)
+	if (me->free_vendor_context) {
 		me->free_vendor_context(me->vendor_context);
-
-	if (me->vendor_context != NULL) {
+	} else if (me->vendor_context != NULL) {
 		kfree(me->vendor_context);
 		me->vendor_context = NULL;
 	}
