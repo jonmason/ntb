@@ -35,6 +35,7 @@
 #include <linux/capability.h>
 #include <linux/compat.h>
 #include <linux/pm_runtime.h>
+#include <linux/of.h>
 
 #include <trace/events/mmc.h>
 
@@ -89,6 +90,8 @@ static int max_devices;
 /* TODO: Replace these with struct ida */
 static DECLARE_BITMAP(dev_use, MAX_DEVICES);
 static DECLARE_BITMAP(name_use, MAX_DEVICES);
+
+static unsigned int mmc_rootdev;
 
 /*
  * There is one mmc_blk_data per slot.
@@ -2481,7 +2484,10 @@ static struct mmc_blk_data *mmc_blk_alloc_req(struct mmc_card *card,
 	 * index anymore so we keep track of a name index.
 	 */
 	if (!subname) {
-		md->name_idx = find_first_zero_bit(name_use, max_devices);
+		if (card->host->index == mmc_rootdev)
+			md->name_idx = 0;
+		else
+			md->name_idx = find_first_zero_bit(name_use, max_devices);
 		__set_bit(md->name_idx, name_use);
 	} else
 		md->name_idx = ((struct mmc_blk_data *)
@@ -2701,6 +2707,7 @@ static void mmc_blk_remove_parts(struct mmc_card *card,
 	struct mmc_blk_data *part_md;
 
 	__clear_bit(md->name_idx, name_use);
+
 	list_for_each_safe(pos, q, &md->part) {
 		part_md = list_entry(pos, struct mmc_blk_data, part);
 		list_del(pos);
@@ -2993,6 +3000,16 @@ static struct mmc_driver mmc_driver = {
 static int __init mmc_blk_init(void)
 {
 	int res;
+	const __be32 *prop;
+
+	prop = of_get_property(of_chosen, "linux,rootdev", &res);
+	if (prop && res == sizeof(*prop)) {
+		mmc_rootdev = be32_to_cpu(*prop);
+
+		/* Reserve mmcblk0 for linux root device */
+		if (mmc_rootdev)
+			__set_bit(0, name_use);
+	}
 
 	if (perdev_minors != CONFIG_MMC_BLOCK_MINORS)
 		pr_info("mmcblk: using %d minors per device\n", perdev_minors);

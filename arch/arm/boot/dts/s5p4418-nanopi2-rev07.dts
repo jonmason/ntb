@@ -27,6 +27,7 @@
 &mach {
 	hwrev = <7>;
 	model = "NanoPi M2A";
+	sdidx = <0>;
 };
 
 &dw_mmc_1 {

@@ -38,6 +38,7 @@
 &mach {
 	hwrev = <4>;
 	model = "NanoPi Fire 2A";
+	sdidx = <0>;
 };
 
 &dw_mmc_1 {

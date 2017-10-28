@@ -29,6 +29,7 @@
 &mach {
 	hwrev = <3>;
 	model = "Smart4418-Core";
+	sdidx = <1>;
 };
 
 &dw_mmc_1 {
