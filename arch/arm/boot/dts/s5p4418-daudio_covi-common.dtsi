@@ -577,9 +577,9 @@
 	};
 };
 
-#include "tw9900_rearcam_regset.dtsi"
+#include "tw9900_rearcam_regset_covi.dtsi"
 &rearcam {
-	pinctrl-names = "default";
+	pinctrl-names = "rear_cam_clk";
 	pinctrl-0 = <&vid2_data_clk>;
 	rotation = <0>;
 	rear_cam_dev = <&clipper_1>;
@@ -588,10 +588,11 @@
 	dp_drm_dev = <&dp_drm_lvds>;
 	width = <704>;
 	height = <480>;
+	skip_frame = <0>;
 	status = "okay";
 
 	gpio {
-		event-gpio = <&alive_0 3 0>;
+		event-gpio = <&gpio_b 31 0>;
 		active_high = <0>;
 		detect_delay = <0>;
 	};
