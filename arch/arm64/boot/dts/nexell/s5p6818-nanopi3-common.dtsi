@@ -184,9 +184,11 @@
 			status = "okay";
 		};
 
-		dynamic-freq@bb000 {
+		dvfs:dynamic-freq@bb000 {
 			supply_name = "vdd_arm_spu";
+			supply_optional = "vdd_arm_axp";
 			vdd_arm_spu-supply = <&VCC1P1_ARM_SPU>;
+			vdd_arm_axp-supply = <&VCC1P1_ARM_PMIC>;
 			status = "okay";
 			dvfs-tables = <1400000 1200000
 				 1300000 1140000
