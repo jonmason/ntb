@@ -97,6 +97,11 @@
 			};
 		};
 
+		timer@c0017000 {
+			clocks = <&timer0>, <&timer1>;
+			clock-names = "timer0", "timer1";
+		};
+
 		l2:l2-cache-controller@cf000000 {
 			arm,prefetch-offset = <7>;
 			prefetch-data = <1>;
