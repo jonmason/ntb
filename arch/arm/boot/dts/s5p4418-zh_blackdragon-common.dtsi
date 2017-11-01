@@ -258,11 +258,6 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 
-			ub927928@0c{
-				compatible = "ti,ub927928";
-				reg = <0x0c>;
-			};
-
 			goodix@5d {
 				compatible = "goodix,gt911";
 				reg = <0x5d>;
