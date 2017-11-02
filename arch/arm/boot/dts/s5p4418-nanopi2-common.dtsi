@@ -539,6 +539,10 @@
 			};
 		};
 
+		scaler@c0066000 {
+			status = "okay";
+		};
+
 	};	/*** soc ***/
 
 	mach: board {
