@@ -24,6 +24,7 @@
 	compatible = "friendlyelec,smart4418", "nexell,s5p4418";
 
 	/delete-node/ wlan;
+	/delete-node/ bt_bcm;
 };
 
 &mach {

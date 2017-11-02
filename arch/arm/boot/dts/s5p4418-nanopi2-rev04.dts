@@ -33,6 +33,7 @@
 	};
 
 	/delete-node/ wlan;
+	/delete-node/ bt_bcm;
 };
 
 &mach {
