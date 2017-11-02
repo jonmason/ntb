@@ -49,6 +49,14 @@ config RFKILL_GPIO
 	  driver. The platform should fill in the appropriate fields in the
 	  rfkill_gpio_platform_data structure and pass that to the driver.
 
+config RFKILL_BCM4343
+	tristate "BCM4343 rfkill driver"
+	depends on RFKILL
+	depends on GPIOLIB
+	default n
+	help
+	  This enables the BCM4343 rfkill driver for Broadcom BCM4343X chipset.
+
 config SD8XXX_RFKILL
 	tristate "Rfkill power control for Marvell sd8xxx wlan/bt"
 	depends on RFKILL
