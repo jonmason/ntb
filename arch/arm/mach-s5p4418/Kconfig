@@ -40,6 +40,12 @@ config CPU_NXP4330
 	help
 	  Support for nexell nxp4330 cpu.
 
+config MULTICORE_IRQ
+	bool "Multi Core IRQ"
+	depends on ARCH_S5P4418
+	help
+	  This enbalse support multicore irq boradcasting
+
 config REDUCE_BOOT_TIME
 	bool "Enable Reduce Boot-Time"
 	depends on ARCH_S5P4418
