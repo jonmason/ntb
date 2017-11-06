@@ -54,8 +54,14 @@
 #define E522XX_WORK_FUNC_TIME 2000
 #define BUF_SIZE 1024
 
-bool app_quick_charge;
-bool app_phoneapp_charge;
+#define DEVICE_NAME "usb_i2c"
+
+/* ricky start */
+#define QUICK_CHARGE 0x7001
+#define NORMAL_CHARGE 0x7002
+#define CHECK_CARLIFE_ACTION 7003
+#define CHECK_CARPLAY_ACTION 7004
+#define CHECK_PHONEAPP_ACTION 7005
 
 enum e522xx_state {
 	E_E522XX_STATE_SLEEP = 0,
@@ -103,12 +109,12 @@ struct e522xx_data {
 	bool suspend_flag;
 };
 
+static int debug_flag = 1;
+module_param(debug_flag, int, S_IRUSR|S_IWUSR);
 static struct e522xx_data *p_e522xx;
 
 static void e522xx_state_ctrl(int state);
 static int e522xx_set_port_config
-	(enum e522xx_port_conf port_config);
-static int e522xx_req_update_port_config
 	(enum e522xx_port_conf port_config);
 
 static int i2c_read_bytes(struct i2c_client *client,
@@ -249,10 +255,12 @@ static void e522xx_state_ctrl(int state)
 		break;
 	case E_E522XX_STATE_STANDBY:
 		e522xx_en_pin_ctrl(0);
+		/*
 		if (p_e522xx->suspend_flag)
 			mdelay(1);
 		else
 			msleep(100);
+		*/
 		e522xx_en_pin_ctrl(1);
 		udelay(500);
 		e522xx_en_pin_ctrl(0);
@@ -267,37 +275,16 @@ static void e522xx_state_ctrl(int state)
 	}
 }
 
-static int e522xx_req_update_port_config(enum e522xx_port_conf port_config)
-{
-	if (port_config >= E_E522XX_PORT_CONF_ERROR || port_config < 0)
-		return -1;
-	UCD_DBG("req_update_port_config [%d]", port_config);
-	mutex_lock(&p_e522xx->lock);
-	p_e522xx->port_config = port_config;
-	p_e522xx->update_port_config = true;
-	mutex_unlock(&p_e522xx->lock);
-
-	return 0;
-}
-
-static int e522xx_clean_update_port_config(void)
-{
-	/* UCD_DBG("clean update port config!!!!"); */
-	mutex_lock(&p_e522xx->lock);
-	p_e522xx->update_port_config = false;
-	mutex_unlock(&p_e522xx->lock);
-
-	return 0;
-}
-
 static int e522xx_set_port_config(enum e522xx_port_conf port_config)
 {
 	int ret = 0;
 	u8 buf[2] = {0};
 	u8 cmd;
 
+	/*
 	if (port_config >= E_E522XX_PORT_CONF_ERROR || port_config < 0)
 		return -1;
+	*/
 
 	UCD_DBG("e522xx_set_port_config [%d]", port_config);
 
@@ -401,6 +388,7 @@ static int e522xx_set_port_config(enum e522xx_port_conf port_config)
 	return ret;
 }
 
+#if 0
 static int e522xx_get_port_config(void)
 {
 	int ret = 0;
@@ -445,7 +433,6 @@ static int e522xx_get_port_config(void)
 	return port_config;
 }
 
-#if 0
 static int e522xx_change_port_config_ccp_apple(void)
 {
 	int ret = 0;
@@ -495,7 +482,6 @@ static int e522xx_change_port_config_dcp(void)
 
 	return ret;
 }
-#endif
 
 static int e522xx_enter_sleep(void)
 {
@@ -519,6 +505,7 @@ sleep:
 
 	return ret;
 }
+#endif
 
 void e522xx_update_nrp(u8 VBUS_I, u8 VBUS_V)
 {
@@ -612,76 +599,6 @@ void e522xx_update_nrp(u8 VBUS_I, u8 VBUS_V)
 		UCD_DBG("usb_i2c_Write fail1==%d\n", ret);
 }
 
-static int e522xx_init(void)
-{
-	int ret = 0;
-
-	ret = e522xx_set_port_config(p_e522xx->port_config);
-
-	UCD_DBG(" %s", ret == 0 ? "success":"fail");
-
-	return ret;
-}
-
-static int e522xx_update_port_config(void)
-{
-	int ret = 0;
-	u8 port_config;
-
-	port_config = e522xx_get_port_config();
-
-	UCD_DBG("get port_config=%d", port_config);
-
-	if (port_config == E_E522XX_PORT_CONF_ERROR)
-		return -1;
-
-	if (p_e522xx->update_port_config) {
-		if (port_config != p_e522xx->port_config) {
-			if (!e522xx_set_port_config(p_e522xx->port_config)) {
-				e522xx_clean_update_port_config();
-				ret = 1;
-			} else {
-				ret = -1;
-			}
-		} else {
-			e522xx_clean_update_port_config();
-		}
-	}
-
-	return ret;
-}
-static void e522xx_set_charge_mode(void)
-{
-#if 0
-	if (ucd_charge_device_apple())
-		e522xx_req_update_port_config(E_E522XX_PORT_CONF_CCP_APPLE);
-	else if (ucd_quick_charge_mode())
-		e522xx_req_update_port_config(E_E522XX_PORT_CONF_DCP);
-	else
-		e522xx_req_update_port_config(E_E522XX_PORT_CONF_CDP);
-#else
-	if (ucd_quick_charge_mode()) {
-		if (p_e522xx->vbus_current > 385) {
-			if (ucd_charge_device_apple()) {
-				e522xx_req_update_port_config(
-					E_E522XX_PORT_CONF_CCP_APPLE);
-			} else {
-				e522xx_req_update_port_config(
-					E_E522XX_PORT_CONF_DCP);
-			}
-		} else if (p_e522xx->vbus_current < 205) {
-			e522xx_req_update_port_config(E_E522XX_PORT_CONF_SDP);
-		}
-	} else {
-#if 0
-		e522xx_req_update_port_config(E_E522XX_PORT_CONF_SDP);
-#else
-		e522xx_req_update_port_config(E_E522XX_PORT_CONF_CDP);
-#endif
-	}
-#endif
-}
-
 static int e522xx_get_vbus_current(void)
 {
 	int ret;
@@ -718,49 +635,29 @@ void e522xx_check_vbus_iv(void)
 
 	UCD_DBG("VBUS_I=%dma,VBUS_V=%dmv\n", i_val*26, v_val*54);
 
+	/*
 	if (i_val > 15)
 		e522xx_set_charge_mode();
 	else if (i_val < 8)
 		ucd_set_device_type(E_UCD_CHARGE_DEVICE_NONE);
+	*/
 
 #if E522XX_CTRL_CHECK_NRP
 	e522xx_update_nrp(i_val, v_val);
 #endif
 }
 
-static void e522xx_check(void)
-{
-	if (p_e522xx->init_flag) {
-		if (!e522xx_update_port_config())
-			e522xx_check_vbus_iv();
-		queue_work(ucd->workqueue, &ucd->event_work);
-	} else {
-		if (p_e522xx->init_count < E522XX_INIT_ERROR_COUNT) {
-			p_e522xx->init_count++;
-			if (!e522xx_init())
-				p_e522xx->init_flag = true;
-			queue_work(ucd->workqueue, &ucd->event_work);
-		}
-	}
-}
-
-static void ucd_check_work_func(struct work_struct *work)
-{
-	e522xx_check();
-	if (!p_e522xx->suspend_flag) {
-		queue_delayed_work(p_e522xx->workqueue, &p_e522xx->check_work,
-			msecs_to_jiffies(p_e522xx->time));
-	}
-}
-
+#if 0
 static void e522xx_suspend(void)
 {
 	p_e522xx->suspend_flag = true;
 
+	/*
 	cancel_work_sync(&ucd->event_work);
 	cancel_delayed_work_sync(&p_e522xx->check_work);
 
 	e522xx_enter_sleep();
+	*/
 
 	p_e522xx->init_flag = false;
 	p_e522xx->init_count = 0;
@@ -770,9 +667,12 @@ static void e522xx_suspend(void)
 static void e522xx_resume(void)
 {
 	p_e522xx->suspend_flag = false;
+	/*
 	queue_delayed_work(p_e522xx->workqueue, &p_e522xx->check_work,
 		msecs_to_jiffies(10));
+		*/
 }
+#endif
 
 static ssize_t e522xx_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -781,6 +681,7 @@ static ssize_t e522xx_show(struct device *dev,
 	int ret;
 	u8 in_buff[2] = {0};
 	int value = 0;
+	u8 i_val = 0, v_val = 0;
 	char *kbuf;
 
 	in_buff[0] = p_e522xx->debug.reg;
@@ -788,6 +689,12 @@ static ssize_t e522xx_show(struct device *dev,
 	kbuf = kzalloc(BUF_SIZE, GFP_KERNEL);
 	if (!kbuf)
 		return -ENOMEM;
+
+	i_val = e522xx_get_vbus_current();
+	v_val = e522xx_get_vbus_voltage();
+
+	p_e522xx->vbus_current = i_val * 26;
+	p_e522xx->vbus_voltage = v_val * 54;
 
 	len += snprintf(kbuf + len, BUF_SIZE - len, "client->addr:%x\n",
 		p_e522xx->client->addr);
@@ -803,6 +710,8 @@ static ssize_t e522xx_show(struct device *dev,
 		p_e522xx->init_count);
 	len += snprintf(kbuf + len, BUF_SIZE - len, "init_flag:%d\n",
 		p_e522xx->init_flag);
+	len += snprintf(kbuf + len, BUF_SIZE - len, "VBUS I=%dma, V=%dmv\n",
+		i_val * 26, v_val * 54);
 
 	if (p_e522xx->debug.reg == 0x80) {
 		ret = e522xx_i2c_read(p_e522xx->debug.reg, in_buff, 2);
@@ -810,6 +719,9 @@ static ssize_t e522xx_show(struct device *dev,
 	} else if (p_e522xx->debug.reg == 0x84) {
 		ret = e522xx_i2c_read(p_e522xx->debug.reg, in_buff, 2);
 		value = in_buff[0]*256 + in_buff[1];
+	} else if (p_e522xx->debug.reg == 0x00) {
+		ret = e522xx_i2c_read(0x04, in_buff, 1);
+		value = in_buff[0];
 	} else {
 		ret = e522xx_i2c_read(p_e522xx->debug.reg, in_buff, 1);
 		value = in_buff[0];
@@ -862,10 +774,8 @@ static ssize_t e522xx_store(struct device *dev,
 		val = simple_strtoul(pbuf, NULL, 10);
 		if (p_e522xx->port_config != val) {
 			p_e522xx->port_config = val;
-			e522xx_req_update_port_config(p_e522xx->port_config);
+			e522xx_set_port_config(p_e522xx->port_config);
 		}
-	} else if (!strncmp(buf, "sleep", 5)) {
-		e522xx_enter_sleep();
 	} else if (!strncmp(buf, "reg", 3)) {
 		val = simple_strtoul(pbuf, NULL, 16);
 
@@ -891,19 +801,72 @@ static ssize_t e522xx_store(struct device *dev,
 		} else {
 			p_e522xx->debug.reg = val & 0xff;
 		}
+	} else if (!strncmp(buf, "mode", 3)) {
+		if (!strncmp(pbuf, "sdp", 3))
+			e522xx_set_port_config(E_E522XX_PORT_CONF_SDP);
+		else if (!strncmp(pbuf, "cdp", 3))
+			e522xx_set_port_config(E_E522XX_PORT_CONF_CDP);
+		else if (!strncmp(pbuf, "dcp", 3))
+			e522xx_set_port_config(E_E522XX_PORT_CONF_DCP);
 	}
 
 	return count;
 }
-static DEVICE_ATTR(e522xx, 0755, e522xx_show, e522xx_store);
+static DEVICE_ATTR(e522xx, 0664, e522xx_show, e522xx_store);
+
+static int usb_ic_unlocked_ioctl(struct file *file,
+	unsigned int cmd, unsigned long arg)
+{
+	UCD_DBG("usb_ic_unlocked_ioctl:cmd=%d\n", cmd);
+
+	switch (cmd) {
+	case QUICK_CHARGE:
+		e522xx_set_port_config(E_E522XX_PORT_CONF_DCP);
+		break;
+	case NORMAL_CHARGE:
+		e522xx_set_port_config(E_E522XX_PORT_CONF_CDP);
+		break;
+	default:
+			break;
+	}
+
+	return 0;
+}
+
+static int usb_ic_Open(struct inode *inode, struct file *filp)
+{
+	UCD_DBG("\n usb_ic_Open----px2----\n");
+
+	return 0;
+}
+
+static int usb_ic_Release(struct inode *inode, struct file *filp)
+{
+	UCD_DBG("\n usb_ic_Release---px2----\n");
+
+	return 0;
+}
+
+static const struct file_operations usb_ic_fops = {
+	.owner = THIS_MODULE,
+	.unlocked_ioctl = usb_ic_unlocked_ioctl,
+	.open = usb_ic_Open,
+	.release = usb_ic_Release,
+};
+
+static struct miscdevice usb_ic_miscdev = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = DEVICE_NAME,
+	.fops = &usb_ic_fops,
+};
 
 /* Addresses to scan */
 /* static const unsigned short ucd_i2c_addr[] = {
 *	0x13, 0x11,0x12,I2C_CLIENT_END };
 */
-static const struct i2c_device_id ucd_i2c_id[] = { {"e522xx", 0}, {} };
+static const struct i2c_device_id e522_i2c_id[] = { {"e522xx", 0}, {} };
 #ifdef CONFIG_OF
-static const struct of_device_id ucd_of_match[] = {
+static const struct of_device_id e522_of_match[] = {
 	{.compatible = "mediatek,e522xx"},
 	{},
 };
@@ -919,7 +882,7 @@ static int e522xx_get_of_data(struct device *dev)
 	UCD_DBG("enter");
 
 	if (dev->of_node) {
-		match = of_match_device(of_match_ptr(ucd_of_match), dev);
+		match = of_match_device(of_match_ptr(e522_of_match), dev);
 		if (!match) {
 			UCD_ERR("Error: No device match found\n");
 			return -ENODEV;
@@ -945,7 +908,7 @@ static int e522xx_get_of_data(struct device *dev)
 }
 #endif
 
-static int ucd_i2c_probe(struct i2c_client *client,
+static int e522_i2c_probe(struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
 	UCD_DBG("Attach I2C\n");
@@ -965,10 +928,16 @@ static int ucd_i2c_probe(struct i2c_client *client,
 
 	e522xx_gpio_init();
 
+	e522xx_set_port_config(E_E522XX_PORT_CONF_CDP);
+
+	/*
 	INIT_DELAYED_WORK(&p_e522xx->check_work, ucd_check_work_func);
 	p_e522xx->workqueue = create_workqueue("ucd_check_workqueue");
 	queue_delayed_work(p_e522xx->workqueue, &p_e522xx->check_work,
 		msecs_to_jiffies(p_e522xx->time * 5));
+	*/
+
+	misc_register(&usb_ic_miscdev);
 
 	if (device_create_file(&client->dev, &dev_attr_e522xx))
 		UCD_ERR("devive:%s create file error----!\n",
@@ -980,12 +949,12 @@ static int ucd_i2c_probe(struct i2c_client *client,
 	return 0;
 }
 
-static int ucd_i2c_remove(struct i2c_client *client)
+static int e522_i2c_remove(struct i2c_client *client)
 {
 	return 0;
 }
 
-static int ucd_i2c_detect(struct i2c_client *client,
+static int e522_i2c_detect(struct i2c_client *client,
 	struct i2c_board_info *info)
 {
 	UCD_DBG("%s", __func__);
@@ -998,127 +967,38 @@ static int ucd_i2c_detect(struct i2c_client *client,
 	return 0;
 }
 
-static struct i2c_driver ucd_i2c_driver = {
+static struct i2c_driver e522_i2c_driver = {
 	.class = I2C_CLASS_HWMON,
-	.probe = ucd_i2c_probe,
-	.remove = ucd_i2c_remove,
+	.probe = e522_i2c_probe,
+	.remove = e522_i2c_remove,
 	.driver.name = "e522xx",
 	.driver = {
 		.name = "e522xx",
 		.owner = THIS_MODULE,
 #ifdef CONFIG_OF
-		.of_match_table = ucd_of_match,
+		.of_match_table = e522_of_match,
 #endif
 	},
-	.id_table = ucd_i2c_id,
-	.detect = ucd_i2c_detect,
-	/* .address_list	= ucd_i2c_addr, */
+	.id_table = e522_i2c_id,
+	.detect = e522_i2c_detect,
+	/* .address_list	= e522_i2c_addr, */
 };
 
-
-static int ucd_local_init(void)
+static int __init e522_i2c_init(void)
 {
-	UCD_INFO("%s", __func__);
-	if (i2c_add_driver(&ucd_i2c_driver) != 0) {
-		UCD_INFO("unable to add i2c driver.\n");
-		return -1;
-	}
-
-	return 0;
+	return i2c_add_driver(&e522_i2c_driver);
 }
 
+module_init(e522_i2c_init);
 
-/* Function to manage low power suspend */
-static void ucd_suspend(struct device *h)
+static void __exit e522_i2c_exit(void)
 {
-	UCD_DBG("%s", __func__);
-	e522xx_suspend();
+	i2c_del_driver(&e522_i2c_driver);
 }
 
-/* Function to manage power-on resume */
-static void ucd_resume(struct device *h)
-{
-	UCD_DBG("%s", __func__);
-	e522xx_resume();
-}
+module_exit(e522_i2c_exit);
 
-static void ucd_event(int event, int value)
-{
-	char *udev_event = (char *)value;
-
-	switch (event) {
-	case E_UCD_EVENT_CHARGE_DEVICE_TYPE:
-		e522xx_set_charge_mode();
-		break;
-	case E_UCD_EVENT_CHARGE_NORMAL_MODE:
-		e522xx_set_charge_mode();
-		break;
-	case E_UCD_EVENT_CHARGE_QUICK_MODE:
-		e522xx_set_charge_mode();
-		break;
-	case E_UCD_EVENT_CHARGE_GET_MODE:
-		if ((p_e522xx->vbus_current > 0)) {
-			if (ucd_quick_charge_mode()) {
-				if (p_e522xx->port_config >=
-					E_E522XX_PORT_CONF_DCP
-				&& p_e522xx->port_config <=
-					E_E522XX_PORT_CONF_CCP) {
-					snprintf(udev_event, 64,
-						"CHARGE_MODE=QUICK_CHARGE");
-				} else {
-					if (ucd_charge_device_none()) {
-						snprintf(udev_event, 64,
-							"CHARGE_MODE=NONE");
-					} else {
-						snprintf(udev_event, 64,
-							"CHARGE_MODE=NORMAL_CHARGE");
-					}
-				}
-			} else {
-				if (ucd_charge_device_none()) {
-					snprintf(udev_event, 64,
-						"CHARGE_MODE=NONE");
-				} else {
-					snprintf(udev_event, 64,
-						"CHARGE_MODE=NORMAL_CHARGE");
-				}
-			}
-		} else {
-			snprintf(udev_event, 64, "CHARGE_MODE=NONE");
-		}
-		break;
-	case E_UCD_EVENT_CHARGE_GET_CURRENT:
-		snprintf(udev_event, 64, "vbus_current=%d",
-			p_e522xx->vbus_current);
-		break;
-	default:
-		break;
-	}
-}
-static struct ucd_driver ucd_device_driver = {
-	.device_name = "e522xx",
-	.local_init = ucd_local_init,
-	.suspend = ucd_suspend,
-	.resume = ucd_resume,
-	.event = ucd_event,
-};
-
-static int __init ucd_driver_init(void)
-{
-	UCD_INFO("MediaTek e522xx usb charge driver init\n");
-
-	if (ucd_driver_add(&ucd_device_driver) < 0)
-		UCD_INFO("add device driver failed\n");
-
-	return 0;
-}
-static void __exit ucd_driver_exit(void)
-{
-	ucd_driver_remove(&ucd_device_driver);
-}
-module_init(ucd_driver_init);
-module_exit(ucd_driver_exit);
-
-MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("Core driver e522");
 MODULE_AUTHOR("zhonghong");
-MODULE_DESCRIPTION("usb charge emlos e522xx Driver");
+MODULE_LICENSE("GPL v2");
+
