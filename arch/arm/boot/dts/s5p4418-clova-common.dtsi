@@ -243,20 +243,21 @@
 };
 
 &dp_drm_mipi {
-	hs_bitrate = <960>;
+	hs_bitrate = <420>;
 	lp_bitrate = <100>;
 	status = "ok";
 
 	panel@0 {
 		compatible = "px0701c";
+		backlight = <&backlight>; 
 		reg = <0>;
 		vdd3-supply = <&VCC_LDO0>;
-		vci-supply = <&VCC_LDO1>;
+		vci-supply = <&VCC_LDO8>;
 		reset-gpio = <&gpio_a 21 0>;
 		enable-gpio = <&gpio_a 20 0>;
-		power-on-delay= <1>;
-		reset-delay = <1>;
-		init-delay = <200>;
+		power-on-delay= <50>;
+		reset-delay = <100>;
+		init-delay = <100>;
 		display-timings {
 			timing-0 {
 				clock-frequency = <67161600>;
@@ -274,7 +275,7 @@
 
 	dp_control {
 		clk_src_lv0 = <0>;
-		clk_div_lv0 = <5>;
+		clk_div_lv0 = <12>;
 		clk_src_lv1 = <7>;
 		clk_div_lv1 = <1>;
 		out_format = <3>;
@@ -319,8 +320,8 @@
 
 &i2c_gpio4 {
 	compatible = "i2c-gpio";
-	gpios=<&gpio_a 16 0	/* SDA */
-	      &gpio_a 17 0>;	/* SCL */
+	gpios=<&gpio_a 26 0	/* SDA */
+	      &gpio_a 25 0>;	/* SCL */
 	status = "okay";
 	#address-cells = <1>;
 	#size-cells = <0>;
@@ -329,9 +330,9 @@
 		compatible = "goodix,gt911";
 		reg = <0x5d>;
 		interrupt-parent = <&gpio_a>;
-		interrupts = <15 IRQ_TYPE_EDGE_FALLING>;
-		irq-gpios = <&gpio_a 15 0>;
-		reset-gpios = <&gpio_a 14 0>;
+		interrupts = <0 IRQ_TYPE_EDGE_FALLING>;
+		irq-gpios = <&gpio_a 0 0>;
+		reset-gpios = <&gpio_a 24 0>;
 	};
 };
 
@@ -402,7 +403,7 @@
 				ldo1	{ PMIC_PDATA_INIT( 5,
 					"nxe2000_ldo1",
 					1000000, 3500000,
-					3300000, 1, 1, 0x0)
+					2800000, 1, 1, 0x0)
 					regulator-boot-on;};
 			VCC_LDO1:
 				ldo2	{ PMIC_PDATA_INIT( 6,
