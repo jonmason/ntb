@@ -515,7 +515,6 @@ static int nx_drm_gem_sys_contig_mmap(struct nx_gem_object *nx_obj,
 	unsigned long pfn, off;
 	dma_addr_t dma_addr;
 	size_t size;
-	int ret = -ENXIO;
 
 	drm = nx_obj->base.dev;
 	dma_addr = nx_obj->dma_addr;
@@ -530,7 +529,7 @@ static int nx_drm_gem_sys_contig_mmap(struct nx_gem_object *nx_obj,
 	off = vma->vm_pgoff;
 
 	if (off < nr_pages && nr_vma_pages <= (nr_pages - off)) {
-		ret = remap_pfn_range(vma, vma->vm_start,
+		return remap_pfn_range(vma, vma->vm_start,
 				      pfn + off, size, vma->vm_page_prot);
 	}
 
@@ -1198,7 +1197,6 @@ static int nx_drm_gem_dmabuf_mmap(struct dma_buf *dma_buf,
 {
 	struct drm_gem_object *obj = dma_buf->priv;
 	struct drm_device *drm = obj->dev;
-	struct nx_gem_object *nx_obj;
 	int ret;
 
 	DRM_DEBUG_DRIVER("enter\n");
@@ -1209,9 +1207,7 @@ static int nx_drm_gem_dmabuf_mmap(struct dma_buf *dma_buf,
 	if (ret < 0)
 		return ret;
 
-	nx_obj = to_nx_gem_obj(obj);
-
-	return nx_drm_gem_buf_mmap(nx_obj, vma);
+	return nx_drm_gem_buf_mmap(to_nx_gem_obj(obj), vma);
 }
 
 static void *nx_drm_gem_dmabuf_vmap(struct dma_buf *dma_buf)
@@ -1410,6 +1406,42 @@ struct dma_buf *nx_drm_gem_prime_export(struct drm_device *drm,
 		exp_info.resv = drm->driver->gem_prime_res_obj(obj);
 
 	return dma_buf_export(&exp_info);
+}
+
+struct drm_gem_object *nx_drm_gem_prime_import(struct drm_device *drm,
+			struct dma_buf *dma_buf)
+{
+	return nx_drm_gem_prime_import(drm, dma_buf);
+}
+
+int nx_drm_gem_prime_mmap(struct drm_gem_object *obj,
+			struct vm_area_struct *vma)
+{
+	struct drm_device *drm = obj->dev;
+	int ret;
+
+	DRM_DEBUG_DRIVER("enter\n");
+
+	mutex_lock(&drm->struct_mutex);
+	ret = nx_drm_gem_vm_map(obj, obj->size, vma);
+	mutex_unlock(&drm->struct_mutex);
+	if (ret < 0)
+		return ret;
+
+	return nx_drm_gem_buf_mmap(to_nx_gem_obj(obj), vma);
+}
+
+void *nx_drm_gem_prime_vmap(struct drm_gem_object *obj)
+{
+	struct nx_gem_object *nx_obj = to_nx_gem_obj(obj);
+
+	DRM_DEBUG_DRIVER("enter\n");
+
+	return nx_obj->cpu_addr;
+}
+
+void nx_drm_gem_prime_vunmap(struct drm_gem_object *obj, void *vaddr)
+{
 }
 
 struct sg_table *nx_drm_gem_prime_get_sg_table(struct drm_gem_object *obj)

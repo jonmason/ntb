@@ -74,6 +74,13 @@ void nx_drm_gem_free_object(struct drm_gem_object *obj);
 struct dma_buf *nx_drm_gem_prime_export(struct drm_device *drm,
 			struct drm_gem_object *obj,
 			int flags);
+struct drm_gem_object *nx_drm_gem_prime_import(struct drm_device *drm,
+			struct dma_buf *dma_buf);
+int nx_drm_gem_prime_mmap(struct drm_gem_object *obj,
+			struct vm_area_struct *vma);
+void *nx_drm_gem_prime_vmap(struct drm_gem_object *obj);
+void nx_drm_gem_prime_vunmap(struct drm_gem_object *obj, void *vaddr);
+
 struct sg_table *nx_drm_gem_prime_get_sg_table(struct drm_gem_object *obj);
 struct drm_gem_object *nx_drm_gem_prime_import_sg_table(
 			struct drm_device *dev,
