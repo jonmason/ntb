@@ -490,15 +490,28 @@ static int ntc_read_temp(void *dev, int *temp)
 	int i = 0;
 	static int temp_old;
 	static int temp_error;
+	int input, diff;
 
 	for (i = 0; i < SAMPLE_CNT; i++) {
 		ohm = ntc_thermistor_get_ohm(data);
 		if (ohm < 0)
 			continue;
 
-		*temp = get_temp_mc(data, ohm) + data->pdata->compensat_temp;
+		input = get_temp_mc(data, ohm);
 
-		if ((*temp + TEMPGAP) < temp_old) {
+#if defined(CONFIG_MACH_NANOPI2)
+		if (unlikely(!temp_old))
+			temp_old = input;
+
+		diff = input - temp_old;
+		if (abs(diff) > 5000) {
+			pr_debug("thermal: temp = %d, old = %d\n", input, temp_old);
+			temp_old += (diff >> 2);
+			msleep(20);
+			continue;
+		}
+#endif
+		if ((input + TEMPGAP) < temp_old) {
 			temp_error++;
 			msleep(50);
 			continue;
@@ -506,7 +519,8 @@ static int ntc_read_temp(void *dev, int *temp)
 			break;
 	}
 
-	temp_old = *temp;
+	temp_old = input;
+	*temp = input + data->pdata->compensat_temp;
 
 	return 0;
 }
