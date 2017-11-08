@@ -209,14 +209,12 @@ sync:
 
 out:
 	mutex_unlock(&priv->mutex);
-	enable_irq(priv->irq);
 }
 
 static irqreturn_t it7260_ts_isr(int irq, void *dev_id)
 {
 	struct it7260_ts_priv *priv = dev_id;
 
-	disable_irq_nosync(irq);
 	schedule_delayed_work(&priv->work, HZ / 50);
 
 	return IRQ_HANDLED;
@@ -323,7 +321,8 @@ static int it7260_ts_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK(&priv->work, it7260_ts_poscheck);
 
 	error = devm_request_irq(&client->dev, priv->irq, it7260_ts_isr,
-				 IRQF_TRIGGER_LOW, client->name, priv);
+				 IRQF_TRIGGER_LOW | IRQF_ONESHOT,
+				 client->name, priv);
 	if (error) {
 		dev_err(&client->dev, "unable to request touchscreen IRQ\n");
 		return error;
