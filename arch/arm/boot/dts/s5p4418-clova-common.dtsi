@@ -153,11 +153,42 @@
 			pre-supply-mclk = <1>;
 			status = "okay";
 		};
+	i2s_1:i2s@c0056000 {
+		#sound-dai-cells = <1>;
+		master-mode = <1>;
+		mclk-in = <0>;
+		trans-mode = <0>;
+		frame-bit = <32>;
+		sample-rate = <48000>;
+		pre-supply-mclk = <1>;
+		status = "okay";
+	};
 
 		scaler@c0066000 {
 			status = "okay";
 		};
 	}; /*** soc ***/
+
+	sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "s5p4418 clova Audio";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,widgets =
+			"Headphone", "Out Jack",
+			"Microphone", "In Jack";
+		status = "okay";
+
+		simple-audio-card,dai-link@0 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s_0 0>;
+			};
+
+			codec {
+				sound-dai = <&tas5782>;
+	 		};
+		};
+	};
 
 	i2c_gpio3: i2c@3 {
 		status = "disabled";
@@ -249,7 +280,7 @@
 
 	panel@0 {
 		compatible = "px0701c";
-		backlight = <&backlight>; 
+		backlight = <&backlight>;
 		reg = <0>;
 		vdd3-supply = <&VCC_LDO0>;
 		vci-supply = <&VCC_LDO8>;
@@ -334,6 +365,21 @@
 		irq-gpios = <&gpio_a 0 0>;
 		reset-gpios = <&gpio_a 24 0>;
 		touchscreen-inverted-x = <1>;
+	};
+};
+&i2c_1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	rate = <400000>;
+
+	tas5782: tas5782@48 {
+		#sound-dai-cells = <0>;
+		compatible = "ti,tas5782";
+		reg = <0x48>;
+		reset-gpios = <&gpio_c 29 0>;
+		mute-gpios = <&gpio_a 22 0>;
+		fault-gpios = <&gpio_a 23 0>;
 	};
 };
 
