@@ -37,24 +37,22 @@
 struct nx_resolution {
 	uint32_t width;
 	uint32_t height;
-	uint32_t interval;
+	uint32_t interval[2];
 };
 
 static struct nx_resolution supported_resolutions[] = {
 	{
 		.width	= 704,
 		.height = 480,
-		.interval = 30,
+		.interval[0] = 15,
+		.interval[1] = 30,
 	}/*,
 	{
 		.width	= 640,
 		.height = 480,
-		.interval = 30,
+		.interval[0] = 15,
+		.interval[1] = 30,
 	}*/
-};
-
-static const uint32_t avail_fps_range[] = {
-	15, 30
 };
 
 /* #define BRIGHTNESS_TEST */
@@ -421,20 +419,26 @@ static int tw9900_enum_frame_size(struct v4l2_subdev *sd,
 
 static int tw9900_enum_frame_interval(struct v4l2_subdev *sd,
 				      struct v4l2_subdev_pad_config *cfg,
-				      struct v4l2_subdev_frame_interval_enum *frame)
+				      struct v4l2_subdev_frame_interval_enum
+				      *frame)
 {
-	vmsg("%s, index:%d\n", __func__, frame->index);
-	if (frame->index >= ARRAY_SIZE(supported_resolutions))
-		return -ENODEV;
+	int i;
 
-	frame->width = supported_resolutions[frame->index].width;
-	frame->height = supported_resolutions[frame->index].height;
-	frame->interval.numerator = supported_resolutions[frame->index].interval;
-	frame->interval.denominator = 1;
-	vmsg("index:%d, width:%d, height:%d, interval:%d:%d\n", frame->index,
-		frame->width, frame->height,
-		frame->interval.numerator, frame->interval.denominator);
-	return 0;
+	vmsg("%s, %s interval\n", __func__, (frame->index) ? "max" : "min");
+
+	for (i = 0; i < ARRAY_SIZE(supported_resolutions); i++) {
+		if ((frame->width == supported_resolutions[i].width) &&
+		    (frame->height == supported_resolutions[i].height)) {
+			frame->interval.numerator = 1;
+			frame->interval.denominator =
+				supported_resolutions[i].interval[frame->index];
+			vmsg("[%s] width:%d, height:%d, interval:%d\n",
+			     __func__, frame->width, frame->height,
+			     frame->interval.denominator);
+			return false;
+		}
+	}
+	return -EINVAL;
 }
 
 static const struct v4l2_subdev_core_ops tw9900_subdev_core_ops = {
