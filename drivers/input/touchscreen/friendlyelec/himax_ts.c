@@ -42,10 +42,6 @@
 #define HX_PNT_SIZE     4
 #define HX_EMPTY        0xFFFF
 
-#ifndef CONFIG_TOUCHSCREEN_PROT_SINGLE
-#define CONFIG_HIMAX_MULTITOUCH        1
-#endif
-
 struct himax_ts_initseq_entry {
     char *cmd;
     int count;
@@ -153,12 +149,9 @@ static irqreturn_t himax_ts_isr(int irq, void *data)
     struct input_dev *input = priv->input;
     int packet_size = props->packet_size;
     char *buf = priv->buf;
-    int curr_touches, touch_count;
-    u32 x, y;
-#ifdef CONFIG_HIMAX_MULTITOUCH
     bool was_touched, now_touched, report_event;
-    int i ;
-#endif
+    int curr_touches, touch_count, i;
+    u32 x, y;
 
     memset(buf, 0, packet_size);
 
@@ -191,16 +184,16 @@ static irqreturn_t himax_ts_isr(int irq, void *data)
     if (curr_touches == 0xFF)
         curr_touches = 0;
 
-#ifdef CONFIG_HIMAX_MULTITOUCH
+    touch_count = 0;
+    report_event = false;
+
     for (i = 0; i < props->touch_points; i++) {
+        now_touched = curr_touches & (1 << i);
+        was_touched = priv->prev_touches & (1 << i);
+
         x = (buf[i * HX_PNT_SIZE + 0] << 8) | buf[i * HX_PNT_SIZE + 1];
         y = (buf[i * HX_PNT_SIZE + 2] << 8) | buf[i * HX_PNT_SIZE + 3];
-
         himax_ts_set_coords(props, &x, &y);
-
-        report_event = false;
-        was_touched = priv->prev_touches & (1 << i);
-        now_touched = curr_touches & (1 << i);
 
         /* Check for touch state and coordinates consistency */
         if (now_touched && (x <= HX_MAX_X && y <= HX_MAX_Y)) {
@@ -209,36 +202,54 @@ static irqreturn_t himax_ts_isr(int irq, void *data)
         } else if (was_touched && (x == HX_EMPTY && y == HX_EMPTY)) {
             report_event = true;
             dev_dbg(&priv->client->dev, "# %d released", i);
-        }
+        } else
+            continue;
 
-        if (report_event) {
-            if (now_touched) {
-                input_report_abs(input, ABS_MT_POSITION_X, x);
-                input_report_abs(input, ABS_MT_POSITION_Y, y);
-
-                input_report_abs(input, ABS_MT_PRESSURE, 200);
-                input_report_abs(input, ABS_MT_TOUCH_MAJOR, 200);
-                input_report_abs(input, ABS_MT_TRACKING_ID, i);
-            }
-            input_mt_sync(input);
+#if defined(CONFIG_TOUCHSCREEN_PROT_SINGLE)
+        if (now_touched) {
+            touch_count++;
+            input_report_abs(input, ABS_X, x);
+            input_report_abs(input, ABS_Y, y);
+            input_report_abs(input, ABS_PRESSURE, 200);
+            input_report_key(input, BTN_TOUCH, 1);
+            break;
         }
-    }
+#elif defined(CONFIG_TOUCHSCREEN_PROT_MT_SYNC)
+        input_report_abs(input, ABS_MT_TRACKING_ID, i);
+        if (now_touched) {
+            touch_count++;
+            input_report_abs(input, ABS_MT_POSITION_X, x);
+            input_report_abs(input, ABS_MT_POSITION_Y, y);
+            input_report_abs(input, ABS_MT_TOUCH_MAJOR, 200);
+        } else {
+            input_report_abs(input, ABS_MT_TOUCH_MAJOR, 0);
+        }
+        input_mt_sync(input);
 #else
-    if (touch_count == 1) {
-        x = (buf[0 * HX_PNT_SIZE + 0] << 8) | buf[0 * HX_PNT_SIZE + 1];
-        y = (buf[0 * HX_PNT_SIZE + 2] << 8) | buf[0 * HX_PNT_SIZE + 3];
-
-        himax_ts_set_coords(props, &x, &y);
-        input_report_abs(input, ABS_X, x);
-        input_report_abs(input, ABS_Y, y);
-        input_report_abs(input, ABS_PRESSURE, 200);
-        input_report_key(input, BTN_TOUCH, 1);
-    } else if (touch_count == 0) {
-        input_report_abs(input, ABS_PRESSURE, 0);
-        input_report_key(input, BTN_TOUCH, 0);
-    }
+        input_mt_slot(priv->input, i);
+        input_mt_report_slot_state(input, MT_TOOL_FINGER, now_touched);
+        if (now_touched) {
+            input_report_abs(input, ABS_MT_POSITION_X, x);
+            input_report_abs(input, ABS_MT_POSITION_Y, y);
+            input_report_abs(input, ABS_MT_TOUCH_MAJOR, 200);
+        }
 #endif
-    input_sync(input);
+    }
+
+    if (report_event) {
+#if defined(CONFIG_TOUCHSCREEN_PROT_SINGLE)
+        if (!touch_count) {
+            input_report_abs(input, ABS_PRESSURE, 0);
+            input_report_key(input, BTN_TOUCH, 0);
+        }
+#elif defined(CONFIG_TOUCHSCREEN_PROT_MT_SYNC)
+        if (!touch_count)
+            input_mt_sync(priv->input);
+#else
+        input_mt_report_pointer_emulation(input, true);
+#endif
+        input_sync(input);
+    }
 
     priv->prev_touches = curr_touches;
 
@@ -328,20 +339,7 @@ static struct input_dev *himax_ts_init_input(struct himax_ts_priv *priv)
     set_bit(EV_ABS, input->evbit);
     set_bit(EV_KEY, input->evbit);
 
-#ifdef CONFIG_HIMAX_MULTITOUCH
-    set_bit(ABS_MT_TRACKING_ID, input->absbit);
-    set_bit(ABS_MT_TOUCH_MAJOR, input->absbit);
-    set_bit(ABS_MT_WIDTH_MAJOR, input->absbit);
-    set_bit(ABS_MT_POSITION_X, input->absbit);
-    set_bit(ABS_MT_POSITION_Y, input->absbit);
-    set_bit(INPUT_PROP_DIRECT, input->propbit);
-
-    input_set_abs_params(input, ABS_MT_POSITION_X, 0, HX_MAX_X, 0, 0);
-    input_set_abs_params(input, ABS_MT_POSITION_Y, 0, HX_MAX_Y, 0, 0);
-    input_set_abs_params(input, ABS_MT_TOUCH_MAJOR, 0, 0xFF, 0, 0);
-    input_set_abs_params(input, ABS_MT_WIDTH_MAJOR, 0, 200, 0, 0);
-    input_set_abs_params(input, ABS_MT_TRACKING_ID, 0, priv->ts_props->touch_points, 0, 0);
-#else
+#if defined(CONFIG_TOUCHSCREEN_PROT_SINGLE)
     set_bit(ABS_X, input->absbit);
     set_bit(ABS_Y, input->absbit);
     set_bit(ABS_PRESSURE, input->absbit);
@@ -350,7 +348,26 @@ static struct input_dev *himax_ts_init_input(struct himax_ts_priv *priv)
     input_set_abs_params(input, ABS_X, 0, HX_MAX_X, 0, 0);
     input_set_abs_params(input, ABS_Y, 0, HX_MAX_Y, 0, 0);
     input_set_abs_params(input, ABS_PRESSURE, 0, 0xFF, 0, 0);
+#else
+    /* Multi-touch (MT) Protocol A/B */
+#if defined(CONFIG_TOUCHSCREEN_PROT_MT_SYNC)
+    input_set_abs_params(input, ABS_MT_TRACKING_ID,
+            0, priv->ts_props->touch_points, 0, 0);
+
+    set_bit(INPUT_PROP_DIRECT, input->propbit);
+#else
+    if (input_mt_init_slots(input, priv->ts_props->touch_points,
+            INPUT_MT_DIRECT)) {
+        dev_err(&priv->client->dev, "failed to init slots\n");
+        return NULL;
+    }
 #endif
+
+    input_set_abs_params(input, ABS_MT_POSITION_X, 0, HX_MAX_X, 0, 0);
+    input_set_abs_params(input, ABS_MT_POSITION_Y, 0, HX_MAX_Y, 0, 0);
+    input_set_abs_params(input, ABS_MT_TOUCH_MAJOR, 0, 0xFF, 0, 0);
+#endif /* !CONFIG_TOUCHSCREEN_PROT_SINGLE */
+
     input_set_drvdata(input, priv);
 
     return input;
