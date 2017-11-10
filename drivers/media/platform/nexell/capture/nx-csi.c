@@ -845,6 +845,28 @@ static int nx_csi_set_fmt(struct v4l2_subdev *sd,
 	return v4l2_subdev_call(remote, pad, set_fmt, cfg, format);
 }
 
+static int nx_csi_enum_frame_size(struct v4l2_subdev *sd,
+				  struct v4l2_subdev_pad_config *cfg,
+				  struct v4l2_subdev_frame_size_enum
+				  *frame)
+{
+	struct nx_csi *me = v4l2_get_subdevdata(sd);
+	struct v4l2_subdev *remote = get_remote_subdev(me, NX_CSI_PAD_SINK);
+
+	return v4l2_subdev_call(remote, pad, enum_frame_size, 0, frame);
+}
+
+static int nx_csi_enum_frame_interval(struct v4l2_subdev *sd,
+				      struct v4l2_subdev_pad_config *cfg,
+				      struct v4l2_subdev_frame_interval_enum
+				      *frame)
+{
+	struct nx_csi *me = v4l2_get_subdevdata(sd);
+	struct v4l2_subdev *remote = get_remote_subdev(me, NX_CSI_PAD_SINK);
+
+	return v4l2_subdev_call(remote, pad, enum_frame_interval, 0, frame);
+}
+
 static int nx_csi_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	int ret;
@@ -913,6 +935,8 @@ static struct v4l2_subdev_video_ops nx_csi_video_ops = {
 
 static struct v4l2_subdev_pad_ops nx_csi_pad_ops = {
 	.set_fmt = nx_csi_set_fmt,
+	.enum_frame_size = nx_csi_enum_frame_size,
+	.enum_frame_interval = nx_csi_enum_frame_interval,
 };
 
 static struct v4l2_subdev_ops nx_csi_subdev_ops = {
