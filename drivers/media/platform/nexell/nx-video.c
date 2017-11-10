@@ -1127,6 +1127,7 @@ static int nx_video_enum_framesizes(struct file *file, void *fh,
 		return -ENODEV;
 	}
 	frame_size.index = p->index;
+	frame_size.pad = 0;
         ret = v4l2_subdev_call(sd, pad, enum_frame_size, NULL, &frame_size);
         if (!ret) {
                 p->stepwise.max_width = frame_size.max_width;
@@ -1159,16 +1160,17 @@ static int nx_video_enum_frameintervals(struct file *file, void *fh,
 	}
 
 	frame.index = p->index;
+	frame.pad = 0;
+	frame.width = p->width;
+	frame.height = p->height;
         ret = v4l2_subdev_call(sd, pad, enum_frame_interval, NULL, &frame);
         if (!ret) {
-		p->width = frame.width;
-		p->height = frame.height;
 		p->type = V4L2_FRMIVAL_TYPE_DISCRETE;
 		p->discrete.numerator = frame.interval.numerator;
 		p->discrete.denominator = frame.interval.denominator;
-		pr_debug("index:%d, width:%d, height:%d, type:%d, numerator:%d, denominator:%d\n",
-			p->index, p->width, p->height, p->type,
-			p->discrete.numerator, p->discrete.denominator);
+		pr_debug("width:%d, height:%d, interval:%d\n",
+			p->width, p->height,
+			p->discrete.denominator);
 	}
 
         return ret;
