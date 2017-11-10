@@ -8,6 +8,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/input.h>
+#include <linux/input/mt.h>
 #include <linux/interrupt.h>
 #include <linux/pm.h>
 #include <linux/slab.h>
@@ -170,27 +171,38 @@ static void it7260_ts_poscheck(struct work_struct *work)
 	}
 
 	for (i = 0; i < PT_MAX; i++) {
+#ifdef CONFIG_TOUCHSCREEN_PROT_SINGLE
 		if (xpos[i] || ypos[i] || event[i]) {
 			touch_point++;
-#ifdef CONFIG_TOUCHSCREEN_PROT_SINGLE
 			input_report_abs(priv->input, ABS_X, xpos[i]);
 			input_report_abs(priv->input, ABS_Y, ypos[i]);
 			input_report_abs(priv->input, ABS_PRESSURE, (event[i] << 4));
 			input_report_key(priv->input, BTN_TOUCH, 1);
 			break;
-#else
+		}
+#elif defined(CONFIG_TOUCHSCREEN_PROT_MT_SYNC)
+		if (xpos[i] || ypos[i] || event[i]) {
+			touch_point++;
 			input_report_abs(priv->input, ABS_MT_POSITION_X, xpos[i]);
 			input_report_abs(priv->input, ABS_MT_POSITION_Y, ypos[i]);
 			input_report_abs(priv->input, ABS_MT_PRESSURE,   (event[i] << 4));
 			input_report_abs(priv->input, ABS_MT_TOUCH_MAJOR, event[i]);
 			input_report_abs(priv->input, ABS_MT_TRACKING_ID, i);
 			input_mt_sync(priv->input);
-#endif
-#if 0
-			printk("finger %d >  (%4d, %4d),  event = %d\n",
-					i, ypos[i], xpos[i], event[i]);
-#endif
 		}
+#else /* CONFIG_TOUCHSCREEN_PROT_MT_SLOT */
+		input_mt_slot(priv->input, i);
+		if (xpos[i] || ypos[i] || event[i]) {
+			touch_point++;
+			input_mt_report_slot_state(priv->input, MT_TOOL_FINGER, true);
+			input_report_abs(priv->input, ABS_MT_POSITION_X, xpos[i]);
+			input_report_abs(priv->input, ABS_MT_POSITION_Y, ypos[i]);
+			input_report_abs(priv->input, ABS_MT_PRESSURE,   (event[i] << 4));
+			input_report_abs(priv->input, ABS_MT_TOUCH_MAJOR, event[i]);
+		} else {
+			input_mt_report_slot_state(priv->input, MT_TOOL_FINGER, false);
+		}
+#endif
 	}
 
 up:
@@ -199,7 +211,7 @@ up:
 #ifdef CONFIG_TOUCHSCREEN_PROT_SINGLE
 		input_report_abs(priv->input, ABS_PRESSURE, 0);
 		input_report_key(priv->input, BTN_TOUCH, 0);
-#else
+#elif defined(CONFIG_TOUCHSCREEN_PROT_MT_SYNC)
 		input_mt_sync(priv->input);
 #endif
 	}
@@ -215,7 +227,7 @@ static irqreturn_t it7260_ts_isr(int irq, void *dev_id)
 {
 	struct it7260_ts_priv *priv = dev_id;
 
-	schedule_delayed_work(&priv->work, HZ / 50);
+	schedule_delayed_work(&priv->work, HZ / 80);
 
 	return IRQ_HANDLED;
 }
@@ -299,7 +311,17 @@ static int it7260_ts_probe(struct i2c_client *client,
 	input_set_abs_params(input, ABS_Y, 0,  600, 0, 0);
 	input_set_abs_params(input, ABS_PRESSURE, 0, 255, 0, 0);
 #else
+	/* Multi-touch (MT) Protocol A/B */
+#if defined(CONFIG_TOUCHSCREEN_PROT_MT_SYNC)
 	set_bit(INPUT_PROP_DIRECT, input->propbit);
+#else
+	error = input_mt_init_slots(input, 5,
+				    INPUT_MT_DIRECT | INPUT_MT_DROP_UNUSED);
+	if (error) {
+		dev_err(&client->dev, "failed to init slots, %d\n", error);
+		return error;
+	}
+#endif
 
 	input_set_abs_params(input, ABS_MT_POSITION_X, 0, 1024, 0, 0);
 	input_set_abs_params(input, ABS_MT_POSITION_Y, 0,  600, 0, 0);
