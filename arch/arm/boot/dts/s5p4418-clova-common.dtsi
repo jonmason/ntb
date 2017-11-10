@@ -364,7 +364,7 @@
 		interrupts = <0 IRQ_TYPE_EDGE_FALLING>;
 		irq-gpios = <&gpio_a 0 0>;
 		reset-gpios = <&gpio_a 24 0>;
-		touchscreen-inverted-x = <1>;
+		touchscreen-inverted-x;
 	};
 };
 &i2c_1 {
