@@ -181,6 +181,9 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 	int i, type, x, y, id;
 	int offset, tplen, datalen, crclen;
 	int error;
+#if defined(CONFIG_TOUCHSCREEN_PROT_MT_SYNC)
+	int touch_point = 0;
+#endif
 
 	switch (tsdata->version) {
 	case M06:
@@ -245,6 +248,16 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 		id = (buf[2] >> 4) & 0x0f;
 		down = type != TOUCH_EVENT_UP;
 
+#if defined(CONFIG_TOUCHSCREEN_PROT_MT_SYNC)
+		if (down) {
+			touch_point++;
+			input_report_abs(tsdata->input, ABS_MT_POSITION_X, x);
+			input_report_abs(tsdata->input, ABS_MT_POSITION_Y, y);
+			input_report_abs(tsdata->input, ABS_MT_TOUCH_MAJOR, 64);
+			input_report_abs(tsdata->input, ABS_MT_TRACKING_ID, id);
+			input_mt_sync(tsdata->input);
+		}
+#else
 		input_mt_slot(tsdata->input, id);
 		input_mt_report_slot_state(tsdata->input, MT_TOOL_FINGER, down);
 
@@ -253,9 +266,15 @@ static irqreturn_t edt_ft5x06_ts_isr(int irq, void *dev_id)
 
 		input_report_abs(tsdata->input, ABS_MT_POSITION_X, x);
 		input_report_abs(tsdata->input, ABS_MT_POSITION_Y, y);
+#endif
 	}
 
+#if defined(CONFIG_TOUCHSCREEN_PROT_MT_SYNC)
+	if (!touch_point)
+		input_mt_sync(tsdata->input);
+#else
 	input_mt_report_pointer_emulation(tsdata->input, true);
+#endif
 	input_sync(tsdata->input);
 
 out:
@@ -805,7 +824,7 @@ static int edt_ft5x06_ts_identify(struct i2c_client *client,
 		if (error)
 			return error;
 
-		strlcpy(fw_version, rdbuf, 2);
+		sprintf(fw_version, "%d.%d", rdbuf[0], rdbuf[1]);
 
 		error = edt_ft5x06_ts_readwrite(client, 1, "\xA8",
 						1, rdbuf);
@@ -985,12 +1004,20 @@ static int edt_ft5x06_ts_probe(struct i2c_client *client,
 
 	touchscreen_parse_properties(input, true);
 
+#if defined(CONFIG_TOUCHSCREEN_PROT_MT_SYNC)
+	input_set_abs_params(input, ABS_MT_TOUCH_MAJOR, 0, 100, 0, 0);
+	input_set_abs_params(input, ABS_MT_TRACKING_ID,
+			     0, tsdata->max_support_points, 0, 0);
+
+	set_bit(INPUT_PROP_DIRECT, input->propbit);
+#else
 	error = input_mt_init_slots(input, tsdata->max_support_points,
 				INPUT_MT_DIRECT);
 	if (error) {
 		dev_err(&client->dev, "Unable to init MT slots.\n");
 		return error;
 	}
+#endif
 
 	input_set_drvdata(input, tsdata);
 	i2c_set_clientdata(client, tsdata);
