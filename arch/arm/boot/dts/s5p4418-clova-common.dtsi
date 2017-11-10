@@ -37,10 +37,17 @@
 		i2c4 = &i2c_gpio4;
 	};
 
+	nx-v4l2 {
+		status = "okay";
+	};
+
 	soc {
 		#include "s5p4418-pinctrl.dtsi"
 
 		clocks {
+			vip0:vip@c00c1000 {
+				clock-frequency = <300000000>;
+			};
 			uart3:uart@c00ab000 {
 				clock-frequency = <147500000>;
 			};
@@ -274,6 +281,46 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&bt_cfg_en>;
 		status = "okay";
+	};
+};
+
+&vip_0 {
+	status = "okay";
+};
+
+&mipi_csi {
+	data_lane = <2>;
+	pllval = <750>;
+	hssettle = <2>;
+	status = "okay";
+};
+
+&i2c_2 {
+	status = "okay";
+};
+
+&clipper_0 {
+	interface_type = <NX_CAPTURE_INTERFACE_MIPI_CSI>;
+	gpios = <&gpio_a 18 0 &gpio_a 19 0>;
+	/* sensor output order: default-MEDIA_BUS_FMT_UYVY- NX_VIN_CBY0CRY1 */
+	data_order = <NX_VIN_Y0CBY1CR>;
+	interlace = <0>;
+	status = "okay";
+	sensor {
+		type = <NX_CAPTURE_SENSOR_I2C>;
+		i2c_name = "ov5640";
+		i2c_adapter = <2>;
+		addr = <0x3C>;
+	};
+	power {
+		enable_seq = <
+			NX_ACTION_START NX_ACTION_TYPE_GPIO 0 1 10 0 1 NX_ACTION_END
+			NX_ACTION_START NX_ACTION_TYPE_GPIO 1 0 10 1 1 NX_ACTION_END
+			>;
+		disable_seq = <
+			NX_ACTION_START NX_ACTION_TYPE_GPIO 0 0 1 1 0 NX_ACTION_END
+			NX_ACTION_START NX_ACTION_TYPE_GPIO 1 0 1 NX_ACTION_END
+			>;
 	};
 };
 
