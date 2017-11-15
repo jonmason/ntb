@@ -221,6 +221,23 @@
 		};
 	};
 
+	snd_null: snd_null@10 {
+		#sound-dai-cells = <0>;
+		compatible = "nexell,snd-null";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0 0>;
+	};
+
+	snd_feedback: snd_feedback@0 {
+		#sound-dai-cells = <1>;
+		compatible = "nexell,snd-feedback";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0 0>;
+		status = "okay";
+	};
+
 	sound {
 		compatible = "nexell,simple-audio-card";
 		simple-audio-card,name = "s5p4418 clova Audio";
@@ -260,6 +277,17 @@
 
 			codec {
 				sound-dai = <&snd_smart_voice>;
+			};
+		};
+
+		simple-audio-card,dai-link@3 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&snd_feedback 0>;
+			};
+
+			codec {
+				sound-dai = <&snd_null>;
 			};
 		};
 	};
