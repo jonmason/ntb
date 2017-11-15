@@ -56,6 +56,11 @@
 				clk-input = <I_PLL2>;
 				clock-frequency = <10000000>;
 			};
+
+			pwm1:pwm1@c00ba000 {
+				clk-input = <I_PLL0>;
+				clock-frequency =<80000000>;
+			};
 		};
 
 		pinctrl@C0010000 {
@@ -86,34 +91,10 @@
 		amba {
 			pl08xdma0:pl08xdma@c0000000 {
 				use_isr;
-
-				ch12 {
-					slave_wait_flush_dma;
-				};
-
-				ch13 {
-					slave_wait_flush_dma;
-				};
-
-				ch14 {
-					slave_wait_flush_dma;
-				};
-
-				ch15 {
-					slave_wait_flush_dma;
-				};
 			};
 
 			pl08xdma1:pl08xdma@c0001000 {
 				use_isr;
-
-				ch0 {
-					slave_wait_flush_dma;
-				};
-
-				ch1 {
-					slave_wait_flush_dma;
-				};
 			};
 		};
 		serial0:serial@c00a1000 {
@@ -161,11 +142,11 @@
 		};
 
 		pwm:pwm@c0018000 {
-			clock-names = "timers", "pwm-tclk0";
-			clocks =  <&pclk>, <&pwm0>;
+			clock-names = "timers", "pwm-tclk0", "pwm-tclk1";
+			clocks =  <&pclk>, <&pwm0>, <&pwm1>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&pwm0_pin>;
-			samsung,pwm-outputs = <0>;
+			pinctrl-0 = <&pwm0_pin &pwm1_pin>;
+			samsung,pwm-outputs = <0>, <1>;
 			status = "okay";
 		};
 
@@ -179,24 +160,56 @@
 			pre-supply-mclk = <1>;
 			status = "okay";
 		};
-	i2s_1:i2s@c0056000 {
-		#sound-dai-cells = <1>;
-		master-mode = <1>;
-		mclk-in = <0>;
-		trans-mode = <0>;
-		frame-bit = <32>;
-		sample-rate = <48000>;
-		pre-supply-mclk = <1>;
-		status = "okay";
-	};
+
+		i2s_2:i2s@c0057000 {
+			#sound-dai-cells = <1>;
+			master-mode = <0>;
+			mclk-in = <1>;
+			trans-mode = <0>;
+			frame-bit = <32>;
+			sample-rate = <48000>;
+			pre-supply-mclk = <0>;
+			status = "okay";
+		};
+
+		snd_spi_2:snd_spi@c005f000 {
+			data-bit = <16>;
+			clock-frequency = <100000000>;
+			clock-invert = <1>;
+			clock-phase = <1>;
+			status = "okay";
+		};
 
 		scaler@c0066000 {
 			status = "okay";
 		};
 	}; /*** soc ***/
 
+	snd_smart_voice: snd_smart_voice@0 {
+		#sound-dai-cells = <0>;
+		compatible = "nexell,snd-smart-voice,i2s,pl022";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pwms = <&pwm 1 125 0>;
+		gpio_regs = < PHYS_BASE_GPIOA 0x1000
+			PHYS_BASE_GPIOB 0x1000
+			PHYS_BASE_GPIOC 0x1000
+			PHYS_BASE_GPIOD 0x1000
+			PHYS_BASE_GPIOE 0x1000
+			PHYS_BASE_ALIVE 0x200>;
+
+		cpu-dais = <2>; /* i2s:1EA, spi:1EA */
+		pin {
+			spi-cs-gpio = <&gpio_c 16 0>;
+			pdm-isrun-gpio = <&gpio_e 14 0>;
+			pdm-lrck-gpio = <&gpio_b 26 0>;
+			i2s-lrck-gpio = <&gpio_b 4 0>;
+			pdm-nrst-gpio = <&gpio_e 15 0>;
+		};
+	};
+
 	sound {
-		compatible = "simple-audio-card";
+		compatible = "nexell,simple-audio-card";
 		simple-audio-card,name = "s5p4418 clova Audio";
 		simple-audio-card,mclk-fs = <256>;
 		simple-audio-card,widgets =
@@ -213,6 +226,28 @@
 			codec {
 				sound-dai = <&tas5782>;
 	 		};
+		};
+
+		simple-audio-card,dai-link@1 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s_2 0>;
+			};
+
+			codec {
+				sound-dai = <&snd_smart_voice>;
+			};
+		};
+
+		simple-audio-card,dai-link@2 {
+			format = "spi";
+			cpu {
+				sound-dai = <&snd_spi_2 0>;
+			};
+
+			codec {
+				sound-dai = <&snd_smart_voice>;
+			};
 		};
 	};
 
