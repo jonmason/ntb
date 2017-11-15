@@ -35,6 +35,7 @@
 	aliases {
 		i2c3 = &i2c_gpio3;
 		i2c4 = &i2c_gpio4;
+		i2c5 = &i2c_gpio5;
 	};
 
 	nx-v4l2 {
@@ -67,6 +68,18 @@
 			/delete-node/ mpegts_cap0_data_clk_parallel;
 			/delete-node/ nand_ale;
 			/delete-node/ spdiftx_pin;
+			i2c_gpio5_sda: i2c5_scl {
+				nexell,pins = "gpioa-16";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+			i2c_gpio5_scl: i2c5_sda {
+				nexell,pins = "gpioa-17";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
 			bt_cfg_en:bt_cfg_en {
 				nexell,pins = "gpioe-22";
 				nexell,pin-function = <0>;
@@ -256,6 +269,10 @@
 	};
 
 	i2c_gpio4: i2c@4 {
+		status = "disabled";
+	};
+
+	i2c_gpio5: i2c@5 {
 		status = "disabled";
 	};
 
@@ -475,6 +492,28 @@
 		touchscreen-inverted-x;
 	};
 };
+
+&i2c_gpio5 {
+	compatible = "i2c-gpio";
+	gpios=<&gpio_a 16 0 /* SDA */
+			&gpio_a 17 0>;    /* SCL */
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c_gpio5_scl &i2c_gpio5_sda >;
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	melfas_mip4_ts@48 {
+		compatible = "melfas,mip4_ts";
+		reg = <0x48>;
+		interrupt-parent = <&gpio_a>;
+		interrupts = <15 0>;
+		vd33-supply = <&VCC_LDO1>;
+		irq-gpio = <&gpio_a 15 0x0>;
+		ce-gpio = <&gpio_a 14 0x0>;
+	};
+};
+
 &i2c_1 {
 	#address-cells = <1>;
 	#size-cells = <0>;
