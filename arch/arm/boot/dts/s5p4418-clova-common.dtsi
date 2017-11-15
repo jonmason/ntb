@@ -55,6 +55,12 @@
 			/delete-node/ mpegts_cap0_data_clk_parallel;
 			/delete-node/ nand_ale;
 			/delete-node/ spdiftx_pin;
+			bt_cfg_en:bt_cfg_en {
+				nexell,pins = "gpioe-22";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <2>;
+				nexell,pin-strength = <0>;
+			};
 		};
 
 		l2:l2-cache-controller@cf000000 {
@@ -102,6 +108,19 @@
 					slave_wait_flush_dma;
 				};
 			};
+		};
+		serial0:serial@c00a1000 {
+			dmas = <&pl08xdma0 2 0>, <&pl08xdma0 3 0>;
+			dma-names = "tx", "rx";
+			status ="okay";
+		};
+
+		serial1:serial@c00a0000 {
+			dmas = <&pl08xdma0 0 0>, <&pl08xdma0 1 0>;
+			dma-names = "tx", "rx";
+			pinctrl-0 = <&serial1_pin>, <&serial1_flow_cts>,
+						<&serial1_flow_rts>;
+			status ="okay";
 		};
 
 		watchdog@c0019000 {
@@ -247,6 +266,13 @@
 			250 251 252 253 254 255
 			>;
 		default-brightness-level = <200>;
+		status = "okay";
+	};
+    bt_control {
+		compatible = "broadcom,bcm434545bt";
+		gpios = <&gpio_e 22 0>;   /* GPIOE11 = BT_EN, output */
+		pinctrl-names = "default";
+		pinctrl-0 = <&bt_cfg_en>;
 		status = "okay";
 	};
 };
