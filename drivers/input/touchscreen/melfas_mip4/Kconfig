@@ -1,0 +1,187 @@
+#
+# Kconfig for MELFAS MIP4 Touchscreen Driver
+#
+
+if INPUT_TOUCHSCREEN
+
+config TOUCHSCREEN_MELFAS_MIP4
+	tristate "MELFAS MIP4 Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a MELFAS MIP4 touchscreen device in your system.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here:
+	  the module will be called mip4_ts.
+
+config TOUCHSCREEN_MELFAS_MMS427
+	tristate "MELFAS MMS427 Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a MELFAS MMS427 touchscreen device in your system.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here:
+	  the module will be called mip4_ts.
+
+config TOUCHSCREEN_MELFAS_MMS438
+	tristate "MELFAS MMS438 Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a MELFAS MMS438 touchscreen device in your system.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here: the module will be called mip4_ts.
+
+config TOUCHSCREEN_MELFAS_MMS438S
+	tristate "MELFAS MMS438S Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a MELFAS MMS438S touchscreen device in your system.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here:
+	  the module will be called mip4_ts.
+
+config TOUCHSCREEN_MELFAS_MMS449
+	tristate "MELFAS MMS449 Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a MELFAS MMS449 touchscreen device in your system.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here:
+	  the module will be called mip4_ts.
+
+config TOUCHSCREEN_MELFAS_MMS449S
+	tristate "MELFAS MMS449S Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a MELFAS MMS449S touchscreen device in your system.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here:
+	  the module will be called mip4_ts.
+
+config TOUCHSCREEN_MELFAS_MMS458
+	tristate "MELFAS MMS458 Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a MELFAS MMS458 touchscreen device in your system.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here:
+	  the module will be called mip4_ts.
+
+config TOUCHSCREEN_MELFAS_MMS500
+	tristate "MELFAS MMS500 Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a MELFAS MMS500 touchscreen device in your system.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here:
+	  the module will be called mip4_ts.
+
+config TOUCHSCREEN_MELFAS_MMS587N
+	tristate "MELFAS MMS587N Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a MELFAS MMS587N touchscreen device in your system.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the module will be called mip4_ts.
+
+config TOUCHSCREEN_MELFAS_MMS600
+	tristate "MELFAS MMS600 Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a MELFAS MMS600 touchscreen device in your system.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here:
+	  the module will be called mip4_ts.
+
+config TOUCHSCREEN_MELFAS_MCS6000
+	tristate "MELFAS MCS6000 Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a MELFAS MCS6000 touchscreen device in your system.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here:
+	  the module will be called mip4_ts.
+
+config TOUCHSCREEN_MELFAS_MCS8040L
+	tristate "MELFAS MCS8040L Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a MELFAS MCS8040L touchscreen device in your system.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here:
+	  the module will be called mip4_ts.
+
+config TOUCHSCREEN_MELFAS_MFS10
+	tristate "MELFAS MFS10 Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a MELFAS MFS10 touchscreen device in your system.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here:
+	  the module will be called mip4_ts.
+
+config TOUCHSCREEN_MELFAS_MFS10VE
+	tristate "MELFAS MFS10VE Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a MELFAS MFS10VE touchscreen device in your system.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here:
+	  the module will be called mip4_ts.
+
+config TOUCHSCREEN_MELFAS_MOS50
+	tristate "MELFAS MOS50 Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a MELFAS MOS50 touchscreen device in your system.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here:
+	  the module will be called mip4_ts.
+
+config TOUCHSCREEN_MELFAS_MIT200
+	tristate "MELFAS MIT200 Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a MELFAS MIT200 touchscreen device in your system.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here:
+	  the module will be called mip4_ts.
+
+config TOUCHSCREEN_MELFAS_MIT300
+	tristate "MELFAS MIT300 Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a MELFAS MIT300 touchscreen device in your system.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here:
+	  the module will be called mip4_ts.
+
+config TOUCHSCREEN_MELFAS_MIT400
+	tristate "MELFAS MIT400 Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a MELFAS MIT400 touchscreen device in your system.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here:
+	  the module will be called mip4_ts.
+
+config TOUCHSCREEN_MELFAS_MIT401
+	tristate "MELFAS MIT401 Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a MELFAS MIT401 touchscreen device in your system.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here:
+	  the module will be called mip4_ts.
+
+config TOUCHSCREEN_MELFAS_MIT410
+	tristate "MELFAS MIT410 Touchscreen"
+	depends on I2C
+	help
+	  Say Y here if you have a MELFAS MIT410 touchscreen device in your system.
+	  If unsure, say N.
+	  To compile this driver as a module, choose M here:
+	  the module will be called mip4_ts.
+
+endif
