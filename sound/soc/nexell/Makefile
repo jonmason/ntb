@@ -7,11 +7,13 @@ obj-$(CONFIG_SND_NX_SOC)			+= nexell-snd-pcm.o
 obj-$(CONFIG_SND_NX_I2S)			+= nexell-snd-i2s.o
 obj-$(CONFIG_SND_NX_SPDIF_TX)			+= nexell-snd-spdiftx.o
 obj-$(CONFIG_SND_NX_SPI_PL022)			+= nexell-snd-spi-pl022.o
+obj-$(CONFIG_SND_NX_FEEDBACK)			+= nexell-snd-feedback.o
 
 nexell-snd-pcm-objs				:= nexell-pcm.o
 nexell-snd-i2s-objs				:= nexell-i2s.o
 nexell-snd-spdiftx-objs				:= nexell-spdiftx.o
 nexell-snd-spi-pl022-objs			:= nexell-spi-pl022.o
+nexell-snd-feedback-objs			:= nexell-feedback.o
 
 obj-$(CONFIG_SND_CODEC_ES8316)			+= nexell-snd-es8316.o
 obj-$(CONFIG_SND_CODEC_ALC5658)			+= nexell-snd-alc5658.o

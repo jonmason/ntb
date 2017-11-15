@@ -58,6 +58,12 @@ choice
 
 endchoice
 
+config SND_NX_FEEDBACK
+	tristate "Nexell feedback sound device"
+	depends on SND_NX_SOC
+	help
+	  This option enables nexell feedback sound device support
+
 config SND_CODEC_NULL
 	tristate "I2S audio null codec."
 	depends on SND_NX_I2S
