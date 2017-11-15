@@ -985,7 +985,7 @@ static int nx_i2s_probe(struct platform_device *pdev)
 	int ret = 0;
 
 	/*  allocate i2c_port data */
-	par = kzalloc(sizeof(struct nx_i2s_snd_param), GFP_KERNEL);
+	par = devm_kzalloc(&pdev->dev, sizeof(struct nx_i2s_snd_param), GFP_KERNEL);
 	if (!par)
 		return -ENOMEM;
 
@@ -1016,14 +1016,12 @@ static int nx_i2s_probe(struct platform_device *pdev)
 	return ret;
 
 err_out:
-	kfree(NULL);
 	return ret;
 }
 
 static int nx_i2s_remove(struct platform_device *pdev)
 {
 	snd_soc_unregister_component(&pdev->dev);
-	kfree(NULL);
 	return 0;
 }
 
