@@ -553,7 +553,7 @@
 	interface_type = <NX_CAPTURE_INTERFACE_PARALLEL>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&vid2_data_clk>;
-	gpios = <&gpio_c 9 0 &gpio_e 16 0 &gpio_e 12 0>;
+	gpios = <0 0 0>;
 	data_order = <NX_VIN_CBY0CRY1>;
 	port = <1>;
 	external_sync = <0>;
@@ -595,6 +595,13 @@
 		event-gpio = <&gpio_b 31 0>;
 		active_high = <0>;
 		detect_delay = <0>;
+	};
+
+	vendor_gpio{
+		event-gpio = <&gpio_e 24 0>;
+		active_high = <1>;
+		detect_delay = <0>;
+		power-gpio = <&gpio_b 30 0>;
 	};
 
 	deinterlace {
