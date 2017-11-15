@@ -72,7 +72,7 @@ static struct snd_pcm_hardware nx_pcm_hardware = {
 	.periods_max		= 64,
 	.fifo_size		= 32,
 };
-#define	substream_to_prtd(s)	(substream->runtime->private_data)
+#define	substream_to_prtd(s)	(s->runtime->private_data)
 
 /*
  * DMA DUMP
