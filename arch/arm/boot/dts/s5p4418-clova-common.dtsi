@@ -86,6 +86,13 @@
 				nexell,pin-pull = <2>;
 				nexell,pin-strength = <0>;
 			};
+			key_back:key_back {
+				nexell,pins = "gpiob-30";
+				nexell,pin-function = <1>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
+
 		};
 
 		l2:l2-cache-controller@cf000000 {
@@ -303,6 +310,21 @@
 	i2c_gpio5: i2c@5 {
 		status = "disabled";
 	};
+
+	gpio_key: gpio_keys {
+		compatible = "gpio-keys";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&key_back>;
+
+		back {
+			label = "BACK";
+			gpios = <&gpio_b 30 1>;
+			linux,code = <KEY_BACK>;
+		};
+	};
+
 
 	nexell-ion@0 {
 		compatible = "nexell,ion";
