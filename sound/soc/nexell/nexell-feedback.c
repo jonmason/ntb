@@ -59,7 +59,7 @@ static struct snd_pcm_hardware nx_feedback_pcm_hardware = {
 	.rate_min		= 8000,
 	.rate_max		= 192000,
 	.channels_min		= 1,
-	.channels_max		= 2,
+	.channels_max		= 4,
 	.buffer_bytes_max	= BUFFER_SIZE,
 	.period_bytes_min	= 32,
 	.period_bytes_max	= PERIOD_BYTES_MAX,
@@ -147,7 +147,7 @@ static void nx_feedback_init_dai(struct snd_soc_dai_driver *dai_drv)
 
 	dai_drv->playback.stream_name = "Playback";
 	dai_drv->playback.channels_min = 1;
-	dai_drv->playback.channels_max = 2;
+	dai_drv->playback.channels_max = 4;
 	dai_drv->playback.formats = SND_SOC_I2S_FORMATS;
 	dai_drv->playback.rates = SND_SOC_I2S_RATES;
 	dai_drv->playback.rate_min = 0;
@@ -155,7 +155,7 @@ static void nx_feedback_init_dai(struct snd_soc_dai_driver *dai_drv)
 
 	dai_drv->capture.stream_name = "Capture";
 	dai_drv->capture.channels_min = 1;
-	dai_drv->capture.channels_max = 2;
+	dai_drv->capture.channels_max = 4;
 	dai_drv->capture.formats = SND_SOC_I2S_FORMATS;
 	dai_drv->capture.rates = SND_SOC_I2S_RATES;
 	dai_drv->capture.rate_min = 0;
