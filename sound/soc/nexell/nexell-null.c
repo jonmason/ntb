@@ -42,14 +42,14 @@ static struct snd_soc_dai_driver null_stub_dai = {
 	.playback	= {
 		.stream_name	= "Null Playback",
 		.channels_min	= 1,
-		.channels_max	= 2,
+		.channels_max	= 4,
 		.rates			= STUB_RATES,
 		.formats		= STUB_FORMATS,
 	},
 	.capture	= {
 		.stream_name	= "Null Capture",
 		.channels_min	= 1,
-		.channels_max	= 2,
+		.channels_max	= 4,
 		.rates			= STUB_RATES,
 		.formats		= STUB_FORMATS,
 	},
