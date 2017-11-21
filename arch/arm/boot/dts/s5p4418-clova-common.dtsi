@@ -36,6 +36,7 @@
 		i2c3 = &i2c_gpio3;
 		i2c4 = &i2c_gpio4;
 		i2c5 = &i2c_gpio5;
+		i2c6 = &i2c_gpio6;
 	};
 
 	nx-v4l2 {
@@ -68,22 +69,40 @@
 			/delete-node/ mpegts_cap0_data_clk_parallel;
 			/delete-node/ nand_ale;
 			/delete-node/ spdiftx_pin;
-			i2c_gpio5_sda: i2c5_scl {
+			i2c_gpio5_sda: i2c5_sda {
 				nexell,pins = "gpioa-16";
 				nexell,pin-function = <0>;
 				nexell,pin-pull = <1>;
 				nexell,pin-strength = <0>;
 			};
-			i2c_gpio5_scl: i2c5_sda {
+			i2c_gpio5_scl: i2c5_scl {
 				nexell,pins = "gpioa-17";
 				nexell,pin-function = <0>;
 				nexell,pin-pull = <1>;
 				nexell,pin-strength = <0>;
 			};
+			i2c_gpio6_sda: i2c6_scl {
+				nexell,pins = "gpiod-4";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <3>;
+			};
+			i2c_gpio6_scl: i2c6_sda {
+				nexell,pins = "gpiod-5";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <3>;
+			};
 			bt_cfg_en:bt_cfg_en {
 				nexell,pins = "gpioe-22";
 				nexell,pin-function = <0>;
 				nexell,pin-pull = <2>;
+				nexell,pin-strength = <0>;
+			};
+			bq25895m_irq:bq25895m-irq {
+				nexell,pins = "gpioa-12";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
 				nexell,pin-strength = <0>;
 			};
 			key_back:key_back {
@@ -313,6 +332,10 @@
 	};
 
 	i2c_gpio5: i2c@5 {
+		status = "disabled";
+	};
+
+	i2c_gpio6: i2c@6 {
 		status = "disabled";
 	};
 
@@ -569,11 +592,16 @@
 	};
 };
 
-&i2c_1 {
+/* &i2c_1 { */
+&i2c_gpio6 {
+	compatible = "i2c-gpio";
+	gpios=<&gpio_d 5 0 /* SDA */
+			&gpio_d 4 0>;    /* SCL */
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c_gpio6_scl &i2c_gpio6_sda >;
+	status = "okay";
 	#address-cells = <1>;
 	#size-cells = <0>;
-	status = "okay";
-	rate = <400000>;
 
 	tas5782: tas5782@48 {
 		#sound-dai-cells = <0>;
@@ -583,6 +611,26 @@
 		mute-gpios = <&gpio_a 22 0>;
 		fault-gpios = <&gpio_a 23 0>;
 	};
+	bq25895m: bq2589m@6a {
+		compatible = "ti,bq25895m";
+		reg = <0x6a>;
+		interrupt-parent = <&gpio_a>;
+        interrupts = <12 IRQ_TYPE_EDGE_FALLING>;
+        pinctrl-names = "default";
+        pinctrl-0 = <&bq25895m_irq>;
+
+		ti,battery-regulation-voltage = <4200000>;
+		ti,charge-current = <1000000>;
+		ti,termination-current = <50000>;
+		ti,precharge-current = <128000>;
+		ti,minimum-sys-voltage = <3600000>;
+		ti,boost-voltage = <5000000>;
+		ti,boost-max-current = <1000000>;
+
+		ti,use-ilim-pin;
+		ti,thermal-regulation-threshold = <120>;
+	};
+
 };
 
 #define PMIC_PDATA_INIT(_id, _rname, _minuv,	\
