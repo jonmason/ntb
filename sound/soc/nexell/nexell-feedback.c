@@ -71,15 +71,22 @@ static struct snd_pcm_hardware nx_feedback_pcm_hardware = {
 struct nx_feedback_context {
 	bool play_running;
 	bool capture_running;
-	bool capture_sync_with_play;
 
-	void *buffer; /* ring buffer */
+	void *buffer; /* play buffer */
+	void *capture_buffer; /* capture buffer */
 	unsigned long buffer_size;
 	unsigned long buffer_bytes; /* set by user params: real used total buffer size */
 	unsigned long period_bytes; /* play/capture unit size */
 	unsigned long offset; /* play offset */
+	/* offset of play buffer, copied from this offset
+	 * to capture_offset of capture_buffer */
+	unsigned long read_offset;
 	unsigned long capture_offset; /*capture offset */
-	unsigned long play_interval_ns; /* period_bytes consume interval */
+	long play_interval_ns; /* period_bytes consume interval */
+	ktime_t play_start_time;
+	ktime_t play_update_time;
+	ktime_t capture_start_time;
+	ktime_t capture_update_time;
 
 	struct snd_pcm_substream *capture_substream;
 	struct snd_pcm_substream *play_substream;
@@ -180,29 +187,40 @@ static int nx_feedback_pcm_setup_buffer(struct snd_pcm_substream *ss)
 	return 0;
 }
 
-static enum hrtimer_restart play_hrtimer_callback(struct hrtimer *hrtimer)
+static enum hrtimer_restart play_callback(struct hrtimer *hrtimer)
 {
 	struct nx_feedback_context *context =
 		container_of(hrtimer, struct nx_feedback_context, play_hrtimer);
 	enum hrtimer_restart ret = HRTIMER_NORESTART;
 
 	if (context->play_running) {
-		ktime_t cur_time, interval;
+		ktime_t interval;
+		long elapsed, diff;
 
 		context->offset += context->period_bytes;
 		context->offset %= context->buffer_bytes;;
 		snd_pcm_period_elapsed(context->play_substream);
 
-		cur_time = ktime_get();
-		interval = ktime_set(0, context->play_interval_ns);
-		hrtimer_forward(hrtimer, cur_time, interval);
+		context->play_update_time = ktime_get();
+		elapsed = ktime_to_ns(ktime_sub(context->play_update_time,
+						context->play_start_time));
+		diff = elapsed - context->play_interval_ns;
+		trace("%s: elapsed %ld, diff %ld\n", __func__, elapsed, diff);
+
+		if (diff > 0)
+			interval = ktime_set(0, context->play_interval_ns - diff);
+		else
+			interval = ktime_set(0, context->play_interval_ns);
+
+		hrtimer_forward(hrtimer, context->play_update_time, interval);
+		context->play_start_time = context->play_update_time;
 		ret = HRTIMER_RESTART;
 	}
 
 	return ret;
 }
 
-static enum hrtimer_restart capture_hrtimer_callback(struct hrtimer *hrtimer)
+static enum hrtimer_restart capture_callback(struct hrtimer *hrtimer)
 {
 	struct nx_feedback_context *context =
 		container_of(hrtimer, struct nx_feedback_context,
@@ -210,20 +228,35 @@ static enum hrtimer_restart capture_hrtimer_callback(struct hrtimer *hrtimer)
 	enum hrtimer_restart ret = HRTIMER_NORESTART;
 
 	if (context->capture_running) {
-		ktime_t cur_time, interval;
+		ktime_t interval;
+		long elapsed, diff;
 
-		if (context->capture_sync_with_play) {
+		if (context->read_offset != context->offset) {
+			memcpy(context->capture_buffer + context->capture_offset,
+			       context->buffer + context->read_offset,
+			       context->period_bytes);
+
+			context->read_offset += context->period_bytes;
+			context->read_offset %= context->buffer_bytes;
 			context->capture_offset += context->period_bytes;
-			context->capture_offset %= context->buffer_bytes;;
+			context->capture_offset %= context->buffer_bytes;
 			snd_pcm_period_elapsed(context->capture_substream);
-		} else {
-			if (context->offset == 0)
-				context->capture_sync_with_play = true;
 		}
 
-		cur_time = ktime_get();
-		interval = ktime_set(0, context->play_interval_ns);
-		hrtimer_forward(hrtimer, cur_time, interval);
+		context->capture_update_time = ktime_get();
+		elapsed = ktime_to_ns(ktime_sub(context->capture_update_time,
+						context->capture_start_time));
+		diff = elapsed - context->play_interval_ns;
+		trace("%s: elapsed %ld, diff %ld\n", __func__, elapsed, diff);
+
+		if (diff > 0)
+			interval = ktime_set(0, context->play_interval_ns - diff);
+		else
+			interval = ktime_set(0, context->play_interval_ns);
+
+		hrtimer_forward(hrtimer, context->capture_update_time,
+				interval);
+		context->capture_start_time = context->capture_update_time;
 		ret = HRTIMER_RESTART;
 	}
 
@@ -326,7 +359,33 @@ static int nx_feedback_pcm_hw_free(struct snd_pcm_substream *ss)
 
 static int nx_feedback_pcm_trigger(struct snd_pcm_substream *ss, int cmd)
 {
+	struct nx_feedback_pcm_runtime_data *prtd = substream_to_prtd(ss);
+	struct nx_feedback_context *context = prtd->context;
+
 	trace("[%s:%s] cmd=%d\n", __func__, STREAM_STR(ss->stream), cmd);
+
+	if (ss->stream == SNDRV_PCM_STREAM_PLAYBACK && !context->play_running) {
+		ktime_t time = ktime_set(0, context->play_interval_ns);
+
+		context->play_running = true;
+		context->offset = 0;
+		context->play_substream = ss;
+		context->play_start_time = ktime_get();
+
+		hrtimer_start(&context->play_hrtimer, time, HRTIMER_MODE_REL);
+	} else if (ss->stream == SNDRV_PCM_STREAM_CAPTURE &&
+		   !context->capture_running) {
+		ktime_t time = ktime_set(0, context->play_interval_ns);
+
+		context->capture_running = true;
+		context->capture_offset = 0;
+		context->read_offset = context->offset;
+		context->capture_substream = ss;
+
+		context->capture_start_time = ktime_get();
+		hrtimer_start(&context->capture_hrtimer, time,
+			      HRTIMER_MODE_REL);
+	}
 	return 0;
 }
 
@@ -381,29 +440,6 @@ static int nx_feedback_pcm_prepare(struct snd_pcm_substream *ss)
 			dev_err(prtd->dev, "play must be running\n");
 			return -EINVAL;
 		}
-
-		if (!context->capture_running) {
-			ktime_t time = ktime_set(0, context->play_interval_ns);
-
-			context->capture_running = true;
-			context->capture_sync_with_play = false;
-			context->capture_offset = 0;
-			context->capture_substream = ss;
-
-			hrtimer_start(&context->capture_hrtimer, time,
-				      HRTIMER_MODE_REL);
-		}
-	} else {
-		if (!context->play_running) {
-			ktime_t time = ktime_set(0, context->play_interval_ns);
-
-			context->play_running = true;
-			context->offset = 0;
-			context->play_substream = ss;
-
-			hrtimer_start(&context->play_hrtimer, time,
-				      HRTIMER_MODE_REL);
-		}
 	}
 
 	return 0;
@@ -454,17 +490,23 @@ static int nx_feedback_probe(struct platform_device *pdev)
 	context = &nx_feedback->context;
 	context->buffer = devm_kzalloc(&pdev->dev, BUFFER_SIZE, GFP_KERNEL);
 	if (!context->buffer) {
-		dev_err(&pdev->dev, "failed to r/w buffer\n");
+		dev_err(&pdev->dev, "failed to allocate play buffer\n");
+		return -ENOMEM;
+	}
+	context->capture_buffer = devm_kzalloc(&pdev->dev, BUFFER_SIZE,
+					       GFP_KERNEL);
+	if (!context->capture_buffer) {
+		dev_err(&pdev->dev, "failed to allocate capture buffer\n");
 		return -ENOMEM;
 	}
 	context->buffer_size = BUFFER_SIZE;
 	context->play_running = false;
 	context->capture_running = false;
 	hrtimer_init(&context->play_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-	context->play_hrtimer.function = play_hrtimer_callback;
+	context->play_hrtimer.function = play_callback;
 	hrtimer_init(&context->capture_hrtimer, CLOCK_MONOTONIC,
 		     HRTIMER_MODE_REL);
-	context->capture_hrtimer.function = capture_hrtimer_callback;
+	context->capture_hrtimer.function = capture_callback;
 
 	ret = devm_snd_soc_register_component(&pdev->dev,
 					      &nx_feedback_component,
