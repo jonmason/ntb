@@ -768,7 +768,7 @@
 			reg = <0>;
 			back_color = < 0x0 >;
 			color_key = < 0x0 >;
-			plane-names = "video", "primary", "rgb";
+			plane-names = "video", "rgb", "primary";
 		};
 		port@1 {
 			reg = <1>;

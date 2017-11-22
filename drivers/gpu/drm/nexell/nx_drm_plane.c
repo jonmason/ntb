@@ -127,6 +127,7 @@ int nx_drm_planes_create(struct drm_device *drm,
 			struct drm_crtc_funcs *crtc_funcs)
 {
 	struct drm_plane *plane, *planes[MAX_PLNAES] = { NULL, };
+	struct drm_plane *primary = NULL, *cursor = NULL;
 	struct nx_drm_plane *nx_plane;
 	int num_planes = to_nx_crtc(crtc)->num_planes;
 	enum drm_plane_type drm_types[MAX_PLNAES];
@@ -171,13 +172,19 @@ int nx_drm_planes_create(struct drm_device *drm,
 			ops->create_proeprties(drm,
 				crtc, plane, &nx_plane_funcs);
 
-		if (drm_type == DRM_PLANE_TYPE_PRIMARY) {
-			err = drm_crtc_init_with_planes(
-					drm, crtc, plane, NULL, crtc_funcs);
-			if (err < 0)
-				goto err_plane;
-		}
+		if (drm_type == DRM_PLANE_TYPE_PRIMARY)
+			primary = plane;
+		else if (drm_type == DRM_PLANE_TYPE_CURSOR)
+			cursor = plane;
+
 		nx_plane->index = i;
+	}
+
+	if (primary) {
+		err = drm_crtc_init_with_planes(
+				drm, crtc, primary, cursor, crtc_funcs);
+		if (err < 0)
+			goto err_plane;
 	}
 
 	return 0;
