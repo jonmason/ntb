@@ -161,6 +161,11 @@
 			status = "okay";
 		};
 
+		timer@c0017000 {
+			clocks =  <&timer0>, <&timer1>;
+			clock-names = "timer0", "timer1";
+		};
+
 		pwm:pwm@c0018000 {
 			clock-names = "timers", "pwm-tclk0", "pwm-tclk1";
 			clocks =  <&pclk>, <&pwm0>, <&pwm1>;
