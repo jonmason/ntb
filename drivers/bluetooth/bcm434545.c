@@ -88,6 +88,18 @@ static int bcm434545_bt_rfkill_set_power(void *data, bool blocked)
 			return -1;
 		}
 #endif
+        if (is_inverted_power) {
+            pr_info("%s: run inverted power reset (onoff=1)\n",
+                __func__);
+            gpio_set_value(bt_gpio.bt_en, 1);
+        } else {
+            pr_info("%s: run normal power reset (onoff=0)\n",
+                __func__);
+            gpio_set_value(bt_gpio.bt_en, 0);
+        }
+
+		msleep(400);
+
 		if (is_inverted_power) {
 			pr_info("%s: run inverted power control (onoff=0)\n",
 				__func__);
