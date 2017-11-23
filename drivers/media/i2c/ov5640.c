@@ -1776,7 +1776,7 @@ static int ov5640_set_mode(struct ov5640_dev *sensor,
 	dn_mode = mode->dn_mode;
 	orig_dn_mode = orig_mode->dn_mode;
 
-    printk("%s origin id:%d, new id:%d\n", __func__, mode->id, orig_mode->id);
+	printk("%s origin id:%d, new id:%d\n", __func__, orig_mode->id, mode->id);
 	printk("%s %d %d\n", __func__, dn_mode, orig_dn_mode);
 
 	/* auto gain and exposure must be turned off when changing modes */
@@ -1818,7 +1818,6 @@ static int ov5640_set_mode(struct ov5640_dev *sensor,
 		return ret;
 #endif
 	//sensor->pending_mode_change = false;
-
 	return 0;
 }
 
@@ -1870,7 +1869,6 @@ static int ov5640_set_power(struct ov5640_dev *sensor, bool on)
 
 	if (on) {
 		//clk_prepare_enable(sensor->xclk);
-
 		ret = regulator_bulk_enable(OV5640_NUM_SUPPLIES,
 					    sensor->supplies);
 		if (ret)
@@ -1892,7 +1890,6 @@ static int ov5640_set_power(struct ov5640_dev *sensor, bool on)
 		ret = ov5640_restore_mode(sensor);
 		if (ret)
 			goto power_off;
-
 		/*
 		 * start streaming briefly followed by stream off in
 		 * order to coax the clock lane into LP-11 state.
@@ -1993,10 +1990,10 @@ static int ov5640_get_fmt(struct v4l2_subdev *sd,
 {
 	struct ov5640_dev *sensor = to_ov5640_dev(sd);
 	struct v4l2_mbus_framefmt *fmt;
-
+#if 0
 	if (format->pad != 0)
 		return -EINVAL;
-
+#endif
 	mutex_lock(&sensor->lock);
 
 	if (format->which == V4L2_SUBDEV_FORMAT_TRY)
@@ -2042,10 +2039,10 @@ static int ov5640_set_fmt(struct v4l2_subdev *sd,
 	struct ov5640_dev *sensor = to_ov5640_dev(sd);
 	const struct ov5640_mode_info *new_mode;
 	int ret;
-
+#if 0
 	if (format->pad != 0)
 		return -EINVAL;
-
+#endif
 	mutex_lock(&sensor->lock);
 
 	if (sensor->streaming) {
@@ -2380,8 +2377,10 @@ static int ov5640_enum_frame_size(struct v4l2_subdev *sd,
 				  struct v4l2_subdev_frame_size_enum *fse)
 {
 	printk("[%s] index:%d\n", __func__, fse->index);
+#if 0
 	if (fse->pad != 0)
 		return -EINVAL;
+#endif
 	if (fse->index >= OV5640_NUM_MODES)
 		return -EINVAL;
 
@@ -2404,9 +2403,10 @@ static int ov5640_enum_frame_interval(
 	int ret;
 
     printk("ov5640_enum_frame_interval\n");
-
+#if 0
 	if (fie->pad != 0)
 		return -EINVAL;
+#endif
 	if (fie->index >= OV5640_NUM_FRAMERATES)
 		return -EINVAL;
 
@@ -2440,10 +2440,10 @@ static int ov5640_s_frame_interval(struct v4l2_subdev *sd,
 	struct ov5640_dev *sensor = to_ov5640_dev(sd);
 	const struct ov5640_mode_info *mode;
 	int frame_rate, ret = 0;
-
+#if 0
 	if (fi->pad != 0)
 		return -EINVAL;
-
+#endif
 	mutex_lock(&sensor->lock);
 
 	if (sensor->streaming) {
@@ -2471,9 +2471,10 @@ static int ov5640_enum_mbus_code(struct v4l2_subdev *sd,
 				  struct v4l2_subdev_mbus_code_enum *code)
 {
 	struct ov5640_dev *sensor = to_ov5640_dev(sd);
-
+#if 0
 	if (code->pad != 0)
 		return -EINVAL;
+#endif
 	if (code->index != 0)
 		return -EINVAL;
 
@@ -2490,13 +2491,11 @@ static int ov5640_s_stream(struct v4l2_subdev *sd, int enable)
 	printk("%s %d\n", __func__, enable);
 
 	mutex_lock(&sensor->lock);
-
-	if (enable == 1) {
+        if (enable == 1) {
 		mutex_unlock(&sensor->lock);
 		ov5640_s_power(&sensor->sd, 1);
 		mutex_lock(&sensor->lock);
 	}
-
 	if (sensor->streaming == !enable) {
 		if (enable && sensor->pending_mode_change) {
 			ret = ov5640_set_mode(sensor, sensor->current_mode);
@@ -2508,8 +2507,7 @@ static int ov5640_s_stream(struct v4l2_subdev *sd, int enable)
 		if (!ret)
 			sensor->streaming = enable;
 	}
-
-	if (enable == 0) {
+        if (enable == 0) {
 		mutex_unlock(&sensor->lock);
 		ov5640_s_power(&sensor->sd, 0);
 		mutex_lock(&sensor->lock);
