@@ -111,6 +111,19 @@
 				nexell,pin-pull = <1>;
 				nexell,pin-strength = <0>;
 			};
+			cfg_wlanen: cfg-wlanen {
+				nexell,pins ="gpioe-12";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <2>;
+				nexell,pin-strength = <0>;
+			};
+
+			cfg_wlanhostwake: cfg-wlanhostwake {
+				nexell,pins = "gpioe-16";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
+			};
 
 		};
 
@@ -405,11 +418,17 @@
 		default-brightness-level = <200>;
 		status = "okay";
 	};
-    bt_control {
+	bt_control {
 		compatible = "broadcom,bcm434545bt";
 		gpios = <&gpio_e 22 0>;   /* GPIOE11 = BT_EN, output */
 		pinctrl-names = "default";
 		pinctrl-0 = <&bt_cfg_en>;
+		status = "okay";
+	};
+	wlan {
+		compatible = "nexell,brcm-wlan";
+		wlan_reg_on = <&gpio_e 12 0>;
+		wlan_host_wake = <&gpio_e 16 1>;
 		status = "okay";
 	};
 };
@@ -534,6 +553,28 @@
 	nexell,sample_dly = <0x00>;
 	nexell,sample_shift = <0x01>;
 	status = "okay";
+};
+&dw_mmc_1 {
+ 	num-slots = <1>;
+	 bus-width = <4>;
+	 cap-sd-highspeed;
+	 cd-type-external;
+	 broken-cd;
+	 pm-ignore-notify;
+	 keep-power-in-suspend;
+	 powered-resumed-nonremovable-card;
+	 cd-type = <2>;
+	 clock-frequency = <100000000>;
+	 nexell,drive_dly = <0x0>;
+	 nexell,drive_shift = <0x02>;
+	 nexell,sample_dly = <0x00>;
+	 nexell,sample_shift = <0x01>;
+
+	 pinctrl-names = "default";
+	 pinctrl-0 = <&sdmmc1_cclk &sdmmc1_cmd &sdmmc1_bus4
+		&cfg_wlanen &cfg_wlanhostwake>;
+
+	 status = "okay";
 };
 
 &dw_mmc_2 {
