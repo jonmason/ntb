@@ -800,6 +800,12 @@ DHDOFILES += dhd_custom_exynos.o
 endif
 endif
 
+ifeq ($(CONFIG_OF),y)
+ifneq ($(CONFIG_ARCH_S5P4418),)
+DHDOFILES += dhd_custom_nexell.o
+endif
+endif
+
 # For SPI projects
 ifeq ($(CONFIG_SPI_SC8810),y)
 DHDOFILES += bcmsdspi_linux.o bcmspibrcm.o
