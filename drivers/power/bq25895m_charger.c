@@ -90,6 +90,7 @@ struct bq25895m_device {
 	struct i2c_client *client;
 	struct device *dev;
 	struct power_supply *charger;
+	struct power_supply *battery;
 
 	struct usb_phy *usb_phy;
 	struct notifier_block usb_nb;
@@ -787,6 +788,14 @@ static char *bq25895m_charger_supplied_to[] = {
 
 static const struct power_supply_desc bq25895m_power_supply_desc = {
 	.name = "bq25895m-charger",
+	.type = POWER_SUPPLY_TYPE_MAINS,
+	.properties = bq25895m_power_supply_props,
+	.num_properties = ARRAY_SIZE(bq25895m_power_supply_props),
+	.get_property = bq25895m_power_supply_get_property,
+};
+
+static const struct power_supply_desc bq25895m_battery_desc = {
+	.name = "bq25895m-battery",
 	.type = POWER_SUPPLY_TYPE_BATTERY,
 	.properties = bq25895m_power_supply_props,
 	.num_properties = ARRAY_SIZE(bq25895m_power_supply_props),
@@ -801,6 +810,8 @@ static int bq25895m_power_supply_init(struct bq25895m_device *bq)
 	psy_cfg.num_supplicants = ARRAY_SIZE(bq25895m_charger_supplied_to);
 
 	bq->charger = power_supply_register(bq->dev, &bq25895m_power_supply_desc,
+					    &psy_cfg);
+	bq->battery = power_supply_register(bq->dev, &bq25895m_battery_desc,
 					    &psy_cfg);
 
 	return PTR_ERR_OR_ZERO(bq->charger);
