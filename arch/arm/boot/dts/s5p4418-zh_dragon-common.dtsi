@@ -187,6 +187,7 @@
 		};
 
 		dwc2otg@c0040000 {
+			nouse_idcon = <1>;
 			status = "okay";
 		};
 
