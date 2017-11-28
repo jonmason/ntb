@@ -488,6 +488,10 @@
 	};
 };
 
+&decimator_0 {
+	status = "okay";
+};
+
 &serial3 {
 	status = "okay";
 };
