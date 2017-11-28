@@ -110,17 +110,26 @@ static void unregister_irq_handler(struct nx_decimator *me)
 static irqreturn_t nx_decimator_irq_handler(void *data)
 {
 	struct nx_decimator *me = data;
-	bool done;
+	struct nx_video_buffer *done = NULL;
+	int buf_count;
 
-	done = nx_video_done_buffer(&me->vbuf_obj);
 	if (NX_ATOMIC_READ(&me->state) & STATE_STOPPING) {
 		nx_vip_stop(me->module, VIP_DECIMATOR);
 		complete(&me->stop_done);
-	} else if (done) {
-		update_buffer(me);
 	} else {
-		nx_vip_stop(me->module, VIP_DECIMATOR);
-		me->buffer_underrun = true;
+		buf_count = nx_video_get_buffer_count(&me->vbuf_obj);
+		done = nx_video_get_next_buffer(&me->vbuf_obj, true);
+		if (buf_count > 1) {
+			update_buffer(me);
+		} else {
+			pr_warn("[%s] under run\n", __func__);
+			nx_vip_stop(me->module, VIP_DECIMATOR);
+			me->buffer_underrun = true;
+		}
+		if (done->cb_buf_done) {
+			done->consumer_index++;
+			done->cb_buf_done(done);
+		}
 	}
 
 	return IRQ_HANDLED;
@@ -154,6 +163,7 @@ static int decimator_buffer_queue(struct nx_video_buffer *buf, void *data)
 	if (me->buffer_underrun) {
 		pr_debug("%s: rerun vip\n", __func__);
 		me->buffer_underrun = false;
+		update_buffer(me);
 		nx_vip_run(me->module, VIP_DECIMATOR);
 	}
 	return 0;
@@ -377,8 +387,41 @@ static int nx_decimator_set_fmt(struct v4l2_subdev *sd,
 	me->height = format->format.height;
 
 	format->pad = 1;
-
 	return v4l2_subdev_call(remote, pad, set_fmt, NULL, format);
+}
+
+static int nx_decimator_enum_frame_size(struct v4l2_subdev *sd,
+					struct v4l2_subdev_pad_config *cfg,
+					struct v4l2_subdev_frame_size_enum
+						*frame)
+{
+	struct nx_decimator *me = v4l2_get_subdevdata(sd);
+	struct v4l2_subdev *remote = get_remote_source_subdev(me);
+
+	pr_debug("[%s]\n", __func__);
+	if (!remote) {
+		WARN_ON(1);
+		return -ENODEV;
+	}
+
+	return v4l2_subdev_call(remote, pad, enum_frame_size, NULL, frame);
+}
+
+static int nx_decimator_enum_frame_interval(struct v4l2_subdev *sd,
+					struct v4l2_subdev_pad_config *cfg,
+					struct v4l2_subdev_frame_interval_enum
+					*frame)
+{
+	struct nx_decimator *me = v4l2_get_subdevdata(sd);
+	struct v4l2_subdev *remote = get_remote_source_subdev(me);
+
+	pr_debug("[%s]\n", __func__);
+	if (!remote) {
+		WARN_ON(1);
+		return -ENODEV;
+	}
+
+	return v4l2_subdev_call(remote, pad, enum_frame_interval, NULL, frame);
 }
 
 static int nx_decimator_g_crop(struct v4l2_subdev *sd,
@@ -425,6 +468,8 @@ static const struct v4l2_subdev_pad_ops nx_decimator_pad_ops = {
 	.set_selection = nx_decimator_set_selection,
 	.get_fmt = nx_decimator_get_fmt,
 	.set_fmt = nx_decimator_set_fmt,
+	.enum_frame_size = nx_decimator_enum_frame_size,
+	.enum_frame_interval = nx_decimator_enum_frame_interval,
 };
 
 static const struct v4l2_subdev_ops nx_decimator_subdev_ops = {
