@@ -594,6 +594,7 @@
 			g-np-tx-fifo-size = <512>;
 			g-tx-fifo-size = <512 512 768 768 256 256 256 256 192
 				192 64 64 64 64 64>;
+			nouse_idcon = <0>;
 			status = "disabled";
 		};
 
