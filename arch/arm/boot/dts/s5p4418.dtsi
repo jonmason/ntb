@@ -820,6 +820,18 @@
 			status = "disabled";
 		};
 
+		decimator_0:decimator_0@c0063000 {
+			compatible = "nexell,nx-decimator";
+			module = <0>;
+			status = "disabled";
+		};
+
+		decimator_1:decimator_1@c0064000 {
+			compatible = "nexell,nx-decimator";
+			module = <1>;
+			status = "disabled";
+		};
+
 		rearcam: rear_camera {
 			compatible = "nexell,nx-rearcam";
 			interrupts = <IRQ_VIP0>, <IRQ_VIP1>;
