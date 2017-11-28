@@ -1025,6 +1025,7 @@ struct dwc2_hsotg {
 	u64 hfnum_other_frrem_accum_b;
 #endif
 	u32 ext_vbus_io;
+	u32 nouse_idcon;
 #endif /* CONFIG_USB_DWC2_HOST || CONFIG_USB_DWC2_DUAL_ROLE */
 
 #if IS_ENABLED(CONFIG_USB_DWC2_PERIPHERAL) || IS_ENABLED(CONFIG_USB_DWC2_DUAL_ROLE)
