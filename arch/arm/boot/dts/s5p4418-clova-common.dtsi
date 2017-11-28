@@ -93,6 +93,18 @@
 				nexell,pin-pull = <1>;
 				nexell,pin-strength = <3>;
 			};
+			i2c_gpio7_sda: i2c7_sda {
+				nexell,pins = "gpioc-31";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <3>;
+			};
+			i2c_gpio7_scl: i2c7_scl {
+				nexell,pins = "gpioc-30";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <3>;
+			};
 			bt_cfg_en:bt_cfg_en {
 				nexell,pins = "gpioe-22";
 				nexell,pin-function = <0>;
@@ -349,6 +361,9 @@
 	};
 
 	i2c_gpio6: i2c@6 {
+		status = "disabled";
+	};
+	i2c_gpio7: i2c@7 {
 		status = "disabled";
 	};
 
@@ -672,6 +687,24 @@
 		ti,thermal-regulation-threshold = <120>;
 	};
 
+};
+
+&i2c_gpio7 {
+	compatible = "i2c-gpio";
+	gpios=<&gpio_c 31 0 /* SDA */
+			&gpio_c 30 0>;    /* SCL */
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c_gpio7_scl &i2c_gpio7_sda >;
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	stk3311: stk3311@48 {
+		#sound-dai-cells = <0>;
+		compatible = "stk,stk3311";
+		reg = <0x48>;
+		interrupt-parent = <&gpio_d>;
+		interrupts = <0 0>;
+	};
 };
 
 #define PMIC_PDATA_INIT(_id, _rname, _minuv,	\
