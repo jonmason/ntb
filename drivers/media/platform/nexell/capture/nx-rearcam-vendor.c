@@ -127,8 +127,7 @@ struct nx_vendor_context *nx_rearcam_alloc_vendor_context(void *priv,
 	if (!ctx)
 		return NULL;
 
-	pr_err("+++ %s ---\n", __func__);
-
+	pr_debug("+++ %s ---\n", __func__);
 	/*	example		*/
 	ctx->priv = priv;
 	ctx->type = 1;

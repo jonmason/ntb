@@ -2111,7 +2111,7 @@ static inline bool is_reargear_on(struct nx_rearcam *me)
 	if (!me->active_high)
 		is_on ^= 1;
 
-	if ((me->vendor_context) && (me->decide)) {
+	if (me->decide) {
 		vendor_on = me->decide(me->vendor_context);
 		pr_debug("[%s] vendor deci_deltah():%d\n", __func__,
 			 vendor_on);
@@ -2680,7 +2680,8 @@ static void _turn_on(struct nx_rearcam *me)
 	_set_vip_interrupt(me, true);
 	_vip_run(me);
 
-	me->vendor_context->enable = true;
+	if (me->vendor_context)
+		me->vendor_context->enable = true;
 }
 
 static void _turn_off(struct nx_rearcam *me)
@@ -2699,7 +2700,8 @@ static void _turn_off(struct nx_rearcam *me)
 	if (me->post_turn_off)
 		me->post_turn_off(me->vendor_context);
 
-	me->vendor_context->enable = false;
+	if (me->vendor_context)
+		me->vendor_context->enable = false;
 }
 
 static void _decide(struct nx_rearcam *me)
@@ -4505,6 +4507,14 @@ static int nx_rearcam_probe(struct platform_device *pdev)
 	}
 
 	init_me(me);
+	if ((me->vendor_context == NULL) && (me->alloc_vendor_context)) {
+		me->vendor_context = me->alloc_vendor_context(me, dev);
+		if (!me->vendor_context) {
+			dev_err(dev, "%s: failed to allcate vendor context.\n",
+				__func__);
+			return -ENOMEM;
+		}
+	}
 #if USED_SENSOR_INIT_WOKRER
 	/* sensor init */
 	queue_work(me->wq_sensor_init, &me->work_sensor_init);
@@ -4525,14 +4535,6 @@ static int nx_rearcam_probe(struct platform_device *pdev)
 		schedule_delayed_work(&me->work,
 			msecs_to_jiffies(me->detect_delay));
 
-	if (me->alloc_vendor_context) {
-		me->vendor_context = me->alloc_vendor_context(me, dev);
-		if (!me->vendor_context) {
-			dev_err(dev, "%s: failed to allcate vendor context.\n",
-				__func__);
-			return -ENOMEM;
-		}
-	}
 
 	/* reargear gpio enable */
 	enable_irq(me->irq_event);
@@ -4570,10 +4572,11 @@ static int nx_rearcam_remove(struct platform_device *pdev)
 	cdevice_exit(me);
 	deinit_me(me);
 
-	if (me->free_vendor_context) {
-		me->free_vendor_context(me->vendor_context);
-	} else if (me->vendor_context != NULL) {
-		kfree(me->vendor_context);
+	if (me->vendor_context) {
+		if (me->free_vendor_context)
+			me->free_vendor_context(me->vendor_context);
+		else
+			kfree(me->vendor_context);
 		me->vendor_context = NULL;
 	}
 
