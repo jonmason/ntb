@@ -79,6 +79,9 @@
 			i2c1:i2c@c00af000  { clock-frequency = <200000000>; };
 			i2c2:i2c@c00b0000  { clock-frequency = <200000000>; };
 
+			spi0:spi@c00ac000  { clock-frequency = <100000000>; };
+			spi2:spi@c00a7000  { clock-frequency = <100000000>; };
+
 			pwm0:pwm0@c00ba000 {
 				clk-input = <I_PLL2>;
 				clock-frequency = <10000000>;
@@ -814,4 +817,33 @@
 		height = <720>;
 		refresh = <60>;
 	};
+};
+
+&spi_0 {
+	status = "okay";
+	cs-gpios = <&gpio_c 30 0>;
+
+	spidev0: spidev@0 {
+		status = "okay";
+		compatible = "linux,spidev";
+		pl022,hierarchy = <1>;
+		pl022,com-mode = <0x2>;
+		pl022,rx-level-trig = <1>;
+		pl022,tx-level-trig = <1>;
+		reg = <0>;
+		spi-max-frequency = <10000000>;
+	};
+
+	t28tft0: fbtft@0 {
+		status = "disabled";
+		compatible = "sitronix,st7789v";
+		reg = <0>;
+		spi-max-frequency = <50000000>;
+		rotate = <90>;
+		fps = <33>;
+		buswidth = <8>;
+		dc-gpios = <&gpio_b 28 0>;
+		reset-gpios = <&gpio_d 8 0>;
+		debug = <0x0>;
+   };
 };

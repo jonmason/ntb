@@ -38,3 +38,7 @@
 		hp-det-gpio = <&gpio_b 27 0>;
 	};
 };
+
+&spi_0 {
+	/delete-node/ fbtft@0;
+};
