@@ -603,5 +603,10 @@ config TILE_SROM
 
 source "drivers/char/xillybus/Kconfig"
 
-endmenu
+config MATRIX_GPIO_INT
+	tristate "Matrix GPIO int sensor module"
+	default m
+	---help---
+	  Driver for Matrix GPIO int sensor module.
 
+endmenu
