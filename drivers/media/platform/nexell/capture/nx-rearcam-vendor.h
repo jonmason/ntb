@@ -19,19 +19,9 @@
 #ifndef __NX_REARCAM_VENDOR_H__
 #define __NX_REARCAM_VENDOR_H__
 
-struct nx_vendor_context {
-	int type;
-	int enable;
-	int event_gpio;
-	int active_high;
-	int detect_delay;
-	int irq_event;
-	void *priv;
-};
-
+void nx_rearcam_set_enable(void *, bool);
 void nx_rearcam_sensor_init_func(struct i2c_client *client);
-struct nx_vendor_context *nx_rearcam_alloc_vendor_context(
-        void *priv, struct device *dev);
+void *nx_rearcam_alloc_vendor_context(void *priv, struct device *dev);
 bool nx_rearcam_pre_turn_on(void *);
 void nx_rearcam_post_turn_off(void *);
 void nx_rearcam_free_vendor_context(void *);

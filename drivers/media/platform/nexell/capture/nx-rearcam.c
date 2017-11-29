@@ -547,10 +547,11 @@ struct nx_rearcam {
 #endif
 
 	/* vendor context */
-	struct nx_vendor_context *vendor_context;
+	void *vendor_context;
+        void (*set_enable)(void *, bool);
 	void (*sensor_init_func)(struct i2c_client *client);
-	struct nx_vendor_context *(*alloc_vendor_context)
-		(struct rearcam *cam, struct device *dev);
+	void *(*alloc_vendor_context)
+                (struct rearcam *cam, struct device *dev);
 	void (*free_vendor_context)(void *);
 	bool (*pre_turn_on)(void *);
 	void (*post_turn_off)(void *);
@@ -2680,8 +2681,8 @@ static void _turn_on(struct nx_rearcam *me)
 	_set_vip_interrupt(me, true);
 	_vip_run(me);
 
-	if (me->vendor_context)
-		me->vendor_context->enable = true;
+	if (me->vendor_context && me->set_enable)
+		me->set_enable(me->vendor_context, true);
 }
 
 static void _turn_off(struct nx_rearcam *me)
@@ -2700,8 +2701,8 @@ static void _turn_off(struct nx_rearcam *me)
 	if (me->post_turn_off)
 		me->post_turn_off(me->vendor_context);
 
-	if (me->vendor_context)
-		me->vendor_context->enable = false;
+	if (me->vendor_context && me->set_enable)
+		me->set_enable(me->vendor_context, false);
 }
 
 static void _decide(struct nx_rearcam *me)
@@ -4093,6 +4094,7 @@ static void _free_buffer(struct nx_rearcam *me)
 static void _init_vendor(struct nx_rearcam *me)
 {
 	me->vendor_context		= NULL;
+	me->set_enable                  = nx_rearcam_set_enable;
 	me->sensor_init_func		= nx_rearcam_sensor_init_func;
 	me->alloc_vendor_context	= nx_rearcam_alloc_vendor_context;
 	me->free_vendor_context		= nx_rearcam_free_vendor_context;

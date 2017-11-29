@@ -29,4 +29,10 @@ config VIDEO_NEXELL_REARCAM_SAMPLEPARKINGLINE
 	  Say y here to draw a parking assist line using the raw data provided
 	  by the sample when drawing the parking assist in the rear camera.
 
+config VIDEO_NEXELL_REARCAM_VENDOR_FMS
+	bool "Nexell Rearcam Vendor FMS Driver"
+	default n
+	---help---
+	  Say y here to support a rearcam vendor driver for FMS
+
 endif # VIDEO_NEXELL_REARCAM
