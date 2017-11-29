@@ -1,0 +1,251 @@
+/*
+ * bcmevent read-only data shared by kernel or app layers
+ *
+ * $Copyright Open Broadcom Corporation$
+ * $Id: bcmevent.c 662961 2016-11-24 01:22:35Z $
+ */
+
+#include <typedefs.h>
+#include <bcmutils.h>
+#include <bcmendian.h>
+#include <proto/ethernet.h>
+#include <proto/bcmeth.h>
+#include <proto/bcmevent.h>
+#include <proto/802.11.h>
+
+#if WLC_E_LAST != 165
+#error "You need to add an entry to bcmevent_names[] for the new event"
+#endif
+
+/* Use the actual name for event tracing */
+#define BCMEVENT_NAME(_event) {(_event), #_event}
+
+const bcmevent_name_t bcmevent_names[] = {
+	BCMEVENT_NAME(WLC_E_SET_SSID),
+	BCMEVENT_NAME(WLC_E_JOIN),
+	BCMEVENT_NAME(WLC_E_START),
+	BCMEVENT_NAME(WLC_E_AUTH),
+	BCMEVENT_NAME(WLC_E_AUTH_IND),
+	BCMEVENT_NAME(WLC_E_DEAUTH),
+	BCMEVENT_NAME(WLC_E_DEAUTH_IND),
+	BCMEVENT_NAME(WLC_E_ASSOC),
+	BCMEVENT_NAME(WLC_E_ASSOC_IND),
+	BCMEVENT_NAME(WLC_E_REASSOC),
+	BCMEVENT_NAME(WLC_E_REASSOC_IND),
+	BCMEVENT_NAME(WLC_E_DISASSOC),
+	BCMEVENT_NAME(WLC_E_DISASSOC_IND),
+	BCMEVENT_NAME(WLC_E_QUIET_START),
+	BCMEVENT_NAME(WLC_E_QUIET_END),
+	BCMEVENT_NAME(WLC_E_BEACON_RX),
+	BCMEVENT_NAME(WLC_E_LINK),
+	BCMEVENT_NAME(WLC_E_MIC_ERROR),
+	BCMEVENT_NAME(WLC_E_NDIS_LINK),
+	BCMEVENT_NAME(WLC_E_ROAM),
+	BCMEVENT_NAME(WLC_E_TXFAIL),
+	BCMEVENT_NAME(WLC_E_PMKID_CACHE),
+	BCMEVENT_NAME(WLC_E_RETROGRADE_TSF),
+	BCMEVENT_NAME(WLC_E_PRUNE),
+	BCMEVENT_NAME(WLC_E_AUTOAUTH),
+	BCMEVENT_NAME(WLC_E_EAPOL_MSG),
+	BCMEVENT_NAME(WLC_E_SCAN_COMPLETE),
+	BCMEVENT_NAME(WLC_E_ADDTS_IND),
+	BCMEVENT_NAME(WLC_E_DELTS_IND),
+	BCMEVENT_NAME(WLC_E_BCNSENT_IND),
+	BCMEVENT_NAME(WLC_E_BCNRX_MSG),
+	BCMEVENT_NAME(WLC_E_BCNLOST_MSG),
+	BCMEVENT_NAME(WLC_E_ROAM_PREP),
+	BCMEVENT_NAME(WLC_E_PFN_NET_FOUND),
+	BCMEVENT_NAME(WLC_E_PFN_NET_LOST),
+#if defined(IBSS_PEER_DISCOVERY_EVENT)
+	BCMEVENT_NAME(WLC_E_IBSS_ASSOC),
+#endif /* defined(IBSS_PEER_DISCOVERY_EVENT) */
+	BCMEVENT_NAME(WLC_E_RADIO),
+	BCMEVENT_NAME(WLC_E_PSM_WATCHDOG),
+#if defined(BCMCCX) && defined(CCX_SDK)
+	BCMEVENT_NAME(WLC_E_CCX_ASSOC_START),
+	BCMEVENT_NAME(WLC_E_CCX_ASSOC_ABORT),
+#endif /* BCMCCX && CCX_SDK */
+	BCMEVENT_NAME(WLC_E_PROBREQ_MSG),
+	BCMEVENT_NAME(WLC_E_SCAN_CONFIRM_IND),
+	BCMEVENT_NAME(WLC_E_PSK_SUP),
+	BCMEVENT_NAME(WLC_E_COUNTRY_CODE_CHANGED),
+	BCMEVENT_NAME(WLC_E_EXCEEDED_MEDIUM_TIME),
+	BCMEVENT_NAME(WLC_E_ICV_ERROR),
+	BCMEVENT_NAME(WLC_E_UNICAST_DECODE_ERROR),
+	BCMEVENT_NAME(WLC_E_MULTICAST_DECODE_ERROR),
+	BCMEVENT_NAME(WLC_E_TRACE),
+#ifdef WLBTAMP
+	BCMEVENT_NAME(WLC_E_BTA_HCI_EVENT),
+#endif
+	BCMEVENT_NAME(WLC_E_IF),
+#ifdef WLP2P
+	BCMEVENT_NAME(WLC_E_P2P_DISC_LISTEN_COMPLETE),
+#endif
+	BCMEVENT_NAME(WLC_E_RSSI),
+	BCMEVENT_NAME(WLC_E_PFN_SCAN_COMPLETE),
+	BCMEVENT_NAME(WLC_E_EXTLOG_MSG),
+#ifdef WIFI_ACT_FRAME
+	BCMEVENT_NAME(WLC_E_ACTION_FRAME),
+	BCMEVENT_NAME(WLC_E_ACTION_FRAME_RX),
+	BCMEVENT_NAME(WLC_E_ACTION_FRAME_COMPLETE),
+#endif
+#if 0 && (NDISVER >= 0x0620)
+	BCMEVENT_NAME(WLC_E_PRE_ASSOC_IND),
+	BCMEVENT_NAME(WLC_E_PRE_REASSOC_IND),
+	BCMEVENT_NAME(WLC_E_CHANNEL_ADOPTED),
+	BCMEVENT_NAME(WLC_E_AP_STARTED),
+	BCMEVENT_NAME(WLC_E_DFS_AP_STOP),
+	BCMEVENT_NAME(WLC_E_DFS_AP_RESUME),
+	BCMEVENT_NAME(WLC_E_ASSOC_IND_NDIS),
+	BCMEVENT_NAME(WLC_E_REASSOC_IND_NDIS),
+	BCMEVENT_NAME(WLC_E_ACTION_FRAME_RX_NDIS),
+	BCMEVENT_NAME(WLC_E_AUTH_REQ),
+	BCMEVENT_NAME(WLC_E_IBSS_COALESCE),
+#endif 
+#ifdef BCMWAPI_WAI
+	BCMEVENT_NAME(WLC_E_WAI_STA_EVENT),
+	BCMEVENT_NAME(WLC_E_WAI_MSG),
+#endif /* BCMWAPI_WAI */
+	BCMEVENT_NAME(WLC_E_ESCAN_RESULT),
+	BCMEVENT_NAME(WLC_E_ACTION_FRAME_OFF_CHAN_COMPLETE),
+#ifdef WLP2P
+	BCMEVENT_NAME(WLC_E_PROBRESP_MSG),
+	BCMEVENT_NAME(WLC_E_P2P_PROBREQ_MSG),
+#endif
+#ifdef PROP_TXSTATUS
+	BCMEVENT_NAME(WLC_E_FIFO_CREDIT_MAP),
+#endif
+	BCMEVENT_NAME(WLC_E_WAKE_EVENT),
+	BCMEVENT_NAME(WLC_E_DCS_REQUEST),
+	BCMEVENT_NAME(WLC_E_RM_COMPLETE),
+#ifdef WLMEDIA_HTSF
+	BCMEVENT_NAME(WLC_E_HTSFSYNC),
+#endif
+	BCMEVENT_NAME(WLC_E_OVERLAY_REQ),
+	BCMEVENT_NAME(WLC_E_CSA_COMPLETE_IND),
+	BCMEVENT_NAME(WLC_E_EXCESS_PM_WAKE_EVENT),
+	BCMEVENT_NAME(WLC_E_PFN_SCAN_NONE),
+	BCMEVENT_NAME(WLC_E_PFN_SCAN_ALLGONE),
+#ifdef SOFTAP
+	BCMEVENT_NAME(WLC_E_GTK_PLUMBED),
+#endif
+	BCMEVENT_NAME(WLC_E_ASSOC_REQ_IE),
+	BCMEVENT_NAME(WLC_E_ASSOC_RESP_IE),
+	BCMEVENT_NAME(WLC_E_ACTION_FRAME_RX_NDIS),
+	BCMEVENT_NAME(WLC_E_BEACON_FRAME_RX),
+#ifdef WLTDLS
+	BCMEVENT_NAME(WLC_E_TDLS_PEER_EVENT),
+#endif /* WLTDLS */
+	BCMEVENT_NAME(WLC_E_NATIVE),
+#ifdef WLPKTDLYSTAT
+	BCMEVENT_NAME(WLC_E_PKTDELAY_IND),
+#endif /* WLPKTDLYSTAT */
+	BCMEVENT_NAME(WLC_E_SERVICE_FOUND),
+	BCMEVENT_NAME(WLC_E_GAS_FRAGMENT_RX),
+	BCMEVENT_NAME(WLC_E_GAS_COMPLETE),
+	BCMEVENT_NAME(WLC_E_P2PO_ADD_DEVICE),
+	BCMEVENT_NAME(WLC_E_P2PO_DEL_DEVICE),
+#ifdef WLWNM
+	BCMEVENT_NAME(WLC_E_WNM_STA_SLEEP),
+#endif /* WLWNM */
+#if defined(WL_PROXDETECT)
+	BCMEVENT_NAME(WLC_E_PROXD),
+#endif
+	BCMEVENT_NAME(WLC_E_CCA_CHAN_QUAL),
+	BCMEVENT_NAME(WLC_E_BSSID),
+#ifdef PROP_TXSTATUS
+	BCMEVENT_NAME(WLC_E_BCMC_CREDIT_SUPPORT),
+#endif
+	BCMEVENT_NAME(WLC_E_TXFAIL_THRESH),
+#ifdef WLAIBSS
+	BCMEVENT_NAME(WLC_E_AIBSS_TXFAIL),
+#endif /* WLAIBSS */
+	BCMEVENT_NAME(WLC_E_RMC_EVENT),
+	BCMEVENT_NAME(WLC_E_PKT_FILTER),
+};
+
+const int bcmevent_names_size = ARRAYSIZE(bcmevent_names);
+
+/*
+ * Validate if the event is proper and if valid copy event header to event.
+ * If proper event pointer is passed, to just validate, pass NULL to event.
+ *
+ * Return values are
+ *	BCME_OK - It is a BRCM event or BRCM dongle event
+ *	BCME_NOTFOUND - Not BRCM, not an event, may be okay
+ *	BCME_BADLEN - Bad length, should not process, just drop
+ */
+int
+is_wlc_event_frame(void *pktdata, uint pktlen, uint16 exp_usr_subtype,
+		wl_event_msg_t *out_event)
+{
+	uint16 len;
+	uint16 subtype;
+	uint16 usr_subtype;
+	bcm_event_t *bcm_event;
+	uint8 *pktend;
+	int err = BCME_OK;
+
+	pktend = (uint8 *)pktdata + pktlen;
+	bcm_event = (bcm_event_t *)pktdata;
+
+	/* only care about 16-bit subtype / length versions */
+	if ((uint8 *)&bcm_event->bcm_hdr < pktend) {
+		uint8 short_subtype = *(uint8 *)&bcm_event->bcm_hdr;
+		if (!(short_subtype & 0x80)) {
+			err = BCME_NOTFOUND;
+			goto done;
+		}
+	}
+
+	/* must have both ether_header and bcmeth_hdr */
+	if (pktlen < OFFSETOF(bcm_event_t, event)) {
+		err = BCME_BADLEN;
+		goto done;
+	}
+
+	/* check length in bcmeth_hdr */
+	len = ntoh16_ua((void *)&bcm_event->bcm_hdr.length);
+
+	/* match on subtype, oui and usr subtype for BRCM events */
+	subtype = ntoh16_ua((void *)&bcm_event->bcm_hdr.subtype);
+	if (subtype != BCMILCP_SUBTYPE_VENDOR_LONG) {
+		err = BCME_NOTFOUND;
+		goto done;
+	}
+
+	if (bcmp(BRCM_OUI, &bcm_event->bcm_hdr.oui[0], DOT11_OUI_LEN)) {
+		err = BCME_NOTFOUND;
+		goto done;
+	}
+
+	/* if it is a bcm_event or bcm_dngl_event_t, validate it */
+	usr_subtype = ntoh16_ua((void *)&bcm_event->bcm_hdr.usr_subtype);
+	if (usr_subtype == BCMILCP_BCM_SUBTYPE_EVENT) {
+		if (pktlen < sizeof(bcm_event_t)) {
+			err = BCME_BADLEN;
+			goto done;
+		}
+		len = (uint16)sizeof(bcm_event_t) +
+			(uint16)ntoh32_ua((void *)&bcm_event->event.datalen);
+		if ((uint8 *)pktdata + len > pktend) {
+			err = BCME_BADLEN;
+			goto done;
+		}
+		if (exp_usr_subtype && (exp_usr_subtype != usr_subtype)) {
+			err = BCME_NOTFOUND;
+			goto done;
+		}
+		if (out_event) {
+			/* ensure BRCM event pkt aligned */
+			memcpy(out_event, &bcm_event->event, sizeof(wl_event_msg_t));
+		}
+	}
+	else {
+		err = BCME_NOTFOUND;
+		goto done;
+	}
+
+done:
+	return err;
+}
