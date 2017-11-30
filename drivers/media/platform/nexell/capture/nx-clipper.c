@@ -1212,8 +1212,8 @@ static int nx_clipper_s_stream(struct v4l2_subdev *sd, int enable)
 			nx_video_clear_buffer(&me->vbuf_obj);
 			NX_ATOMIC_CLEAR_MASK(STATE_MEM_RUNNING, &me->state);
 
-			memset(&me->crop, 0, sizeof(me->crop));
 		}
+		memset(&me->crop, 0, sizeof(me->crop));
 
 		if (!is_host_video)
 			if (NX_ATOMIC_READ(&me->state) == STATE_IDLE)
