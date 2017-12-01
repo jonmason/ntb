@@ -424,6 +424,7 @@
 			pdm-isrun-gpio = <&gpio_e 14 0>;
 			pdm-lrck-gpio = <&gpio_b 26 0>;
 			i2s-lrck-gpio = <&gpio_b 4 0>;
+			pdm-nrst-gpio = <&gpio_e 15 0>;
 		};
 	};
 
