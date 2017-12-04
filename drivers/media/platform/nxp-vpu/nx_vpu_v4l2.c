@@ -235,6 +235,63 @@ static struct nx_vpu_fmt formats[] = {
 		.fourcc = V4L2_PIX_FMT_YVU420M,
 		.num_planes = 3,
 	},
+	/* TBD : Not support YUV422, YUV444 format.
+	{
+		.name = "YUV 4:2:2 3 Planes",
+		.fourcc = V4L2_PIX_FMT_YUV422P,
+		.num_planes = 3,
+	},
+	{
+		.name = "YUV 4:2:2 None Contiguous 3 Planes",
+		.fourcc = V4L2_PIX_FMT_YUV422M,
+		.num_planes = 3,
+	},
+	{
+		.name = "YUV 4:4:4 3 Planes",
+		.fourcc = V4L2_PIX_FMT_YUV444,
+		.num_planes = 3,
+	},
+	{
+		.name = "YUV 4:4:4 None Contiguous 3 Planes",
+		.fourcc = V4L2_PIX_FMT_YUV444M,
+		.num_planes = 3,
+	}, 	*/
+	{
+		.name = "YUV 4:2:0 2 Planes",
+		.fourcc = V4L2_PIX_FMT_NV12,
+		.num_planes = 2,
+	},
+	{
+		.name = "YUV 4:2:0 None Contiguous 2 Planes",
+		.fourcc = V4L2_PIX_FMT_NV12M,
+		.num_planes = 2,
+	},
+	/* TBD : Not support YUV422, YUV444 format.
+	{
+		.name = "YUV 4:2:2 2 Planes",
+		.fourcc = V4L2_PIX_FMT_NV16,
+		.num_planes = 2,
+	},
+	{
+		.name = "YUV 4:2:2 None Contiguous 2 Planes",
+		.fourcc = V4L2_PIX_FMT_NV16M,
+		.num_planes = 2,
+	},
+	{
+		.name = "YUV 4:4:4 2 Planes",
+		.fourcc = V4L2_PIX_FMT_NV24,
+		.num_planes = 2,
+	},
+	{
+		.name = "YUV 4:4:4 None Contiguous 2 Planes",
+		.fourcc = V4L2_PIX_FMT_NV24M,
+		.num_planes = 2,
+	}, */
+	{
+		.name = "Grey 1 Planes",
+		.fourcc = V4L2_PIX_FMT_GREY,
+		.num_planes = 1,
+	},
 	{
 		.name = "MPEG2 Stream",
 		.fourcc = V4L2_PIX_FMT_MPEG2,

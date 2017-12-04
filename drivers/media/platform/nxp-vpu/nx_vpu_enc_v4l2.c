@@ -347,6 +347,67 @@ static int check_ctrl_val(struct nx_vpu_ctx *ctx, struct v4l2_control *ctrl)
 
 	return 0;
 }
+
+static int check_format_interleaved(unsigned int fourcc)
+{
+	switch(fourcc) {
+	case V4L2_PIX_FMT_NV12:
+	case V4L2_PIX_FMT_NV16:
+	case V4L2_PIX_FMT_NV24:
+	case V4L2_PIX_FMT_NV12M:
+	case V4L2_PIX_FMT_NV16M:
+	case V4L2_PIX_FMT_NV24M:
+	/* Not support CbCr ordering in interleaved format.
+	case V4L2_PIX_FMT_NV21:
+	case V4L2_PIX_FMT_NV61:
+	case V4L2_PIX_FMT_NV42:
+	case V4L2_PIX_FMT_NV21M:
+	case V4L2_PIX_FMT_NV61M:
+	case V4L2_PIX_FMT_NV42M: */
+		return 0;
+	}
+	return -ERANGE;
+}
+
+static int check_plane_continuous(unsigned int fourcc)
+{
+	switch(fourcc) {
+	case V4L2_PIX_FMT_YUV420:
+	case V4L2_PIX_FMT_YVU420:
+	case V4L2_PIX_FMT_YUV422P:
+	case V4L2_PIX_FMT_YUV444:
+	case V4L2_PIX_FMT_NV12:
+	case V4L2_PIX_FMT_NV16:
+	case V4L2_PIX_FMT_NV24:
+	/* Not support CbCr ordering in interleaved format.
+	case V4L2_PIX_FMT_NV21:
+	case V4L2_PIX_FMT_NV61:
+	case V4L2_PIX_FMT_NV42: */
+		return 0;
+	}
+	return -ERANGE;
+}
+
+static int check_cb_first(unsigned int fourcc)
+{
+	switch(fourcc) {
+	case V4L2_PIX_FMT_YUV420:
+	case V4L2_PIX_FMT_YUV420M:
+	case V4L2_PIX_FMT_YUV422P:
+	case V4L2_PIX_FMT_YUV422M:
+	case V4L2_PIX_FMT_YUV444:
+	case V4L2_PIX_FMT_YUV444M:
+	case V4L2_PIX_FMT_NV12:
+	case V4L2_PIX_FMT_NV16:
+	case V4L2_PIX_FMT_NV24:
+	case V4L2_PIX_FMT_NV12M:
+	case V4L2_PIX_FMT_NV16M:
+	case V4L2_PIX_FMT_NV24M:
+		return 0;
+	}
+	return -ERANGE;
+}
+
 /* -------------------------------------------------------------------------- */
 
 
@@ -503,53 +564,34 @@ static int vidioc_s_fmt(struct file *file, void *priv, struct v4l2_format *f)
 		ctx->height = pix_fmt_mp->height;
 		enc_ctx->reconChromaInterleave = RECON_CHROMA_INTERLEAVE;
 
+		ctx->luma_size = f->fmt.pix_mp.plane_fmt[0].sizeimage;
+		ctx->buf_y_width = f->fmt.pix_mp.plane_fmt[0].bytesperline;
+		ctx->buf_height = ctx->luma_size / ctx->buf_y_width;
+
+		if (1 < ctx->img_fmt.num_planes) {
+			ctx->chroma_size = f->fmt.pix_mp.plane_fmt[1].sizeimage;
+			ctx->buf_c_width = f->fmt.pix_mp.plane_fmt[1].bytesperline;
+		}
+
+		ctx->chromaInterleave = !check_format_interleaved(fmt->fourcc) ? 1 : 0;
+
+		/* Maybe this code is here instead of line565 */
+		/* enc_ctx->reconChromaInterleave = RECON_CHROMA_INTERLEAVE; */
 		enc_ctx->seq_para.srcWidth = ctx->width;
 		enc_ctx->seq_para.srcHeight = ctx->height;
 		enc_ctx->seq_para.chromaInterleave = ctx->chromaInterleave;
-		enc_ctx->seq_para.refChromaInterleave
-			= enc_ctx->reconChromaInterleave;
-
-		ctx->buf_y_width = ALIGN(ctx->width, 32);
-		ctx->buf_height = ALIGN(ctx->height, 16);
-		ctx->luma_size = ctx->buf_y_width * ctx->buf_height;
-
-		switch (fmt->fourcc) {
-		case V4L2_PIX_FMT_NV12M:
-			ctx->buf_c_width = ctx->buf_y_width >> 1;
-			ctx->chroma_size = ctx->buf_c_width * ctx->buf_height;
-			ctx->chromaInterleave = 1;
-			break;
-		case V4L2_PIX_FMT_YUV420M:
-			ctx->buf_c_width = ctx->buf_y_width >> 1;
-			ctx->chroma_size = ctx->buf_c_width *
-				ALIGN(ctx->buf_height/2, 16);
-			ctx->chromaInterleave = 0;
-			break;
-		case V4L2_PIX_FMT_YUV422M:
-			ctx->buf_c_width = ctx->buf_y_width >> 1;
-			ctx->chroma_size = ctx->buf_c_width * ctx->buf_height;
-			ctx->chromaInterleave = 0;
-			break;
-		case V4L2_PIX_FMT_YUV444M:
-			ctx->buf_c_width = ctx->buf_y_width;
-			ctx->chroma_size = ctx->luma_size;
-			ctx->chromaInterleave = 0;
-			break;
-		case V4L2_PIX_FMT_GREY:
-			ctx->buf_c_width = 0;
-			ctx->chroma_size = 0;
-			break;
-		default:
-			return -EINVAL;
-		}
+		enc_ctx->seq_para.refChromaInterleave = enc_ctx->reconChromaInterleave;
 
 		pix_fmt_mp->plane_fmt[0].bytesperline = ctx->buf_y_width;
 		pix_fmt_mp->plane_fmt[0].sizeimage = ctx->luma_size;
-		pix_fmt_mp->plane_fmt[1].bytesperline = ctx->buf_c_width;
-		pix_fmt_mp->plane_fmt[1].sizeimage = ctx->chroma_size;
-		if (ctx->chromaInterleave == 0) {
-			pix_fmt_mp->plane_fmt[2].bytesperline
-				= ctx->buf_c_width;
+
+		if (1 < ctx->img_fmt.num_planes) {
+			pix_fmt_mp->plane_fmt[1].bytesperline = ctx->buf_c_width;
+			pix_fmt_mp->plane_fmt[1].sizeimage = ctx->chroma_size;
+		}
+
+		if (2 < ctx->img_fmt.num_planes) {
+			pix_fmt_mp->plane_fmt[2].bytesperline = ctx->buf_c_width;
 			pix_fmt_mp->plane_fmt[2].sizeimage = ctx->chroma_size;
 		}
 	} else {
@@ -1306,29 +1348,38 @@ int vpu_enc_init(struct nx_vpu_ctx *ctx)
 		pSeqArg->gopSize = 1;
 
 		switch (ctx->img_fmt.fourcc) {
+		case V4L2_PIX_FMT_YUV420:
+		case V4L2_PIX_FMT_YVU420:
 		case V4L2_PIX_FMT_YUV420M:
+		case V4L2_PIX_FMT_YVU420M:
 			pSeqArg->imgFormat = IMG_FORMAT_420;
 			pSeqArg->chromaInterleave = 0;
 			break;
+		case V4L2_PIX_FMT_YUV422P:
 		case V4L2_PIX_FMT_YUV422M:
 			pSeqArg->imgFormat = IMG_FORMAT_422;
 			pSeqArg->chromaInterleave = 0;
 			break;
+		case V4L2_PIX_FMT_YUV444:
 		case V4L2_PIX_FMT_YUV444M:
 			pSeqArg->imgFormat = IMG_FORMAT_444;
 			pSeqArg->chromaInterleave = 0;
 			break;
 		case V4L2_PIX_FMT_GREY:
 			pSeqArg->imgFormat = IMG_FORMAT_400;
+			pSeqArg->chromaInterleave = 0;
 			break;
+		case V4L2_PIX_FMT_NV12:
 		case V4L2_PIX_FMT_NV12M:
 			pSeqArg->imgFormat = IMG_FORMAT_420;
 			pSeqArg->chromaInterleave = 1;
 			break;
+		case V4L2_PIX_FMT_NV16:
 		case V4L2_PIX_FMT_NV16M:
 			pSeqArg->imgFormat = IMG_FORMAT_422;
 			pSeqArg->chromaInterleave = 1;
 			break;
+		case V4L2_PIX_FMT_NV24:
 		case V4L2_PIX_FMT_NV24M:
 			pSeqArg->imgFormat = IMG_FORMAT_444;
 			pSeqArg->chromaInterleave = 1;
@@ -1446,7 +1497,7 @@ int vpu_enc_encode_frame(struct nx_vpu_ctx *ctx)
 	struct vpu_enc_ctx *enc_ctx = &ctx->codec.enc;
 	struct nx_vpu_v4l2 *dev = ctx->dev;
 	struct nx_vpu_codec_inst *hInst = ctx->hInst;
-	int ret = 0, i;
+	int ret = 0;
 	unsigned long flags;
 	struct nx_vpu_buf *mb_entry;
 	struct vpu_enc_run_frame_arg *pRunArg = &enc_ctx->run_info;
@@ -1477,19 +1528,40 @@ int vpu_enc_encode_frame(struct nx_vpu_ctx *ctx)
 	mb_entry = list_entry(ctx->img_queue.next, struct nx_vpu_buf, list);
 	mb_entry->used = 1;
 
-	for (i = 0 ; i < ctx->img_fmt.num_planes ; i++) {
-		pRunArg->inImgBuffer.phyAddr[i] = nx_vpu_mem_plane_addr(ctx,
-			&mb_entry->vb, i);
-		pRunArg->inImgBuffer.stride[i] = (i == 0) ?
-			(ctx->buf_y_width) : (ctx->buf_c_width);
+	pRunArg->inImgBuffer.phyAddr[0] = nx_vpu_mem_plane_addr(ctx,
+		&mb_entry->vb, 0);
+	pRunArg->inImgBuffer.stride[0] = ctx->buf_y_width;
+
+	if (1 < ctx->img_fmt.num_planes) {
+		if (!check_plane_continuous(ctx->img_fmt.fourcc)) {
+			pRunArg->inImgBuffer.phyAddr[1] =
+			!check_cb_first(ctx->img_fmt.fourcc) ?
+			pRunArg->inImgBuffer.phyAddr[0] + ctx->luma_size :
+			pRunArg->inImgBuffer.phyAddr[0] + ctx->luma_size + ctx->chroma_size;
+		}
+		else {
+			pRunArg->inImgBuffer.phyAddr[1] =
+			!check_cb_first(ctx->img_fmt.fourcc) ?
+			nx_vpu_mem_plane_addr(ctx, &mb_entry->vb, 1) :
+			nx_vpu_mem_plane_addr(ctx, &mb_entry->vb, 2) ;
+		}
+		pRunArg->inImgBuffer.stride[1] = ctx->buf_c_width;
 	}
 
-	if ((ctx->img_fmt.num_planes == 1) && (ctx->chroma_size > 0)) {
-		pRunArg->inImgBuffer.phyAddr[1] = ctx->luma_size +
-			pRunArg->inImgBuffer.phyAddr[0];
-		if (ctx->chromaInterleave == 0)
-			pRunArg->inImgBuffer.phyAddr[2] = ctx->chroma_size +
-				pRunArg->inImgBuffer.phyAddr[1];
+	if (2 < ctx->img_fmt.num_planes) {
+		if (!check_plane_continuous(ctx->img_fmt.fourcc)) {
+			pRunArg->inImgBuffer.phyAddr[2] =
+			!check_cb_first(ctx->img_fmt.fourcc) ?
+			pRunArg->inImgBuffer.phyAddr[0] + ctx->luma_size + ctx->chroma_size:
+			pRunArg->inImgBuffer.phyAddr[0] + ctx->luma_size ;
+		}
+		else {
+			pRunArg->inImgBuffer.phyAddr[2] =
+			!check_cb_first(ctx->img_fmt.fourcc) ?
+			nx_vpu_mem_plane_addr(ctx, &mb_entry->vb, 2) :
+			nx_vpu_mem_plane_addr(ctx, &mb_entry->vb, 1) ;
+		}
+		pRunArg->inImgBuffer.stride[2] = ctx->buf_c_width;
 	}
 
 	spin_unlock_irqrestore(&dev->irqlock, flags);
