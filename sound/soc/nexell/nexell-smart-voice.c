@@ -178,6 +178,9 @@ static inline bool __i2s_frame_wait(int wait)
 	struct svoice_pin *pin = &svoice_pins[SVI_PIN_I2S_LRCK];
 	int count, val;
 
+	if (!gpio_is_valid(pin->nr))
+		return false;
+
 	/* wait Low */
 	count = wait;
 	do {
@@ -276,7 +279,7 @@ static void __pin_prepare(void)
 	 * set nreset after pll insert
 	 * to run with external pll
 	 */
-	if (pin->nr != -1) {
+	if (gpio_is_valid(pin->nr)) {
 		pr_debug("%s [gpio_%c.%02d] %s\n", __func__,
 			('A' + pin->group), pin->offset, pin->property);
 
@@ -409,16 +412,6 @@ static void hook_cpu_ops(struct snd_soc_pcm_runtime *runtime,
 		sv->virtbase, sv->type == SVI_DEV_I2S ? "i2s" : "spi");
 
 	spin_lock(&snd->lock);
-
-	/* not sync start */
-	if (snd->num_require_dev < 2 && sv->type == SVI_DEV_SPI) {
-		if (hooking)
-			__pin_start(snd);
-		else
-			__pin_stop();
-		spin_unlock(&snd->lock);
-		return;
-	}
 
 	/* hooking to start synchronization */
 	if (hooking) {
@@ -598,7 +591,7 @@ static int svoice_setup(struct platform_device *pdev,
 	struct svoice_pin *pin;
 	const __be32 *list;
 	u32 addr, length;
-	int val, size, i;
+	int size, i;
 	int ret;
 
 	snd->dev = &pdev->dev;
@@ -651,9 +644,9 @@ static int svoice_setup(struct platform_device *pdev,
 	}
 
 	for (i = 0, pin = &svoice_pins[0]; i < SVI_PIN_NUM; i++, pin++) {
-		val = of_get_named_gpio(np, pin->property, 0);
-		if (!gpio_is_valid(val)) {
-			if (i == SVI_PIN_PDM_NRST)
+		pin->nr = of_get_named_gpio(np, pin->property, 0);
+		if (!gpio_is_valid(pin->nr)) {
+			if (i == SVI_PIN_PDM_NRST || i == SVI_PIN_I2S_LRCK)
 				continue;
 
 			dev_err(dev, "can't smart-voice %s property\n",
@@ -661,18 +654,17 @@ static int svoice_setup(struct platform_device *pdev,
 			return -EINVAL;
 		}
 
-		pin->nr = val;
 		pin->group = IO_GROUP(pin->nr);
 		pin->offset = IO_OFFSET(pin->nr);
 		pin->base = snd->io_bases[pin->group];
 
-		if (devm_gpio_request(dev, val, pin->property)) {
+		if (devm_gpio_request(dev, pin->nr, pin->property)) {
 			dev_err(dev, "can't request gpio_%c.%02d\n",
 				('A' + pin->group), pin->offset);
 			return -EINVAL;
 		}
 
-		if (pin->output && gpio_direction_output(val, 1)) {
+		if (pin->output && gpio_direction_output(pin->nr, 1)) {
 			dev_err(dev, "can't set gpio_%c.%02d output\n",
 				('A' + pin->group), pin->offset);
 			return -EINVAL;
