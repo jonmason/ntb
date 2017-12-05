@@ -222,7 +222,7 @@
 /* path of bootloader in the external storage */
 #define BL_PATH_EXTERNAL "/sdcard/melfas_mip4_ts_bl.fw"
 #define FW_MAX_SECT_NUM         4
-#define USE_AUTO_FW_UPDATE      0 /* 0 (default) or 1 */
+#define USE_AUTO_FW_UPDATE      1 /* 0 (default) or 1 */
 #define FW_UPDATE_DEBUG         0 /* 0 (default) or 1 */
 #define EXT_FW_FORCE_UPDATE     1 /* 0 or 1 (default) */
 #define MAX_RESTORE_SECTION_NUM 3 /* >= 1 */
