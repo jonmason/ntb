@@ -32,6 +32,7 @@
 
 #include "nx_drm_drv.h"
 #include "nx_drm_fb.h"
+#include <linux/switch.h>
 
 struct hdmi_resource {
 	struct i2c_adapter *ddc_adpt;
@@ -39,6 +40,7 @@ struct hdmi_resource {
 	bool dvi_mode;
 	int hpd_gpio;
 	int hpd_irq;
+	struct switch_dev swdev;
 };
 
 struct hdmi_context {
@@ -227,6 +229,7 @@ static void panel_hdmi_on(struct hdmi_context *ctx)
 	struct nx_drm_connector *nx_connector = ctx->connector;
 	struct nx_drm_display *display = ctx_to_display(ctx);
 	struct nx_drm_display_ops *ops = display->ops;
+	struct hdmi_resource *hdmi = &ctx->hdmi;
 
 	DRM_DEBUG_KMS("enter\n");
 
@@ -235,6 +238,7 @@ static void panel_hdmi_on(struct hdmi_context *ctx)
 
 	if (ops->enable)
 		ops->enable(display);
+	switch_set_state(&hdmi->swdev, 1);
 }
 
 static void panel_hdmi_off(struct hdmi_context *ctx)
@@ -242,6 +246,7 @@ static void panel_hdmi_off(struct hdmi_context *ctx)
 	struct nx_drm_connector *nx_connector = ctx->connector;
 	struct nx_drm_display *display = ctx_to_display(ctx);
 	struct nx_drm_display_ops *ops = display->ops;
+	struct hdmi_resource *hdmi = &ctx->hdmi;
 
 	DRM_DEBUG_KMS("enter\n");
 
@@ -250,6 +255,7 @@ static void panel_hdmi_off(struct hdmi_context *ctx)
 
 	if (ops->disable)
 		ops->disable(display);
+	switch_set_state(&hdmi->swdev, 0);
 }
 
 static void panel_hdmi_ops_enable(struct device *dev)
@@ -680,6 +686,13 @@ static int panel_hdmi_probe(struct platform_device *pdev)
 	hdmi->hpd_gpio = -1;
 	hdmi->hpd_irq = INVALID_IRQ;
 
+	hdmi->swdev.name = "hdmi";
+	err = switch_dev_register(&hdmi->swdev);
+	if (err) {
+		dev_err(&pdev->dev, "failed to register hdmi switch\n");
+		return -ENOMEM;
+	}
+
 	err = panel_hdmi_get_display(pdev, ctx);
 	if (err < 0)
 		goto err_probe;
@@ -704,6 +717,7 @@ static int panel_hdmi_probe(struct platform_device *pdev)
 
 err_probe:
 	DRM_ERROR("Failed %s probe !!!\n", dev_name(dev));
+	switch_dev_unregister(&hdmi->swdev);
 	devm_kfree(dev, ctx);
 	return err;
 }
@@ -719,6 +733,8 @@ static int panel_hdmi_remove(struct platform_device *pdev)
 		return 0;
 
 	component_del(dev, &panel_comp_ops);
+
+	switch_dev_unregister(&hdmi->swdev);
 
 	hdmi = &ctx->hdmi;
 	if (hdmi->hpd_irq != INVALID_IRQ)
