@@ -201,4 +201,7 @@ source "drivers/fpga/Kconfig"
 source "drivers/gator/Kconfig"
 
 source "drivers/gud/Kconfig"
+
+source "drivers/switch/Kconfig"
+
 endmenu
