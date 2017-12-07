@@ -1805,7 +1805,7 @@ static int register_v4l2(struct nx_clipper *me)
 
 	ret = register_sensor_subdev(me);
 	if (ret) {
-		dev_err(&me->pdev->dev, "can't register sensor subdev\n");
+		dev_info(&me->pdev->dev, "can't register sensor subdev\n");
 		return ret;
 	}
 
