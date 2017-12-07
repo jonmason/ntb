@@ -570,7 +570,7 @@ static const struct reg_value ov5640_init_setting_30fps_VGA[] = {
 };
 
 static const struct reg_value ov5640_setting_30fps_VGA_640_480[] = {
-#if 0
+#if 1
 	{0x3035, 0x14, 0, 0}, {0x3036, 0x38, 0, 0}, {0x3c07, 0x08, 0, 0},
 	{0x3c09, 0x1c, 0, 0}, {0x3c0a, 0x9c, 0, 0}, {0x3c0b, 0x40, 0, 0},
 	{0x3820, 0x41, 0, 0}, {0x3821, 0x07, 0, 0}, {0x3814, 0x31, 0, 0},
