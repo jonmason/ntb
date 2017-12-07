@@ -431,7 +431,7 @@ static void __init clk_dev_parse_device_data(struct device_node *np,
 	u32 value;
 
 	if (of_property_read_string(np, "clock-output-names", &peri->name)) {
-		pr_err("clock node is missing 'clock-output-names'\n");
+		pr_info("clock node is missing 'clock-output-names'\n");
 		return;
 	}
 
@@ -439,23 +439,23 @@ static void __init clk_dev_parse_device_data(struct device_node *np,
 		return;
 
 	if (of_property_read_u32(np, "cell-id", &peri->id)) {
-		pr_err("clock node is missing 'cell-id'\n");
+		pr_info("clock node is missing 'cell-id'\n");
 		return;
 	}
 
 	if (of_property_read_u32(np, "clk-step", &peri->clk_step)) {
-		pr_err("clock node is missing 'clk-step'\n");
+		pr_info("clock node is missing 'clk-step'\n");
 		return;
 	}
 
 	if (of_property_read_u32(np, "clk-input", &peri->in_mask)) {
-		pr_err("clock node is missing 'clk-input'\n");
+		pr_info("clock node is missing 'clk-input'\n");
 		return;
 	}
 
 	if (2 == peri->clk_step &&
 	    of_property_read_u32(np, "clk-input1", &peri->in_mask1)) {
-		pr_err("clock node is missing 'clk-input1'\n");
+		pr_info("clock node is missing 'clk-input1'\n");
 		return;
 	}
 
