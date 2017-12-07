@@ -204,7 +204,7 @@
 
 /* Input value */
 #define MAX_FINGER_NUM        10
-#define MAX_KEY_NUM           5
+#define MAX_KEY_NUM           3
 #define INPUT_TOUCH_MAJOR_MIN 0
 #define INPUT_TOUCH_MAJOR_MAX 255
 #define INPUT_TOUCH_MINOR_MIN 0

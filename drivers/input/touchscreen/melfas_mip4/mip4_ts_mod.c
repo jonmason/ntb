@@ -279,10 +279,11 @@ void mip4_ts_clear_input(struct mip4_ts_info *info)
 */
 void mip4_ts_input_event_handler(struct mip4_ts_info *info, u8 sz, u8 *buf)
 {
-	int i;
+	int i,j;
 	int type;
 	int id;
 	int direction = 0;
+	int key_value=0;
 	int x = 0;
 	int x_delta = 0;
 	int gesture = 0;
@@ -332,21 +333,14 @@ void mip4_ts_input_event_handler(struct mip4_ts_info *info, u8 sz, u8 *buf)
 			dev_err(&info->client->dev,
 					"%s - Slider : direction[%d] x_delta[%d] x[%d]\n",
 						__func__, direction, x_delta, x);
-			if(x_delta > 10) {
 
-				if (direction > 0) {
-					/* Right side */
-					input_report_key(info->input_dev, KEY_VOLUMEUP, 1);
-					input_sync(info->input_dev);
-					input_report_key(info->input_dev, KEY_VOLUMEUP, 0);
-					input_sync(info->input_dev);
-				} else {
-					/* Left side */
-					input_report_key(info->input_dev, KEY_VOLUMEDOWN, 1);
-					input_sync(info->input_dev);
-					input_report_key(info->input_dev, KEY_VOLUMEDOWN, 0);
-					input_sync(info->input_dev);
-				}
+			key_value = (direction) ? KEY_VOLUMEUP : KEY_VOLUMEDOWN;
+
+			for(j=0;j<x_delta;j++) {
+				input_report_key(info->input_dev, key_value, 1);
+				input_sync(info->input_dev);
+				input_report_key(info->input_dev, key_value, 0);
+				input_sync(info->input_dev);
 			}
 			//
 			/////////////////////////////////
@@ -396,10 +390,12 @@ exit:
 int mip4_ts_gesture_wakeup_event_handler(struct mip4_ts_info *info,
 		int gesture_code)
 {
+
+	int i;
 	dev_dbg(&info->client->dev, "%s [START]\n", __func__);
 
 	/* Report gesture event */
-	dev_dbg(&info->client->dev, "%s - gesture[%d]\n", __func__, gesture_code);
+	dev_err(&info->client->dev, "%s - gesture[%d]\n", __func__, gesture_code);
 
 	info->wakeup_gesture_code = gesture_code;
 
@@ -413,17 +409,21 @@ int mip4_ts_gesture_wakeup_event_handler(struct mip4_ts_info *info,
 		break;
 	case 25:
 		/* Right - Single tap */
-		input_report_key(info->input_dev, KEY_NEXTSONG, 1);
-		input_sync(info->input_dev);
-		input_report_key(info->input_dev, KEY_NEXTSONG, 0);
-		input_sync(info->input_dev);
+		for(i=0;i<7;i++) {
+			input_report_key(info->input_dev, KEY_VOLUMEUP, 1);
+			input_sync(info->input_dev);
+			input_report_key(info->input_dev, KEY_VOLUMEUP, 0);
+			input_sync(info->input_dev);
+		}
 		break;
 	case 26:
 		/* Left - Single tap */
-		input_report_key(info->input_dev, KEY_PREVIOUSSONG, 1);
-		input_sync(info->input_dev);
-		input_report_key(info->input_dev, KEY_PREVIOUSSONG, 0);
-		input_sync(info->input_dev);
+		for(i=0;i<7;i++) {
+			input_report_key(info->input_dev, KEY_VOLUMEDOWN, 1);
+			input_sync(info->input_dev);
+			input_report_key(info->input_dev, KEY_VOLUMEDOWN, 0);
+			input_sync(info->input_dev);
+		}
 		break;
 	default:
 		dev_err(&info->client->dev,
@@ -619,16 +619,12 @@ void mip4_ts_config_input(struct mip4_ts_info *info)
 	set_bit(EV_KEY, input_dev->evbit);
 
 	set_bit(KEY_PLAYPAUSE, input_dev->keybit);
-	set_bit(KEY_PREVIOUSSONG, input_dev->keybit);
-	set_bit(KEY_NEXTSONG, input_dev->keybit);
-	set_bit(KEY_VOLUMEUP, input_dev->keybit);
 	set_bit(KEY_VOLUMEDOWN, input_dev->keybit);
+	set_bit(KEY_VOLUMEUP, input_dev->keybit);
 
 	info->key_code[0] = KEY_PLAYPAUSE;
-	info->key_code[1] = KEY_PREVIOUSSONG;
-	info->key_code[2] = KEY_NEXTSONG;
-	info->key_code[3] = KEY_VOLUMEUP;
-	info->key_code[4] = KEY_VOLUMEDOWN;
+	info->key_code[1] = KEY_VOLUMEDOWN;
+	info->key_code[2] = KEY_VOLUMEUP;
 
 	dev_dbg(&info->client->dev, "%s [DONE]\n", __func__);
 }
