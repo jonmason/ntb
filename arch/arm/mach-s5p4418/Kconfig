@@ -81,3 +81,7 @@ config DEVPTS_INIT_LEVEL_UP
 config BINDER_INIT_LEVEL_UP
         bool "binder init level up"
 	depends on ARCH_S5P4418 && REDUCE_BOOT_TIME
+
+config ION_INIT_LEVEL_UP
+	bool "ion init level up"
+	depends on ARCH_S5P4418 && REDUCE_BOOT_TIME

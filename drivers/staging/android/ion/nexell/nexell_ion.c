@@ -193,4 +193,12 @@ static struct platform_driver nexell_ion_driver = {
 	},
 };
 
+#ifdef CONFIG_ION_INIT_LEVEL_UP
+static int __init init_nexell_ion(void)
+{
+	return platform_driver_register(&nexell_ion_driver);
+}
+fs_initcall(init_nexell_ion);
+#else
 module_platform_driver(nexell_ion_driver);
+#endif
