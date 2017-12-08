@@ -48,6 +48,7 @@
 #include <linux/kernel.h>
 #include <linux/poll.h>
 #include <linux/usb.h>
+#include <linux/kthread.h>
 
 #define E522XX_CTRL_CHECK_NRP	0
 #define E522XX_INIT_ERROR_COUNT 5
@@ -908,10 +909,16 @@ static int e522xx_get_of_data(struct device *dev)
 }
 #endif
 
+static int kthread_e522_init(void *data)
+{
+	e522xx_set_port_config(E_E522XX_PORT_CONF_CDP);
+	return 0;
+}
+
 static int e522_i2c_probe(struct i2c_client *client,
 	const struct i2c_device_id *id)
 {
-	UCD_DBG("Attach I2C\n");
+	pr_info("Attach I2C\n");
 
 	p_e522xx = kmalloc(sizeof(struct e522xx_data), GFP_KERNEL);
 	if (!p_e522xx)
@@ -928,8 +935,6 @@ static int e522_i2c_probe(struct i2c_client *client,
 
 	e522xx_gpio_init();
 
-	e522xx_set_port_config(E_E522XX_PORT_CONF_CDP);
-
 	/*
 	INIT_DELAYED_WORK(&p_e522xx->check_work, ucd_check_work_func);
 	p_e522xx->workqueue = create_workqueue("ucd_check_workqueue");
@@ -945,6 +950,8 @@ static int e522_i2c_probe(struct i2c_client *client,
 	else
 		UCD_DBG("devive:%s create file ok----!\n",
 			dev_name(&client->dev));
+
+	kthread_run(kthread_e522_init, NULL, "e522_thread");
 
 	return 0;
 }
