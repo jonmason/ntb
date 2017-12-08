@@ -80,7 +80,7 @@ extern bool ucd_debug_on;
 		} while (0)
 
 #define UCD_INFO(fmt, arg...) pr_info(TAG " [%s] " fmt "\n", __func__, ##arg)
-#define UCD_DEBUG
+/* #define UCD_DEBUG */
 
 #ifdef UCD_DEBUG
 #define UCD_DBG  UCD_DBG_FUNC
