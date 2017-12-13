@@ -50,6 +50,9 @@
 			vip0:vip@c00c1000 {
 				clock-frequency = <300000000>;
 			};
+			uart1:uart@c00a8000 {
+				clock-frequency = <147500000>;
+			};
 			uart3:uart@c00ab000 {
 				clock-frequency = <147500000>;
 			};
