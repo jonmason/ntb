@@ -459,6 +459,7 @@
 	data_lane = <2>;
 	pllval = <750>;
 	hssettle = <2>;
+	interrupts = <IRQ_MIPI>;
 	status = "okay";
 };
 
