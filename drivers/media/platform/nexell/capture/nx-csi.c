@@ -10,6 +10,11 @@
 #include <linux/atomic.h>
 #include <linux/semaphore.h>
 
+#include <linux/gpio.h>
+#include <linux/irq.h>
+#include <linux/interrupt.h>
+
+#include <dt-bindings/interrupt-controller/s5p4418-irq.h>
 #include <media/media-device.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
@@ -23,6 +28,12 @@
 #endif
 
 #define NX_CSI_DEV_NAME		"nx-csi"
+
+static u32 enable_ints = 0;
+MODULE_PARM_DESC(enable_ints, "csi interrupts enable");
+module_param(enable_ints, uint, 0644);
+
+/*#define _ENABLE_IRQ_ALL_*/
 
 /**
  * register set
@@ -82,6 +93,7 @@
 #define CSIS_CTRL2_DOUBLE_CMPNT_CH3	27
 #define CSIS_CTRL2_DOUBLE_CMPNT_CH2	26
 #define CSIS_CTRL2_DOUBLE_CMPNT_CH1	25
+#define CSIS_CTRL2_DOUBLE_CMPNT_CH0	24
 #define CSIS_CTRL2_PARALLEL_CH3		23
 #define CSIS_CTRL2_PARALLEL_CH2		22
 #define CSIS_CTRL2_PARALLEL_CH1		21
@@ -90,6 +102,44 @@
 #define CSIS_RESOL_CH0_HRESOL_CH0	16
 #define CSIS_RESOL_CH0_VRESOL_CH0	0
 
+/* CSIS_INT */
+#define CSIS_INTMSK_EVENBEFORE		31
+#define CSIS_INTMSK_EVENAFTER		30
+#define CSIS_INTMSK_ODDBEFORE		29
+#define CSIS_INTMSK_ODDAFTER		28
+#define CSIS_INTMSK_FRAMESTART_CH3	27
+#define CSIS_INTMSK_FRAMESTART_CH2	26
+#define CSIS_INTMSK_FRAMESTART_CH1	25
+#define CSIS_INTMSK_FRAMESTART_CH0	24
+#define CSIS_INTMSK_FRAMEEND_CH3	23
+#define CSIS_INTMSK_FRAMEEND_CH2	22
+#define CSIS_INTMSK_FRAMEEND_CH1	21
+#define CSIS_INTMSK_FRAMEEND_CH0	20
+#define CSIS_INTMSK_ERR_SOT_HS		16
+#define CSIS_INTMSK_ERR_LOST_FS_CH3	15
+#define CSIS_INTMSK_ERR_LOST_FS_CH2	14
+#define CSIS_INTMSK_ERR_LOST_FS_CH1	13
+#define CSIS_INTMSK_ERR_LOST_FS_CH0	12
+#define CSIS_INTMSK_ERR_LOST_FE_CH3	11
+#define CSIS_INTMSK_ERR_LOST_FE_CH2	10
+#define CSIS_INTMSK_ERR_LOST_FE_CH1	9
+#define CSIS_INTMSK_ERR_LOST_FE_CH0	8
+#define CSIS_INTMSK_ERR_OVER_CH3	7
+#define CSIS_INTMSK_ERR_OVER_CH2	6
+#define CSIS_INTMSK_ERR_OVER_CH1	5
+#define CSIS_INTMSK_ERR_OVER_CH0	4
+#define CSIS_INTMSK_RESERVED		3
+#define CSIS_INTMSK_ERR_ECC		2
+#define CSIS_INTMSK_ERR_CRC		1
+#define CSIS_INTMSK_ERR_ID		0
+#define CSIS_INTMSK_EN_ALL		(~(1 << CSIS_INTMSK_RESERVED))
+#define CSIS_INTMSK_EN_ERR_CH1		((1 << CSIS_INTMSK_ERR_SOT_HS) | \
+					(1 << CSIS_INTMSK_ERR_LOST_FS_CH1) | \
+					(1 << CSIS_INTMSK_ERR_LOST_FE_CH1) | \
+					(1 << CSIS_INTMSK_ERR_OVER_CH1) | \
+					(1 << CSIS_INTMSK_ERR_ECC) | \
+					(1 << CSIS_INTMSK_ERR_CRC) | \
+					(1 << CSIS_INTMSK_ERR_ID))
 /* SDW_CONFIG_CH0 */
 #define SDW_CONFIG_CH0_SDW_HSYNC_LINTV_CH0	26
 #define SDW_CONFIG_CH0_SDW_VSYNC_SINTV_CH0	20
@@ -141,6 +191,7 @@ struct nx_csi {
 	u32 pllval;
 	u32 hssettle;
 
+	int irq;
 	struct reset_control *rst_mipi;
 	struct reset_control *rst_csi;
 	struct reset_control *rst_phy_s;
@@ -301,6 +352,9 @@ static struct nx_mipi_register_set *__g_pregister[1];
 		writel(regvalue, &pregister->regname);	\
 	} while (0)
 #endif
+
+static int nx_csi_enable_interrupts_all(struct nx_csi *me, int enable);
+static int nx_csi_enable_interrupts(struct nx_csi *me, u32 val);
 
 static void nx_mipi_set_base_address(u32 module_index, void *base_address)
 {
@@ -718,6 +772,8 @@ static void nx_csi_run(struct nx_csi *me)
 	u32 module = me->module;
 	u32 pms;
 	u32 bandctl;
+	u32 val = 0;
+	register struct nx_mipi_register_set *pregister;
 
 	clk_prepare_enable(me->clk);
 	reset_control_assert(me->rst_mipi);
@@ -727,6 +783,11 @@ static void nx_csi_run(struct nx_csi *me)
 	reset_control_deassert(me->rst_csi);
 
 	nx_mipi_open_module(me);
+
+	/* disable interrupts */
+	nx_csi_enable_interrupts_all(me, false);
+	/* clear pending interrupts */
+	nx_csi_clear_pending_interrupts_all(me);
 
 	clk_disable_unprepare(me->clk);
 	clk_set_rate(me->clk, 300000000);
@@ -742,6 +803,7 @@ static void nx_csi_run(struct nx_csi *me)
 	nx_mipi_csi_set_interleave_channel(module, 1, 0);
 	nx_mipi_csi_set_size(module, 1, me->width, me->height);
 	nx_mipi_csi_set_vclk(module, 1, nx_mipi_csi_vclksrc_extclk);
+
 
 	switch (me->data_lane) {
 	case 1:
@@ -791,7 +853,14 @@ static void nx_csi_run(struct nx_csi *me)
 	default:
 		BUG();
 	}
-
+#ifdef _ENABLE_IRQ_ALL_
+	nx_csi_enable_interrupts_all(me, true);
+#else
+	if (enable_ints)
+		nx_csi_enable_interrupts(me, enable_ints);
+	else
+		nx_csi_enable_interrupts(me, CSIS_INTMSK_EN_ERR_CH1);
+#endif
 	nx_mipi_csi_set_enable(module, 1);
 
 	reset_control_deassert(me->rst_phy_s);
@@ -815,6 +884,7 @@ static void nx_csi_run(struct nx_csi *me)
 
 static void nx_csi_stop(struct nx_csi *me)
 {
+	nx_csi_enable_interrupts_all(me, false);
 	nx_mipi_csi_set_enable(me->module, 0);
 	clk_disable_unprepare(me->clk);
 }
@@ -865,6 +935,72 @@ static int nx_csi_enum_frame_interval(struct v4l2_subdev *sd,
 	struct v4l2_subdev *remote = get_remote_subdev(me, NX_CSI_PAD_SINK);
 
 	return v4l2_subdev_call(remote, pad, enum_frame_interval, 0, frame);
+}
+
+static irqreturn_t nx_csi_irq_handler(int irq, void *dev_id)
+{
+	struct nx_csi *me = dev_id;
+	register struct nx_mipi_register_set *pregister;
+	u32 int_status;
+
+	pregister = __g_pregister[me->module];
+	read_reg_wrapper(&int_status, &pregister->csis_intsrc);
+	dev_dbg(me->dev, "[%s] %x\n", __func__, int_status);
+
+	write_reg_wrapper(int_status, &pregister->csis_intsrc);
+
+	return IRQ_HANDLED;
+}
+
+static int register_irq_handler(struct nx_csi *me)
+{
+	int ret;
+	struct device *dev = me->dev;
+
+	ret = devm_request_irq(dev, me->irq, nx_csi_irq_handler,
+			IRQF_SHARED, dev_name(dev), me);
+	if (ret) {
+		pr_err("[%s] failed to request irq\n", __func__);
+		return ret;
+	}
+	return 0;
+}
+
+static int nx_csi_clear_pending_interrupts_all(struct nx_csi *me)
+{
+	register struct nx_mipi_register_set *pregister;
+	u32 val = 0;
+
+	pregister = __g_pregister[me->module];
+	val = CSIS_INTMSK_EN_ALL;
+	write_reg_wrapper(val, &pregister->csis_intmsk);
+	return 0;
+}
+
+static int nx_csi_enable_interrupts_all(struct nx_csi *me, int enable)
+{
+	register struct nx_mipi_register_set *pregister;
+	u32 val = 0;
+
+	pregister = __g_pregister[me->module];
+	if (enable) {
+		val = CSIS_INTMSK_EN_ALL;
+	}
+	write_reg_wrapper(val, &pregister->csis_intmsk);
+	return 0;
+}
+
+static int nx_csi_enable_interrupts(struct nx_csi *me, u32 val)
+{
+	register struct nx_mipi_register_set *pregister;
+	u32 status;
+
+	pregister = __g_pregister[me->module];
+	write_reg_wrapper(0, &pregister->csis_intmsk);
+	read_reg_wrapper(&status, &pregister->csis_intmsk);
+	write_reg_wrapper(val, &pregister->csis_intmsk);
+	read_reg_wrapper(&status, &pregister->csis_intmsk);
+	return 0;
 }
 
 static int nx_csi_s_stream(struct v4l2_subdev *sd, int enable)
@@ -1088,6 +1224,15 @@ static int nx_csi_probe(struct platform_device *pdev)
 	me->dev = &pdev->dev;
 	platform_set_drvdata(pdev, me);
 
+	dev_dbg(me->dev, "[%s] enable_interrupts:%x\n", __func__,
+			enable_ints);
+	ret = platform_get_irq(pdev, 0);
+	if (ret < 0) {
+		pr_err("failed to get module");
+		return;
+	}
+	me->irq = ret;
+	register_irq_handler(me);
 	return 0;
 }
 
@@ -1095,6 +1240,7 @@ static int nx_csi_remove(struct platform_device *pdev)
 {
 	struct nx_csi *me = platform_get_drvdata(pdev);
 
+	devm_free_irq(me->dev, me->irq, me);
 	if (me)
 		v4l2_device_unregister_subdev(&me->subdev);
 
