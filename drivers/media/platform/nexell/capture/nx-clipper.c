@@ -1012,7 +1012,6 @@ static int clipper_buffer_queue(struct nx_video_buffer *buf, void *data)
 	nx_video_add_buffer(&me->vbuf_obj, buf);
 
 	if (me->buffer_underrun) {
-		pr_debug("%s: rerun vip\n", __func__);
 		me->buffer_underrun = false;
 		update_buffer(me);
 		nx_vip_run(me->module, VIP_CLIPPER);
@@ -1109,7 +1108,6 @@ static int nx_clipper_s_stream(struct v4l2_subdev *sd, int enable)
 
 	me->irq_count = 0;
 #endif
-
 	remote = get_remote_source_subdev(me);
 	if (!remote) {
 		WARN_ON(1);
@@ -1431,6 +1429,7 @@ static int nx_clipper_set_fmt(struct v4l2_subdev *sd,
 		memset(&fmt, 0, sizeof(fmt));
 		fmt.format.width = me->width;
 		fmt.format.height = me->height;
+		fmt.which = format->which;
 
 		return v4l2_subdev_call(remote, pad, set_fmt, NULL, &fmt);
 	}
