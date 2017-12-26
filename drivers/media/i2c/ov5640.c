@@ -82,7 +82,7 @@
 enum ov5640_mode_id {
 	OV5640_MODE_QCIF_176_144 = 0,
 	OV5640_MODE_QVGA_320_240,
-	OV5640_MODE_VGA_640_480,
+	/*OV5640_MODE_VGA_640_480,*/
 	OV5640_MODE_NTSC_720_480,
 	OV5640_MODE_PAL_720_576,
 	/*OV5640_MODE_XGA_1024_768,*/
@@ -219,7 +219,7 @@ static inline struct v4l2_subdev *ctrl_to_sd(struct v4l2_ctrl *ctrl)
  */
 
 static const struct reg_value ov5640_init_setting_30fps_VGA[] = {
-#if 0
+#if 1
 	{0x3103, 0x11, 0, 0}, {0x3008, 0x82, 0, 5}, {0x3008, 0x42, 0, 0},
 	{0x3103, 0x03, 0, 0}, {0x3017, 0x00, 0, 0}, {0x3018, 0x00, 0, 0},
 	{0x3034, 0x18, 0, 0}, {0x3035, 0x14, 0, 0}, {0x3036, 0x38, 0, 0},
@@ -251,10 +251,10 @@ static const struct reg_value ov5640_init_setting_30fps_VGA[] = {
 	{0x3a0d, 0x04, 0, 0}, {0x3a14, 0x03, 0, 0}, {0x3a15, 0xd8, 0, 0},
 	{0x4001, 0x02, 0, 0}, {0x4004, 0x02, 0, 0}, {0x3000, 0x00, 0, 0},
 	{0x3002, 0x1c, 0, 0}, {0x3004, 0xff, 0, 0}, {0x3006, 0xc3, 0, 0},
-	{0x300e, 0x45, 0, 0}, {0x302e, 0x08, 0, 0}, {0x4300, 0x3f, 0, 0},
+	{0x300e, 0x45, 0, 0}, {0x302e, 0x08, 0, 0}, {0x4300, 0x30, 0, 0},
 	{0x501f, 0x00, 0, 0}, {0x4713, 0x03, 0, 0}, {0x4407, 0x04, 0, 0},
 	{0x440e, 0x00, 0, 0}, {0x460b, 0x35, 0, 0}, {0x460c, 0x22, 0, 0},
-	{0x4837, 0x0a, 0, 0}, {0x4800, 0x04, 0, 0}, {0x3824, 0x02, 0, 0},
+	{0x4837, 0x44/*0xa*/, 0, 0}, {0x4800, 0x04, 0, 0}, {0x3824, 0x02, 0, 0},
 	{0x5000, 0xa7, 0, 0}, {0x5001, 0xa3, 0, 0}, {0x5180, 0xff, 0, 0},
 	{0x5181, 0xf2, 0, 0}, {0x5182, 0x00, 0, 0}, {0x5183, 0x14, 0, 0},
 	{0x5184, 0x25, 0, 0}, {0x5185, 0x24, 0, 0}, {0x5186, 0x09, 0, 0},
@@ -306,7 +306,6 @@ static const struct reg_value ov5640_init_setting_30fps_VGA[] = {
 	{0x3a1b, 0x30, 0, 0}, {0x3a1e, 0x26, 0, 0}, {0x3a11, 0x60, 0, 0},
 	{0x3a1f, 0x14, 0, 0}, {0x3008, 0x02, 0, 0}, {0x3c00, 0x04, 0, 300},
 #else
-
 	{0x3103, 0x11, 0, 0},
 	{0x3008, 0x82, 0, 5},
 	{0x3008, 0x42, 0, 0},
@@ -1000,7 +999,8 @@ static const struct reg_value ov5640_setting_15fps_QSXGA_2592_1944[] = {
 
 /* power-on sensor init reg table */
 static const struct ov5640_mode_info ov5640_mode_init_data = {
-	0, SUBSAMPLING, 640, 480, ov5640_init_setting_30fps_VGA,
+	0, SUBSAMPLING, 640, 480,
+	ov5640_init_setting_30fps_VGA,
 	ARRAY_SIZE(ov5640_init_setting_30fps_VGA),
 };
 
@@ -1013,9 +1013,9 @@ ov5640_mode_data[OV5640_NUM_FRAMERATES][OV5640_NUM_MODES] = {
 		{OV5640_MODE_QVGA_320_240, SUBSAMPLING, 320,  240,
 		 ov5640_setting_15fps_QVGA_320_240,
 		 ARRAY_SIZE(ov5640_setting_15fps_QVGA_320_240)},
-		{OV5640_MODE_VGA_640_480, SUBSAMPLING, 640,  480,
+		/*{OV5640_MODE_VGA_640_480, SUBSAMPLING, 640,  480,
 		 ov5640_setting_15fps_VGA_640_480,
-		 ARRAY_SIZE(ov5640_setting_15fps_VGA_640_480)},
+		 ARRAY_SIZE(ov5640_setting_15fps_VGA_640_480)},*/
 		{OV5640_MODE_NTSC_720_480, SUBSAMPLING, 720, 480,
 		 ov5640_setting_15fps_NTSC_720_480,
 		 ARRAY_SIZE(ov5640_setting_15fps_NTSC_720_480)},
@@ -1041,9 +1041,9 @@ ov5640_mode_data[OV5640_NUM_FRAMERATES][OV5640_NUM_MODES] = {
 		{OV5640_MODE_QVGA_320_240, SUBSAMPLING, 320,  240,
 		 ov5640_setting_30fps_QVGA_320_240,
 		 ARRAY_SIZE(ov5640_setting_30fps_QVGA_320_240)},
-		{OV5640_MODE_VGA_640_480, SUBSAMPLING, 640,  480,
+		/*{OV5640_MODE_VGA_640_480, SUBSAMPLING, 640,  480,
 		 ov5640_setting_30fps_VGA_640_480,
-		 ARRAY_SIZE(ov5640_setting_30fps_VGA_640_480)},
+		 ARRAY_SIZE(ov5640_setting_30fps_VGA_640_480)},*/
 		{OV5640_MODE_NTSC_720_480, SUBSAMPLING, 720, 480,
 		 ov5640_setting_30fps_NTSC_720_480,
 		 ARRAY_SIZE(ov5640_setting_30fps_NTSC_720_480)},
@@ -1175,6 +1175,7 @@ static int ov5640_write_reg16(struct ov5640_dev *sensor, u16 reg, u16 val)
 static int ov5640_mod_reg(struct ov5640_dev *sensor, u16 reg,
 			  u8 mask, u8 val)
 {
+	struct device *dev = &sensor->i2c_client->dev;
 	u8 readval;
 	int ret;
 
@@ -1194,13 +1195,14 @@ static int ov5640_load_regs(struct ov5640_dev *sensor,
 			    const struct ov5640_mode_info *mode)
 {
 	const struct reg_value *regs = mode->reg_data;
+	struct device *dev = &sensor->i2c_client->dev;
 	unsigned int i;
 	u32 delay_ms;
 	u16 reg_addr;
 	u8 mask, val;
 	int ret = 0;
 
-	printk("%s size=%d\n", __func__, mode->reg_data_size);
+	dev_info(dev,"[%s] size=%d\n", __func__, mode->reg_data_size);
 
 	for (i = 0; i < mode->reg_data_size; ++i, ++regs) {
 		delay_ms = regs->delay_ms;
@@ -1219,8 +1221,7 @@ static int ov5640_load_regs(struct ov5640_dev *sensor,
 			usleep_range(1000*delay_ms, 1000*delay_ms+100);
 	}
 
-
-	printk("%s done\n", __func__);
+	dev_info(dev,"[%s] done\n", __func__);
 
 	return ret;
 }
@@ -1283,9 +1284,10 @@ static int ov5640_get_gain(struct ov5640_dev *sensor)
 
 static int ov5640_set_stream(struct ov5640_dev *sensor, bool on)
 {
+	struct device *dev = &sensor->i2c_client->dev;
 	int ret;
 
-	printk("%s %d\n", __func__, on);
+	dev_info(dev,"%s %d\n", __func__, on);
 
 #if 1
 	ret = ov5640_mod_reg(sensor, OV5640_REG_MIPI_CTRL00, BIT(5),
@@ -1308,6 +1310,7 @@ static int ov5640_set_stream(struct ov5640_dev *sensor, bool on)
 static int ov5640_get_sysclk(struct ov5640_dev *sensor)
 {
 	 /* calculate sysclk */
+	struct device *dev = &sensor->i2c_client->dev;
 	u32 xvclk = sensor->xclk_freq / 10000;
 	u32 multiplier, prediv, VCO, sysdiv, pll_rdiv;
 	u32 sclk_rdiv_map[] = {1, 2, 4, 8};
@@ -1353,7 +1356,7 @@ static int ov5640_get_sysclk(struct ov5640_dev *sensor)
 
 	sysclk = VCO / sysdiv / pll_rdiv * 2 / bit_div2x / sclk_rdiv;
 
-	printk("%s sysclk=%d\n", __func__, sysclk);
+	dev_info(dev,"%s sysclk=%d\n", __func__, sysclk);
 
 	return sysclk;
 }
@@ -1557,9 +1560,10 @@ ov5640_find_mode(struct ov5640_dev *sensor, enum ov5640_frame_rate fr,
 		 int width, int height, bool nearest)
 {
 	const struct ov5640_mode_info *mode = NULL;
+	struct device *dev = &sensor->i2c_client->dev;
 	int i;
 
-	printk("%s %dx%d fr=%d\n", __func__, width, height, fr);
+	dev_info(dev,"%s %dx%d fr=%d\n", __func__, width, height, fr);
 
         if (width > 1920 && height > 1080)
                 fr = OV5640_15_FPS;
@@ -1590,6 +1594,7 @@ ov5640_find_mode(struct ov5640_dev *sensor, enum ov5640_frame_rate fr,
 static int ov5640_set_mode_exposure_calc(
 	struct ov5640_dev *sensor, const struct ov5640_mode_info *mode)
 {
+	struct device *dev = &sensor->i2c_client->dev;
 	u32 prev_shutter, prev_gain16;
 	u32 cap_shutter, cap_gain16;
 	u32 cap_sysclk, cap_hts, cap_vts;
@@ -1598,6 +1603,7 @@ static int ov5640_set_mode_exposure_calc(
 	u8 average;
 	int ret;
 
+	dev_info(dev,"[%s]\n", __func__);
 	if (mode->reg_data == NULL)
 		return -EINVAL;
 
@@ -1750,9 +1756,10 @@ static int ov5640_set_mode_exposure_calc(
 static int ov5640_set_mode_direct(struct ov5640_dev *sensor,
 				  const struct ov5640_mode_info *mode)
 {
+	struct device *dev = &sensor->i2c_client->dev;
 	int ret;
 
-	printk("%s mode id=%d width=%d, height=%d\n", __func__, mode->id, mode->width, mode->height);
+	dev_info(dev,"%s mode id=%d width=%d, height=%d\n", __func__, mode->id, mode->width, mode->height);
 
 	if (mode->reg_data == NULL)
 		return -EINVAL;
@@ -1772,6 +1779,7 @@ static int ov5640_set_mode_direct(struct ov5640_dev *sensor,
 static int ov5640_set_mode(struct ov5640_dev *sensor,
 			   const struct ov5640_mode_info *orig_mode)
 {
+	struct device *dev = &sensor->i2c_client->dev;
 	const struct ov5640_mode_info *mode = sensor->current_mode;
 	enum ov5640_downsize_mode dn_mode, orig_dn_mode;
 	int ret;
@@ -1779,17 +1787,21 @@ static int ov5640_set_mode(struct ov5640_dev *sensor,
 	dn_mode = mode->dn_mode;
 	orig_dn_mode = orig_mode->dn_mode;
 
-	printk("%s origin id:%d, new id:%d\n", __func__, orig_mode->id, mode->id);
-	printk("%s %d %d\n", __func__, dn_mode, orig_dn_mode);
+	dev_info(dev,"%s origin id:%d, new id:%d\n", __func__, orig_mode->id, mode->id);
+	dev_info(dev,"%s %d %d\n", __func__, dn_mode, orig_dn_mode);
 
 	/* auto gain and exposure must be turned off when changing modes */
 	ret = __v4l2_ctrl_s_ctrl(sensor->ctrls.auto_gain, 0);
-	if (ret)
+	if (ret) {
+		dev_info(dev,"%s auto gain fail:%d\n", __func__, ret);
 		return ret;
-	ret = __v4l2_ctrl_s_ctrl(sensor->ctrls.auto_exp, V4L2_EXPOSURE_MANUAL);
-	if (ret)
-		return ret;
+	}
 
+	ret = __v4l2_ctrl_s_ctrl(sensor->ctrls.auto_exp, V4L2_EXPOSURE_MANUAL);
+	if (ret) {
+		dev_info(dev,"%s manual gain fail:%d\n", __func__, ret);
+		/*return ret;*/
+	}
 	if ((dn_mode == SUBSAMPLING && orig_dn_mode == SCALING) ||
 	    (dn_mode == SCALING && orig_dn_mode == SUBSAMPLING)) {
 		/*
@@ -1804,23 +1816,34 @@ static int ov5640_set_mode(struct ov5640_dev *sensor,
 		 */
 		ret = ov5640_set_mode_direct(sensor, mode);
 	}
-	if (ret < 0)
-		return ret;
+	if (ret < 0) {
+		dev_info(dev,"%s set mode fail:%d\n", __func__, ret);
+		/*return ret;*/
+		return 0;
+	}
 #if 1
 	ret = ov5640_set_ae_target(sensor, sensor->ae_target);
-	if (ret < 0)
+	if (ret < 0) {
+		dev_info(dev,"%s set ae fail:%d\n", __func__, ret);
 		return ret;
+	}
 	ret = ov5640_get_light_freq(sensor);
-	if (ret < 0)
+	if (ret < 0) {
+		dev_info(dev,"%s get light freq fail:%d\n", __func__, ret);
 		return ret;
+	}
 	ret = ov5640_set_bandingfilter(sensor);
-	if (ret < 0)
+	if (ret < 0) {
+		dev_info(dev,"%s get banding filter fail:%d\n", __func__, ret);
 		return ret;
+	}
 	ret = ov5640_set_virtual_channel(sensor);
-	if (ret < 0)
+	if (ret < 0) {
+		dev_info(dev,"%s set virtual channel fail:%d\n", __func__, ret);
 		return ret;
+	}
 #endif
-	//sensor->pending_mode_change = false;
+	/*sensor->pending_mode_change = false;*/
 	return 0;
 }
 
@@ -1866,12 +1889,13 @@ static void ov5640_reset(struct ov5640_dev *sensor)
 
 static int ov5640_set_power(struct ov5640_dev *sensor, bool on)
 {
+	struct device *dev = &sensor->i2c_client->dev;
 	int ret = 0;
 
-	printk("%s %d\n", __func__, on);
+	dev_info(dev,"%s %d\n", __func__, on);
 
 	if (on) {
-		//clk_prepare_enable(sensor->xclk);
+		clk_prepare_enable(sensor->xclk);
 		ret = regulator_bulk_enable(OV5640_NUM_SUPPLIES,
 					    sensor->supplies);
 		if (ret)
@@ -1882,12 +1906,15 @@ static int ov5640_set_power(struct ov5640_dev *sensor, bool on)
 
 		ret = ov5640_init_slave_id(sensor);
 		if (ret) {
-			printk("%s failed to init slave id:%d\n", __func__, ret);
+			dev_info(dev,"%s failed to init slave id:%d\n", __func__, ret);
 			goto power_off;
 		} else {
 			u16 chip_id;
 			ret = ov5640_read_reg16(sensor, OV5640_REG_CHIP_ID, &chip_id);
-			printk("%s CHIP_ID=%04x\n", __func__, chip_id);
+			if (ret)
+				goto power_off;
+			else
+				dev_info(dev,"%s CHIP_ID=%04x\n", __func__, chip_id);
 		}
 
 		ret = ov5640_restore_mode(sensor);
@@ -1906,6 +1933,7 @@ static int ov5640_set_power(struct ov5640_dev *sensor, bool on)
 		if (ret)
 			goto power_off;
 #endif
+		msleep(100);
 		return 0;
 	}
 
@@ -1913,7 +1941,7 @@ power_off:
 	ov5640_power(sensor, false);
 	regulator_bulk_disable(OV5640_NUM_SUPPLIES, sensor->supplies);
 xclk_off:
-	//clk_disable_unprepare(sensor->xclk);
+	clk_disable_unprepare(sensor->xclk);
 	return ret;
 }
 
@@ -1922,9 +1950,10 @@ xclk_off:
 static int ov5640_s_power(struct v4l2_subdev *sd, int on)
 {
 	struct ov5640_dev *sensor = to_ov5640_dev(sd);
+	struct device *dev = &sensor->i2c_client->dev;
 	int ret = 0;
 
-	printk("%s %d\n", __func__, on);
+	dev_info(dev,"%s %d\n", __func__, on);
 
 	mutex_lock(&sensor->lock);
 
@@ -1984,7 +2013,12 @@ static int ov5640_try_frame_interval(struct ov5640_dev *sensor,
 	ret = (fi->denominator == minfps) ? OV5640_15_FPS : OV5640_30_FPS;
 
 	mode = ov5640_find_mode(sensor, ret, width, height, false);
-	return mode ? ret : -EINVAL;
+
+	if (mode) {
+		sensor->current_mode = mode;
+		return ret;
+	} else
+		return -EINVAL;
 }
 
 static int ov5640_get_fmt(struct v4l2_subdev *sd,
@@ -2018,6 +2052,7 @@ static int ov5640_try_fmt_internal(struct v4l2_subdev *sd,
 				   const struct ov5640_mode_info **new_mode)
 {
 	struct ov5640_dev *sensor = to_ov5640_dev(sd);
+	struct device *dev = &sensor->i2c_client->dev;
 	const struct ov5640_mode_info *mode;
 
 	mode = ov5640_find_mode(sensor, fr, fmt->width, fmt->height, true);
@@ -2028,7 +2063,7 @@ static int ov5640_try_fmt_internal(struct v4l2_subdev *sd,
 	fmt->height = mode->height;
 	fmt->code = sensor->fmt.code;
 
-	printk("%s %dx%d, %x\n", __func__, fmt->width, fmt->height, fmt->code);
+	dev_info(dev,"%s %dx%d, %x\n", __func__, fmt->width, fmt->height, fmt->code);
 
 	if (new_mode)
 		*new_mode = mode;
@@ -2040,38 +2075,40 @@ static int ov5640_set_fmt(struct v4l2_subdev *sd,
 			  struct v4l2_subdev_format *format)
 {
 	struct ov5640_dev *sensor = to_ov5640_dev(sd);
+	struct device *dev = &sensor->i2c_client->dev;
 	const struct ov5640_mode_info *new_mode;
 	int ret;
 #if 0
 	if (format->pad != 0)
 		return -EINVAL;
 #endif
-	mutex_lock(&sensor->lock);
-
 	if (sensor->streaming) {
+		dev_info(dev, "%s stream is streaming\n", __func__);
 		ret = -EBUSY;
 		goto out;
+		//return 0;
 	}
+	mutex_lock(&sensor->lock);
 
 	ret = ov5640_try_fmt_internal(sd, &format->format,
 				      sensor->current_fr, &new_mode);
 	if (ret)
 		goto out;
-#if 0
+#if 1
 	if (format->which == V4L2_SUBDEV_FORMAT_TRY) {
 		struct v4l2_mbus_framefmt *fmt =
 			v4l2_subdev_get_try_format(sd, cfg, 0);
-
-		*fmt = format->format;
-		goto out;
+		if (fmt) {
+			*fmt = format->format;
+			goto out;
+		}
 	}
 #endif
-	printk("%s previus format:%x\n", __func__, sensor->fmt);
 	sensor->current_mode = new_mode;
 	sensor->fmt = format->format;
 	sensor->pending_mode_change = true;
 
-	printk("%s %x\n", __func__, format->format);
+	dev_info(dev,"%s %x\n", __func__, format->format);
 out:
 	mutex_unlock(&sensor->lock);
 	return ret;
@@ -2312,9 +2349,10 @@ static int ov5640_init_controls(struct ov5640_dev *sensor)
 	const struct v4l2_ctrl_ops *ops = &ov5640_ctrl_ops;
 	struct ov5640_ctrls *ctrls = &sensor->ctrls;
 	struct v4l2_ctrl_handler *hdl = &ctrls->handler;
+	struct device *dev = &sensor->i2c_client->dev;
 	int ret;
 
-	printk("%s\n", __func__);
+	dev_info(dev,"%s\n", __func__);
 
 	v4l2_ctrl_handler_init(hdl, 32);
 
@@ -2367,7 +2405,7 @@ static int ov5640_init_controls(struct ov5640_dev *sensor)
 
 	sensor->sd.ctrl_handler = hdl;
 
-	printk("%s ok\n", __func__);
+	dev_info(dev,"%s ok\n", __func__);
 	return 0;
 
 free_ctrls:
@@ -2379,7 +2417,10 @@ static int ov5640_enum_frame_size(struct v4l2_subdev *sd,
 				  struct v4l2_subdev_pad_config *cfg,
 				  struct v4l2_subdev_frame_size_enum *fse)
 {
-	printk("[%s] index:%d\n", __func__, fse->index);
+	struct ov5640_dev *sensor = to_ov5640_dev(sd);
+	struct device *dev = &sensor->i2c_client->dev;
+
+	dev_info(dev,"[%s] index:%d\n", __func__, fse->index);
 #if 0
 	if (fse->pad != 0)
 		return -EINVAL;
@@ -2391,7 +2432,7 @@ static int ov5640_enum_frame_size(struct v4l2_subdev *sd,
 		ov5640_mode_data[0][fse->index].width;
 	fse->min_height = fse->max_height =
 		ov5640_mode_data[0][fse->index].height;
-	printk("[%s] width:%d, height:%d\n", __func__, fse->max_width, fse->min_height);
+	dev_info(dev,"[%s] width:%d, height:%d\n", __func__, fse->max_width, fse->min_height);
 
 	return 0;
 }
@@ -2402,10 +2443,11 @@ static int ov5640_enum_frame_interval(
 	struct v4l2_subdev_frame_interval_enum *fie)
 {
 	struct ov5640_dev *sensor = to_ov5640_dev(sd);
+	struct device *dev = &sensor->i2c_client->dev;
 	struct v4l2_fract tpf;
 	int ret;
 
-    printk("ov5640_enum_frame_interval\n");
+	dev_info(dev,"ov5640_enum_frame_interval\n");
 #if 0
 	if (fie->pad != 0)
 		return -EINVAL;
@@ -2474,6 +2516,7 @@ static int ov5640_enum_mbus_code(struct v4l2_subdev *sd,
 				  struct v4l2_subdev_mbus_code_enum *code)
 {
 	struct ov5640_dev *sensor = to_ov5640_dev(sd);
+	struct device *dev = &sensor->i2c_client->dev;
 #if 0
 	if (code->pad != 0)
 		return -EINVAL;
@@ -2489,30 +2532,41 @@ static int ov5640_enum_mbus_code(struct v4l2_subdev *sd,
 static int ov5640_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct ov5640_dev *sensor = to_ov5640_dev(sd);
+	struct device *dev = &sensor->i2c_client->dev;
 	int ret = 0;
 
-	printk("%s %d\n", __func__, enable);
+	dev_info(dev,"%s %d\n", __func__, enable);
 
+	if (sensor->streaming == enable) {
+		dev_info(dev, "%s stream is already %s\n", __func__,
+				(enable) ? "started" : "stopped");
+		return 0;
+	}
 	mutex_lock(&sensor->lock);
         if (enable == 1) {
 		mutex_unlock(&sensor->lock);
-		ov5640_s_power(&sensor->sd, 1);
+		ret = ov5640_s_power(&sensor->sd, 1);
+		if (ret)
+			goto out;
 		mutex_lock(&sensor->lock);
 	}
 	if (sensor->streaming == !enable) {
 		if (enable && sensor->pending_mode_change) {
 			ret = ov5640_set_mode(sensor, sensor->current_mode);
-			if (ret)
+			if (ret) {
+				dev_info(dev,"[%s] set_mode fail:%d\n", __func__, ret);
 				goto out;
+			}
 		}
-
 		ret = ov5640_set_stream(sensor, enable);
 		if (!ret)
 			sensor->streaming = enable;
 	}
         if (enable == 0) {
 		mutex_unlock(&sensor->lock);
-		ov5640_s_power(&sensor->sd, 0);
+		ret = ov5640_s_power(&sensor->sd, 0);
+		if (ret)
+			goto out;
 		mutex_lock(&sensor->lock);
 	}
 out:
@@ -2563,26 +2617,29 @@ static int ov5640_probe(struct i2c_client *client,
 	struct ov5640_dev *sensor;
 	int ret;
 
-    printk("[%s] enter\n", __func__);
+	dev_info(dev,"[%s] enter\n", __func__);
 	sensor = devm_kzalloc(dev, sizeof(*sensor), GFP_KERNEL);
 	if (!sensor)
 		return -ENOMEM;
 
 	sensor->i2c_client = client;
 	sensor->fmt.code = MEDIA_BUS_FMT_UYVY8_2X8;
-	sensor->fmt.width = 640;
-	sensor->fmt.height = 480;
+	sensor->fmt.width = 1280;
+	sensor->fmt.height = 720;
+	/*sensor->fmt.width = 640;
+	sensor->fmt.height = 480;*/
 	sensor->fmt.field = V4L2_FIELD_NONE;
 	sensor->frame_interval.numerator = 1;
 	sensor->frame_interval.denominator = ov5640_framerates[OV5640_30_FPS];
 	sensor->current_fr = OV5640_30_FPS;
 	sensor->current_mode =
-		&ov5640_mode_data[OV5640_30_FPS][OV5640_MODE_VGA_640_480];
+		&ov5640_mode_data[OV5640_30_FPS][OV5640_MODE_720P_1280_720];
+		/*&ov5640_mode_data[OV5640_30_FPS][OV5640_MODE_VGA_640_480];*/
 	sensor->pending_mode_change = true;
 
 	sensor->ae_target = 52;
-    printk("[OV5640] interval:%d, fmt:0x%x\n", sensor->frame_interval.denominator,
-            sensor->fmt.code);
+	dev_info(dev,"[OV5640] interval:%d, fmt:0x%x\n", sensor->frame_interval.denominator,
+		sensor->fmt.code);
 	/* get system clock (xclk) */
 #if 0
 	sensor->xclk = devm_clk_get(dev, "xclk");
@@ -2605,11 +2662,11 @@ static int ov5640_probe(struct i2c_client *client,
 	/* request optional power down pin */
 	sensor->pwdn_gpio = devm_gpiod_get_optional(dev, "powerdown",
 						    GPIOD_OUT_HIGH);
-    printk("%s pwdn_gpio:%d\n", __func__, sensor->pwdn_gpio);
+	dev_info(dev,"%s pwdn_gpio:%d\n", __func__, sensor->pwdn_gpio);
 	/* request optional reset pin */
 	sensor->reset_gpio = devm_gpiod_get_optional(dev, "reset",
 						     GPIOD_OUT_HIGH);
-    printk("%s reset_gpio:%d\n", __func__, sensor->reset_gpio);
+	dev_info(dev,"%s reset_gpio:%d\n", __func__, sensor->reset_gpio);
 
 	v4l2_i2c_subdev_init(&sensor->sd, client, &ov5640_subdev_ops);
 
@@ -2631,10 +2688,10 @@ static int ov5640_probe(struct i2c_client *client,
 		goto entity_cleanup;
 
 	ret = v4l2_async_register_subdev(&sensor->sd);
-    if (ret) {
-        printk("[%s] failed to register subdev : ov5640\n");
+	if (ret) {
+		dev_info(dev,"[%s] failed to register subdev : ov5640\n", __func__);
 		goto free_ctrls;
-    }
+	}
 
 	return 0;
 
