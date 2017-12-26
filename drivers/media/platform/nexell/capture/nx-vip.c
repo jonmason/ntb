@@ -267,6 +267,31 @@ int nx_vip_unregister_irq_entry(u32 module, struct nx_v4l2_irq_entry *e)
 }
 EXPORT_SYMBOL_GPL(nx_vip_unregister_irq_entry);
 
+int nx_vip_is_running(u32 module, u32 child)
+{
+	struct nx_vip *me;
+	int vip_enable = 0, sep_enable = 0;
+	int clipper_enable = 0, decimator_enable = 0;
+	int ret = 0;
+
+	if (module >= NUMBER_OF_VIP_MODULE) {
+		pr_err("[nx vip] invalid module num %d\n", module);
+		return 0;
+	}
+	me = _nx_vip_object[module];
+
+	nx_vip_get_vipenable(me->module, &vip_enable, &sep_enable,
+			&clipper_enable, &decimator_enable);
+
+	if (child & VIP_CLIPPER)
+		ret |= clipper_enable ;
+	if (child & VIP_DECIMATOR)
+		ret |= decimator_enable;
+	ret &= vip_enable;
+	return ret;
+}
+EXPORT_SYMBOL_GPL(nx_vip_is_running);
+
 int nx_vip_run(u32 module, u32 child)
 {
 	struct nx_vip *me;
