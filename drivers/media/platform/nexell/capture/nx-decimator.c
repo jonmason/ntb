@@ -256,7 +256,8 @@ static int nx_decimator_s_stream(struct v4l2_subdev *sd, int enable)
 
 			hostdata_back = v4l2_get_subdev_hostdata(remote);
 			v4l2_set_subdev_hostdata(remote, NX_DECIMATOR_DEV_NAME);
-			ret = v4l2_subdev_call(remote, video, s_stream, 1);
+			if (!nx_vip_is_running(me->module, VIP_CLIPPER))
+				ret = v4l2_subdev_call(remote, video, s_stream, 1);
 			v4l2_set_subdev_hostdata(remote, hostdata_back);
 			if (ret) {
 				WARN_ON(1);
@@ -375,6 +376,8 @@ static int nx_decimator_set_fmt(struct v4l2_subdev *sd,
 	struct v4l2_subdev *remote = get_remote_source_subdev(me);
 	/* set memory format */
 	u32 nx_mem_fmt;
+	struct v4l2_subdev_format f;
+
 	int ret = nx_vip_find_nx_mem_format(format->format.code,
 					    &nx_mem_fmt);
 	if (ret) {
@@ -387,7 +390,19 @@ static int nx_decimator_set_fmt(struct v4l2_subdev *sd,
 	me->height = format->format.height;
 
 	format->pad = 1;
-	return v4l2_subdev_call(remote, pad, set_fmt, NULL, format);
+	if (!nx_vip_is_running(me->module, VIP_CLIPPER))
+		ret = v4l2_subdev_call(remote, pad, set_fmt, NULL, format);
+	else {
+		f.pad = format->pad;
+		f.which = format->which;
+		ret = v4l2_subdev_call(remote, pad, get_fmt, NULL, &f);
+		if ((!ret) && ((f.format.width != me->width) ||
+					(f.format.height != me->height))) {
+				pr_err("[%s] format mismatch\n", __func__);
+				ret = -EINVAL;
+		}
+	}
+	return ret;
 }
 
 static int nx_decimator_enum_frame_size(struct v4l2_subdev *sd,
