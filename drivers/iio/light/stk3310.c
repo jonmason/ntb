@@ -20,6 +20,10 @@
 #include <linux/iio/events.h>
 #include <linux/iio/iio.h>
 #include <linux/iio/sysfs.h>
+#ifdef CONFIG_STK3310_POLLING
+#include <linux/input.h>
+#include <linux/delay.h>
+#endif /*CONFIG_STK3310_POLLING*/
 
 #define STK3310_REG_STATE			0x00
 #define STK3310_REG_PSCTRL			0x01
@@ -103,6 +107,10 @@ static const int stk3310_it_table[][2] = {
 	{0, 757760},	{1, 515520},	{3, 31040},	{6, 62080},
 };
 
+#ifdef CONFIG_STK3310_POLLING
+static struct workqueue_struct *stk3310_workqueue = NULL;
+#endif /* CONFIG_STK3310_POLLING */
+
 struct stk3310_data {
 	struct i2c_client *client;
 	struct mutex lock;
@@ -118,6 +126,11 @@ struct stk3310_data {
 	struct regmap_field *reg_int_ps;
 	struct regmap_field *reg_flag_psint;
 	struct regmap_field *reg_flag_nf;
+#ifdef CONFIG_STK3310_POLLING
+	struct input_dev *input_dev_als;
+	struct delayed_work als_dwork;  /* for ALS polling */
+	unsigned int als_poll_delay;    /* micro-second (us) */
+#endif /* CONFIG_STK3310_POLLING */
 };
 
 static const struct iio_event_spec stk3310_events[] = {
@@ -155,6 +168,7 @@ static const struct iio_chan_spec stk3310_channels[] = {
 		.num_event_specs = ARRAY_SIZE(stk3310_events),
 	}
 };
+
 
 static IIO_CONST_ATTR(in_illuminance_scale_available, STK3310_SCALE_AVAILABLE);
 
@@ -473,6 +487,7 @@ static int stk3310_init(struct iio_dev *indio_dev)
 	if (ret < 0)
 		dev_err(&client->dev, "failed to enable interrupts!\n");
 
+
 	return ret;
 }
 
@@ -523,11 +538,50 @@ static int stk3310_regmap_init(struct stk3310_data *data)
 
 	return 0;
 }
+#ifdef CONFIG_STK3310_POLLING
+static void stk3310_report_als_event(struct input_dev *als_dev,
+		const unsigned int lux)
+{
+	ktime_t ts;
+
+	ts = ktime_get();
+
+	input_report_abs(als_dev, ABS_MISC, lux);
+	input_sync(als_dev);
+}
+/* ALS polling routine */
+static void stk3310_als_polling_work_handler(struct work_struct *work)
+{
+	struct stk3310_data *data = container_of(work,
+								struct stk3310_data, als_dwork.work);
+	int ret;
+	__be16 buf;
+	int luxValue;
+
+	mutex_lock(&data->lock);
+	ret = regmap_bulk_read(data->regmap, STK3310_REG_ALS_DATA_MSB, &buf, 2);
+	if (ret < 0) {
+		dev_err(&data->client->dev, "register read failed\n");
+		mutex_unlock(&data->lock);
+		return;
+	}
+	luxValue = be16_to_cpu(buf);
+	mutex_unlock(&data->lock);
+
+	/* report the lux level */
+	stk3310_report_als_event(data->input_dev_als, luxValue);
+
+	/* restart timer */
+	queue_delayed_work(stk3310_workqueue,
+		&data->als_dwork, msecs_to_jiffies(data->als_poll_delay));
+}
+#endif /*  ALS_POLLING_ENABLED */
 
 static irqreturn_t stk3310_irq_handler(int irq, void *private)
 {
 	struct iio_dev *indio_dev = private;
 	struct stk3310_data *data = iio_priv(indio_dev);
+	dev_err(&data->client->dev, "%s: Enter \n", __FUNCTION__);
 
 	data->timestamp = iio_get_time_ns();
 
@@ -544,6 +598,7 @@ static irqreturn_t stk3310_irq_event_handler(int irq, void *private)
 	struct stk3310_data *data = iio_priv(indio_dev);
 
 	/* Read FLAG_NF to figure out what threshold has been met. */
+	dev_err(&data->client->dev, "%s: Enter \n", __FUNCTION__);
 	mutex_lock(&data->lock);
 	ret = regmap_field_read(data->reg_flag_nf, &dir);
 	if (ret < 0) {
@@ -619,6 +674,37 @@ static int stk3310_probe(struct i2c_client *client,
 		goto err_standby;
 	}
 
+#ifdef CONFIG_STK3310_POLLING
+	data->als_poll_delay = 100; /* default to 100ms */
+	stk3310_workqueue = create_freezable_workqueue("proximity_als");
+	if (!stk3310_workqueue) {
+		dev_err(&client->dev, "%s: out of memory\n", __func__);
+		return -ENOMEM;
+	}
+	INIT_DELAYED_WORK(&data->als_dwork, stk3310_als_polling_work_handler);
+	/* Register to Input Device */
+	data->input_dev_als = devm_input_allocate_device(&client->dev);
+	if (!data->input_dev_als) {
+		ret = -ENOMEM;
+		dev_err(&client->dev,"%s: Failed to allocate input device als\n",
+						 __func__);
+		goto err_standby;
+	}
+	set_bit(EV_ABS, data->input_dev_als->evbit);
+	input_set_abs_params(data->input_dev_als, ABS_MISC, 0, 60000, 0, 0);
+	data->input_dev_als->name = "android.sensor.light";
+	ret = input_register_device(data->input_dev_als);
+	if (ret) {
+		ret = -ENOMEM;
+		dev_err(&client->dev,"%s: Unable to register input device als: %s\n",
+			__func__, data->input_dev_als->name);
+		goto err_standby;
+	}
+	cancel_delayed_work_sync(&data->als_dwork);
+	queue_delayed_work(stk3310_workqueue, &data->als_dwork,
+			msecs_to_jiffies(data->als_poll_delay));
+#endif
+
 	return 0;
 
 err_standby:
@@ -629,6 +715,10 @@ err_standby:
 static int stk3310_remove(struct i2c_client *client)
 {
 	struct iio_dev *indio_dev = i2c_get_clientdata(client);
+#ifdef CONFIG_STK3310_POLLING
+	if (stk3310_workqueue)
+		destroy_workqueue(stk3310_workqueue);
+#endif /* CONFIG_STK3310_POLLING */
 
 	iio_device_unregister(indio_dev);
 	return stk3310_set_state(iio_priv(indio_dev), STK3310_STATE_STANDBY);
