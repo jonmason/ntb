@@ -256,6 +256,12 @@ config STK3310
 	 Choosing M will build the driver as a module. If so, the module
 	 will be called stk3310.
 
+config STK3310_POLLING
+	bool "STK3310 polling enable"
+	depends on STK3310
+	help
+		This option selects CONFIG_STK3310_POLLING.
+
 config TCS3414
 	tristate "TAOS TCS3414 digital color sensor"
 	depends on I2C
