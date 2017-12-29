@@ -410,6 +410,7 @@
 		};
 
 		simple-audio-card,dai-link@2 {
+		    format = "spdif";
 		    cpu {
 			sound-dai = <&spdif_tx 0>;
 		    };
