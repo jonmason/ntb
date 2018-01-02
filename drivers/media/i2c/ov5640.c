@@ -1565,7 +1565,7 @@ ov5640_find_mode(struct ov5640_dev *sensor, enum ov5640_frame_rate fr,
 
 	dev_info(dev,"%s %dx%d fr=%d\n", __func__, width, height, fr);
 
-        if (width > 1920 && height > 1080)
+        if (width >= 1920 && height >= 1080)
                 fr = OV5640_15_FPS;
 
 	for (i = OV5640_NUM_MODES - 1; i >= 0; i--) {
