@@ -1179,7 +1179,11 @@ static int nx_clipper_s_stream(struct v4l2_subdev *sd, int enable)
 				goto UP_AND_OUT;
 			}
 
-			update_buffer(me);
+			ret = update_buffer(me);
+			if (ret) {
+				WARN_ON(1);
+				goto UP_AND_OUT;
+			}
 			nx_vip_run(me->module, VIP_CLIPPER);
 			NX_ATOMIC_SET_MASK(STATE_MEM_RUNNING, &me->state);
 		} else
