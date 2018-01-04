@@ -107,6 +107,7 @@
 		};
 
 		simple-audio-card,dai-link@3 {
+			format = "spdif";
 			mclk-fs = <256>;
 			cpu {
 				sound-dai = <&spdif_tx 0>;
