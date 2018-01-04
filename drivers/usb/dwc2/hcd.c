@@ -3285,6 +3285,9 @@ static ssize_t sel_dr_mode_store(struct device *dev,
 	unsigned long flags;
 
 	if (!strncmp(buf, "host", 4)) {
+		spin_lock(&hsotg->lock);
+		dwc2_hsotg_disconnect(hsotg);
+		spin_unlock(&hsotg->lock);
 		hsotg->dr_mode = USB_DR_MODE_HOST;
 		dwc2_core_reset_and_force_dr_mode(hsotg);
 		dev_dbg(hsotg->dev, "set dr mode to host\n");
@@ -3298,6 +3301,7 @@ static ssize_t sel_dr_mode_store(struct device *dev,
 		dwc2_enable_global_interrupts(hsotg);
 		dwc2_hcd_start(hsotg);
 	} else if (!strncmp(buf, "device", 5)) {
+		dwc2_hcd_disconnect(hsotg, true);
 		hsotg->dr_mode = USB_DR_MODE_PERIPHERAL;
 		dwc2_core_reset_and_force_dr_mode(hsotg);
 		if (hsotg->bus_suspended) {
