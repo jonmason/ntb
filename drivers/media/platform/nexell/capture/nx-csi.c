@@ -353,6 +353,7 @@ static struct nx_mipi_register_set *__g_pregister[1];
 	} while (0)
 #endif
 
+static int nx_csi_clear_pending_interrupts_all(struct nx_csi *me);
 static int nx_csi_enable_interrupts_all(struct nx_csi *me, int enable);
 static int nx_csi_enable_interrupts(struct nx_csi *me, u32 val);
 
