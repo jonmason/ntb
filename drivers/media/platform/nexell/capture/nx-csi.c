@@ -672,7 +672,7 @@ static void nx_mipi_csi_software_reset(u32 module_index)
 		 (1 << CSIS_CTRL_SW_RST));
 }
 
-static void nx_mipi_csi_set_enable(u32 module_index, int enable)
+void nx_mipi_csi_set_enable(u32 module_index, int enable)
 {
 	register struct nx_mipi_register_set *pregister;
 
@@ -682,7 +682,7 @@ static void nx_mipi_csi_set_enable(u32 module_index, int enable)
 		 (1 << CSIS_CTRL_CSI_EN) |
 		 (15 << CSIS_CTRL_UPDATE_SHADOW) |
 		 (15 << CSIS_CTRL_RGB_SWAP),
-		 (enable << 0) |
+		 (enable << CSIS_CTRL_CSI_EN) |
 		 (15 << CSIS_CTRL_UPDATE_SHADOW) |
 		 (0 << CSIS_CTRL_RGB_SWAP));
 }
