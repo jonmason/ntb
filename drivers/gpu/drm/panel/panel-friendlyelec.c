@@ -139,7 +139,6 @@ static struct lcd_desc s70d = {
 	},
 };
 
-#ifndef CONFIG_ANDROID
 static struct lcd_desc h43 = {
 	.width = 480,
 	.height = 272,
@@ -217,7 +216,6 @@ static struct lcd_desc w35 = {
 		.inv_vden = 0,
 	},
 };
-#endif
 
 static struct lcd_desc w50 = {
 	.width= 800,
@@ -510,11 +508,9 @@ static struct {
 	{ "S70D",	&s70d,	0 },
 	{ "S430",	&s430,	CTP_HIMAX   },
 
-#ifndef CONFIG_ANDROID
 	{ "H43",	&h43,	0 },
 	{ "P43",	&p43,	0 },
 	{ "W35",	&w35,	0 },
-#endif
 
 	/* TODO: Testing */
 	{ "W50",	&w50,	0 },
