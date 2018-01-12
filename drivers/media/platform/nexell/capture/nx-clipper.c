@@ -984,7 +984,7 @@ static irqreturn_t nx_clipper_irq_handler(void *data)
 				me->buffer_underrun = true;
 			}
 
-			if (done_buf->cb_buf_done) {
+			if (done_buf && done_buf->cb_buf_done) {
 				done_buf->consumer_index++;
 				done_buf->cb_buf_done(done_buf);
 			}
