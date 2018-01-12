@@ -1228,12 +1228,11 @@ static int nx_csi_probe(struct platform_device *pdev)
 	dev_dbg(me->dev, "[%s] enable_interrupts:%x\n", __func__,
 			enable_ints);
 	ret = platform_get_irq(pdev, 0);
-	if (ret < 0) {
-		pr_err("failed to get module");
-		return;
+	if (ret >= 0) {
+		me->irq = ret;
+		register_irq_handler(me);
 	}
-	me->irq = ret;
-	register_irq_handler(me);
+
 	return 0;
 }
 
