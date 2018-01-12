@@ -126,7 +126,7 @@ static irqreturn_t nx_decimator_irq_handler(void *data)
 			nx_vip_stop(me->module, VIP_DECIMATOR);
 			me->buffer_underrun = true;
 		}
-		if (done->cb_buf_done) {
+		if (done && done->cb_buf_done) {
 			done->consumer_index++;
 			done->cb_buf_done(done);
 		}
