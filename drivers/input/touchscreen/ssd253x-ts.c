@@ -1263,9 +1263,11 @@ static void ssd253x_ts_work(struct work_struct *work)
 			    HRTIMER_MODE_REL); /* check again after 1s */
 	} else {
 		ssl_priv->cal_tick = 0;
+        if( finger_flag & 0xfff0) {
 		hrtimer_start(
 		    &ssl_priv->timer, ktime_set(0, 16600000),
 		    HRTIMER_MODE_REL); /* polling for finger up after 16.6ms. */
+        }
 	}
 }
 
