@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/dts-v1/;
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
@@ -80,6 +79,24 @@
 
 			i2s2_bus:i2s2 {
 				/delete-node/ i2s2-mclk;
+			};
+			bt_cfg_en:bt_cfg_en {
+				nexell,pins = "gpioe-22";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <2>;
+				nexell,pin-strength = <0>;
+			};
+			cfg_wlanen: cfg-wlanen {
+				nexell,pins ="gpioe-12";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <2>;
+				nexell,pin-strength = <0>;
+			};
+			cfg_wlanhostwake: cfg-wlanhostwake {
+				nexell,pins = "gpioe-16";
+				nexell,pin-function = <0>;
+				nexell,pin-pull = <1>;
+				nexell,pin-strength = <0>;
 			};
 		};
 
@@ -496,6 +513,19 @@
 			};
 		};
 	};
+	bt_control {
+		compatible = "broadcom,bcm434545bt";
+		gpios = <&gpio_e 22 0>;   /* GPIOE11 = BT_EN, output */
+		pinctrl-names = "default";
+		pinctrl-0 = <&bt_cfg_en>;
+		status = "okay";
+	};
+	wlan {
+		compatible = "nexell,brcm-wlan";
+		wlan_reg_on = <&gpio_e 12 0>;
+		wlan_host_wake = <&gpio_e 16 1>;
+		status = "okay";
+    };
 };
 
 
@@ -520,15 +550,22 @@
 	num-slots = <1>;
 	bus-width = <4>;
 	cap-sd-highspeed;
+	cd-type-external;
+	broken-cd;
+	pm-ignore-notify;
+	keep-power-in-suspend;
+	powered-resumed-nonremovable-card;
+	cd-type = <2>;
 	clock-frequency = <100000000>;
-	card-detect-delay = <200>;
-	disable-wp;
-	cd-gpios = <&gpio_e 31 0>;
-	cd-inverted;
 	nexell,drive_dly = <0x0>;
 	nexell,drive_shift = <0x02>;
 	nexell,sample_dly = <0x00>;
 	nexell,sample_shift = <0x01>;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdmmc1_cclk &sdmmc1_cmd &sdmmc1_bus4
+			&cfg_wlanen &cfg_wlanhostwake>;
+
 	status = "okay";
 };
 

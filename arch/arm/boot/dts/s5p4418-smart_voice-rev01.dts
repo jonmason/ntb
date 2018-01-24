@@ -1,0 +1,80 @@
+/*
+ * Copyright (C) 2017  Nexell Co., Ltd.
+ * Author: Allan, Park <allan.park@nexell.co.kr>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/dts-v1/;
+#include "s5p4418-smart_voice-common.dtsi"
+/ {
+
+	nexell-ion@0 {
+		compatible = "nexell,ion";
+
+		heap_sys_user@0 {
+			heap-type = "ion_system";
+		};
+
+		heap_sys_contig@0 {
+			heap-type = "ion_system_contig";
+		};
+
+		heap_dma@0 {
+			heap-type = "ion_dma";
+		};
+	};
+};
+
+&dp_drm {
+	status = "okay";
+	ports {
+		port@0 {
+			reg = <0>;
+			back_color = < 0x0 >;
+			color_key = < 0x0 >;
+			plane-names = "rgb", "primary", "video";
+		};
+		port@1 {
+			reg = <1>;
+			back_color = < 0x0 >;
+			color_key = < 0x0 >;
+			plane-names = "primary", "video";
+		};
+	};
+};
+&dp_drm_lvds {
+	status = "ok";
+
+	display-timing {
+		clock-frequency = <50000000>;
+		hactive = <1024>;
+		vactive = <600>;
+		hfront-porch = <160>;
+		hback-porch = <140>;
+		hsync-len = <20>;
+		vfront-porch = <12>;
+		vback-porch = <20>;
+		vsync-len = <3>;
+	};
+
+	dp_control {
+		clk_src_lv0 = <3>;
+		clk_div_lv0 = <16>;
+		clk_src_lv1 = <7>;
+		clk_div_lv1 = <1>;
+		out_format = <2>;
+	};
+};
+
