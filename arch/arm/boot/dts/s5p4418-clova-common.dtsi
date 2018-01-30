@@ -50,6 +50,9 @@
 			vip0:vip@c00c1000 {
 				clock-frequency = <300000000>;
 			};
+			uart0:uart@c00a9000 {
+				clock-frequency = <147500000>;
+			};
 			uart1:uart@c00a8000 {
 				clock-frequency = <147500000>;
 			};
@@ -66,6 +69,12 @@
 				clk-input = <I_PLL0>;
 				clock-frequency =<80000000>;
 			};
+		};
+
+		uei_irrc {
+			status = "okay";
+			compatible = "uei,irrc";
+			uei,reset-gpio = <&gpio_b 31 0x00>;
 		};
 
 		pinctrl@C0010000 {
