@@ -43,7 +43,7 @@ static int uei_irrc_probe(struct platform_device *pdev)
 	}
 
 	if ((!gpio_is_valid(irrc_data.reset_gpio))) {
-		dev_err(&pdev->dev "IrRC: IrRC reset_gpio is invalid\n");
+		dev_err(&pdev->dev, "IrRC: IrRC reset_gpio is invalid\n");
 		return 1;
 	}
 
