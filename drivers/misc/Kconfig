@@ -576,6 +576,12 @@ config SERDES_DS90_UB927928
 	help
 		support DS90 UB927928 Serdes.
 
+config KP_IRRC
+	tristate "KP_IRRC"
+	default n
+	help
+	  If you say yes here you get support for IrRC
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
