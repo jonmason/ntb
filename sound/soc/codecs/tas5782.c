@@ -25,6 +25,7 @@
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
 #include <linux/stddef.h>
+#include <linux/device.h>
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
 #include <sound/tlv.h>
@@ -53,6 +54,23 @@ struct tas5782_private {
 	struct gpio_desc		*fault_gpio;
 	struct snd_soc_codec_driver	codec_driver;
 };
+
+/*
+ * error code
+ */
+enum eq_update_errno {
+	eq_err_file_read = -4,
+	eq_err_file_open = -3,
+	eq_err_file_type = -2,
+	eq_err_download = -1,
+	eq_err_none = 0,
+	eq_err_uptodate = 1,
+};
+
+#define TAS5782_EQ_MAX 2048
+#define EQ_PATH_EXTERNAL "/sdcard/tas5782.eq"
+
+static cfg_reg eq_regs[TAS5782_EQ_MAX];
 
 static int tas5782_register_size(struct tas5782_private *priv, unsigned int reg)
 {
@@ -86,10 +104,14 @@ static int tas5782_reg_write(void *context, unsigned int reg,
 	ret = i2c_master_send(client, buf, size + 1);
 	if (ret == size + 1)
 		return 0;
-	else if (ret < 0)
+	else if (ret < 0) {
+		dev_err(&client->dev, "tas 5782m ret < 0 \n");
 		return ret;
-	else
+	}
+	else {
+		dev_err(&client->dev, "tas 5782m ret -EIO \n");
 		return -EIO;
+	}
 }
 
 static int tas5782_reg_read(void *context, unsigned int reg,
@@ -136,6 +158,8 @@ static int _init_sequence(struct i2c_client *client,
 							cfg_reg *r, int n)
 {
 	int i = 0;
+	int ret;
+
 	while (i < n) {
 		switch (r[i].command) {
 			case CFG_META_SWITCH:
@@ -144,7 +168,11 @@ static int _init_sequence(struct i2c_client *client,
 			case CFG_META_DELAY:
 				udelay(r[i].param);
 				break;
-            case CFG_META_BURST:
+			case CFG_META_BURST:
+				ret = i2c_master_send(client, (unsigned char *)&r[i+1],
+						r[i].param);
+				dev_err(&client->dev, "tas 5782m ret =%d", ret);
+				i +=  (r[i].param + 1)/2;
 				break;
 			default:
 				tas5782_reg_write(client, r[i].offset, r[i].value);
@@ -153,6 +181,145 @@ static int _init_sequence(struct i2c_client *client,
 		i++;
 	}
 	return 0;
+}
+
+static int  tas5782_eq_adjust(struct i2c_client *client, const u8 *eq_data,
+								size_t eq_size)
+{
+	char *tok;
+	long lval;
+	int  ret, cnt = 0;
+
+	while(true) {
+		/* parse command */
+		tok = strsep(&eq_data, " ");
+		if(!tok) {
+			break;
+		}
+		ret = kstrtol(tok, 0, &lval);
+        dev_err(&client->dev, "command:%x ", lval);
+		eq_regs[cnt].command = lval;
+
+		/*  parse param */
+		tok = strsep(&eq_data, " ");
+		if(!tok)
+			break;
+
+		ret = kstrtol(tok, 0, &lval);
+		dev_err(&client->dev, "param:%x \n", lval);
+		eq_regs[cnt].param = lval;
+
+		cnt++;
+		dev_err(&client->dev, "command cnt=%d\n", cnt);
+	}
+	ret = _init_sequence(client, eq_regs, cnt);
+
+	return ret;
+}
+
+/*
+ * Update eq from external storage
+ */
+static int tas5782_eq_update_from_storage(struct i2c_client *client, char *path)
+{
+	struct file *fp;
+	mm_segment_t old_fs;
+	unsigned char *eq_data;
+	size_t eq_size, nread;
+	   int ret;
+
+	/* Get eq */
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	fp = filp_open(path, O_RDONLY, S_IRUSR);
+	if (IS_ERR(fp)) {
+		dev_err(&client->dev,"%s [ERROR] file_open - path[%s]  err value:%d \n",
+				__func__, path, PTR_ERR(fp));
+		ret = eq_err_file_open;
+		goto error;
+	}
+
+	eq_size = fp->f_path.dentry->d_inode->i_size;
+
+	if (eq_size > 0) {
+		/* Read eq */
+		eq_data = kzalloc(eq_size, GFP_KERNEL);
+		nread = vfs_read(fp, (char __user *)eq_data, eq_size, &fp->f_pos);
+		dev_dbg(&client->dev, "%s - path[%s] size[%zu]\n", __func__,
+				path, eq_size);
+
+		if (nread != eq_size) {
+			dev_err(&client->dev, "%s [ERROR] vfs_read - \
+					size[%zu] read[%zu]\n", __func__, eq_size, nread);
+			ret = eq_err_file_read;
+		} else {
+			/* Update eq */
+			ret = tas5782_eq_adjust(client, eq_data, eq_size);
+		}
+
+		kfree(eq_data);
+	} else {
+		dev_err(&client->dev, "%s [ERROR] eq_size[%zu]\n", __func__, eq_size);
+		ret = eq_err_file_read;
+	}
+
+	filp_close(fp, current->files);
+
+error:
+	set_fs(old_fs);
+
+	if (ret < eq_err_none) {
+		dev_err(&client->dev, "%s [ERROR]\n", __func__);
+	} else {
+		dev_dbg(&client->dev, "%s [DONE]\n", __func__);
+	}
+
+	return ret;
+}
+
+static ssize_t tas5782_sys_eq_update_from_storage(struct device *dev,
+        struct device_attribute *attr, const char *buf, size_t count)
+{
+	int result;
+	u8 data[255];
+	int ret = 0;
+	struct i2c_client *client = to_i2c_client(dev);
+
+	ret = tas5782_eq_update_from_storage(client, EQ_PATH_EXTERNAL);
+
+	switch (ret) {
+		case eq_err_none:
+			snprintf(data, sizeof(data),"EQ update success.\n");
+			break;
+		case eq_err_uptodate:
+			snprintf(data, sizeof(data),"EQ is already up-to-date.\n");
+			break;
+		case eq_err_download:
+			snprintf(data, sizeof(data),"EQ update failed : Download error\n");
+			break;
+		case eq_err_file_type:
+			snprintf(data, sizeof(data),"EQ update failed : File type error\n");
+			break;
+		case eq_err_file_open:
+			snprintf(data, sizeof(data),
+					"EQ update failed : File open error[%s]\n",
+					EQ_PATH_EXTERNAL);
+			break;
+		case eq_err_file_read:
+			snprintf(data, sizeof(data),
+					"EQ update failed : File read error\n");
+			break;
+		default:
+			snprintf(data, sizeof(data), "EQ update failed.\n");
+			break;
+	}
+
+	dev_dbg(&client->dev, "%s [DONE]\n", __func__);
+
+	result = snprintf(buf, 255, "%s\n", data);
+    return count;
+
 }
 
 static int tas5782_mute(struct tas5782_private *priv, int mute)
@@ -177,9 +344,6 @@ static void tas5782_reset(struct tas5782_private *priv)
         msleep(15);
     }
 }
-
-
-
 
 static int tas5782_set_dai_fmt(struct snd_soc_dai *dai, unsigned int format)
 {
@@ -305,7 +469,7 @@ static const struct regmap_config tas5782_regmap_config = {
 	.max_register			= 0xff,
 	.reg_read			= tas5782_reg_read,
 	.reg_write			= tas5782_reg_write,
-	/* .reg_defaults			= tas5782_reg_defaults, 
+	/* .reg_defaults			= tas5782_reg_defaults,
 	 .num_reg_defaults		= ARRAY_SIZE(tas5782_reg_defaults), */
 	.cache_type			= REGCACHE_RBTREE,
 };
@@ -364,6 +528,9 @@ static struct snd_soc_dai_driver tas5782_dai = {
 	.ops = &tas5782_dai_ops,
 };
 
+static DEVICE_ATTR(eq_update_storage, S_IWUSR, NULL,
+		tas5782_sys_eq_update_from_storage);
+
 static const struct of_device_id tas5782_of_match[];
 
 static int tas5782_i2c_probe(struct i2c_client *client,
@@ -390,7 +557,6 @@ static int tas5782_i2c_probe(struct i2c_client *client,
 	}
 	of_node = dev->of_node;
 	priv->chip = of_id->data;
-
 
 	BUG_ON(priv->chip->num_supply_names > TAS5782_MAX_SUPPLIES);
 	for (i = 0; i < priv->chip->num_supply_names; i++)
@@ -460,6 +626,13 @@ static int tas5782_i2c_probe(struct i2c_client *client,
 
 	regcache_cache_only(priv->regmap, true);
 
+	ret = device_create_file(dev, &dev_attr_eq_update_storage);
+	if (ret != 0) {
+		dev_err(dev,
+		 "Failed to create eq_update_storage sysfs files: %d\n", ret);
+		return ret;
+	}
+
 	return snd_soc_register_codec(&client->dev, &priv->codec_driver,
 				      &tas5782_dai, 1);
 }
@@ -470,6 +643,8 @@ static int tas5782_i2c_remove(struct i2c_client *client)
 
 	snd_soc_unregister_codec(&client->dev);
 	regulator_bulk_disable(priv->chip->num_supply_names, priv->supplies);
+
+	device_remove_file(&client->dev, &dev_attr_eq_update_storage);
 
 	return 0;
 }
