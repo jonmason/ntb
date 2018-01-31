@@ -127,32 +127,34 @@ Reg_Item ssd2533_Init[] = {
     {CMD_2B, 0x1B, 0x00, 0x93}, /* Set 20 drive line reg */
     {CMD_2B, 0x1C, 0x00, 0x94}, /* Set 21 drive line reg */
 
-    {CMD_1B, 0xD5, 0x03}, /* Set Driving voltage 0(5.5V)to 7(9V) */
-    {CMD_DELAY, 5},
+    {CMD_1B,0xD5,0x07},             //Set Driving voltage 0(5.5V)to 7(9V)
     {CMD_1B, 0xD8, 0x07}, /* Set Sense Resistance */
-    {CMD_DELAY, 5},
 
+    {CMD_1B,0x28,0x20},
     {CMD_1B, 0x2A, 0x07}, /* Set sub-frame (N-1)default=1, range 0 to F */
     {CMD_1B, 0x2C, 0x01},
     {CMD_1B, 0x2E, 0x0B}, /* Sub-frame Drive pulse number (N-1) default=0x17 */
     {CMD_1B, 0x2F, 0x01}, /* Integration Gain (N-1) default=2, 0 to 4 */
 
-    {CMD_1B, 0x30, 0x07}, /* start integrate 125ns/div */
-    {CMD_1B, 0x31, 0x0B}, /* stop integrate 125ns/div */
-    {CMD_1B, 0xD7, 0x00}, /* ADC range default=4, 0 to 7 */
+    {CMD_1B,0x30,0x05},             //start integrate 125ns/div
+    {CMD_1B,0x31,0x08},             //stop integrate 125ns/div
+    {CMD_1B,0xD7,0x01},             //ADC range default=4, 0 to 7
     {CMD_1B, 0xDB, 0x00}, /* Set integration cap default=0, 0 to 7 */
 
     {CMD_2B, 0x33, 0x00, 0x01}, /* Set Min. Finger area */
-    {CMD_2B, 0x34, 0x00, 0x48}, /* Set Min. Finger level */
-    {CMD_2B, 0x35, 0x00, 0x1F}, /* Set Min, Finger weight */
-    {CMD_2B, 0x36, 0xFF, 0x18}, /* Set Max, Finger weight */
+    {CMD_2B,0x34,0x00,0x56},        //Set Min. Finger level
+    {CMD_2B,0x35,0x00,0x0E},        //Set Min, Finger weight
+    {CMD_2B,0x36,0x00,0x10},        //Set Max, Finger weight
 
-    {CMD_1B, 0x37, 0x00}, /* Segmentation Depth */
+    {CMD_1B,0x37,0x01},             //Segmentation Depth
     {CMD_1B, 0x3D, 0x01},
     {CMD_1B, 0x53, 0x16}, /* Event move tolerance */
 
     {CMD_2B, 0x54, 0x00, 0x80}, /* X tracking */
     {CMD_2B, 0x55, 0x00, 0x80}, /* Y tracking */
+   	{CMD_1B,0x65,0x00},             //Touch Coordinate Mapping Default = 4, VARIKOREA PM8801 = 1, VARIKOREA PM8935 = 0
+	{CMD_2B,0x66,0x92,0x20},        //set Sense scale
+    {CMD_2B,0x67,0x72,0x20},        //set Driver scale
     {CMD_1B, 0x56, 0x02},
 
     {CMD_1B, 0x58, 0x00}, /* Finger weight scaling */
@@ -160,26 +162,26 @@ Reg_Item ssd2533_Init[] = {
     {CMD_1B, 0x5A, 0x01}, /* Disable Missing Frame Humax disable */
     {CMD_1B, 0x5B, 0x03}, /* Set Random walk window */
 
-    {CMD_1B, 0x65, 0x00}, /* Touch Coordinate Mapping Default = 4, VARIKOREA */
+//	{CMD_2B,0x7A,0xFF,0xC7},
 
-    {CMD_2B, 0x66, 0x92, 0x20}, /* set Sense scale 1024x600 */
-    {CMD_2B, 0x67, 0x72, 0x20}, /* set Driver scale */
+	{CMD_2B,0x7A,0xFF,0xFF},
+	{CMD_2B,0x7B,0x00,0x0F},
 
-    {CMD_2B, 0x7A, 0xFF, 0xC7},
-    {CMD_2B, 0x7B, 0x00, 0x03},
+    {CMD_1B,0x89,0x00},
+//  {CMD_1B,0x8A,0x0A},
 
-    {CMD_1B, 0x8A, 0x0A},
-    {CMD_1B, 0x8B, 0x10},
+    {CMD_1B,0x8A,0x03},
+    {CMD_1B,0x8B,0x01},
     {CMD_1B, 0x8C, 0xB0},
 
-    {CMD_1B, 0x40, 0x64},
+	{CMD_1B,0x40,0x7F},
     {CMD_1B, 0x41, 0x20},
     {CMD_1B, 0x42, 0x20},
-    {CMD_2B, 0x43, 0x00, 0x1C},
+    {CMD_2B,0x43,0x20,0x1C},
     {CMD_1B, 0x44, 0x03},
 
-    {CMD_1B, 0x25, 0x04},
-    {CMD_DELAY, 250},
+    {CMD_1B,0x25,0x02},
+    {CMD_DELAY, 400},
 };
 
 static int ssd253x_ts_open(struct input_dev *dev);
@@ -1263,11 +1265,9 @@ static void ssd253x_ts_work(struct work_struct *work)
 			    HRTIMER_MODE_REL); /* check again after 1s */
 	} else {
 		ssl_priv->cal_tick = 0;
-        if( finger_flag & 0xfff0) {
 		hrtimer_start(
 		    &ssl_priv->timer, ktime_set(0, 16600000),
 		    HRTIMER_MODE_REL); /* polling for finger up after 16.6ms. */
-        }
 	}
 }
 
