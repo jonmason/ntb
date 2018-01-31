@@ -24,6 +24,7 @@
 #include <linux/interrupt.h>
 #include <linux/delay.h>
 #include <linux/usb/phy.h>
+#include <linux/of_gpio.h>
 
 #include <linux/acpi.h>
 #include <linux/of.h>
@@ -938,8 +939,11 @@ static int bq25895m_probe(struct i2c_client *client,
 	struct i2c_adapter *adapter = to_i2c_adapter(client->dev.parent);
 	struct device *dev = &client->dev;
 	struct bq25895m_device *bq;
+	int gpio_stat = -EINVAL;
+	struct device_node *of_node;
 	int ret;
 	int i;
+
 
 	if (!i2c_check_functionality(adapter, I2C_FUNC_SMBUS_BYTE_DATA)) {
 		dev_err(dev, "No support for SMBUS_BYTE_DATA\n");
@@ -950,6 +954,7 @@ static int bq25895m_probe(struct i2c_client *client,
 	if (!bq)
 		return -ENOMEM;
 
+	of_node = dev->of_node;
 	bq->client = client;
 	bq->dev = dev;
 
@@ -1010,6 +1015,15 @@ static int bq25895m_probe(struct i2c_client *client,
 	if (client->irq < 0) {
 		dev_err(dev, "No irq resource found.\n");
 		return client->irq;
+	}
+	gpio_stat = of_get_named_gpio(of_node, "stat-gpios", 0);
+	if (gpio_is_valid(gpio_stat)) {
+		if (devm_gpio_request(dev, gpio_stat, "bq25895 STAT"))
+			gpio_stat = -EINVAL;
+		gpio_direction_input(gpio_stat);
+    }
+	else {
+		dev_err(dev, "STAT gpio not valid.\n");
 	}
 
 	/* OTG reporting */
