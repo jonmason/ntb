@@ -704,6 +704,7 @@
         interrupts = <12 IRQ_TYPE_EDGE_FALLING>;
         pinctrl-names = "default";
         pinctrl-0 = <&bq25895m_irq>;
+		stat-gpios = <&gpio_a 13 0>;
 
 		ti,battery-regulation-voltage = <4200000>;
 		ti,charge-current = <1000000>;
