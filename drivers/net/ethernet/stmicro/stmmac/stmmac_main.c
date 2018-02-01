@@ -1838,8 +1838,14 @@ static int stmmac_open(struct net_device *dev)
 		phy_start(priv->phydev);
 
 	/* Request the IRQ lines */
+#if defined(CONFIG_ARCH_S5P4418) && defined(CONFIG_MULTICORE_IRQ)
+	ret = request_threaded_irq(dev->irq,
+			  NULL, stmmac_interrupt,
+			  IRQF_SHARED | IRQF_ONESHOT, dev->name, dev);
+#else
 	ret = request_irq(dev->irq, stmmac_interrupt,
 			  IRQF_SHARED, dev->name, dev);
+#endif
 	if (unlikely(ret < 0)) {
 		pr_err("%s: ERROR: allocating the IRQ %d (error: %d)\n",
 		       __func__, dev->irq, ret);
