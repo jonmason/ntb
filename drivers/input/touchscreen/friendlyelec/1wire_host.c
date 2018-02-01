@@ -465,10 +465,7 @@ static inline void clear_tint(void)
 static void samsung_pwm_start(struct pwm_device *pwm)
 {
 	unsigned int tcon_chan = to_tcon_channel(pwm->hwpwm);
-	unsigned long flags;
 	u32 tcon;
-
-	local_irq_save(flags);
 
 	tcon = readl(pdata->pwm_reg_base + REG_TCON);
 
@@ -479,23 +476,16 @@ static void samsung_pwm_start(struct pwm_device *pwm)
 	tcon &= ~TCON_MANUALUPDATE(tcon_chan);
 	tcon |= TCON_START(tcon_chan) | TCON_AUTORELOAD(tcon_chan);
 	writel(tcon, pdata->pwm_reg_base + REG_TCON);
-
-	local_irq_restore(flags);
 }
 
 static void samsung_pwm_stop(struct pwm_device *pwm)
 {
 	unsigned int tcon_chan = to_tcon_channel(pwm->hwpwm);
-	unsigned long flags;
 	u32 tcon;
-
-	local_irq_save(flags);
 
 	tcon = readl(pdata->pwm_reg_base + REG_TCON);
 	tcon &= ~TCON_AUTORELOAD(tcon_chan);
 	writel(tcon, pdata->pwm_reg_base + REG_TCON);
-
-	local_irq_restore(flags);
 }
 #else
 
@@ -506,16 +496,26 @@ static void samsung_pwm_stop(struct pwm_device *pwm)
 static int init_timer_for_1wire(void)
 {
 	int period_ns = NSEC_PER_SEC / SAMPLE_BPS;
+
+#if defined(CONFIG_ARCH_S5P4418)
+	period_ns -= 200;
+#endif
 	return pwm_config(pwm, period_ns >> 1, period_ns);
 }
 
 static inline void stop_timer_for_1wire(void)
 {
+	unsigned long flags;
+
+	local_irq_save(flags);
+
 #if defined(CONFIG_PWM_SAMSUNG)
 	samsung_pwm_stop(pwm);
 #else
 	pwm_disable(pwm);
 #endif
+
+	local_irq_restore(flags);
 }
 
 //---------------------------------------------------------
@@ -539,7 +539,7 @@ static irqreturn_t timer_for_1wire_interrupt(int irq, void *dev_id)
 	clear_tint();
 
 	io_bit_count--;
-	switch(one_wire_status) {
+	switch (one_wire_status) {
 	case START:
 		if (io_bit_count == 0) {
 			io_bit_count = 16;
@@ -759,9 +759,15 @@ static int ts_1wire_probe(struct platform_device *pdev)
 	set_pin_value(1);
 	set_pin_up();
 
+#if defined(CONFIG_ARCH_S5P4418) && defined(CONFIG_MULTICORE_IRQ)
+	ret = devm_request_threaded_irq(&pdev->dev, pdata->pwm_irq,
+			NULL, timer_for_1wire_interrupt,
+			IRQF_SHARED | IRQF_ONESHOT, "onewire_pwm_irq", pdata);
+#else
 	ret = devm_request_irq(&pdev->dev, pdata->pwm_irq,
 			timer_for_1wire_interrupt,
 			IRQF_SHARED, "onewire_pwm_irq", pdata);
+#endif
 	if (ret) {
 		dev_err(&pdev->dev, "failed to request irq %d\n", pdata->pwm_irq);
 		goto free_pwm;
