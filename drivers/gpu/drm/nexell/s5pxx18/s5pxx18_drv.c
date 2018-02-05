@@ -1534,6 +1534,7 @@ int nx_drm_display_setup(struct nx_drm_display *display,
 
 		rate = clk_get_rate(clk);
 		pixclock = (rate / ctrl->clk_div_lv0) / ctrl->clk_div_lv1;
+		control->sync.pixel_clock_hz = pixclock;
 		display->vm.pixelclock = pixclock;
 		clk_put(clk);
 
@@ -1572,7 +1573,14 @@ void nx_display_mode_to_sync(struct drm_display_mode *mode,
 	sync->v_front_porch = vm.vfront_porch;
 	sync->v_sync_invert =
 		vm.flags & DISPLAY_FLAGS_VSYNC_HIGH ? 1 : 0;
-	sync->pixel_clock_hz = vm.pixelclock;
+
+	if (sync->pixel_clock_hz != vm.pixelclock) {
+		struct nx_control_info *ctrl = &control->ctrl;
+
+		ctrl->clk_div_lv0 =
+			(sync->pixel_clock_hz * ctrl->clk_div_lv0) / vm.pixelclock;
+		sync->pixel_clock_hz = vm.pixelclock;
+	}
 
 	/* refresh */
 	display->vrefresh = mode->vrefresh;

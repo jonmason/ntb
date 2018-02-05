@@ -223,7 +223,7 @@ static struct lcd_desc w50 = {
 	.p_width = 108,
 	.p_height = 64,
 	.bpp = 24,
-	.freq = 70,
+	.freq = 61,
 
 	.timing = {
 		.h_fp = 40,
@@ -838,7 +838,7 @@ static int panel_display_mode_init(struct panel_desc *ctx)
 	dmode->vdisplay = lcd->height;
 	dmode->vsync_start = dmode->vdisplay + lcd->timing.v_fp;
 	dmode->vsync_end = dmode->vsync_start + lcd->timing.v_sw;
-	dmode->vtotal = dmode->vsync_end + lcd->timing.v_sw;
+	dmode->vtotal = dmode->vsync_end + lcd->timing.v_bp;
 
 	dmode->vrefresh = lcd->freq;
 	dmode->clock = dmode->htotal * dmode->vtotal * dmode->vrefresh / 1000;

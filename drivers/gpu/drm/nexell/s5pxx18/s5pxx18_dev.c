@@ -285,7 +285,7 @@ int nx_soc_dp_cont_prepare(struct nx_control_dev *control)
 				sync->v_front_porch,
 				sync->v_back_porch,
 				fd_polarity, hs_polarity,
-				vs_polarity, 0, 0, 0, 0, 0, 0, 0);
+				vs_polarity, 0, 0, 0, v_vso, v_veo, e_vso, e_veo);
 
 		/* EvenVSW, EvenVFP, EvenVBP, VSP, VCP, EvenVSP, EvenVCP */
 		nx_dpc_set_delay(module, rgb_pvd, hsync_cp1,
@@ -301,7 +301,7 @@ int nx_soc_dp_cont_prepare(struct nx_control_dev *control)
 		 sync->h_back_porch, sync->h_sync_width, sync->h_sync_invert);
 	pr_debug("dev.%d (y=%4d, vfp=%3d, vbp=%3d, vsw=%3d, vi=%d)\n",
 		 module, sync->v_active_len, sync->v_front_porch,
-		 sync->v_back_porch, sync->v_sync_width, sync->h_sync_invert);
+		 sync->v_back_porch, sync->v_sync_width, sync->v_sync_invert);
 	pr_debug("dev.%d clk 0[s=%d, d=%3d], 1[s=%d, d=%3d], inv[%d:%d]\n",
 	     module, ctl->clk_src_lv0, ctl->clk_div_lv0,
 	     ctl->clk_src_lv1, ctl->clk_div_lv1, ctl->clk_inv_lv0,
