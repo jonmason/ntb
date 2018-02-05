@@ -81,6 +81,9 @@
 			/delete-node/ mpegts_cap0_data_clk_parallel;
 			/delete-node/ nand_ale;
 			/delete-node/ spdiftx_pin;
+			i2s1_bus:i2s1 {
+				/delete-node/ i2s1-mclk;
+			};
 			i2c_gpio5_sda: i2c5_sda {
 				nexell,pins = "gpioa-16";
 				nexell,pin-function = <0>;
@@ -247,6 +250,17 @@
 			pre-supply-mclk = <1>;
 			status = "okay";
 		};
+		i2s_1:i2s@c0056000 {
+			#sound-dai-cells = <1>;
+			master-mode = <0>;
+			mclk-in = <1>;
+			trans-mode = <0>;
+			frame-bit = <32>;
+			sample-rate = <16000>;
+			pre-supply-mclk = <0>;
+			dfs;
+			status = "okay";
+        };
 
 		i2s_2:i2s@c0057000 {
 			#sound-dai-cells = <1>;
@@ -358,6 +372,16 @@
 			format = "i2s";
 			cpu {
 				sound-dai = <&snd_feedback 0>;
+			};
+
+			codec {
+				sound-dai = <&snd_null>;
+			};
+		};
+		simple-audio-card,dai-link@4 {
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s_1 0>;
 			};
 
 			codec {
