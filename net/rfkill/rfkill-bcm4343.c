@@ -32,6 +32,7 @@
 #include <linux/platform_device.h>
 #include <linux/rfkill.h>
 #include <linux/serial_core.h>
+#include <linux/of_gpio.h>
 
 struct rfkill_bcm4343_data {
 	const char *name;
@@ -43,17 +44,52 @@ struct rfkill_bcm4343_data {
 	struct gpio_desc *bt_wake;
 	struct gpio_desc *bt_hostwake;
 	int irq;
+
+	int rts_gpio;
+	int cts_gpio;
+	struct pinctrl *pinctrl;
+	struct pinctrl_state *def_state;
+	struct pinctrl_state *gpio_state;
 };
 
 static int bcm4343_rfkill_set_block(void *data, bool blocked)
 {
 	struct rfkill_bcm4343_data *priv = data;
+	int i, cts;
 
 	gpiod_set_value_cansleep(priv->bt_reset, !blocked);
 	msleep(25);
 
 	priv->is_running = !blocked;
 	pr_info("bcm4343: rfkill set_block %d\n", blocked);
+
+	if (!blocked) {
+		if (gpio_is_valid(priv->rts_gpio))
+			gpio_set_value(priv->rts_gpio, 0);
+
+		if (gpio_is_valid(priv->cts_gpio)) {
+			/* BCM43438 datasheet page 57:
+			 * BTH device drive this line (BT_UART_RTS_N) low indicating
+			 * transport is ready.
+			 */
+			for (i = 0; i < 30; i++) {
+				usleep_range(500, 1000);
+				if (!(cts = gpio_get_value(priv->cts_gpio)))
+					break;
+			}
+			pr_info("bcm4343: wake peer by RTS, %s\n", cts ? "failed" : "ok");
+		}
+
+		if (priv->pinctrl)
+			pinctrl_select_state(priv->pinctrl, priv->def_state);
+
+	} else {
+		if (gpio_is_valid(priv->rts_gpio))
+			gpio_set_value(priv->rts_gpio, 1);
+
+		if (priv->pinctrl)
+			pinctrl_select_state(priv->pinctrl, priv->gpio_state);
+	}
 
 	return 0;
 }
@@ -66,6 +102,7 @@ static int bcm4343_rfkill_probe(struct platform_device *pdev)
 {
 	struct rfkill_bcm4343_data *priv;
 	struct rfkill *rfkill;
+	enum of_gpio_flags flags;
 	int ret;
 
 	priv = devm_kzalloc(&pdev->dev, sizeof(*priv), GFP_KERNEL);
@@ -91,6 +128,24 @@ static int bcm4343_rfkill_probe(struct platform_device *pdev)
 		priv->irq = gpiod_to_irq(priv->bt_hostwake);
 	else
 		priv->irq = -1;
+
+	priv->rts_gpio = of_get_named_gpio_flags(pdev->dev.of_node,
+			"rts-gpios", 0, &flags);
+	if (gpio_is_valid(priv->rts_gpio)) {
+		priv->pinctrl = devm_pinctrl_get(&pdev->dev);
+		if (!IS_ERR(priv->pinctrl)) {
+			priv->def_state = pinctrl_lookup_state(priv->pinctrl, "default");
+			priv->gpio_state = pinctrl_lookup_state(priv->pinctrl, "gpios");
+
+			gpio_direction_output(priv->rts_gpio, 1);
+			pinctrl_select_state(priv->pinctrl, priv->gpio_state);
+		}
+	}
+
+	priv->cts_gpio = of_get_named_gpio_flags(pdev->dev.of_node,
+			"cts-gpios", 0, &flags);
+	if (gpio_is_valid(priv->cts_gpio))
+		gpio_direction_input(priv->cts_gpio);
 
 	rfkill = rfkill_alloc("BCM4343 Bluetooth", &pdev->dev, priv->type,
 			&bcm4343_rfkill_ops, priv);
