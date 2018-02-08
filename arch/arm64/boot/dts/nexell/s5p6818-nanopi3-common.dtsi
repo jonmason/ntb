@@ -673,6 +673,14 @@
 		status = "okay";
 	};
 
+	bt_bcm {
+		compatible = "broadcom,bcm4343";
+		reset-gpios = <&gpio_b 8 0>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&bt_cfg_en>;
+		status = "okay";
+	};
+
 	nexell-ion@0 {
 		compatible = "nexell,ion";
 
