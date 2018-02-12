@@ -208,6 +208,9 @@ config USB_F_PTP
 config USB_F_AUDIO_SRC
 	tristate
 
+config USB_F_AUDIO_SINK
+	tristate
+
 config USB_F_ACC
 	tristate
 
@@ -415,6 +418,16 @@ config USB_CONFIGFS_F_AUDIO_SRC
 	select USB_F_AUDIO_SRC
 	help
 	  USB gadget Audio Source support
+
+config USB_CONFIGFS_F_AUDIO_SINK
+	bool "Audio Sink gadget"
+	depends on USB_CONFIGFS
+	depends on SND
+	select USB_LIBCOMPOSITE
+	select SND_PCM
+	select USB_F_AUDIO_SINK
+	help
+	  USB gadget Audio Sink support
 
 config USB_CONFIGFS_UEVENT
 	boolean "Uevent notification of Gadget state"

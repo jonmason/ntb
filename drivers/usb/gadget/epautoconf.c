@@ -84,7 +84,16 @@ struct usb_ep *usb_ep_autoconfig_ss(
 			goto found_ep;
 	}
 #endif
-
+#if defined(CONFIG_ARCH_S5P4418) || defined(CONFIG_ARCH_S5P6818)
+	if (type == USB_ENDPOINT_XFER_ISOC) {
+		if (USB_DIR_IN & desc->bEndpointAddress)
+			ep = gadget_find_ep_by_name(gadget, "ep3in");
+		else
+			ep = gadget_find_ep_by_name(gadget, "ep3out");
+		if (ep && usb_gadget_ep_match_desc(gadget, ep, desc, ep_comp))
+			goto found_ep;
+	}
+#endif
 	if (gadget->ops->match_ep) {
 		ep = gadget->ops->match_ep(gadget, desc, ep_comp);
 		if (ep)
