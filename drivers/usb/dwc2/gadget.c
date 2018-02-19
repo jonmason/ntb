@@ -3644,8 +3644,7 @@ irq_retry:
 		dwc2_writel(GINTSTS_ERLYSUSP, hsotg->regs + GINTSTS);
 #if defined(CONFIG_USB_F_CARPLAY) || defined(CONFIG_USB_CONFIGFS_CARPLAY)
 		if (hsotg->connected)
-			kobject_uevent_env(&hsotg->dev->kobj, KOBJ_OFFLINE,
-					   NULL);
+			dwc2_hsotg_disconnect(hsotg);
 #endif
 	}
 
