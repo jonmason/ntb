@@ -4626,6 +4626,57 @@ static void dwc2_hsotg_dump(struct dwc2_hsotg *hsotg)
 #endif
 }
 
+static ssize_t g_ddma_en_show(struct device *dev,
+				   struct device_attribute *attr, char *buf)
+{
+	struct dwc2_hsotg *hsotg = dev_get_drvdata(dev);
+
+	if (hsotg->params.g_dma_desc)
+		return sprintf(buf, "%d\n", 1);
+	else
+		return sprintf(buf, "%d\n", 0);
+}
+
+static ssize_t g_ddma_en_store(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buf, size_t count)
+{
+	struct dwc2_hsotg *hsotg = dev_get_drvdata(dev);
+	unsigned long flags;
+
+	if (dwc2_is_host_mode(hsotg)) {
+		if (!strncmp(buf, "1", 1))
+			hsotg->params.g_dma_desc = true;
+		else if (!strncmp(buf, "0", 1))
+			hsotg->params.g_dma_desc = false;
+		else
+			dev_err(hsotg->dev, "invaild argument\n");
+	} else {
+		if (!hsotg->params.g_dma_desc &&
+		    !strncmp(buf, "1", 1)) {
+			hsotg->params.g_dma_desc = true;
+			spin_lock_irqsave(&hsotg->lock, flags);
+			dwc2_hsotg_disconnect(hsotg);
+			dwc2_hsotg_core_init_disconnected(hsotg, false);
+			dwc2_hsotg_core_connect(hsotg);
+			spin_unlock_irqrestore(&hsotg->lock, flags);
+		} else if (hsotg->params.g_dma_desc &&
+			   !strncmp(buf, "0", 1)) {
+			hsotg->params.g_dma_desc = false;
+			spin_lock_irqsave(&hsotg->lock, flags);
+			dwc2_hsotg_disconnect(hsotg);
+			dwc2_hsotg_core_init_disconnected(hsotg, false);
+			dwc2_hsotg_core_connect(hsotg);
+			spin_unlock_irqrestore(&hsotg->lock, flags);
+		} else
+			dev_err(hsotg->dev, "invaild argument\n");
+	}
+
+	return count;
+}
+
+DEVICE_ATTR(g_ddma_en, S_IRUGO|S_IWUSR, g_ddma_en_show, g_ddma_en_store);
+
 /**
  * dwc2_gadget_init - init function for gadget
  * @dwc2: The data structure for the DWC2 driver.
@@ -4713,6 +4764,10 @@ int dwc2_gadget_init(struct dwc2_hsotg *hsotg, int irq)
 	ret = usb_add_gadget_udc(dev, &hsotg->gadget);
 	if (ret)
 		return ret;
+
+	if (of_device_is_compatible(hsotg->dev->of_node,
+				    "nexell,nexell-dwc2otg"))
+		device_create_file(hsotg->dev, &dev_attr_g_ddma_en);
 
 	dwc2_hsotg_dump(hsotg);
 
