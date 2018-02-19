@@ -61,15 +61,15 @@
 				clock-frequency = <0>;
 			};
 
-			pwm0:pwm0@c00ba000 {
+			pwm1:pwm1@c00ba000 {
 				clk-input = <I_PLL0>;
 				clock-frequency = <80000000>;
 			};
 		};
 
 		pwm:pwm@c0018000 {
-			clocks =  <&pwm0>;
-			clock-names = "pwm-tclk0";
+			clocks =  <&pwm0>, <&pwm1>;
+			clock-names = "pwm-tclk0", "pwm-tclk1";
 		};
 
 		pinctrl@C0010000 {
@@ -427,7 +427,7 @@
 		compatible = "nexell,snd-smart-voice,i2s,pl022";
 		#address-cells = <1>;
 		#size-cells = <0>;
-		pwms = <&pwm 0 125 0>;
+		pwms = <&pwm 1 125 0>;
 		gpio_regs = < PHYS_BASE_GPIOA 0x1000
 			PHYS_BASE_GPIOB 0x1000
 			PHYS_BASE_GPIOC 0x1000
@@ -596,8 +596,8 @@
 
 &pwm {
 	pinctrl-names = "default";
-	pinctrl-0 = <&pwm0_pin>;
-	samsung,pwm-outputs = <0>;
+	pinctrl-0 = <&pwm0_pin &pwm1_pin>;
+	samsung,pwm-outputs = <0>, <1>;
 	status = "okay";
 };
 
