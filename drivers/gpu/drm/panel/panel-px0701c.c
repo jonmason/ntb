@@ -478,12 +478,12 @@ static const struct drm_display_mode default_mode = {
 	.clock = 67161,			/* KHz */
 	.hdisplay = 800,
 	.hsync_start = 800 + 40,	/* hactive + hbackporch */
-	.hsync_end = 800 + 40 + 20,	/* hsync_start + hsyncwidth */
-	.htotal = 800 + 40 + 20 + 40,	/* hsync_end + hfrontporch */
+	.hsync_end = 800 + 40 + 4,	/* hsync_start + hsyncwidth */
+	.htotal = 800 + 40 + 4 + 40,	/* hsync_end + hfrontporch */
 	.vdisplay = 1280,
-	.vsync_start = 1280 + 6,	/* vactive + vbackporch */
-	.vsync_end = 1280 + 6 + 9,	/* vsync_start + vsyncwidth */
-	.vtotal = 1280 + 6 + 9 + 16,	/* vsync_end + vfrontporch */
+	.vsync_start = 1280 + 22,	/* vactive + vbackporch */
+	.vsync_end = 1280 + 22 + 5,	/* vsync_start + vsyncwidth */
+	.vtotal = 1280 + 22 + 5 + 16,	/* vsync_end + vfrontporch */
 	.vrefresh = 60,			/* Hz */
 };
 
