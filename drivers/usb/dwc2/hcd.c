@@ -3329,6 +3329,58 @@ static ssize_t sel_dr_mode_store(struct device *dev,
 
 DEVICE_ATTR(sel_dr_mode, S_IRUGO|S_IWUSR, sel_dr_mode_show, sel_dr_mode_store);
 
+static ssize_t h_ddma_en_show(struct device *dev,
+				   struct device_attribute *attr, char *buf)
+{
+	struct dwc2_hsotg *hsotg = dev_get_drvdata(dev);
+
+	if (hsotg->params.dma_desc_enable)
+		return sprintf(buf, "%d\n", 1);
+	else
+		return sprintf(buf, "%d\n", 0);
+}
+
+static ssize_t h_ddma_en_store(struct device *dev,
+				   struct device_attribute *attr,
+				   const char *buf, size_t count)
+{
+	struct dwc2_hsotg *hsotg = dev_get_drvdata(dev);
+
+	if (dwc2_is_device_mode(hsotg)) {
+		if (!strncmp(buf, "1", 1))
+			hsotg->params.dma_desc_enable = true;
+		else if (!strncmp(buf, "0", 1))
+			hsotg->params.dma_desc_enable = false;
+		else
+			dev_err(hsotg->dev, "invaild argument\n");
+	} else {
+		if (!hsotg->params.dma_desc_enable &&
+		    !strncmp(buf, "1", 1)) {
+			dwc2_hcd_disconnect(hsotg, true);
+
+			hsotg->params.dma_desc_enable = true;
+			/* Initialize the Core for Host mode */
+			dwc2_core_init(hsotg, false);
+			dwc2_enable_global_interrupts(hsotg);
+			dwc2_hcd_start(hsotg);
+		} else if (hsotg->params.dma_desc_enable &&
+			   !strncmp(buf, "0", 1)) {
+			dwc2_hcd_disconnect(hsotg, true);
+
+			hsotg->params.dma_desc_enable = false;
+			/* Initialize the Core for Host mode */
+			dwc2_core_init(hsotg, false);
+			dwc2_enable_global_interrupts(hsotg);
+			dwc2_hcd_start(hsotg);
+		} else
+			dev_err(hsotg->dev, "invaild argument\n");
+	}
+
+	return count;
+}
+
+DEVICE_ATTR(h_ddma_en, S_IRUGO|S_IWUSR, h_ddma_en_show, h_ddma_en_store);
+
 static void dwc2_conn_id_status_change(struct work_struct *work)
 {
 	struct dwc2_hsotg *hsotg = container_of(work, struct dwc2_hsotg,
@@ -5541,6 +5593,7 @@ int dwc2_hcd_init(struct dwc2_hsotg *hsotg)
 					 &hsotg->nouse_idcon);
 		if (hsotg->nouse_idcon)
 			device_create_file(hsotg->dev, &dev_attr_sel_dr_mode);
+		device_create_file(hsotg->dev, &dev_attr_h_ddma_en);
 	}
 
 	return 0;
