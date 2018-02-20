@@ -477,13 +477,13 @@ static int px0701c_unprepare(struct drm_panel *panel)
 static const struct drm_display_mode default_mode = {
 	.clock = 67161,			/* KHz */
 	.hdisplay = 800,
-	.hsync_start = 800 + 40,	/* hactive + hbackporch */
-	.hsync_end = 800 + 40 + 4,	/* hsync_start + hsyncwidth */
-	.htotal = 800 + 40 + 4 + 40,	/* hsync_end + hfrontporch */
+	.hsync_start = 800 + 18,	/* hactive + hbackporch */
+	.hsync_end = 800 + 18 + 2,	/* hsync_start + hsyncwidth */
+	.htotal = 800 + 18 + 2 + 18,	/* hsync_end + hfrontporch */
 	.vdisplay = 1280,
-	.vsync_start = 1280 + 22,	/* vactive + vbackporch */
-	.vsync_end = 1280 + 22 + 5,	/* vsync_start + vsyncwidth */
-	.vtotal = 1280 + 22 + 5 + 16,	/* vsync_end + vfrontporch */
+	.vsync_start = 1280 + 20,	/* vactive + vbackporch */
+	.vsync_end = 1280 + 20 + 5,	/* vsync_start + vsyncwidth */
+	.vtotal = 1280 + 20 + 5 + 10,	/* vsync_end + vfrontporch */
 	.vrefresh = 60,			/* Hz */
 };
 
