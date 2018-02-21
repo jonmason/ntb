@@ -486,6 +486,7 @@ static int bq25895m_power_supply_get_property(struct power_supply *psy,
 	state = bq->state;
 	mutex_unlock(&bq->lock);
 
+
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
 		/*
@@ -502,9 +503,9 @@ static int bq25895m_power_supply_get_property(struct power_supply *psy,
 			val->intval = POWER_SUPPLY_STATUS_UNKNOWN;
 			*/
 		if (!state.online)
-			val->intval = POWER_SUPPLY_STATUS_CHARGING;
-		else
 			val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
+		else
+			val->intval = POWER_SUPPLY_STATUS_CHARGING;
 		break;
 
 	case POWER_SUPPLY_PROP_MANUFACTURER:
@@ -572,7 +573,6 @@ static int bq25895m_power_supply_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_FULL: /* ???? */
 		val->intval = 100;
 		break;
-
 	default:
 		return -EINVAL;
 	}
