@@ -447,32 +447,36 @@ static int bq25895m_get_voltage(struct power_supply *psy)
 
 static int bq25895m_get_capacity(struct power_supply *psy)
 {
-	int ret, voltage;
+	int vbatt, capacity, voltage;
 	struct bq25895m_device *bq = power_supply_get_drvdata(psy);
 
-	ret = bq25895m_field_read(bq, F_BATV); /* read measured value */
-	if (ret < 0)
-		return ret;
+	/* it need to delay to convert */
+	mdelay(1000);
+
+	vbatt = bq25895m_field_read(bq, F_BATV); /* read measured value */
+	if (vbatt < 0)
+		return vbatt;
 	/* converted_val = 2.304V + ADC_val * 20mV (table 10.3.15) */
-	voltage = 2304000 + ret * 20000;
+	voltage = 2304000 + vbatt * 20000;
 
 	if (voltage>3900000) {
-		ret = 100;
+		capacity = 100;
 	}
 	else if(voltage > 3800000) {
-		ret = 75;
+		capacity = 75;
 	}
 	else if(voltage > 3700000) {
-		ret = 50;
+		capacity = 50;
 	}
 	else if(voltage > 3600000) {
-		ret = 25;
+		capacity = 25;
 	}
 	else {
-		ret = 10;
+		capacity = 10;
 	}
+	dev_err(bq->dev, "vbatt = %d capacity = %d \n", vbatt, capacity);
 
-	return ret;
+	return capacity;
 }
 static int bq25895m_power_supply_get_property(struct power_supply *psy,
 					     enum power_supply_property psp,
