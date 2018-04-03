@@ -1574,14 +1574,12 @@ void nx_display_mode_to_sync(struct drm_display_mode *mode,
 	sync->v_sync_invert =
 		vm.flags & DISPLAY_FLAGS_VSYNC_HIGH ? 1 : 0;
 
-	if (sync->pixel_clock_hz != vm.pixelclock) {
+	if (sync->pixel_clock_hz > 0 &&
+		sync->pixel_clock_hz != vm.pixelclock) {
 		struct nx_control_info *ctrl = &control->ctrl;
 
-		if (sync->pixel_clock_hz > 0) {
-			ctrl->clk_div_lv0 =
-				(sync->pixel_clock_hz * ctrl->clk_div_lv0) / vm.pixelclock;
-		}
-
+		ctrl->clk_div_lv0 =
+			(sync->pixel_clock_hz * ctrl->clk_div_lv0) / vm.pixelclock;
 		sync->pixel_clock_hz = vm.pixelclock;
 	}
 

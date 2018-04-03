@@ -1058,14 +1058,14 @@ static int hdmi_ops_set_mode(struct nx_drm_display *display,
 	else /* (q_range == 1) */
 		preset->color_range = AVI_FULL_RANGE;
 
+	/* set display mode values */
+	hdmi_mode_to_display_mode(&preset->mode, mode);
+	nx_display_mode_to_sync(mode, display);
+
 	/*
 	 * set display control config
 	 */
 	hdmi_dp_set(hdmi, vm);
-
-	/* set display mode values */
-	hdmi_mode_to_display_mode(&preset->mode, mode);
-	nx_display_mode_to_sync(mode, display);
 
 	pr_debug("%s %s done\n", __func__, preset->mode.name);
 	return 0;

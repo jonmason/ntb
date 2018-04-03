@@ -59,6 +59,9 @@ struct hdmi_context {
 	int crtc_pipe;
 	unsigned int possible_crtcs_mask;
 	bool skip_boot_connect;
+#if defined(CONFIG_DRM_PANEL_FRIENDLYELEC)
+	int force;
+#endif
 };
 
 #define ctx_to_display(c)	\
@@ -336,6 +339,7 @@ static int panel_hdmi_bind(struct device *dev,
 		} else if (!panel_is_lcd_connected()) {
 			ctx->skip_boot_connect = false;
 			ctx->plug = true;
+			ctx->force = DRM_FORCE_ON;
 			private->force_detect = true;
 
 			DRM_INFO("HDMI force connected at boot\n");
@@ -479,6 +483,18 @@ static void panel_hdmi_hpd_work(struct work_struct *work)
 	}
 
 	plug = ops->hdmi->is_connected(display);
+
+#if defined(CONFIG_DRM_PANEL_FRIENDLYELEC)
+	if (ctx->force == DRM_FORCE_ON) {
+		if (!plug)
+			return;
+
+		/* clear the initial FORCE_ON state */
+		ctx->force = 0;
+		ctx->plug = false;
+	}
+#endif
+
 	if (plug == ctx->plug)
 		return;
 
