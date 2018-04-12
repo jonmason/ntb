@@ -504,6 +504,7 @@ static struct {
 	{ "HD702",	&hd700,	CTP_GOODIX  },
 	{ "H70",	&hd700,	0 },
 	{ "S70",	&s70,	1 },
+	{ "S701",	&s70,	CTP_GOODIX  },
 	{ "S702",	&s702,	1 },
 	{ "S70D",	&s70d,	0 },
 	{ "S430",	&s430,	CTP_HIMAX   },
