@@ -358,7 +358,7 @@
 					VCC1P0_CORE_PMIC:
 						axp22_dcdc3 { PMIC_PDATA_INIT(14,
 							"axp228_1p0_core",
-							600000, 1860000, 1, 1, 1200000,
+							600000, 1860000, 1, 1, 1100000,
 							1, 0xF) };
 					VCC_DCDC4:
 						axp22_dcdc4 { PMIC_PDATA_INIT(15,

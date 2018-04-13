@@ -631,7 +631,21 @@ static int axp_regulator_dt_parse_pdata(struct platform_device *pdev,
 			dev_err(&pdev->dev,
 				"%s() Error : nx,init_enable\n",
 				__func__);
+
+#elif defined(CONFIG_MACH_NANOPI2)
+		if (!strcmp(regu_initdata->consumer_supplies->supply,
+					"axp228_1p0_core")) {
+			regu_initdata->constraints.initial_state = PM_SUSPEND_STANDBY;
+
+			if (!of_property_read_u32(reg_np, "nx,init_uV", &val))
+				regu_initdata->constraints.state_standby.uV = (int)val;
+
+			if (!of_property_read_u32(reg_np, "nx,init_enable", &val))
+				regu_initdata->constraints.state_standby.enabled =
+					(int)val;
+		}
 #endif
+
 		rdata->platform_data = (void *)regu_initdata;
 		rdata++;
 	}
