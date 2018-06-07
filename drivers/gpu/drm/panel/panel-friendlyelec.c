@@ -35,6 +35,32 @@
 /* -------------------------------------------------------------- */
 #include "panel-friendlyelec.h"
 
+static struct lcd_desc hd900 = {
+	.width = 1280,
+	.height = 800,
+	.p_width = 151,
+	.p_height = 94,
+	.bpp = 24,
+	.freq = 60,
+
+	.timing = {
+		.h_fp = 33,
+		.h_bp = 33,
+		.h_sw = 33,
+		.v_fp =  4,
+		.v_fpe = 1,
+		.v_bp =  4,
+		.v_bpe = 1,
+		.v_sw =  4,
+	},
+	.polarity = {
+		.rise_vclk = 0,
+		.inv_hsync = 0,
+		.inv_vsync = 1,
+		.inv_vden = 0,
+	},
+};
+
 static struct lcd_desc hd700 = {
 	.width = 800,
 	.height = 1280,
@@ -503,6 +529,7 @@ static struct {
 	{ "HD700",	&hd700,	1 },
 	{ "HD702",	&hd700,	CTP_GOODIX  },
 	{ "H70",	&hd700,	0 },
+	{ "HD900",	&hd900,	CTP_ST1572 },
 	{ "S70",	&s70,	1 },
 	{ "S701",	&s70,	CTP_GOODIX  },
 	{ "S702",	&s702,	1 },

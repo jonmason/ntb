@@ -66,9 +66,22 @@ config TOUCHSCREEN_HIMAX
 	  To compile this driver as a module, choose M here: the
 	  module will be called himax_ts.
 
+config TOUCHSCREEN_ST1572
+	tristate "Sitronix 1572 touchscreen support"
+	depends on I2C
+	help
+	  Say Y here if you have a sitronix1572 touchscreen and your
+	  board-specific setup code includes that in its table
+	  of I2C devices.
+
+	  If unsure, say N.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called himax_ts.
+
 choice
 prompt "Select Touch Protocol"
-depends on TOUCHSCREEN_FT5X0X || TOUCHSCREEN_GT9XX || TOUCHSCREEN_IT7260 || TOUCHSCREEN_HIMAX
+depends on TOUCHSCREEN_FT5X0X || TOUCHSCREEN_GT9XX || TOUCHSCREEN_IT7260 || TOUCHSCREEN_HIMAX || TOUCHSCREEN_ST1572
 default TOUCHSCREEN_PROT_MT_SLOT
 
 config TOUCHSCREEN_PROT_MT_SYNC

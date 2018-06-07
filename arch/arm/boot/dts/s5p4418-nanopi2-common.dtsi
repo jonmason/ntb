@@ -485,6 +485,13 @@
 				interrupts = <16 IRQ_TYPE_EDGE_FALLING>;
 			};
 
+			st1572_ts@55 {
+				compatible = "sitronix,st1572";
+				reg = <0x55>;
+				interrupt-parent = <&gpio_c>;
+				interrupts = <16 IRQ_TYPE_EDGE_FALLING>;
+			};
+
 		};
 
 		i2s_0: i2s@c0055000 {
