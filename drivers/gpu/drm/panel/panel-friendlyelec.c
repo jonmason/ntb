@@ -536,6 +536,7 @@ static struct {
 	{ "S70D",	&s70d,	0 },
 	{ "S430",	&s430,	CTP_HIMAX   },
 	{ "K101",	&hd101,	CTP_FT5X06  },
+	{ "U101A",	&hd101,	CTP_GOODIX  },
 
 	{ "H43",	&h43,	0 },
 	{ "P43",	&p43,	0 },
