@@ -92,6 +92,9 @@ static int lvds_ops_prepare(struct nx_drm_display *display)
 #ifdef CONFIG_DRM_CHECK_PRE_INIT
 	if (nx_disp_top_clkgen_get_clock_divisor_enable(clkid)) {
 		pr_debug("%s: already enabled ...\n", __func__);
+
+		/* save the value initialized by bootloader */
+		lvds->reg_ctrl4 = nx_lvds_get_lvdsctrl4(0);
 		return 0;
 	}
 #endif
@@ -179,6 +182,10 @@ static int lvds_ops_prepare(struct nx_drm_display *display)
 		| (0<<1) /* LOCK_CNT, Lock signal selection pin, enable */
 		| (0<<0) /* AUTO_DSK_SEL, auto deskew selection pin, normal */
 		;
+#ifdef CONFIG_DRM_CHECK_PRE_INIT
+	if (lvds->reg_ctrl4)
+		val = lvds->reg_ctrl4;
+#endif
 	nx_lvds_set_lvdsctrl4(0, val);
 
 	val = (0<<24)	/* I_BIST_RESETB */

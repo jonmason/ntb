@@ -314,6 +314,7 @@ struct nx_lvds_dev {
 	int pol_inv_de;		/* de polarity invert for VESA, JEIDA */
 	int pol_inv_ck;		/* input clock(pixel clock) polarity invert */
 	int voltage_level;
+	u32 reg_ctrl4;
 };
 
 struct nx_hdmi_dev {
