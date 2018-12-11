@@ -1731,14 +1731,15 @@ static int register_sensor_subdev(struct nx_clipper *me)
 		return -ENODEV;
 	}
 
-	request_module(I2C_MODULE_PREFIX "%s", info->board_info.type);
 	client = i2c_new_device(adapter, &info->board_info);
 	if (client == NULL || client->dev.driver == NULL) {
+		dev_err(&me->pdev->dev, "i2c_new_device fail\n");
 		ret = -ENODEV;
 		goto error;
 	}
 
 	if (!try_module_get(client->dev.driver->owner)) {
+		dev_err(&me->pdev->dev, "try_module_get fail\n");
 		ret = -ENODEV;
 		goto error;
 	}
@@ -1815,15 +1816,15 @@ static int register_v4l2(struct nx_clipper *me)
 	struct nx_video *video;
 #endif
 
-	ret = nx_v4l2_register_subdev(&me->subdev);
-	if (ret)
-		BUG();
-
 	ret = register_sensor_subdev(me);
 	if (ret) {
 		dev_info(&me->pdev->dev, "can't register sensor subdev\n");
 		return ret;
 	}
+
+	ret = nx_v4l2_register_subdev(&me->subdev);
+	if (ret)
+		BUG();
 
 #ifdef CONFIG_VIDEO_NEXELL_CLIPPER
 	snprintf(dev_name, sizeof(dev_name), "VIDEO CLIPPER%d", me->module);
@@ -1947,6 +1948,9 @@ static int nx_clipper_probe(struct platform_device *pdev)
 	int ret;
 	struct nx_clipper *me;
 	struct device *dev = &pdev->dev;
+	struct i2c_adapter *adapter;
+	struct nx_v4l2_i2c_board_info *info;
+	int timeout = 600; /* 60 second */
 
 	me = devm_kzalloc(dev, sizeof(*me), GFP_KERNEL);
 	if (!me) {
@@ -1964,6 +1968,22 @@ static int nx_clipper_probe(struct platform_device *pdev)
 	if (!nx_vip_is_valid(me->module)) {
 		dev_err(dev, "NX VIP %d is not valid\n", me->module);
 		return -ENODEV;
+	}
+
+	info = &me->sensor_info;
+	adapter = i2c_get_adapter(info->i2c_adapter_id);
+	if (!adapter) {
+		dev_err(&me->pdev->dev, "unable to get sensor i2c adapter\n");
+		return -ENODEV;
+	}
+
+	while (request_module(I2C_MODULE_PREFIX "%s", info->board_info.type)) {
+		msleep(100);
+		timeout--;
+		if (timeout == 0) {
+			dev_err(&me->pdev->dev, "timeout for loading %s module\n", info->board_info.type);
+			return -ENODEV;
+		}
 	}
 
 	init_me(me);
@@ -2021,7 +2041,19 @@ static struct platform_driver nx_clipper_driver = {
 	},
 };
 
-module_platform_driver(nx_clipper_driver);
+static int __init nx_clipper_init(void)
+{
+    return platform_driver_register(&nx_clipper_driver);
+}
+
+static void __exit nx_clipper_exit(void)
+{
+    platform_driver_unregister(&nx_clipper_driver);
+}
+
+late_initcall(nx_clipper_init);
+module_exit(nx_clipper_exit);
+
 
 MODULE_AUTHOR("swpark <swpark@nexell.co.kr>");
 MODULE_DESCRIPTION("Nexell S5Pxx18 series SoC V4L2 capture clipper driver");
