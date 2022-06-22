@@ -128,7 +128,7 @@ RootComplex Device
 ==================
 
 lspci Output at Host side
-------------------------
+-------------------------
 
 Note that the devices listed here correspond to the values populated in
 "Creating pci-epf-ntb Device" section above::
