@@ -1322,7 +1322,8 @@ static int epf_ntb_bind(struct pci_epf *epf)
 
 	epf_set_drvdata(epf, ntb);
 
-	if (pci_register_driver(&vntb_pci_driver)) {
+	ret = pci_register_driver(&vntb_pci_driver);
+	if (ret) {
 		dev_err(dev, "failure register vntb pci driver\n");
 		goto err_bar_alloc;
 	}
