@@ -1191,8 +1191,6 @@ static void drm_fb_helper_fill_pixel_fmt(struct fb_var_screeninfo *var,
 static void __fill_var(struct fb_var_screeninfo *var, struct fb_info *info,
 		       struct drm_framebuffer *fb)
 {
-	int i;
-
 	var->xres_virtual = fb->width;
 	var->yres_virtual = fb->height;
 	var->accel_flags = 0;
@@ -1200,15 +1198,6 @@ static void __fill_var(struct fb_var_screeninfo *var, struct fb_info *info,
 
 	var->height = info->var.height;
 	var->width = info->var.width;
-
-	var->left_margin = var->right_margin = 0;
-	var->upper_margin = var->lower_margin = 0;
-	var->hsync_len = var->vsync_len = 0;
-	var->sync = var->vmode = 0;
-	var->rotate = 0;
-	var->colorspace = 0;
-	for (i = 0; i < 4; i++)
-		var->reserved[i] = 0;
 }
 
 /**
@@ -1702,6 +1691,7 @@ static void drm_fb_helper_fill_var(struct fb_info *info,
 {
 	struct drm_framebuffer *fb = fb_helper->fb;
 	const struct drm_format_info *format = fb->format;
+	int i;
 
 	switch (format->format) {
 	case DRM_FORMAT_C1:
@@ -1719,6 +1709,14 @@ static void drm_fb_helper_fill_var(struct fb_info *info,
 	info->pseudo_palette = fb_helper->pseudo_palette;
 	info->var.xoffset = 0;
 	info->var.yoffset = 0;
+	info->var.left_margin = info->var.right_margin = 0;
+	info->var.upper_margin = info->var.lower_margin = 0;
+	info->var.hsync_len = info->var.vsync_len = 0;
+	info->var.sync = info->var.vmode = 0;
+	info->var.rotate = 0;
+	info->var.colorspace = 0;
+	for (i = 0; i < 4; i++)
+		info->var.reserved[i] = 0;
 	__fill_var(&info->var, info, fb);
 	info->var.activate = FB_ACTIVATE_NOW;
 
